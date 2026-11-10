@@ -1,0 +1,5 @@
+My First GitHub Project
+
+This repository is my first step into the world of programming and development.
+
+I am learning GitHub step by step.
