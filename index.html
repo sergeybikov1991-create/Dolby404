@@ -1,13 +1,52 @@
-
 <!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Мой первый сайт</title>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: Arial, sans-serif;
+      color: white;
+      background: linear-gradient(135deg, #101020, #263b70);
+      text-align: center;
+    }
+
+    .content {
+      padding: 30px;
+    }
+
+    h1 {
+      font-size: 38px;
+      margin-bottom: 15px;
+    }
+
+    p {
+      color: #c5cbe0;
+      font-size: 18px;
+    }
+
+    button {
+      margin-top: 20px;
+      padding: 14px 28px;
+      border: none;
+      border-radius: 30px;
+      background: #5478ff;
+      color: white;
+      font-size: 16px;
+    }
+  </style>
 </head>
 <body>
-  <h1>Добро пожаловать!</h1>
-  <p>Это мой первый сайт, созданный вместе с GitHub.</p>
+  <div class="content">
+    <h1>Добро пожаловать!</h1>
+    <p>Это мой первый сайт. И это только начало!</p>
+    <button>Начать</button>
+  </div>
 </body>
 </html>
