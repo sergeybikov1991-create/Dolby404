@@ -50,7 +50,17 @@
   </div> 
 <script>
 document.querySelector("button").addEventListener("click", function() {
-    document.getElementById("message").textContent = "Ты сделал первый шаг в создании своего сайта!";
+    const button = document.querySelector("button");
+const message = document.getElementById("message");
+
+button.addEventListener("click", function() {
+    if (button.textContent === "Начать") {
+        message.textContent = "Ты сделал первый шаг в создании своего сайта!";
+        button.textContent = "Начать сначала";
+    } else {
+        message.textContent = "Это мой первый сайт. И это только начало!";
+        button.textContent = "Начать";
+    }
 });
 </script>
 </body>
