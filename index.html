@@ -45,12 +45,12 @@
 <body>
   <div class="content">
     <h1>Добро пожаловать!</h1>
-    <p>Это мой первый сайт. И это только начало!</p>
+    <p id="message">Это мой первый сайт. И это только начало!</p>
     <button>Начать</button>
   </div> 
 <script>
 document.querySelector("button").addEventListener("click", function() {
-    alert("Добро пожаловать! Начинаем!");
+    document.getElementById("message").textContent = "Ты сделал первый шаг в создании своего сайта!";
 });
 </script>
 </body>
