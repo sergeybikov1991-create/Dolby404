@@ -55,10 +55,12 @@ const message = document.getElementById("message");
 button.addEventListener("click", function() {
     if (button.textContent === "Начать") {
         message.textContent = "Ты сделал первый шаг в создании своего сайта!";
-        button.textContent = "Начать сначала";
+        document.body.style.background = "#542b70";
+      button.textContent = "Начать сначала";
     } else {
         message.textContent = "Это мой первый сайт. И это только начало!";
-        button.textContent = "Начать";
+        document.body.style.background = "linear-gradient(135deg, #101020, #263b70)";
+      button.textContent = "Начать";
     }
 });
 </script>
