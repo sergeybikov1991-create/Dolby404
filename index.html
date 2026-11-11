@@ -92,14 +92,27 @@ button:active {
 <script>
 const button = document.querySelector("button");
 const message = document.getElementById("message");
+function typeText(element, text) {
+    element.textContent = "";
+    let index = 0;
 
+    function type() {
+        if (index < text.length) {
+            element.textContent += text[index];
+            index++;
+            setTimeout(type, 70);
+        }
+    }
+
+    type();
+}
 button.addEventListener("click", function() {
     if (button.textContent === "Начать") {
-        message.textContent = "Ты сделал первый шаг в создании своего сайта!";
+        typeText(message, "Ты сделал первый шаг в создании своего сайта!");
         document.body.classList.add("purple");
       button.textContent = "Начать сначала";
     } else {
-        message.textContent = "Это мой первый сайт. И это только начало!";
+        typeText(message, "Это мой первый сайт. И это только начало!");
         document.body.classList.remove("purple");
       button.textContent = "Начать";
     }
