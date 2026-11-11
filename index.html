@@ -173,18 +173,38 @@ function typeText(element, text) {
 
     element.textContent = "";
     let index = 0;
+let pulseTimer;
+
+function typeText(element, text, repeat = false) {
+    clearTimeout(typingTimer);
+    clearTimeout(pulseTimer);
+
+    element.classList.remove("animate");
+    element.textContent = "";
+
+    let index = 0;
 
     function type() {
         if (index < text.length) {
             element.textContent += text[index];
             index++;
             typingTimer = setTimeout(type, 70);
+        } else if (repeat) {
+            element.classList.remove("animate");
+            void element.offsetWidth;
+            element.classList.add("animate");
+
+            pulseTimer = setTimeout(function() {
+                element.classList.remove("animate");
+                typeText(element, text, true);
+            }, 2000);
         }
     }
 
     type();
 }
-button.addEventListener("click", function() {
+typeText(message, "Это мой первый сайт. И это только начало!", true);
+  button.addEventListener("click", function() {
     if (button.textContent === "Начать") {
         typeText(message, "Я сделал первый шаг в создании своего сайта!");
         document.body.classList.add("purple");
