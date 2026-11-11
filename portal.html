@@ -181,7 +181,45 @@ button:hover {
 }
     </style>
 </head>
-<body>
+<div id="cracks"></div>
+
+<script>
+const crackLayer = document.getElementById("cracks");
+
+document.addEventListener("pointerdown", function(event) {
+    const x = event.clientX;
+    const y = event.clientY;
+
+    // Световая вспышка в точке удара
+    const flash = document.createElement("span");
+    flash.className = "shatter-flash";
+    flash.style.left = x + "px";
+    flash.style.top = y + "px";
+    crackLayer.appendChild(flash);
+
+    // Основные трещины
+    const rays = 12;
+
+    for (let i = 0; i < rays; i++) {
+        const angle = (Math.PI * 2 * i) / rays
+                    + (Math.random() - 0.5) * 0.35;
+        const length = 100 + Math.random() * 180;
+
+        const crack = document.createElement("span");
+        crack.className = "crack";
+        crack.style.left = x + "px";
+        crack.style.top = y + "px";
+        crack.style.width = length + "px";
+        crack.style.transform = "rotate(" + angle + "rad)";
+        crackLayer.appendChild(crack);
+
+        setTimeout(() => crack.remove(), 2100);
+    }
+
+    setTimeout(() => flash.remove(), 700);
+});
+</script>
+    <body>
 <div class="portal">
     <div class="logo">DOLBY404</div>
     <div class="subtitle">ENTER THE DIGITAL WORLD</div>
