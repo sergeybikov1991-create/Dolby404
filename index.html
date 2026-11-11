@@ -17,7 +17,24 @@
    transition: background 0.6s ease;   
       text-align: center;
     }
+body {
+    isolation: isolate;
+}
 
+body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(135deg, #101020, #542b70);
+    opacity: 0;
+    transition: opacity 1.2s ease;
+    pointer-events: none;
+}
+
+body.purple::before {
+    opacity: 1;
+}
     .content {
       padding: 30px;
     }
@@ -69,11 +86,11 @@ const message = document.getElementById("message");
 button.addEventListener("click", function() {
     if (button.textContent === "Начать") {
         message.textContent = "Ты сделал первый шаг в создании своего сайта!";
-        document.body.style.background = "linear-gradient(135deg, #101020, #542b70)";
+        document.body.classList.add("purple");
       button.textContent = "Начать сначала";
     } else {
         message.textContent = "Это мой первый сайт. И это только начало!";
-        document.body.style.background = "linear-gradient(135deg, #101020, #263b70)";
+        document.body.classList.remove("purple");
       button.textContent = "Начать";
     }
 });
