@@ -202,17 +202,19 @@ let pulseTimer;
     type();
 }
 typeText(message, "Это мой первый сайт. И это только начало!", true);
-  button.addEventListener("click", function() {
+ button.addEventListener("click", function() {
     if (button.textContent === "Начать") {
         typeText(message, "Я сделал первый шаг в создании своего сайта!");
         document.body.classList.add("purple");
-      button.textContent = "Начать сначала";
+        button.textContent = "Продолжить";
+    } else if (button.textContent === "Продолжить") {
+        window.location.href = "portal.html";
     } else {
         typeText(message, "Это мой первый сайт. И это только начало!");
         document.body.classList.remove("purple");
-      button.textContent = "Начать";
+        button.textContent = "Начать";
     }
-});
+}); 
 const rippleLayer = document.getElementById("ripples");
 
 document.addEventListener("pointerdown", function(event) {
