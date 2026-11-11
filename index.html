@@ -167,14 +167,6 @@ button:active {
 const button = document.querySelector("button");
 const message = document.getElementById("message");
 let typingTimer;
-
-function typeText(element, text) {
-    clearTimeout(typingTimer);
-
-    element.textContent = "";
-    let index = 0;
-let pulseTimer;
-
 function typeText(element, text, repeat = false) {
     clearTimeout(typingTimer);
     clearTimeout(pulseTimer);
