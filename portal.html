@@ -4,7 +4,121 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dolby404 — Portal</title>
-<style>
+/* Цифровые вспышки и полосы сбоя */
+.logo {
+    position: relative;
+    animation: glitch 3s infinite, digitalFlash 5s infinite;
+}
+
+@keyframes digitalFlash {
+    0%, 87%, 100% {
+        filter: brightness(1);
+    }
+    89% {
+        filter: brightness(2.5) hue-rotate(90deg);
+    }
+    91% {
+        filter: brightness(0.6) hue-rotate(-90deg);
+    }
+    93% {
+        filter: brightness(1.8);
+    }
+}
+
+.logo::before,
+.logo::after {
+    content: "DOLBY404";
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.logo::before {
+    color: #00eaff;
+    animation: glitchLine 3s infinite;
+}
+
+.logo::after {
+    color: #c000ff;
+    animation: glitchLine 2.5s infinite reverse;
+}
+
+@keyframes glitchLine {
+    0%, 85%, 100% {
+        clip-path: inset(0 0 100% 0);
+        transform: translateX(0);
+    }
+    88% {
+        clip-path: inset(20% 0 65% 0);
+        transform: translateX(-7px);
+    }
+    91% {
+        clip-path: inset(60% 0 20% 0);
+        transform: translateX(7px);
+    }
+    94% {
+        clip-path: inset(40% 0 45% 0);
+        transform: translateX(-3px);
+    }
+}
+
+/* Слой для трещин стекла */
+#cracks {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+.crack {
+    position: absolute;
+    width: 2px;
+    height: 0;
+    transform-origin: top center;
+    background: linear-gradient(
+        to bottom,
+        #ffffff,
+        #8beaff 45%,
+        rgba(100, 190, 255, 0)
+    );
+    box-shadow: 0 0 5px #8beaff, 0 0 12px #168cff;
+    animation: crackGrow 1.8s ease-out forwards;
+}
+
+@keyframes crackGrow {
+    0% {
+        height: 0;
+        opacity: 1;
+    }
+    65% {
+        opacity: 1;
+    }
+    100% {
+        height: var(--crack-length);
+        opacity: 0;
+    }
+}
+
+.shatter-flash {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border: 2px solid white;
+    border-radius: 50%;
+    box-shadow: 0 0 15px #00eaff, 0 0 30px #168cff;
+    transform: translate(-50%, -50%);
+    animation: flashOut 0.6s ease-out forwards;
+}
+
+@keyframes flashOut {
+    to {
+        transform: translate(-50%, -50%) scale(5);
+        opacity: 0;
+    }
+}
+    <style>
 * {
     box-sizing: border-box;
 }
