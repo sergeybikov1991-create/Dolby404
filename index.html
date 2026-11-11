@@ -93,10 +93,49 @@ cursor: pointer;
 
 button:active {
     transform: scale(0.95);
+}#ripples {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.ripple {
+    position: absolute;
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    pointer-events: none;
+    transform: translate(-50%, -50%) scale(0.1);
+    background: radial-gradient(
+        circle,
+        transparent 45%,
+        rgba(190, 220, 255, 0.22) 47%,
+        transparent 49%,
+        rgba(190, 220, 255, 0.16) 52%,
+        transparent 55%,
+        rgba(190, 220, 255, 0.10) 59%,
+        transparent 63%
+    );
+    animation: waterRipple 1.8s ease-out forwards;
+}
+
+@keyframes waterRipple {
+    to {
+        transform: translate(-50%, -50%) scale(5);
+        opacity: 0;
+    }
+}
+
+.content {
+    position: relative;
+    z-index: 1;
 }
   </style>
 </head>
 <body>
+<div id="ripples"></div>
   <div class="content">
     <h1>Добро пожаловать!</h1>
     <p id="message">Это мой первый сайт. И это только начало!</p>
@@ -129,6 +168,21 @@ button.addEventListener("click", function() {
         document.body.classList.remove("purple");
       button.textContent = "Начать";
     }
+});
+const rippleLayer = document.getElementById("ripples");
+
+document.addEventListener("pointerdown", function(event) {
+    const ripple = document.createElement("span");
+
+    ripple.className = "ripple";
+    ripple.style.left = event.clientX + "px";
+    ripple.style.top = event.clientY + "px";
+
+    rippleLayer.appendChild(ripple);
+
+    ripple.addEventListener("animationend", function() {
+        ripple.remove();
+    });
 });
 </script>
 </body>
