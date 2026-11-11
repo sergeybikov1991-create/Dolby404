@@ -145,7 +145,11 @@ button:active {
 <script>
 const button = document.querySelector("button");
 const message = document.getElementById("message");
+let typingTimer;
+
 function typeText(element, text) {
+    clearTimeout(typingTimer);
+
     element.textContent = "";
     let index = 0;
 
@@ -153,7 +157,7 @@ function typeText(element, text) {
         if (index < text.length) {
             element.textContent += text[index];
             index++;
-            setTimeout(type, 70);
+            typingTimer = setTimeout(type, 70);
         }
     }
 
