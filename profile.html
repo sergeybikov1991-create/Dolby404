@@ -578,6 +578,11 @@ function attachEmojiPicker(field){
  field.addEventListener("keydown",e=>{if(e.key==="Escape"&&!panel.hidden){panel.hidden=true;trigger.setAttribute("aria-expanded","false");}});
 }
 
+function renderFormattedText(target,value){
+ const pattern=/\\[c=(#[0-9a-fA-F]{6})\\]([\\s\\S]*?)\\[\\/c\\]/g;let last=0,match;const source=String(value||"");
+ while((match=pattern.exec(source))){if(match.index>last)target.append(document.createTextNode(source.slice(last,match.index)));const span=document.createElement("span");span.style.color=match[1];span.textContent=match[2];target.append(span);last=pattern.lastIndex;}
+ if(last<source.length)target.append(document.createTextNode(source.slice(last)));
+}
 async function initProfileFeed(client){
  const list=$("feed-list"),loading=$("feed-loading"),empty=$("feed-empty"),errorBox=$("feed-error"),sentinel=$("feed-sentinel");
  const seen=new Set();let offset=0,busy=false,done=false;
@@ -658,11 +663,7 @@ $("post-photo-viewer").addEventListener("pointerup",e=>{
 });
 $("post-photo-viewer").addEventListener("pointercancel",()=>{postPhotoSwipeStart=null;});
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closePostPhotoView();});
-function renderFormattedText(target,value){
- const pattern=/\\[c=(#[0-9a-fA-F]{6})\\]([\\s\\S]*?)\\[\\/c\\]/g;let last=0,match;const source=String(value||"");
- while((match=pattern.exec(source))){if(match.index>last)target.append(document.createTextNode(source.slice(last,match.index)));const span=document.createElement("span");span.style.color=match[1];span.textContent=match[2];target.append(span);last=pattern.lastIndex;}
- if(last<source.length)target.append(document.createTextNode(source.slice(last)));
-}
+
 function renderPost(post,profiles){
   const profile=profiles[post.user_id]||{},author=profile.name||profile.display_name||profile.full_name||profile.username||"Пользователь";
   const card=document.createElement("article");card.className="post";
