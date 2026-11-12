@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dolby404 — Portal</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <style>
 * {
     box-sizing: border-box;
@@ -14,7 +15,8 @@
 body {
     margin: 0;
     min-height: 100vh;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -34,8 +36,10 @@ body {
 }
 
 .portal {
+    width: 100%;
+    max-width: 600px;
     text-align: center;
-    padding: 30px;
+    padding: 30px 20px;
 }
 
 .logo {
@@ -53,11 +57,9 @@ body {
     0%, 88%, 100% {
         transform: translate(0);
         opacity: 1;
-        text-shadow: 0 0 15px #168cff, 0 0 40px #5420ff;
     }
     90% {
         transform: translate(-5px, 2px);
-        text-shadow: 5px 0 #00eaff, -5px 0 #a000ff;
     }
     92% {
         transform: translate(5px, -2px);
@@ -119,8 +121,32 @@ body {
     margin: 20px 0 35px;
 }
 
+.auth-box {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    width: 100%;
+    max-width: 350px;
+    margin: 0 auto;
+}
+
+input {
+    width: 100%;
+    padding: 15px;
+    border: 1px solid #63baff;
+    border-radius: 30px;
+    background: rgba(5, 8, 23, 0.8);
+    color: white;
+    font-size: 16px;
+    outline: none;
+}
+
+input::placeholder {
+    color: #b9d9ff;
+}
+
 button {
-    padding: 16px 32px;
+    padding: 16px 25px;
     border: 1px solid #63baff;
     border-radius: 40px;
     color: white;
@@ -132,8 +158,13 @@ button {
 }
 
 button:hover {
-    transform: scale(1.07);
+    transform: scale(1.04);
     box-shadow: 0 0 40px #168cff;
+}
+
+#auth-message {
+    color: #b9d9ff;
+    overflow-wrap: anywhere;
 }
 
 #cracks {
@@ -147,7 +178,8 @@ button:hover {
 .crack {
     position: absolute;
     height: 2px;
-    background: linear-gradient(90deg, transparent, #ffffff, #8beaff, transparent);
+    background: linear-gradient(90deg,
+        transparent, #ffffff, #8beaff, transparent);
     box-shadow: 0 0 5px #8beaff, 0 0 12px #168cff;
     transform-origin: left center;
     animation: crackFade 2s ease-out forwards;
@@ -186,21 +218,32 @@ button:hover {
 <div class="portal">
     <div class="logo">DOLBY404</div>
     <div class="subtitle">ENTER THE DIGITAL WORLD</div>
-    
-<div class="auth-box">
-    <input id="email" type="email" placeholder="Твой Email">
-    <input id="password" type="password" placeholder="Пароль (минимум 8 символов)">
-    <button onclick="registerUser()">Зарегистрироваться</button>
-    <button onclick="loginUser()">Войти</button>
-    <p id="auth-message"></p>
-</div>
 
+    <div class="auth-box">
+        <input id="email" type="email" placeholder="Твой Email">
+        <input id="password" type="password" placeholder="Пароль (минимум 8 символов)">
+
+        <button onclick="alert('Кнопка работает!')">
+            Зарегистрироваться
+        </button>
+
+        <button onclick="loginUser()">
+            Войти
+        </button>
+
+        <p id="auth-message"></p>
+    </div>
 </div>
 
 <script>
 const SUPABASE_URL = "https://qhpobdktlbhdqsnajypr.supabase.co";
 const SUPABASE_KEY = "sb_publishable_tzG1qVsbjaW8YE_LBVN87Q_v0CahKN5";
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const supabase = window.supabase.createClient(
+    SUPABASE_URL,
+    SUPABASE_KEY
+);
+
 async function registerUser() {
     const email = document.getElementById("email").value.trim();
     const password = document.getElementById("password").value;
@@ -245,8 +288,9 @@ async function loginUser() {
 
     message.textContent = "Вход выполнен!";
     window.location.href = "home.html";
-} 
-    const crackLayer = document.getElementById("cracks");
+}
+
+const crackLayer = document.getElementById("cracks");
 
 document.addEventListener("pointerdown", function(event) {
     const x = event.clientX;
