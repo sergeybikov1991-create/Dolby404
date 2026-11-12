@@ -11,7 +11,11 @@ body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 15% 0%,#281
 .topbar{height:68px;display:flex;align-items:center;justify-content:space-between;padding:0 max(calc((100% - 1050px)/2),18px);border-bottom:1px solid var(--line);background:#0b0b13eF;position:sticky;top:0}
 .logo{font-size:24px;font-weight:900;letter-spacing:3px;text-shadow:0 0 18px #7b4bff}
 a{color:#d8c5ff;text-decoration:none}
-.wrap{max-width:900px;margin:32px auto;padding:0 16px}
+.wrap{max-width:900px;margin:24px auto;padding:0 16px}
+.quick-nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0 0 18px}
+.quick-nav a,.quick-nav button{display:flex;align-items:center;justify-content:center;min-height:54px;padding:10px 8px;border:1px solid var(--line);border-radius:13px;background:#151321;color:#e9ddff;text-decoration:none;font-size:13px}
+.quick-status{min-height:18px;margin:0 0 14px;color:#c5a4ff;font-size:12px;text-align:center}
+@media(max-width:380px){.quick-nav{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .back{display:inline-block;margin-bottom:18px;color:#c7b2ed}
 .card{border:1px solid var(--line);border-radius:20px;background:linear-gradient(145deg,#191625,#101019);overflow:hidden}
 .cover{height:150px;background:radial-gradient(ellipse at 70% 20%,#7742b4 0,transparent 45%),linear-gradient(110deg,#201238,#17152a 55%,#101c35)}
@@ -53,9 +57,17 @@ textarea{min-height:90px;resize:vertical}
 </style>
 </head>
 <body>
-<header class="topbar"><div class="logo">DOLBY404</div><a href="home.html">На главную ↗</a></header>
+<header class="topbar"><div class="logo">DOLBY404</div><a href="home.html">Лента публикаций ↗</a></header>
 <main class="wrap">
-<a class="back" href="home.html">← Вернуться в пространство</a>
+<nav class="quick-nav" aria-label="Разделы DOLBY404">
+<a href="home.html">▤ Лента</a>
+<button type="button" data-soon="Фотографии">▧ Фото</button>
+<button type="button" data-soon="Видео">▶ Видео</button>
+<button type="button" data-soon="Музыка">♫ Музыка</button>
+<button type="button" data-soon="Сообщения">✉ Сообщения</button>
+<button type="button" data-soon="Сообщества">◎ Сообщества</button>
+</nav>
+<div class="quick-status" id="quick-status" aria-live="polite"></div>
 <section class="card">
 <div class="cover"></div>
 <div class="profile">
@@ -177,6 +189,7 @@ $("save-button").addEventListener("click",async()=>{
  }catch(e){$("message").textContent="Не удалось сохранить: "+e.message;}
  finally{$("save-button").disabled=false;}
 });
+document.querySelectorAll("[data-soon]").forEach(button=>button.addEventListener("click",()=>{$("quick-status").textContent="Раздел «"+button.dataset.soon+"» подключим следующим этапом.";}));
 $("logout-button").addEventListener("click",async()=>{const r=await client.auth.signOut();if(r.error){alert(r.error.message);return;}location.replace("portal.html");});
 start();
 </script>
