@@ -70,10 +70,27 @@ textarea{min-height:90px;resize:vertical}
 #message{min-height:20px;margin-top:12px;color:#c5a4ff;font-size:13px;overflow-wrap:anywhere}
 .empty{padding:22px;border:1px dashed #55456c;border-radius:14px;color:var(--muted);margin-top:20px;line-height:1.55}
 @media(max-width:600px){.topbar{height:60px;padding:0 14px}.logo{font-size:20px}.wrap{margin:18px auto;padding:0 12px}.cover{height:115px}.profile{padding:0 16px 20px}.avatar{width:88px;height:88px;font-size:34px}.identity{gap:12px;margin-top:-38px}.name h1{font-size:21px}.stats{gap:18px}}
+
+.publish-box{margin:0 0 18px;padding:16px;border:1px solid #55416f;border-radius:16px;background:linear-gradient(145deg,#191625,#100f19)}
+.publish-box>button{width:100%;font-weight:700}
+.publish-editor{margin-top:14px}
+.publish-editor[hidden]{display:none}
+.publish-editor textarea{margin-top:0;min-height:110px}
+.media-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:12px 0}
+.media-option{display:flex;align-items:center;gap:8px;padding:10px;border:1px solid #403653;border-radius:11px;background:#0d0b15;color:#eee5ff;font-size:13px}
+.media-option input{width:auto;margin:0;accent-color:#a66bff}
+.media-file{margin:8px 0 12px;padding:10px;border:1px dashed #55456c;border-radius:10px}
+.media-file[hidden]{display:none}
+.media-file input{margin:0;padding:8px;font-size:12px}
+.post-media{display:grid;gap:10px;margin-top:12px}
+.post-media img,.post-media video{display:block;width:100%;max-height:520px;object-fit:contain;border-radius:12px;background:#090910}
+.post-media audio{width:100%}
+@media(max-width:380px){.media-options{grid-template-columns:1fr}}
+
 </style>
 </head>
 <body>
-<header class="topbar"><div class="logo">DOLBY404</div><a href="#feed">Лента публикаций ↓</a></header>
+<header class="topbar"><div class="logo">DOLBY404</div></header>
 <main class="wrap">
 <nav class="quick-nav" aria-label="Разделы DOLBY404">
 <a href="#feed">▤ Лента</a>
@@ -111,6 +128,27 @@ textarea{min-height:90px;resize:vertical}
 </div>
 </section>
 <section class="feed-section">
+<div class="publish-box">
+<button type="button" class="primary" id="open-publish">＋ Опубликовать</button>
+<div class="publish-editor" id="publish-editor" hidden>
+<h2 class="feed-title">Новая публикация</h2>
+<label for="post-text">Текст публикации</label>
+<textarea id="post-text" maxlength="5000" placeholder="Что хочешь рассказать?"></textarea>
+<div class="hint">Можно выбрать несколько форматов и опубликовать их вместе.</div>
+<div class="media-options">
+<label class="media-option"><input type="checkbox" id="type-photo"> ▧ Фото</label>
+<label class="media-option"><input type="checkbox" id="type-video"> ▶ Видео</label>
+<label class="media-option"><input type="checkbox" id="type-music"> ♫ Музыка</label>
+<label class="media-option"><input type="checkbox" id="type-clip"> ◉ Клип</label>
+</div>
+<div class="media-file" id="file-photo" hidden><label for="post-photo">Выбери фото (можно несколько)</label><input id="post-photo" type="file" accept="image/*" multiple></div>
+<div class="media-file" id="file-video" hidden><label for="post-video">Выбери видео</label><input id="post-video" type="file" accept="video/*"></div>
+<div class="media-file" id="file-music" hidden><label for="post-music">Выбери аудиофайл</label><input id="post-music" type="file" accept="audio/*"></div>
+<div class="media-file" id="file-clip" hidden><label for="post-clip">Выбери видео для клипа</label><input id="post-clip" type="file" accept="video/*"></div>
+<div class="actions"><button class="primary" id="submit-post">Опубликовать</button><button type="button" id="cancel-publish">Отмена</button></div>
+<div id="publish-status" aria-live="polite"></div>
+</div>
+</div>
 <h2 class="feed-title">Лента публикаций</h2>
 <div class="feed" id="feed" aria-live="polite">
 <div id="feed-list"></div>
@@ -188,7 +226,9 @@ async function initProfileFeed(client){
   const identity=document.createElement("div");const name=document.createElement("div");name.className="post-author";name.textContent=author;
   const date=document.createElement("div");date.className="post-date";date.textContent=dateText(post.created_at);identity.append(name,date);head.append(avatar,identity);card.append(head);
   if(post.content){const content=document.createElement("div");content.className="post-content";content.textContent=post.content;card.append(content);}
-  const imageUrl=safeUrl(post.image_url);if(imageUrl){const img=document.createElement("img");img.className="post-image";img.src=imageUrl;img.alt="Фото публикации";img.loading="lazy";img.decoding="async";card.append(img);}
+  const mediaItems=Array.isArray(post.media)?post.media:[];
+  if(mediaItems.length){const mediaBox=document.createElement("div");mediaBox.className="post-media";for(const item of mediaItems){const url=safeUrl(item.url);if(!url)continue;let node;if(item.type==="photo"){node=document.createElement("img");node.alt="Фото публикации";node.loading="lazy";node.decoding="async";}else if(item.type==="music"){node=document.createElement("audio");node.controls=true;}else{node=document.createElement("video");node.controls=true;node.playsInline=true;node.preload="metadata";}node.src=url;mediaBox.appendChild(node);}if(mediaBox.children.length)card.append(mediaBox);}
+  else {const imageUrl=safeUrl(post.image_url);if(imageUrl){const img=document.createElement("img");img.className="post-image";img.src=imageUrl;img.alt="Фото публикации";img.loading="lazy";img.decoding="async";card.append(img);}}
   return card;
  }
  async function loadBatch(){
@@ -260,6 +300,51 @@ $("save-button").addEventListener("click",async()=>{
  }catch(e){$("message").textContent="Не удалось сохранить: "+e.message;}
  finally{$("save-button").disabled=false;}
 });
+
+// Редактор публикаций: текст и несколько типов медиа в одной записи.
+const mediaTypes=["photo","video","music","clip"];
+mediaTypes.forEach(type=>{$("type-"+type).addEventListener("change",()=>{$("file-"+type).hidden=!$("type-"+type).checked;});});
+$("open-publish").addEventListener("click",()=>{$("publish-editor").hidden=false;$("publish-status").textContent="";});
+$("cancel-publish").addEventListener("click",()=>{$("publish-editor").hidden=true;});
+$("submit-post").addEventListener("click",async()=>{
+ const text=$("post-text").value.trim();
+ const selected=mediaTypes.filter(type=>$("type-"+type).checked);
+ const files=[];
+ for(const type of selected){const input=$("post-"+type);for(const file of Array.from(input.files||[]))files.push({type,file});}
+ if(!text&&!files.length){$("publish-status").textContent="Добавь текст или выбери хотя бы один файл.";return;}
+ $("submit-post").disabled=true;$("publish-status").textContent="Подготавливаем публикацию…";
+ try{
+  const media=[];
+  for(let i=0;i<files.length;i++){
+   const {type,file}=files[i];
+   const safeName=file.name.replace(/[^a-zA-Z0-9._-]/g,"_").slice(-80);
+   const path=`${user.id}/${Date.now()}-${i}-${safeName}`;
+   $("publish-status").textContent=`Загружаем файлы: ${i+1} из ${files.length}…`;
+   const uploaded=await client.storage.from("posts").upload(path,file,{upsert:false,contentType:file.type||undefined});
+   if(uploaded.error)throw uploaded.error;
+   const url=client.storage.from("posts").getPublicUrl(path).data.publicUrl;
+   media.push({type,url,name:file.name});
+  }
+  const firstPhoto=media.find(item=>item.type==="photo");
+  const inserted=await client.from("posts").insert({user_id:user.id,content:text||null,image_url:firstPhoto?.url||null,media}).select("*").single();
+  if(inserted.error)throw inserted.error;
+  $("publish-status").textContent="Публикация размещена!";
+  $("post-text").value="";
+  mediaTypes.forEach(type=>{$("type-"+type).checked=false;$("file-"+type).hidden=true;$("post-"+type).value="";});
+  $("publish-editor").hidden=true;
+  $("feed-empty").hidden=true;
+  const card=document.createElement("article");card.className="post";
+  const head=document.createElement("div");head.className="post-head";
+  const av=document.createElement("div");av.className="post-avatar";av.textContent=(($("display-name").textContent||"П")[0]).toUpperCase();
+  const ident=document.createElement("div");const author=document.createElement("div");author.className="post-author";author.textContent=$("display-name").textContent;
+  const date=document.createElement("div");date.className="post-date";date.textContent="только что";ident.append(author,date);head.append(av,ident);card.append(head);
+  if(text){const body=document.createElement("div");body.className="post-content";body.textContent=text;card.append(body);}
+  if(media.length){const box=document.createElement("div");box.className="post-media";media.forEach(item=>{const node=document.createElement(item.type==="photo"?"img":item.type==="music"?"audio":"video");if(node.tagName==="IMG")node.alt="Фото публикации";else{node.controls=true;if(node.tagName==="VIDEO")node.playsInline=true;}node.src=item.url;box.append(node);});card.append(box);}
+  $("feed-list").prepend(card);$("posts-count").textContent=String((Number($("posts-count").textContent)||0)+1);
+ }catch(e){$("publish-status").textContent="Не удалось опубликовать: "+e.message;}
+ finally{$("submit-post").disabled=false;}
+});
+
 document.querySelectorAll("[data-soon]").forEach(button=>button.addEventListener("click",()=>{$("quick-status").textContent="Раздел «"+button.dataset.soon+"» подключим следующим этапом.";}));
 $("logout-button").addEventListener("click",async()=>{const r=await client.auth.signOut();if(r.error){alert(r.error.message);return;}location.replace("portal.html");});
 start();
