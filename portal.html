@@ -678,7 +678,14 @@ function createGlass(event) {
     }, 2300);
 }
 
-document.addEventListener("pointerdown", createGlass);
+document.addEventListener("pointerdown", (event) => {
+    const field = event.target.closest("input");
+
+    if (!field) return;
+    if (field.value.trim() !== "") return;
+
+    createGlass(event);
+});
 
 </script>
 
