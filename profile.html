@@ -329,7 +329,7 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 .publish-editor.composer-fullscreen[hidden]{display:none}
 .composer-top{display:flex;align-items:center;justify-content:flex-start;gap:12px;flex:0 0 42px}
 .composer-top strong{font-size:16px;letter-spacing:.03em}
-.composer-back{width:40px;height:40px;min-width:40px;padding:0;border:1px solid #68458a;border-radius:13px;background:#1b1427;color:#fff;font-size:26px;line-height:1}
+.composer-back{display:none;width:40px;height:40px;min-width:40px;padding:0;border:1px solid #68458a;border-radius:13px;background:#1b1427;color:#fff;font-size:26px;line-height:1}.composer-fullscreen .composer-back{display:block}
 .composer-top-spacer{flex:1}
 .publish-editor.composer-fullscreen>label{display:none}
 .publish-editor.composer-fullscreen>#post-text{display:block;flex:1 1 0;min-height:0!important;height:auto!important;width:100%;box-sizing:border-box;resize:none;margin:0;padding:16px;border-radius:17px;font-size:17px;line-height:1.65;background:#100e19;border:1px solid #65458a;color:#fff;outline:none}
@@ -550,7 +550,7 @@ attachEmojiPicker($("post-text"));attachEmojiPicker($("bio-input"));
  if(host&&host.classList.contains("emoji-picker"))dock.append(host);
  $("composer-back").addEventListener("click",()=>{editor.classList.remove("composer-fullscreen");field.blur();const panel=host&&host.querySelector(".emoji-picker-panel");if(panel)panel.hidden=true;});
  field.addEventListener("focus",()=>{if(!editor.hidden){editor.classList.add("composer-fullscreen");const panel=host&&host.querySelector(".emoji-picker-panel");if(panel)panel.hidden=true;const trigger=host&&host.querySelector(".emoji-picker-trigger");if(trigger)trigger.setAttribute("aria-expanded","false");}});
-})(););
+})();
 $("open-profile-editor").addEventListener("click",()=>{closeSettings();$("editor").hidden=false;$("message").textContent="";$("editor").scrollIntoView({behavior:"smooth",block:"center"});});
 
 
@@ -935,7 +935,7 @@ $("save-button").addEventListener("click",async()=>{
 });
 
 // Редактор публикаций: типы файлов определяются автоматически.
-$("open-publish").addEventListener("click",()=>{$("publish-editor").hidden=false;$("publish-editor").classList.add("composer-fullscreen");$("publish-status").textContent="";$("post-text").focus();});
+$("open-publish").addEventListener("click",()=>{$("publish-editor").hidden=false;$("publish-editor").classList.remove("composer-fullscreen");$("publish-status").textContent="";});
 $("cancel-publish").addEventListener("click",()=>{$("publish-editor").hidden=true;$("publish-editor").classList.remove("composer-fullscreen");});
 $("submit-post").addEventListener("click",async()=>{
  const text=$("post-text").value.trim();
