@@ -816,7 +816,7 @@ document.querySelectorAll("[data-soon]").forEach(button=>button.addEventListener
  edge.addEventListener("pointerdown",e=>down(e,true));d.addEventListener("pointerdown",e=>down(e,false));
  [edge,d].forEach(el=>{el.addEventListener("pointermove",move);el.addEventListener("pointerup",up);el.addEventListener("pointercancel",()=>{g=null;toggle(opened);});});
  btn.addEventListener("click",()=>toggle(!opened));$("drawer-close").addEventListener("click",()=>toggle(false));shade.addEventListener("click",()=>toggle(false));document.addEventListener("keydown",e=>{if(e.key==="Escape"&&opened)toggle(false);});
- function toggleDrawerFromSettings(){const drawer=$("side-drawer");drawer.setAttribute("aria-hidden","true");}
+ function toggleDrawerFromSettings(){$("drawer-menu-button").click();}
  d.addEventListener("click",e=>{const recent=e.target.closest("[data-history-action]");if(recent){toggle(false);openNavigationDestination(recent.dataset.historyAction);return;}const a=e.target.closest("[data-drawer-action],[data-drawer-soon]");if(!a)return;toggle(false);const action=a.dataset.drawerAction||({Друзья:"friends",Сообщения:"messages",Сообщества:"communities",Музыка:"music",Видео:"video",Фото:"photos",Закладки:"bookmarks"}[a.dataset.drawerSoon]||"");openNavigationDestination(action,a.dataset.drawerSoon,a.querySelector(".side-drawer-icon")?.textContent);});
  toggle(false);
 })();
