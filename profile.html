@@ -172,7 +172,14 @@ textarea{min-height:90px;resize:vertical}
 .drawer-menu-button.is-hidden{opacity:0;transform:scale(.78);visibility:hidden;pointer-events:none}
 .sound-signal{display:flex;align-items:center;justify-content:center;gap:3px;width:22px;height:22px}
 .sound-signal i{display:block;width:3px;border-radius:3px;background:linear-gradient(180deg,#e9d5ff,#a66bff);box-shadow:0 0 7px #b879ff99}
-.sound-signal i:nth-child(1){height:8px}.sound-signal i:nth-child(2){height:16px}.sound-signal i:nth-child(3){height:21px}.sound-signal i:nth-child(4){height:12px}.sound-signal i:nth-child(5){height:6px}
+.sound-signal i{transform-origin:center;animation:signalEqualizer .78s ease-in-out infinite alternate}
+.sound-signal i:nth-child(1){height:8px;animation-delay:-.62s}
+.sound-signal i:nth-child(2){height:16px;animation-delay:-.38s}
+.sound-signal i:nth-child(3){height:21px;animation-delay:-.12s}
+.sound-signal i:nth-child(4){height:12px;animation-delay:-.5s}
+.sound-signal i:nth-child(5){height:6px;animation-delay:-.27s}
+@keyframes signalEqualizer{0%{transform:scaleY(.28);opacity:.68}100%{transform:scaleY(1);opacity:1}}
+@media(prefers-reduced-motion:reduce){.sound-signal i{animation:none}}
 .drawer-edge{position:fixed;z-index:81;left:0;top:0;bottom:0;width:22px;touch-action:pan-y}
 .drawer-backdrop{position:fixed;z-index:80;inset:0;background:#030209;opacity:0;pointer-events:none;transition:opacity .18s}
 .drawer-backdrop.visible{pointer-events:auto}
