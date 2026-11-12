@@ -1,174 +1,126 @@
-
 <!DOCTYPE html>
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DOLBY404 — Social</title>
+<title>DOLBY404 — Главная</title>
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-:root{--bg:#09090e;--panel:#11111a;--line:#252533;--purple:#9b5cff;--text:#f5f3fa;--muted:#88889b}
-body{background:var(--bg);color:var(--text);font-family:Arial,sans-serif}
-button{cursor:pointer;font:inherit;color:inherit;border:0;background:none}
-.topbar{height:68px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 max(calc((100% - 1100px)/2),20px);position:sticky;top:0;background:#09090eee;backdrop-filter:blur(15px);z-index:10}
-.logo{font-size:23px;font-weight:900;letter-spacing:2px;background:linear-gradient(90deg,#fff,#a66aff);background-clip:text;color:transparent}
-.top-actions{display:flex;gap:20px;font-size:22px}
-.wrap{max-width:1000px;margin:28px auto;padding:0 18px;display:grid;grid-template-columns:minmax(0,620px) 280px;gap:45px}
-.stories{display:flex;gap:17px;overflow-x:auto;padding:12px 5px 22px;scrollbar-width:none}
-.story{min-width:66px;text-align:center;font-size:11px;color:var(--muted)}
-.story-ring{width:62px;height:62px;border-radius:50%;padding:3px;background:linear-gradient(135deg,#f4a0ff,#793cff,#ff6eae);margin:0 auto 7px}
-.story-ring span{display:grid;place-items:center;width:100%;height:100%;border-radius:50%;background:#191522;border:2px solid var(--bg);font-size:23px}
-.story.add .story-ring{background:#292438}
-.feed{display:flex;flex-direction:column;gap:25px}
-.post{background:var(--panel);border:1px solid var(--line);border-radius:15px;overflow:hidden}
-.post-head{display:flex;align-items:center;gap:11px;padding:14px}
-.avatar{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#a65cff,#38205f);font-size:19px}
-.user{font-size:13px;font-weight:bold}
-.handle{font-size:11px;color:var(--muted);margin-top:4px}
-.more{margin-left:auto;font-size:21px}
-.art{height:330px;display:grid;place-items:center;text-align:center;background:radial-gradient(ellipse at 50% 45%,#54238c 0%,#211232 35%,#101019 75%);position:relative;overflow:hidden}
-.art:before,.art:after{content:"";position:absolute;width:230px;height:230px;border:1px solid #bd85ff55;border-radius:50%;box-shadow:0 0 40px #a34cff33}
-.art:after{width:300px;height:300px}
-.art.alt{background:radial-gradient(ellipse at 50% 45%,#254f72,#111a2c 50%,#101019)}
-.art.gold{background:radial-gradient(ellipse at 50% 45%,#75442c,#251725 50%,#101019)}
-.art-word{z-index:1;font-size:clamp(32px,8vw,58px);font-weight:900;letter-spacing:5px;text-shadow:0 0 30px #c58aff}
-.art-sub{z-index:1;color:#d9c1ff;letter-spacing:4px;font-size:10px;margin-top:10px}
-.post-actions{display:flex;align-items:center;gap:17px;padding:13px 15px 7px;font-size:23px}
-.post-actions button{transition:transform .15s}
-.post-actions button:active{transform:scale(1.25)}
-.post-actions .save{margin-left:auto}
-.liked{color:#ff4e91}
-.likes,.caption,.comments,.date{padding:5px 15px;font-size:13px}
-.likes{font-weight:bold}
-.caption{line-height:1.5}
-.caption b{margin-right:5px}
-.comments{color:var(--muted)}
-.date{font-size:10px;color:var(--muted);padding-bottom:14px}
-.side{padding-top:14px;position:sticky;top:95px;height:max-content}
-.myprofile,.suggestion{display:flex;align-items:center;gap:12px;margin-bottom:25px}
-.myprofile .avatar{width:48px;height:48px}
-.switch{margin-left:auto;color:#ad7aff;font-size:11px;font-weight:bold}
-.side-title{font-size:12px;color:var(--muted);font-weight:bold;margin:25px 0 18px}
-.suggestion .avatar{width:35px;height:35px}
-.suggestion .switch{font-size:10px}
-.footer{font-size:10px;line-height:1.9;color:#626274}
-.bottom{display:none}
-@media(max-width:760px){
- .topbar{height:58px;padding:0 17px}
- .wrap{display:block;margin:8px auto;padding:0;max-width:600px}
- .side{display:none}
- .stories{padding:13px 13px 18px;gap:14px}
- .post{border-radius:0;border-left:0;border-right:0}
- .feed{gap:15px}
- .art{height: min(92vw,390px)}
- .bottom{position:fixed;bottom:0;left:0;right:0;height:59px;background:#101019f5;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-around;z-index:20;font-size:23px}
- body{padding-bottom:65px}
-}
+*{box-sizing:border-box}
+:root{--bg:#090910;--panel:#12121d;--line:#29283a;--purple:#a66bff;--muted:#9291a8;--text:#f7f4ff}
+body{margin:0;background:radial-gradient(ellipse at 15% 0%,#20123b 0,transparent 38%),var(--bg);color:var(--text);font-family:Arial,sans-serif;min-height:100vh}
+button,a{font:inherit}
+button{cursor:pointer}
+.topbar{height:68px;position:sticky;top:0;z-index:5;background:#0b0b13ed;backdrop-filter:blur(14px);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 max(calc((100% - 1120px)/2),20px)}
+.logo{font-size:25px;font-weight:900;letter-spacing:3px;color:#fff;text-shadow:0 0 18px #7b4bff}
+.account{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:13px}
+.logout{border:1px solid #554078;background:#211632;color:#e7d8ff;border-radius:20px;padding:9px 14px}
+.layout{max-width:1120px;margin:34px auto;padding:0 20px;display:grid;grid-template-columns:220px minmax(0,1fr);gap:26px}
+.sidebar,.panel,.welcome{background:linear-gradient(145deg,#171522,#101019);border:1px solid var(--line);border-radius:18px}
+.sidebar{padding:16px;height:max-content;position:sticky;top:88px}
+.nav{display:flex;flex-direction:column;gap:7px}
+.nav a{color:#c9c4d7;text-decoration:none;padding:12px;border-radius:11px;font-size:14px}
+.nav a.active,.nav a:hover{background:#302044;color:#fff}
+.main{min-width:0}
+.welcome{padding:25px;margin-bottom:20px;background:radial-gradient(ellipse at 85% 15%,#4c2674 0,transparent 45%),linear-gradient(120deg,#191629,#11111b)}
+.eyebrow{color:#c4a2ff;text-transform:uppercase;letter-spacing:3px;font-size:10px}
+h1{font-size:clamp(25px,5vw,36px);margin:12px 0 8px}
+.welcome p{color:#b6b0c6;line-height:1.55;margin:0}
+.section-title{font-size:17px;margin:26px 0 13px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:18px;min-height:132px}
+.tile-icon{font-size:25px;margin-bottom:12px}
+.tile h3{font-size:15px;margin:0 0 7px}
+.tile p{font-size:12px;color:var(--muted);line-height:1.45;margin:0}
+.feed-empty{padding:28px;text-align:center;background:var(--panel);border:1px dashed #45405a;border-radius:15px;color:var(--muted);line-height:1.6}
+.feed-empty strong{display:block;color:#eee5ff;margin-bottom:7px}
+#status{font-size:13px;color:#bda1ff;margin-top:16px;min-height:18px}
+@media(max-width:700px){.topbar{height:60px;padding:0 14px}.logo{font-size:20px}.account{gap:7px;font-size:11px}.layout{display:block;margin:18px auto;padding:0 12px}.sidebar{position:static;margin-bottom:15px;padding:8px}.nav{flex-direction:row;overflow-x:auto}.nav a{white-space:nowrap;padding:10px;font-size:12px}.grid{grid-template-columns:1fr}.welcome{padding:20px}.logout{padding:8px 10px}}
 </style>
 </head>
 <body>
 <header class="topbar">
- <div class="logo">DOLBY404</div>
- <div class="top-actions">
-  <button aria-label="Поиск" onclick="alert('Поиск скоро появится')">⌕</button>
-  <button aria-label="Сообщения" onclick="alert('Сообщения скоро появятся')">✉</button>
- </div>
+  <div class="logo">DOLBY404</div>
+  <div class="account"><span id="user-email">Проверяем аккаунт…</span><button class="logout" id="logout-button" hidden>Выйти</button></div>
 </header>
-
-<div class="wrap">
-<main>
- <section class="stories">
-  <div class="story add"><div class="story-ring"><span>＋</span></div>Ваша история</div>
-  <div class="story"><div class="story-ring"><span>🎧</span></div>soundwave</div>
-  <div class="story"><div class="story-ring"><span>🌙</span></div>midnight</div>
-  <div class="story"><div class="story-ring"><span>🦋</span></div>butterfly</div>
-  <div class="story"><div class="story-ring"><span>⚡</span></div>neon</div>
-  <div class="story"><div class="story-ring"><span>🎨</span></div>artspace</div>
- </section>
-
- <section class="feed">
-  <article class="post">
-   <div class="post-head">
-    <div class="avatar">🌌</div>
-    <div><div class="user">dolby.creator</div><div class="handle">2 часа назад</div></div>
-    <button class="more">···</button>
-   </div>
-   <div class="art"><div><div class="art-word">BEYOND</div><div class="art-sub">THINK DIFFERENT · LIVE DIFFERENT</div></div></div>
-   <div class="post-actions">
-    <button class="like" onclick="toggleLike(this)">♡</button>
-    <button onclick="alert('Комментарии скоро появятся')">♧</button>
-    <button onclick="alert('Поделиться скоро появится')">➤</button>
-    <button class="save" onclick="this.classList.toggle('liked')">♧</button>
-   </div>
-   <div class="likes">1 284 отметки «Нравится»</div>
-   <div class="caption"><b>dolby.creator</b> Не вписывайся в рамки. Создавай собственную реальность. ✨</div>
-   <div class="comments">Посмотреть все 48 комментариев</div>
-   <div class="date">ПОСТ · DOLBY404</div>
-  </article>
-
-  <article class="post">
-   <div class="post-head">
-    <div class="avatar">🎵</div>
-    <div><div class="user">soundwave</div><div class="handle">5 часов назад</div></div>
-    <button class="more">···</button>
-   </div>
-   <div class="art alt"><div><div class="art-word">FEEL IT</div><div class="art-sub">MUSIC IS ANOTHER LANGUAGE</div></div></div>
-   <div class="post-actions">
-    <button class="like" onclick="toggleLike(this)">♡</button>
-    <button onclick="alert('Комментарии скоро появятся')">♧</button>
-    <button onclick="alert('Поделиться скоро появится')">➤</button>
-    <button class="save" onclick="this.classList.toggle('liked')">♧</button>
-   </div>
-   <div class="likes">936 отметок «Нравится»</div>
-   <div class="caption"><b>soundwave</b> Иногда музыка говорит то, на что не хватает слов. 🎧</div>
-   <div class="comments">Посмотреть все 21 комментарий</div>
-   <div class="date">ПОСТ · DOLBY404</div>
-  </article>
-
-  <article class="post">
-   <div class="post-head">
-    <div class="avatar">🔥</div>
-    <div><div class="user">neon.mind</div><div class="handle">Вчера</div></div>
-    <button class="more">···</button>
-   </div>
-   <div class="art gold"><div><div class="art-word">NO LIMITS</div><div class="art-sub">YOUR WORLD · YOUR RULES</div></div></div>
-   <div class="post-actions">
-    <button class="like" onclick="toggleLike(this)">♡</button>
-    <button onclick="alert('Комментарии скоро появятся')">♧</button>
-    <button onclick="alert('Поделиться скоро появится')">➤</button>
-    <button class="save" onclick="this.classList.toggle('liked')">♧</button>
-   </div>
-   <div class="likes">572 отметки «Нравится»</div>
-   <div class="caption"><b>neon.mind</b> Не жди подходящего момента. Создай его сам. 🚀</div>
-   <div class="comments">Посмотреть все 12 комментариев</div>
-   <div class="date">ПОСТ · DOLBY404</div>
-  </article>
- </section>
-</main>
-
-<aside class="side">
- <div class="myprofile">
-  <div class="avatar">👤</div>
-  <div><div class="user">Ваш профиль</div><div class="handle">Добро пожаловать!</div></div>
-  <button class="switch">Профиль</button>
- </div>
- <div class="side-title">ВОЗМОЖНО, ВАМ ПОНРАВИТСЯ</div>
- <div class="suggestion"><div class="avatar">🎧</div><div><div class="user">soundwave</div><div class="handle">Музыка и творчество</div></div><button class="switch">Подписаться</button></div>
- <div class="suggestion"><div class="avatar">🌙</div><div><div class="user">midnight</div><div class="handle">Ночной мир</div></div><button class="switch">Подписаться</button></div>
- <div class="suggestion"><div class="avatar">⚡</div><div><div class="user">neon.mind</div><div class="handle">Вдохновение</div></div><button class="switch">Подписаться</button></div>
- <div class="footer">О Dolby404 · Помощь · Правила · Конфиденциальность<br>© 2026 DOLBY404</div>
-</aside>
+<div class="layout" id="app" hidden>
+  <aside class="sidebar">
+    <nav class="nav">
+      <a class="active" href="home.html">⌂ Главная</a>
+      <a href="#messages" data-soon="Сообщения">✉ Сообщения</a>
+      <a href="#communities" data-soon="Паблики">◎ Паблики</a>
+      <a href="#saved" data-soon="Сохранённое">♡ Сохранённое</a>
+      <a href="#profile" data-soon="Профиль">◉ Профиль</a>
+    </nav>
+  </aside>
+  <main class="main">
+    <section class="welcome">
+      <div class="eyebrow">ТВОЁ ЦИФРОВОЕ ПРОСТРАНСТВО</div>
+      <h1>Добро пожаловать в DOLBY404</h1>
+      <p>Здесь будут твои публикации, общение, музыка, фото, видео и сообщества. Мы постепенно превращаем каждый раздел в настоящую работающую функцию.</p>
+      <div id="status"></div>
+    </section>
+    <h2 class="section-title">Твоё пространство</h2>
+    <section class="grid">
+      <article class="tile"><div class="tile-icon">✉️</div><h3>Сообщения</h3><p>Личные переписки и обмен файлами — следующий этап разработки.</p></article>
+      <article class="tile"><div class="tile-icon">🎥</div><h3>Аудио и видеозвонки</h3><p>Подготовим звонки между пользователями после запуска личных сообщений.</p></article>
+      <article class="tile"><div class="tile-icon">🎵</div><h3>Медиатека</h3><p>Сохранённые фотографии, видео и музыкальные материалы.</p></article>
+      <article class="tile"><div class="tile-icon">🌐</div><h3>Паблики</h3><p>Публичные сообщества, подписчики, публикации и обсуждения.</p></article>
+    </section>
+    <h2 class="section-title">Лента публикаций</h2>
+    <section class="feed-empty"><strong>Твоя лента пока чистая</strong>Когда подключим публикации к базе данных, здесь появятся настоящие записи пользователей.</section>
+  </main>
 </div>
-
-<nav class="bottom">
- <button>⌂</button><button>⌕</button><button onclick="alert('Создание публикаций скоро появится')">＋</button><button>♡</button><button>👤</button>
-</nav>
-
+<div id="loading" style="max-width:560px;margin:18vh auto;padding:25px;text-align:center;color:#c9b7ee">Подключаем DOLBY404…</div>
 <script>
-function toggleLike(button){
- button.classList.toggle('liked');
- button.textContent=button.classList.contains('liked')?'♥':'♡';
+const SUPABASE_URL = "https://qhpobdktlbhdqsnajypr.supabase.co";
+const SUPABASE_KEY = "sb_publishable_tzG1qVsbjaW8YE_LBVN87Q_v0CahKN5";
+const loading = document.getElementById("loading");
+const app = document.getElementById("app");
+const status = document.getElementById("status");
+function loadSupabase(){
+  return new Promise((resolve,reject)=>{
+    if(window.supabase?.createClient){resolve();return;}
+    const script=document.createElement("script");
+    script.src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
+    script.onload=()=>window.supabase?.createClient?resolve():reject(new Error("Supabase не загрузился"));
+    script.onerror=()=>reject(new Error("Не удалось загрузить библиотеку Supabase"));
+    document.head.appendChild(script);
+  });
 }
+async function start(){
+  try{
+    await loadSupabase();
+    const client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+    const {data,error}=await client.auth.getSession();
+    if(error) throw error;
+    if(!data.session){
+      window.location.replace("portal.html");
+      return;
+    }
+    const user=data.session.user;
+    document.getElementById("user-email").textContent=user.email||"Мой аккаунт";
+    document.getElementById("logout-button").hidden=false;
+    loading.hidden=true;
+    app.hidden=false;
+    status.textContent="Аккаунт подключён. Ты вошёл в систему.";
+    document.getElementById("logout-button").addEventListener("click",async()=>{
+      const button=document.getElementById("logout-button");
+      button.disabled=true;
+      const {error}=await client.auth.signOut();
+      if(error){status.textContent="Не удалось выйти: "+error.message;button.disabled=false;return;}
+      window.location.replace("portal.html");
+    });
+    document.querySelectorAll("[data-soon]").forEach(link=>{
+      link.addEventListener("click",event=>{
+        event.preventDefault();
+        status.textContent="Раздел «"+link.dataset.soon+"» добавим следующим этапом.";
+      });
+    });
+  }catch(error){
+    loading.textContent="Не удалось подключить DOLBY404: "+error.message;
+  }
+}
+start();
 </script>
 </body>
 </html>
