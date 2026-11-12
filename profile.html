@@ -579,7 +579,7 @@ function attachEmojiPicker(field){
 }
 
 function renderFormattedText(target,value){
- const pattern=/\\[c=(#[0-9a-fA-F]{6})\\]([\\s\\S]*?)\\[\\/c\\]/g;let last=0,match;const source=String(value||"");
+ const pattern=/\[c=(#[0-9a-fA-F]{6})\]([\s\S]*?)\[\/c\]/g;let last=0,match;const source=String(value||"");
  while((match=pattern.exec(source))){if(match.index>last)target.append(document.createTextNode(source.slice(last,match.index)));const span=document.createElement("span");span.style.color=match[1];span.textContent=match[2];target.append(span);last=pattern.lastIndex;}
  if(last<source.length)target.append(document.createTextNode(source.slice(last)));
 }
