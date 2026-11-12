@@ -301,7 +301,7 @@ async function initProfileFeed(client){
   if(avatarUrl){const img=document.createElement("img");img.src=avatarUrl;img.alt="";img.loading="lazy";avatar.appendChild(img);}else avatar.textContent=(String(author).trim()[0]||"◉").toUpperCase();
   const identity=document.createElement("div");const name=document.createElement("div");name.className="post-author";name.textContent=author;
   const date=document.createElement("div");date.className="post-date";date.textContent=dateText(post.created_at);identity.append(name,date);head.append(avatar,identity);
-  if(post.user_id===user.id){const tools=document.createElement("div");tools.className="post-owner-tools";const edit=document.createElement("button");edit.type="button";edit.className="post-edit-button";edit.textContent="✎ Изменить";edit.addEventListener("click",()=>startEditPost(post,card));tools.append(edit);head.append(tools);}
+  if(post.user_id===user.id){const tools=document.createElement("div");tools.className="post-owner-tools";const edit=document.createElement("button");edit.type="button";edit.className="post-edit-button";edit.textContent="✎";edit.addEventListener("click",()=>startEditPost(post,card));tools.append(edit);head.append(tools);}
   card.append(head);
   if(post.content){const content=document.createElement("div");content.className="post-content";content.textContent=post.content;card.append(content);}
   const mediaItems=Array.isArray(post.media)&&post.media.length?post.media:(post.image_url?[{type:"photo",url:post.image_url,name:"Фото"}]:[]);
