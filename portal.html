@@ -120,6 +120,31 @@ body {
     margin: 20px 0 35px;
 }
 
+.music-note {
+    margin: 24px auto 0;
+    color: #9299a8;
+    font-size: 12px;
+    letter-spacing: 1.5px;
+    text-align: center;
+}
+
+.music-player {
+    width: 200px;
+    height: 200px;
+    margin: 10px auto 0;
+    overflow: hidden;
+    border: 1px solid rgba(150, 160, 180, 0.25);
+    border-radius: 14px;
+    background: rgba(5, 8, 23, 0.55);
+}
+
+.music-player iframe {
+    display: block;
+    width: 200px;
+    height: 200px;
+    border: 0;
+}
+
 .auth-box {
     display: flex;
     flex-direction: column;
@@ -261,6 +286,19 @@ button:disabled {
         </button>
 
         <p id="auth-message">Подключаем систему...</p>
+    </div>
+
+    <div class="music-note">
+        ♪ DOLBY404 — Sound of Home
+        <div class="music-player">
+            <iframe
+                src="https://www.youtube.com/embed/OFCwnhmdRZw?autoplay=1&playsinline=1&loop=1&playlist=OFCwnhmdRZw&controls=1"
+                title="Eva Poklonskaya — Home"
+                allow="autoplay; encrypted-media; picture-in-picture"
+                referrerpolicy="strict-origin-when-cross-origin"
+                allowfullscreen>
+            </iframe>
+        </div>
     </div>
 </div>
 
