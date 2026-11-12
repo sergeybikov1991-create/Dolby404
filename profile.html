@@ -596,6 +596,7 @@ function attachEmojiPicker(field){
  panel.append(tabs,grid);host.append(trigger,panel);field.insertAdjacentElement("afterend",host);
  field.addEventListener("click",()=>{field.dataset.emojiStart=String(field.selectionStart??field.value.length);field.dataset.emojiEnd=String(field.selectionEnd??field.selectionStart??field.value.length);panel.hidden=true;trigger.setAttribute("aria-expanded","false");});
  field.addEventListener("keyup",()=>{field.dataset.emojiStart=String(field.selectionStart??field.value.length);field.dataset.emojiEnd=String(field.selectionEnd??field.value.length);});
+ field.addEventListener("input",()=>{field.dataset.emojiStart=String(field.selectionStart??field.value.length);field.dataset.emojiEnd=String(field.selectionEnd??field.value.length);});
  field.addEventListener("select",()=>{field.dataset.emojiStart=String(field.selectionStart??field.value.length);field.dataset.emojiEnd=String(field.selectionEnd??field.value.length);});
  trigger.addEventListener("click",e=>{e.preventDefault();field.dataset.emojiStart=String(field.selectionStart??field.dataset.emojiStart??field.value.length);field.dataset.emojiEnd=String(field.selectionEnd??field.dataset.emojiEnd??field.value.length);field.blur();panel.hidden=!panel.hidden;trigger.setAttribute("aria-expanded",String(!panel.hidden));if(!panel.hidden)renderCategory(active);});
 
