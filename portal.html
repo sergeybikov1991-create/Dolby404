@@ -186,13 +186,66 @@ button:hover {
 <div class="portal">
     <div class="logo">DOLBY404</div>
     <div class="subtitle">ENTER THE DIGITAL WORLD</div>
-    <button>Регистрация через Google</button>
+    
+<div class="auth-box">
+    <input id="email" type="email" placeholder="Твой Email">
+    <input id="password" type="password" placeholder="Пароль (минимум 8 символов)">
+    <button onclick="registerUser()">Зарегистрироваться</button>
+    <button onclick="loginUser()">Войти</button>
+    <p id="auth-message"></p>
+</div>
+
 </div>
 
 <script>
 const SUPABASE_URL = "https://qhpobdktlbhdqsnajypr.supabase.co";
 const SUPABASE_KEY = "sb_publishable_tzG1qVsbjaW8YE_LBVN87Q_v0CahKN5";
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+async function registerUser() {
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+    const message = document.getElementById("auth-message");
+
+    message.textContent = "Регистрируем...";
+
+    const { data, error } = await supabase.auth.signUp({
+        email: email,
+        password: password
+    });
+
+    if (error) {
+        message.textContent = error.message;
+        return;
+    }
+
+    if (data.session) {
+        message.textContent = "Регистрация успешна!";
+        window.location.href = "home.html";
+    } else {
+        message.textContent = "Проверь почту и подтверди регистрацию.";
+    }
+}
+
+async function loginUser() {
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+    const message = document.getElementById("auth-message");
+
+    message.textContent = "Входим...";
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+        email: email,
+        password: password
+    });
+
+    if (error) {
+        message.textContent = error.message;
+        return;
+    }
+
+    message.textContent = "Вход выполнен!";
+    window.location.href = "home.html";
+} 
     const crackLayer = document.getElementById("cracks");
 
 document.addEventListener("pointerdown", function(event) {
