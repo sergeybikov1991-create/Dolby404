@@ -260,6 +260,20 @@ body[data-theme="rose"] .avatar{box-shadow:0 0 24px #ff69ae77}
 body[data-theme="mono"]{--purple:#c5c5d4;--line:#454552}
 body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#666676 0,transparent 45%),linear-gradient(110deg,#262630,#171720 55%,#101019)}
 
+
+@media(max-width:700px){
+ .wrap{width:100%;max-width:none;margin:0;padding:0}
+ .card{border-left:0;border-right:0;border-radius:0}
+ .profile{padding:0 14px 22px}
+ .quick-nav{margin-left:0;margin-right:0;padding-left:10px;padding-right:10px}
+ .quick-status{padding-left:12px;padding-right:12px}
+ .feed-section{margin-top:16px}
+ .feed-title{padding-left:12px;padding-right:12px}
+ .publish-box{padding-left:12px;padding-right:12px}
+ .feed{gap:0}
+ .post{border-left:0;border-right:0;border-radius:0}
+ .post+.post{border-top:0;border-bottom:1px solid var(--line)}
+}
 </style>
 </head>
 <body>
