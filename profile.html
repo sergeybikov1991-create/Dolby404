@@ -278,8 +278,8 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
   <p class="settings-help">Выбранный стиль и язык сохраняются на этом устройстве.</p>
   <div class="settings-divider"></div>
   <h3 style="margin:0;color:#eee4ff;font-size:16px">Безопасность</h3>
-  <label class="settings-label" for="new-password">Введите новый пароль</label><input id="new-password" type="password" autocomplete="new-password" minlength="6" placeholder="Не менее 6 символов">
-  <label class="settings-label" for="confirm-password">Повторите новый пароль</label><input id="confirm-password" type="password" autocomplete="new-password" minlength="6" placeholder="Повторите пароль">
+  <label class="settings-label" for="new-password">Введите новый пароль</label><input id="new-password" type="password" autocomplete="new-password" minlength="8" placeholder="Не менее 8 символов">
+  <label class="settings-label" for="confirm-password">Повторите новый пароль</label><input id="confirm-password" type="password" autocomplete="new-password" minlength="8" placeholder="Повторите пароль">
   <div class="settings-actions"><button type="button" class="primary" id="change-password">Изменить пароль</button></div>
   <p class="settings-help">После смены пароля используй его при следующем входе в DOLBY404.</p>
   <div class="settings-status" id="settings-status" aria-live="polite"></div>
@@ -831,7 +831,7 @@ $("save-preferences").addEventListener("click",()=>{
 });
 $("change-password").addEventListener("click",async()=>{
  const password=$("new-password").value,confirm=$("confirm-password").value;
- if(password.length<6){$("settings-status").textContent="Пароль должен содержать не менее 6 символов.";return;}
+ if(password.length<8){$("settings-status").textContent="Пароль должен содержать не менее 8 символов.";return;}
  if(password!==confirm){$("settings-status").textContent="Пароли не совпадают.";return;}
  $("change-password").disabled=true;$("settings-status").textContent="Обновляем пароль…";
  try{const result=await client.auth.updateUser({password});if(result.error)throw result.error;
