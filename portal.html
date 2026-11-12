@@ -1,10 +1,12 @@
+
 <!DOCTYPE html>
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dolby404 — Portal</title>
-    <style>
+
+<style>
 * {
     box-sizing: border-box;
 }
@@ -37,13 +39,14 @@ body {
 }
 
 .logo {
+    position: relative;
     font-size: clamp(48px, 12vw, 100px);
     font-weight: 900;
     letter-spacing: 8px;
     text-shadow: 0 0 15px #168cff,
                  0 0 35px #5420ff,
                  0 0 70px #006bff;
-    animation: glitch 3s infinite;
+    animation: glitch 3s infinite, digitalFlash 5s infinite;
 }
 
 @keyframes glitch {
@@ -64,34 +67,6 @@ body {
         transform: translate(0);
         opacity: 1;
     }
-}
-
-.subtitle {
-    color: #b9d9ff;
-    letter-spacing: 5px;
-    margin: 20px 0 35px;
-}
-
-button {
-    padding: 16px 32px;
-    border: 1px solid #63baff;
-    border-radius: 40px;
-    color: white;
-    background: linear-gradient(90deg, #1749c9, #7025bd);
-    font-size: 16px;
-    cursor: pointer;
-    box-shadow: 0 0 25px #176bff;
-    transition: 0.3s;
-}
-
-button:hover {
-    transform: scale(1.07);
-    box-shadow: 0 0 40px #168cff;
-}
-/* Цифровые вспышки */
-.logo {
-    position: relative;
-    animation: glitch 3s infinite, digitalFlash 5s infinite;
 }
 
 @keyframes digitalFlash {
@@ -138,7 +113,29 @@ button:hover {
     }
 }
 
-/* Эффект разбитого стекла */
+.subtitle {
+    color: #b9d9ff;
+    letter-spacing: 5px;
+    margin: 20px 0 35px;
+}
+
+button {
+    padding: 16px 32px;
+    border: 1px solid #63baff;
+    border-radius: 40px;
+    color: white;
+    background: linear-gradient(90deg, #1749c9, #7025bd);
+    font-size: 16px;
+    cursor: pointer;
+    box-shadow: 0 0 25px #176bff;
+    transition: 0.3s;
+}
+
+button:hover {
+    transform: scale(1.07);
+    box-shadow: 0 0 40px #168cff;
+}
+
 #cracks {
     position: fixed;
     inset: 0;
@@ -179,22 +176,32 @@ button:hover {
         opacity: 0;
     }
 }
-    </style>
+</style>
 </head>
+
+<body>
+
+<div id="cracks"></div>
+
+<div class="portal">
+    <div class="logo">DOLBY404</div>
+    <div class="subtitle">ENTER THE DIGITAL WORLD</div>
+    <button>Регистрация через Google</button>
+</div>
+
+<script>
 const crackLayer = document.getElementById("cracks");
 
 document.addEventListener("pointerdown", function(event) {
     const x = event.clientX;
     const y = event.clientY;
 
-    // Световая вспышка в точке удара
     const flash = document.createElement("span");
     flash.className = "shatter-flash";
     flash.style.left = x + "px";
     flash.style.top = y + "px";
     crackLayer.appendChild(flash);
 
-    // Основные трещины
     const rays = 12;
 
     for (let i = 0; i < rays; i++) {
@@ -215,12 +222,7 @@ document.addEventListener("pointerdown", function(event) {
 
     setTimeout(() => flash.remove(), 700);
 });
-    <body>
-<div id="cracks"></div>
-        <div class="portal">
-    <div class="logo">DOLBY404</div>
-    <div class="subtitle">ENTER THE DIGITAL WORLD</div>
-    <button>Регистрация через Google</button>
-</div>
+</script>
+
 </body>
 </html>
