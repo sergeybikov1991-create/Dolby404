@@ -300,10 +300,6 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 <button type="button" class="profile-stat" id="open-following"><strong id="following-count">—</strong>Подписки</button>
 <button type="button" class="profile-stat" id="open-friends"><strong id="friends-count">—</strong>Друзья</button>
 </div>
-<section class="friends-panel" aria-labelledby="friends-title">
-<h2 id="friends-title">Друзья</h2>
-<div id="profile-friends" class="profile-friends"><div class="friends-empty">Загружаем друзей…</div></div>
-</section>
 
 <div class="editor" id="editor" hidden>
 <h2>Настроить профиль</h2>
@@ -780,8 +776,6 @@ $("submit-post").addEventListener("click",async()=>{
 });
 
 async function loadProfileFriends(){
- const host=$("profile-friends");if(!host)return;
- host.innerHTML='<div class="friends-empty">Пока друзей нет. Здесь появятся взаимные подписки.</div>';
  try{
   const result=await client.from("follows").select("*");
   if(result.error)throw result.error;
@@ -796,20 +790,7 @@ async function loadProfileFriends(){
   $("following-count").textContent=String(new Set(outgoing).size);
   $("followers-count").textContent=String(new Set(incoming).size);
   $("friends-count").textContent=String(friendIds.length);
-  if(!friendIds.length)return;
-  const people=await client.from("profiles").select("*").in("id",friendIds);
-  if(people.error)throw people.error;
-  host.replaceChildren();
-  (people.data||[]).forEach(person=>{
-   const card=document.createElement("div");card.className="profile-friend";
-   const avatar=document.createElement("div");avatar.className="profile-friend-avatar";
-   const url=person.avatar_url||person.avatar;
-   if(url){const img=document.createElement("img");img.src=url;img.alt="";avatar.append(img);}else avatar.textContent=(person.name||person.display_name||person.username||"П")[0].toUpperCase();
-   const name=document.createElement("span");name.textContent=person.name||person.display_name||person.full_name||person.username||"Пользователь";
-   card.append(avatar,name);host.append(card);
-  });
-  if(!host.children.length)host.innerHTML='<div class="friends-empty">Пока друзей нет. Здесь появятся взаимные подписки.</div>';
- }catch(error){host.innerHTML='<div class="friends-empty">Не удалось загрузить друзей.</div>';}
+ }catch(error){console.error("Не удалось загрузить статистику подписок:",error);}
 }
 function signOutFromDrawer(){client.auth.signOut().then(({error})=>{if(error){$("quick-status").textContent="Не удалось выйти: "+error.message;return;}location.replace("portal.html");});}
 $("drawer-logout").addEventListener("click",signOutFromDrawer);
