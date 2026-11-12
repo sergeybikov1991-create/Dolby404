@@ -129,19 +129,19 @@ body {
 }
 
 .music-player {
-    width: 200px;
-    height: 200px;
+    width: 100%;
+    max-width: 340px;
+    height: 175px;
     margin: 10px auto 0;
     overflow: hidden;
-    border: 1px solid rgba(150, 160, 180, 0.25);
-    border-radius: 14px;
-    background: rgba(5, 8, 23, 0.55);
+    border-radius: 12px;
+    background: transparent;
 }
 
 .music-player iframe {
     display: block;
-    width: 200px;
-    height: 200px;
+    width: 100%;
+    height: 175px;
     border: 0;
 }
 
@@ -292,11 +292,10 @@ button:disabled {
         ♪ DOLBY404 — Sound of Home
         <div class="music-player">
             <iframe
-                src="https://www.youtube.com/embed/OFCwnhmdRZw?autoplay=1&playsinline=1&loop=1&playlist=OFCwnhmdRZw&controls=1"
-                title="Eva Poklonskaya — Home"
-                allow="autoplay; encrypted-media; picture-in-picture"
-                referrerpolicy="strict-origin-when-cross-origin"
-                allowfullscreen>
+                src="https://embed.music.apple.com/us/song/1626267320"
+                title="Eva Poklonskaya — Home (Apple Music)"
+                allow="autoplay *; encrypted-media *;"
+                loading="lazy">
             </iframe>
         </div>
     </div>
