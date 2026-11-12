@@ -64,7 +64,9 @@ a{color:#d8c5ff;text-decoration:none}
 .bio{color:#c9c2d7;line-height:1.6;margin:20px 0}
 .stats{display:flex;gap:24px;padding:15px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);color:var(--muted);font-size:13px}
 .stats strong{color:#fff;font-size:17px;display:block;margin-bottom:3px}
-.friends-panel{margin-top:20px;padding:16px;border:1px solid #342943;border-radius:15px;background:linear-gradient(145deg,#191625,#100f19)}
+.profile-stat{flex:1;min-width:0;padding:12px 8px;border:1px solid #342943;border-radius:13px;background:linear-gradient(145deg,#1b1627,#11101a);color:var(--muted);font-size:12px;text-align:center}
+.profile-stat strong{display:block;margin-bottom:4px;color:#fff;font-size:19px}
+.friends-panel{margin-top:14px;padding:16px;border:1px solid #342943;border-radius:15px;background:linear-gradient(145deg,#191625,#100f19)}
 .friends-panel h2{margin:0 0 12px;font-size:16px;color:#f0e5ff}
 .profile-friends{display:flex;gap:10px;flex-wrap:wrap}
 .profile-friend{display:flex;align-items:center;gap:9px;min-width:145px;padding:8px 10px;border:1px solid #382b4b;border-radius:12px;background:#100e18;color:#eee5ff;font-size:13px}
@@ -293,6 +295,11 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 <div class="name"><h1 id="display-name">Загружаем профиль…</h1><p id="username"></p></div>
 </div>
 <p class="bio" id="bio">Подготавливаем твою страницу…</p>
+<div class="stats">
+<button type="button" class="profile-stat" id="open-followers"><strong id="followers-count">—</strong>Подписчики</button>
+<button type="button" class="profile-stat" id="open-following"><strong id="following-count">—</strong>Подписки</button>
+<button type="button" class="profile-stat" id="open-friends"><strong id="friends-count">—</strong>Друзья</button>
+</div>
 <section class="friends-panel" aria-labelledby="friends-title">
 <h2 id="friends-title">Друзья</h2>
 <div id="profile-friends" class="profile-friends"><div class="friends-empty">Загружаем друзей…</div></div>
@@ -778,14 +785,17 @@ async function loadProfileFriends(){
  try{
   const result=await client.from("follows").select("*");
   if(result.error)throw result.error;
-  const rows=result.data||[];if(!rows.length)return;
-  const sample=rows[0],keys=Object.keys(sample);
+  const rows=result.data||[];
+  const keys=Object.keys(rows[0]||{});
   const fromKey=keys.find(k=>["follower_id","user_id","from_user_id","subscriber_id"].includes(k));
   const toKey=keys.find(k=>["following_id","followed_id","target_id","to_user_id"].includes(k));
-  if(!fromKey||!toKey)return;
-  const outgoing=new Set(rows.filter(r=>r[fromKey]===user.id).map(r=>r[toKey]));
-  const incoming=new Set(rows.filter(r=>r[toKey]===user.id).map(r=>r[fromKey]));
-  const friendIds=[...outgoing].filter(id=>incoming.has(id)&&id!==user.id);
+  if(!fromKey||!toKey){$("followers-count").textContent="0";$("following-count").textContent="0";$("friends-count").textContent="0";return;}
+  const outgoing=rows.filter(r=>r[fromKey]===user.id).map(r=>r[toKey]);
+  const incoming=rows.filter(r=>r[toKey]===user.id).map(r=>r[fromKey]);
+  const friendIds=[...new Set(outgoing.filter(id=>incoming.includes(id)&&id!==user.id))];
+  $("following-count").textContent=String(new Set(outgoing).size);
+  $("followers-count").textContent=String(new Set(incoming).size);
+  $("friends-count").textContent=String(friendIds.length);
   if(!friendIds.length)return;
   const people=await client.from("profiles").select("*").in("id",friendIds);
   if(people.error)throw people.error;
@@ -799,9 +809,8 @@ async function loadProfileFriends(){
    card.append(avatar,name);host.append(card);
   });
   if(!host.children.length)host.innerHTML='<div class="friends-empty">Пока друзей нет. Здесь появятся взаимные подписки.</div>';
- }catch(error){host.innerHTML='<div class="friends-empty">Друзья появятся здесь, когда будут настроены подписки.</div>';}
+ }catch(error){host.innerHTML='<div class="friends-empty">Не удалось загрузить друзей.</div>';}
 }
-
 function signOutFromDrawer(){client.auth.signOut().then(({error})=>{if(error){$("quick-status").textContent="Не удалось выйти: "+error.message;return;}location.replace("portal.html");});}
 $("drawer-logout").addEventListener("click",signOutFromDrawer);
 const settingsBackdrop=$("settings-backdrop");
