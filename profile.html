@@ -303,6 +303,26 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 .emoji-item{width:100%;min-width:0;max-width:100%;font-size:clamp(16px,4.8vw,20px);line-height:1;overflow:hidden}
 @media(max-width:360px){.emoji-grid{grid-template-columns:repeat(8,minmax(0,1fr))}.emoji-item{font-size:18px}}
 
+
+/* DOLBY404 fullscreen composer */
+.publish-editor.composer-fullscreen{position:fixed;inset:0;z-index:1200;display:flex;flex-direction:column;gap:10px;margin:0;padding:calc(16px + env(safe-area-inset-top)) 14px calc(12px + env(safe-area-inset-bottom));background:radial-gradient(ellipse at 20% 0%,#29133f 0,transparent 38%),#090910;overflow:auto;border:0;border-radius:0}
+.publish-editor.composer-fullscreen[hidden]{display:none}
+.composer-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex:0 0 auto}
+.composer-top strong{font-size:17px;letter-spacing:.03em}
+.composer-close{width:38px;height:38px;padding:0;border-radius:50%;font-size:22px}
+.publish-editor.composer-fullscreen>label{margin:2px 0 0}
+.publish-editor.composer-fullscreen>#post-text{flex:1 1 auto;min-height:140px;height:auto;resize:none;margin:0;padding:16px;border-radius:16px;font-size:17px;line-height:1.65;background:#100e19;border-color:#65458a}
+.composer-tools{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:9px;border:1px solid #40304f;border-radius:15px;background:#15111f;flex:0 0 auto}
+.composer-tools button,.composer-tools select{min-height:36px;padding:7px 10px;border:1px solid #59406f;border-radius:10px;background:#21182e;color:#f1e7ff;font-size:13px}
+.composer-tools select{width:auto;margin:0}
+.composer-colors{display:flex;align-items:center;gap:6px}
+.composer-color{width:25px!important;min-width:25px;height:25px!important;min-height:25px!important;padding:0!important;border:2px solid #ffffff70!important;border-radius:50%!important}
+.publish-editor.composer-fullscreen .emoji-picker{order:0;flex:1 1 100%;width:100%;min-width:0}
+.publish-editor.composer-fullscreen .emoji-picker-panel{max-height:28vh;overflow:auto}
+.publish-editor.composer-fullscreen .hint{display:none}
+.publish-editor.composer-fullscreen .media-file{margin:0;flex:0 0 auto}
+.publish-editor.composer-fullscreen .actions{margin:0;flex:0 0 auto}
+@media(max-width:420px){.composer-tools{gap:5px;padding:7px}.composer-tools button,.composer-tools select{font-size:12px;padding:7px 8px}.publish-editor.composer-fullscreen>#post-text{font-size:16px}}
 </style>
 </head>
 <body>
@@ -387,7 +407,7 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 <div class="publish-box">
 <button type="button" class="primary" id="open-publish">＋ Опубликовать</button>
 <div class="publish-editor" id="publish-editor" hidden>
-<h2 class="feed-title">Новая публикация</h2>
+<div class="composer-top"><strong>Новая публикация</strong><button type="button" class="composer-close" id="composer-close" aria-label="Свернуть редактор">×</button></div>
 <label for="post-text">Текст публикации</label>
 <textarea id="post-text" maxlength="5000" placeholder="Что хочешь рассказать?"></textarea>
 <div class="hint">Можно выбрать несколько форматов и опубликовать их вместе.</div>
@@ -500,6 +520,19 @@ async function start(){
  }catch(e){$("display-name").textContent="Не удалось загрузить профиль";$("bio").textContent=e.message;$("notice").hidden=false;$("notice").textContent="Проверь подключение и настройки доступа к таблице profiles.";}
 }
 attachEmojiPicker($("post-text"));attachEmojiPicker($("bio-input"));
+(function setupComposer(){
+ const editor=$("publish-editor"),field=$("post-text");
+ const host=field.nextElementSibling;
+ const tools=document.createElement("div");tools.className="composer-tools";tools.innerHTML='<button type="button" data-font="bold"><b>B</b></button><button type="button" data-font="italic"><i>I</i></button><button type="button" data-font="mono">Mono</button><div class="composer-colors" aria-label="Цвет текста"><button type="button" class="composer-color" data-color="#ffffff" style="background:#ffffff" aria-label="Белый"></button><button type="button" class="composer-color" data-color="#c18aff" style="background:#c18aff" aria-label="Фиолетовый"></button><button type="button" class="composer-color" data-color="#ff78bd" style="background:#ff78bd" aria-label="Розовый"></button><button type="button" class="composer-color" data-color="#66d9ff" style="background:#66d9ff" aria-label="Голубой"></button><button type="button" class="composer-color" data-color="#7dffb3" style="background:#7dffb3" aria-label="Зелёный"></button></div><select id="composer-translate-lang" aria-label="Язык перевода"><option value="en">EN</option><option value="ru">RU</option><option value="de">DE</option><option value="es">ES</option><option value="fr">FR</option><option value="it">IT</option></select><button type="button" id="composer-translate">Перевести ↗</button>';
+ if(host&&host.classList.contains("emoji-picker"))host.insertAdjacentElement("afterend",tools);else field.insertAdjacentElement("afterend",tools);
+ $("composer-close").addEventListener("click",()=>editor.classList.remove("composer-fullscreen"));
+ field.addEventListener("focus",()=>{if(!editor.hidden)editor.classList.add("composer-fullscreen")});
+ editor.addEventListener("pointerdown",e=>{if(e.target.closest("button,select,.emoji-picker"))e.preventDefault()});
+ function stylize(kind){const a=field.selectionStart,b=field.selectionEnd;if(a===b){field.focus();return;}let value=field.value.slice(a,b);const map=(str,base)=>Array.from(str).map(ch=>{const n=ch.codePointAt(0);if(n>=65&&n<=90)return String.fromCodePoint(base+n-65);if(n>=97&&n<=122)return String.fromCodePoint(base+n-97);if(n>=48&&n<=57&&kind==="mono")return String.fromCodePoint(0x1D7F6+n-48);return ch;}).join("");const base=kind==="bold"?0x1D5D4:kind==="italic"?0x1D608:0x1D670;const converted=map(value,base);field.setRangeText(converted,a,b,"select");field.focus();}
+ tools.querySelectorAll("[data-font]").forEach(b=>b.addEventListener("click",()=>stylize(b.dataset.font)));
+ tools.querySelectorAll("[data-color]").forEach(b=>b.addEventListener("click",()=>{const a=field.selectionStart,z=field.selectionEnd;if(a===z){field.focus();return;}const selected=field.value.slice(a,z);field.setRangeText("[c="+b.dataset.color+"]"+selected+"[/c]",a,z,"select");field.focus();}));
+ $("composer-translate").addEventListener("click",()=>{const value=field.value.slice(field.selectionStart,field.selectionEnd)||field.value;if(!value.trim())return;const lang=$("composer-translate-lang").value;window.open("https://translate.google.com/?sl=auto&tl="+encodeURIComponent(lang)+"&text="+encodeURIComponent(value)+"&op=translate","_blank","noopener");});
+})();
 $("open-profile-editor").addEventListener("click",()=>{closeSettings();$("editor").hidden=false;$("message").textContent="";$("editor").scrollIntoView({behavior:"smooth",block:"center"});});
 
 
@@ -625,6 +658,11 @@ $("post-photo-viewer").addEventListener("pointerup",e=>{
 });
 $("post-photo-viewer").addEventListener("pointercancel",()=>{postPhotoSwipeStart=null;});
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closePostPhotoView();});
+function renderFormattedText(target,value){
+ const pattern=/\\[c=(#[0-9a-fA-F]{6})\\]([\\s\\S]*?)\\[\\/c\\]/g;let last=0,match;const source=String(value||"");
+ while((match=pattern.exec(source))){if(match.index>last)target.append(document.createTextNode(source.slice(last,match.index)));const span=document.createElement("span");span.style.color=match[1];span.textContent=match[2];target.append(span);last=pattern.lastIndex;}
+ if(last<source.length)target.append(document.createTextNode(source.slice(last)));
+}
 function renderPost(post,profiles){
   const profile=profiles[post.user_id]||{},author=profile.name||profile.display_name||profile.full_name||profile.username||"Пользователь";
   const card=document.createElement("article");card.className="post";
@@ -635,7 +673,7 @@ function renderPost(post,profiles){
   const date=document.createElement("div");date.className="post-date";date.textContent=dateText(post.created_at);identity.append(name,date);head.append(avatar,identity);
   if(post.user_id===user.id){const tools=document.createElement("div");tools.className="post-owner-tools";const edit=document.createElement("button");edit.type="button";edit.className="post-edit-button";edit.textContent="✎";edit.addEventListener("click",()=>startEditPost(post,card));tools.append(edit);head.append(tools);}
   card.append(head);
-  if(post.content){const content=document.createElement("div");content.className="post-content";content.textContent=post.content;card.append(content);}
+  if(post.content){const content=document.createElement("div");content.className="post-content";renderFormattedText(content,post.content);card.append(content);}
   const mediaItems=Array.isArray(post.media)&&post.media.length?post.media:(post.image_url?[{type:"photo",url:post.image_url,name:"Фото"}]:[]);
   if(mediaItems.length){const mediaBox=document.createElement("div");mediaBox.className="post-media";let firstPhoto=null,firstAudio=null;for(const item of mediaItems){const url=safeUrl(item.url);if(!url)continue;let node;if(item.type==="photo"){node=document.createElement("img");node.alt="Фото публикации";node.loading="lazy";node.decoding="async";if(!firstPhoto)firstPhoto=node;}else if(item.type==="music"){node=document.createElement("audio");node.controls=true;if(!firstAudio)firstAudio=node;}else{node=document.createElement("video");node.controls=true;node.playsInline=true;node.preload="metadata";}if(node.tagName==="IMG")node.crossOrigin="anonymous";node.src=url;
     if(node.tagName==="IMG")node.addEventListener("click",()=>openPostPhotoView(url));
@@ -872,8 +910,8 @@ $("save-button").addEventListener("click",async()=>{
 });
 
 // Редактор публикаций: типы файлов определяются автоматически.
-$("open-publish").addEventListener("click",()=>{$("publish-editor").hidden=false;$("publish-status").textContent="";});
-$("cancel-publish").addEventListener("click",()=>{$("publish-editor").hidden=true;});
+$("open-publish").addEventListener("click",()=>{$("publish-editor").hidden=false;$("publish-editor").classList.add("composer-fullscreen");$("publish-status").textContent="";});
+$("cancel-publish").addEventListener("click",()=>{$("publish-editor").hidden=true;$("publish-editor").classList.remove("composer-fullscreen");});
 $("submit-post").addEventListener("click",async()=>{
  const text=$("post-text").value.trim();
  const files=Array.from($("post-files").files||[]).map(file=>({
@@ -900,13 +938,13 @@ $("submit-post").addEventListener("click",async()=>{
   if(inserted.error)throw inserted.error;
   $("publish-status").textContent="Публикация размещена!";
   $("post-text").value="";$("post-files").value="";
-  $("publish-editor").hidden=true;$("feed-empty").hidden=true;
+  $("publish-editor").hidden=true;$("publish-editor").classList.remove("composer-fullscreen");$("feed-empty").hidden=true;
   const card=document.createElement("article");card.className="post";
   const head=document.createElement("div");head.className="post-head";
   const av=document.createElement("div");av.className="post-avatar";av.textContent=(($("display-name").textContent||"П")[0]).toUpperCase();
   const ident=document.createElement("div");const author=document.createElement("div");author.className="post-author";author.textContent=$("display-name").textContent;
   const date=document.createElement("div");date.className="post-date";date.textContent="только что";ident.append(author,date);head.append(av,ident);card.append(head);
-  if(text){const body=document.createElement("div");body.className="post-content";body.textContent=text;card.append(body);}
+  if(text){const body=document.createElement("div");body.className="post-content";renderFormattedText(body,text);card.append(body);}
   if(media.length){const box=document.createElement("div");box.className="post-media";let firstPhoto=null,firstAudio=null;media.forEach(item=>{const node=document.createElement(item.type==="photo"?"img":item.type==="music"?"audio":"video");if(node.tagName==="IMG"){node.alt="Фото публикации";if(!firstPhoto)firstPhoto=node;}else{node.controls=true;if(node.tagName==="VIDEO")node.playsInline=true;if(node.tagName==="AUDIO"&&!firstAudio)firstAudio=node;}if(node.tagName==="IMG")node.crossOrigin="anonymous";node.src=item.url;box.append(node);});if(firstAudio)makeMiniAudio(firstAudio,firstPhoto);card.append(box);}
   $("feed-list").prepend(card);
  }catch(e){$("publish-status").textContent="Не удалось опубликовать: "+e.message;}
