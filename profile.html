@@ -134,7 +134,6 @@ textarea{min-height:90px;resize:vertical}
 .stats strong{font-size:20px;color:#f4eaff}
 .profile .actions{margin-top:8px}
 .profile .actions button{border-radius:12px}
-#edit-button{box-shadow:0 0 20px #8c4be522}
 #logout-button{background:#17131f;border-color:#393044;color:#bcb3ca}
 @media(max-width:600px){.wrap{margin:14px auto;padding:0 11px}.cover{height:158px}.profile{padding:0 15px 18px}.identity{gap:12px;margin-top:-43px}.avatar{width:96px;height:96px;font-size:32px}.name{padding-bottom:6px}.stats{gap:7px;padding:12px 0}.stats>div{padding:10px 4px;font-size:11px}.stats strong{font-size:18px}.cover-tools{right:9px;top:9px}.cover-tools button{font-size:11px;padding:8px 10px}}
 
@@ -243,6 +242,9 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 <div class="settings-backdrop" id="settings-backdrop" hidden>
  <section class="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
   <div class="settings-head"><h2 id="settings-title">Настройки</h2><button type="button" class="settings-close" id="settings-close" aria-label="Закрыть">×</button></div>
+  <h3 style="margin:0 0 8px;color:#eee4ff;font-size:16px">Профиль</h3>
+  <div class="settings-actions"><button type="button" class="primary" id="open-profile-editor">✎ Редактировать профиль</button></div>
+  <div class="settings-divider"></div>
   <label class="settings-label" for="settings-language">Язык интерфейса</label>
   <select id="settings-language"><option value="ru">Русский</option><option value="en">English</option></select>
   <label class="settings-label" for="settings-theme">Стиль страницы</label>
@@ -273,7 +275,7 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 <div><strong id="followers-count">—</strong>Подписчики</div>
 <div><strong id="following-count">—</strong>Подписки</div>
 </div>
-<div class="actions"><button class="primary" id="edit-button" hidden>✎ Редактировать профиль</button></div>
+
 <div class="editor" id="editor" hidden>
 <h2>Настроить профиль</h2>
 <input id="name-input" maxlength="60" placeholder="Как тебя зовут?">
@@ -385,7 +387,7 @@ async function start(){
   if(!result.data){$("notice").hidden=false;$("notice").textContent="Профиль ещё не найден в таблице. Страница открыта, но для сохранения сначала нужно проверить структуру таблицы profiles.";}
  }catch(e){$("display-name").textContent="Не удалось загрузить профиль";$("bio").textContent=e.message;$("notice").hidden=false;$("notice").textContent="Проверь подключение и настройки доступа к таблице profiles.";}
 }
-$("edit-button").addEventListener("click",()=>{$("editor").hidden=false;$("message").textContent="";});
+$("open-profile-editor").addEventListener("click",()=>{closeSettings();$("editor").hidden=false;$("message").textContent="";$("editor").scrollIntoView({behavior:"smooth",block:"center"});});
 
 async function initProfileFeed(client){
  const list=$("feed-list"),loading=$("feed-loading"),empty=$("feed-empty"),errorBox=$("feed-error"),sentinel=$("feed-sentinel");
@@ -744,6 +746,7 @@ function applyLanguage(language){
  $("open-settings").innerHTML='<span class="side-drawer-icon">⚙</span>'+(en?"Settings":"Настройки");
  $("drawer-logout").textContent=en?"↪ Sign out":"↪ Выйти";
  $("settings-title").textContent=en?"Settings":"Настройки";
+ $("open-profile-editor").textContent=en?"✎ Edit profile":"✎ Редактировать профиль";
  const labels=$("settings-backdrop").querySelectorAll(".settings-label");
  if(labels[0])labels[0].textContent=en?"Interface language":"Язык интерфейса";
  if(labels[1])labels[1].textContent=en?"Page appearance":"Стиль страницы";
