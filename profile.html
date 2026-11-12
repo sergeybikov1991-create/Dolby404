@@ -117,8 +117,7 @@ textarea{min-height:90px;resize:vertical}
 .cover:after{content:"DOLBY404";position:absolute;right:22px;bottom:16px;font-size:clamp(24px,6vw,44px);font-weight:900;letter-spacing:.18em;color:#ffffff12;text-shadow:0 0 25px #a45bff55;pointer-events:none}
 .cover-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0}
 .cover-photo[hidden]{display:none}
-.cover-tools{position:absolute;right:14px;top:14px;z-index:2}
-.cover-tools button{background:#090910bb;border-color:#a66bff88;font-size:12px;padding:9px 13px;backdrop-filter:blur(10px)}
+ 
 .profile{padding:0 28px 24px}
 .identity{align-items:flex-end;gap:18px;margin-top:-56px}
 .avatar{width:124px;height:124px;border:3px solid transparent;border-radius:50%;background:linear-gradient(#15121f,#15121f) padding-box,linear-gradient(120deg,#594078,#a66bff,#593a80,#c18aff,#594078) border-box;background-size:100% 100%,300% 300%;animation:avatarFrameFlow 2.2s linear infinite;box-shadow:0 0 0 1px #a66bff44,0 0 13px #8d50e744;z-index:2;overflow:hidden;display:block;isolation:isolate}
@@ -135,7 +134,7 @@ textarea{min-height:90px;resize:vertical}
 .profile .actions{margin-top:8px}
 .profile .actions button{border-radius:12px}
 #logout-button{background:#17131f;border-color:#393044;color:#bcb3ca}
-@media(max-width:600px){.wrap{margin:14px auto;padding:0 11px}.cover{height:158px}.profile{padding:0 15px 18px}.identity{gap:12px;margin-top:-43px}.avatar{width:96px;height:96px;font-size:32px}.name{padding-bottom:6px}.stats{gap:7px;padding:12px 0}.stats>div{padding:10px 4px;font-size:11px}.stats strong{font-size:18px}.cover-tools{right:9px;top:9px}.cover-tools button{font-size:11px;padding:8px 10px}}
+@media(max-width:600px){.wrap{margin:14px auto;padding:0 11px}.cover{height:158px}.profile{padding:0 15px 18px}.identity{gap:12px;margin-top:-43px}.avatar{width:96px;height:96px;font-size:32px}.name{padding-bottom:6px}.stats{gap:7px;padding:12px 0}.stats>div{padding:10px 4px;font-size:11px}.stats strong{font-size:18px}}
 
 .photo-likers{display:flex;align-items:center;justify-content:center;gap:9px;flex-wrap:wrap}
 .photo-liker-avatars{display:flex;align-items:center;padding-left:5px}
@@ -265,6 +264,7 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
   <select id="settings-language"><option value="ru">Русский</option><option value="en">English</option></select>
   <label class="settings-label" for="settings-theme">Стиль страницы</label>
   <select id="settings-theme"><option value="cyber">Cyber violet — фиолетовый неон</option><option value="ocean">Ocean — синий неон</option><option value="rose">Rose — розовый неон</option><option value="mono">Mono — монохромный</option></select>
+  <label class="settings-label">Обложка профиля</label><div class="settings-actions"><button type="button" class="primary" id="settings-change-cover">✎ Изменить обложку</button></div>
   <div class="settings-actions"><button type="button" class="primary" id="save-preferences">Сохранить настройки</button></div>
   <p class="settings-help">Выбранный стиль и язык сохраняются на этом устройстве.</p>
   <div class="settings-divider"></div>
@@ -279,7 +279,7 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 <main class="wrap">
 
 <section class="card">
-<div class="cover" id="cover"><img class="cover-photo" id="cover-photo" alt="Обложка профиля" hidden><div class="cover-tools"><button type="button" id="change-cover">✎ Изменить обложку</button></div></div>
+<div class="cover" id="cover"><img class="cover-photo" id="cover-photo" alt="Обложка профиля" hidden></div>
 <div class="profile">
 <div class="identity">
 <div class="avatar" id="avatar" role="button" tabindex="0" aria-label="Редактировать фото профиля"></div>
@@ -566,7 +566,7 @@ async function initProfileFeed(client){
  await loadBatch();
 }
 
-$("change-cover").addEventListener("click",()=>$("cover-file").click());
+$("settings-change-cover").addEventListener("click",()=>$("cover-file").click());
 $("cover-file").addEventListener("change",async()=>{
  const file=$("cover-file").files[0];if(!file)return;
  const coverKey=firstKey(["cover_url","banner_url","cover"]);
@@ -574,14 +574,14 @@ $("cover-file").addEventListener("change",async()=>{
  if(!["image/jpeg","image/png","image/webp"].includes(file.type)){$("quick-status").textContent="Выбери JPG, PNG или WebP.";return;}
  if(file.size>10*1024*1024){$("quick-status").textContent="Обложка должна быть не больше 10 МБ.";return;}
  const ext=file.type==="image/jpeg"?"jpg":file.type.split("/")[1],path=`${user.id}/cover-${Date.now()}.${ext}`;
- $("change-cover").disabled=true;$("quick-status").textContent="Загружаем обложку…";
+ $("settings-change-cover").disabled=true;$("quick-status").textContent="Загружаем обложку…";
  try{
   const upload=await client.storage.from("avatars").upload(path,file,{upsert:false,contentType:file.type});if(upload.error)throw upload.error;
   const url=client.storage.from("avatars").getPublicUrl(path).data.publicUrl;
   const saved=await client.from("profiles").update({[coverKey]:url}).eq("id",user.id).select("*").single();if(saved.error)throw saved.error;
   profile=saved.data;columns=Object.keys(profile);render();$("quick-status").textContent="Обложка обновлена!";
  }catch(e){$("quick-status").textContent="Не удалось обновить обложку: "+e.message;}
- finally{$("change-cover").disabled=false;$("cover-file").value="";}
+ finally{$("settings-change-cover").disabled=false;$("cover-file").value="";}
 });
 function currentAvatarUrl(){const key=firstKey(["avatar_url","avatar"]);return key&&profile[key]?profile[key]:null;}
 function openPhotoEditor(){$("photo-modal").hidden=false;$("photo-status").textContent="";$("open-photo-view").disabled=!currentAvatarUrl();}
@@ -790,6 +790,7 @@ function applyLanguage(language){
  if(labels[1])labels[1].textContent=en?"Page appearance":"Стиль страницы";
  if(labels[2])labels[2].textContent=en?"New password":"Новый пароль";
  if(labels[3])labels[3].textContent=en?"Confirm new password":"Повтори новый пароль";
+ $("settings-change-cover").textContent=en?"✎ Change cover":"✎ Изменить обложку";
  $("save-preferences").textContent=en?"Save preferences":"Сохранить настройки";
  $("change-password").textContent=en?"Change password":"Изменить пароль";
 }
