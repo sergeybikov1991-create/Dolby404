@@ -323,6 +323,30 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 .publish-editor.composer-fullscreen .media-file{margin:0;flex:0 0 auto}
 .publish-editor.composer-fullscreen .actions{margin:0;flex:0 0 auto}
 @media(max-width:420px){.composer-tools{gap:5px;padding:7px}.composer-tools button,.composer-tools select{font-size:12px;padding:7px 8px}.publish-editor.composer-fullscreen>#post-text{font-size:16px}}
+
+/* Composer v2: focus-first, emoji dock */
+.publish-editor.composer-fullscreen{position:fixed;inset:0;z-index:1200;display:flex;flex-direction:column;gap:9px;margin:0;padding:calc(10px + env(safe-area-inset-top)) 12px calc(10px + env(safe-area-inset-bottom));background:radial-gradient(ellipse at 20% 0%,#29133f 0,transparent 38%),#090910;overflow:hidden;border:0;border-radius:0;height:100dvh;box-sizing:border-box}
+.publish-editor.composer-fullscreen[hidden]{display:none}
+.composer-top{display:flex;align-items:center;justify-content:flex-start;gap:12px;flex:0 0 42px}
+.composer-top strong{font-size:16px;letter-spacing:.03em}
+.composer-back{width:40px;height:40px;min-width:40px;padding:0;border:1px solid #68458a;border-radius:13px;background:#1b1427;color:#fff;font-size:26px;line-height:1}
+.composer-top-spacer{flex:1}
+.publish-editor.composer-fullscreen>label{display:none}
+.publish-editor.composer-fullscreen>#post-text{display:block;flex:1 1 0;min-height:0!important;height:auto!important;width:100%;box-sizing:border-box;resize:none;margin:0;padding:16px;border-radius:17px;font-size:17px;line-height:1.65;background:#100e19;border:1px solid #65458a;color:#fff;outline:none}
+.emoji-dock{display:none}
+.publish-editor.composer-fullscreen .emoji-dock{display:flex;flex:0 0 auto;flex-direction:column;gap:7px;min-height:48px}
+.publish-editor.composer-fullscreen .emoji-picker{display:flex;flex-direction:column;width:100%;min-width:0;gap:7px}
+.publish-editor.composer-fullscreen .emoji-picker-trigger{width:100%;height:46px;min-height:46px;border:1px solid #7951a1;border-radius:14px;background:linear-gradient(110deg,#21142f,#171321);color:#e6caff;font-size:23px;box-shadow:0 0 16px #9c55ff22}
+.publish-editor.composer-fullscreen .emoji-picker-panel{position:relative;inset:auto;width:100%;max-width:100%;min-width:0;max-height:32dvh;overflow:auto;padding:8px;border:1px solid #65458a;border-radius:15px;background:#100d18;box-sizing:border-box}
+.publish-editor.composer-fullscreen .emoji-category-tabs{display:flex;flex-wrap:nowrap;overflow-x:auto;gap:5px;padding-bottom:7px}
+.publish-editor.composer-fullscreen .emoji-category-tab{flex:0 0 34px;width:34px;height:34px;min-width:34px;border-radius:10px}
+.publish-editor.composer-fullscreen .emoji-grid{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:4px}
+.publish-editor.composer-fullscreen .emoji-item{min-width:0;width:100%;height:36px;min-height:36px;padding:0;font-size:19px;line-height:1;overflow:hidden}
+.publish-editor.composer-fullscreen .hint{display:none}
+.publish-editor.composer-fullscreen .media-file{flex:0 0 auto;margin:0}
+.publish-editor.composer-fullscreen .actions{flex:0 0 auto;margin:0}
+.publish-editor.composer-fullscreen #publish-status{flex:0 0 auto;max-height:36px;overflow:auto}
+@media(max-width:380px){.publish-editor.composer-fullscreen .emoji-grid{grid-template-columns:repeat(7,minmax(0,1fr))}.publish-editor.composer-fullscreen .emoji-item{font-size:18px}}
 </style>
 </head>
 <body>
@@ -407,9 +431,10 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 <div class="publish-box">
 <button type="button" class="primary" id="open-publish">＋ Опубликовать</button>
 <div class="publish-editor" id="publish-editor" hidden>
-<div class="composer-top"><strong>Новая публикация</strong><button type="button" class="composer-close" id="composer-close" aria-label="Свернуть редактор">×</button></div>
+<div class="composer-top"><button type="button" class="composer-back" id="composer-back" aria-label="Свернуть редактор">←</button><strong>Новая публикация</strong><span class="composer-top-spacer"></span></div>
 <label for="post-text">Текст публикации</label>
 <textarea id="post-text" maxlength="5000" placeholder="Что хочешь рассказать?"></textarea>
+<div class="emoji-dock" id="emoji-dock"></div>
 <div class="hint">Можно выбрать несколько форматов и опубликовать их вместе.</div>
 <div class="media-file">
 <label for="post-files">Фото, видео или музыка — можно выбрать несколько файлов</label>
@@ -521,18 +546,11 @@ async function start(){
 }
 attachEmojiPicker($("post-text"));attachEmojiPicker($("bio-input"));
 (function setupComposer(){
- const editor=$("publish-editor"),field=$("post-text");
- const host=field.nextElementSibling;
- const tools=document.createElement("div");tools.className="composer-tools";tools.innerHTML='<button type="button" data-font="bold"><b>B</b></button><button type="button" data-font="italic"><i>I</i></button><button type="button" data-font="mono">Mono</button><div class="composer-colors" aria-label="Цвет текста"><button type="button" class="composer-color" data-color="#ffffff" style="background:#ffffff" aria-label="Белый"></button><button type="button" class="composer-color" data-color="#c18aff" style="background:#c18aff" aria-label="Фиолетовый"></button><button type="button" class="composer-color" data-color="#ff78bd" style="background:#ff78bd" aria-label="Розовый"></button><button type="button" class="composer-color" data-color="#66d9ff" style="background:#66d9ff" aria-label="Голубой"></button><button type="button" class="composer-color" data-color="#7dffb3" style="background:#7dffb3" aria-label="Зелёный"></button></div><select id="composer-translate-lang" aria-label="Язык перевода"><option value="en">EN</option><option value="ru">RU</option><option value="de">DE</option><option value="es">ES</option><option value="fr">FR</option><option value="it">IT</option></select><button type="button" id="composer-translate">Перевести ↗</button>';
- if(host&&host.classList.contains("emoji-picker"))host.insertAdjacentElement("afterend",tools);else field.insertAdjacentElement("afterend",tools);
- $("composer-close").addEventListener("click",()=>editor.classList.remove("composer-fullscreen"));
- field.addEventListener("focus",()=>{if(!editor.hidden)editor.classList.add("composer-fullscreen")});
- editor.addEventListener("pointerdown",e=>{if(e.target.closest("button,select,.emoji-picker"))e.preventDefault()});
- function stylize(kind){const a=field.selectionStart,b=field.selectionEnd;if(a===b){field.focus();return;}let value=field.value.slice(a,b);const map=(str,base)=>Array.from(str).map(ch=>{const n=ch.codePointAt(0);if(n>=65&&n<=90)return String.fromCodePoint(base+n-65);if(n>=97&&n<=122)return String.fromCodePoint(base+n-97);if(n>=48&&n<=57&&kind==="mono")return String.fromCodePoint(0x1D7F6+n-48);return ch;}).join("");const base=kind==="bold"?0x1D5D4:kind==="italic"?0x1D608:0x1D670;const converted=map(value,base);field.setRangeText(converted,a,b,"select");field.focus();}
- tools.querySelectorAll("[data-font]").forEach(b=>b.addEventListener("click",()=>stylize(b.dataset.font)));
- tools.querySelectorAll("[data-color]").forEach(b=>b.addEventListener("click",()=>{const a=field.selectionStart,z=field.selectionEnd;if(a===z){field.focus();return;}const selected=field.value.slice(a,z);field.setRangeText("[c="+b.dataset.color+"]"+selected+"[/c]",a,z,"select");field.focus();}));
- $("composer-translate").addEventListener("click",()=>{const value=field.value.slice(field.selectionStart,field.selectionEnd)||field.value;if(!value.trim())return;const lang=$("composer-translate-lang").value;window.open("https://translate.google.com/?sl=auto&tl="+encodeURIComponent(lang)+"&text="+encodeURIComponent(value)+"&op=translate","_blank","noopener");});
-})();
+ const editor=$("publish-editor"),field=$("post-text"),dock=$("emoji-dock"),host=field.nextElementSibling;
+ if(host&&host.classList.contains("emoji-picker"))dock.append(host);
+ $("composer-back").addEventListener("click",()=>{editor.classList.remove("composer-fullscreen");field.blur();const panel=host&&host.querySelector(".emoji-picker-panel");if(panel)panel.hidden=true;});
+ field.addEventListener("focus",()=>{if(!editor.hidden){editor.classList.add("composer-fullscreen");const panel=host&&host.querySelector(".emoji-picker-panel");if(panel)panel.hidden=true;const trigger=host&&host.querySelector(".emoji-picker-trigger");if(trigger)trigger.setAttribute("aria-expanded","false");}});
+})(););
 $("open-profile-editor").addEventListener("click",()=>{closeSettings();$("editor").hidden=false;$("message").textContent="";$("editor").scrollIntoView({behavior:"smooth",block:"center"});});
 
 
@@ -550,7 +568,8 @@ function attachEmojiPicker(field){
   {icon:"🚀",name:"travel",items:"🚗 🚕 🚙 🚌 🚎 🏎️ 🚓 🚑 🚒 🚐 🛻 🚚 🚛 🚜 🛵 🏍️ 🚲 🛴 🛹 🛼 🚏 🛣️ 🛤️ 🚦 🚥 🚧 ⚓ ⛵ 🚤 🛳️ 🚢 ✈️ 🛩️ 🛫 🛬 🚁 🚟 🚠 🚡 🛰️ 🚀 🛸 🌠 🎇 🎆 🌃 🌆 🌇 🌉 🏙️ 🌄 🌅 🏖️ 🏝️ 🏜️ 🏕️ 🏟️ 🏛️ 🏰 🏯 🗼 🗽 🏠 🏡 🏢 🏬 🏭 🏥 🏦 🏫 🏩"},
   {icon:"🎧",name:"objects",items:"⌚ 📱 📲 💻 ⌨️ 🖥️ 🖨️ 🖱️ 🖲️ 💽 💾 💿 📀 🧮 🎥 📷 📸 📹 📼 🔍 🔎 💡 🔦 🕯️ 🪔 🧯 🛢️ 💸 💵 💴 💶 💷 💰 🪙 💳 🧾 💎 ⚖️ 🪜 🧰 🔧 🔨 ⚒️ 🛠️ ⛏️ 🔩 ⚙️ 🧲 🪛 🧪 🧫 🧬 🔬 🔭 📡 💊 🩹 🩺 🚪 🪞 🪟 🛏️ 🛋️ 🪑 🚽 🚿 🛁 🧴 🧷 🧹 🧺 🧻 🪣 🧼 🪥"},
   {icon:"⚡",name:"symbols",items:"✨ ⭐ 🌟 💫 ⚡ ☄️ 💥 🔥 🌈 ☀️ 🌙 ☁️ ❄️ 💧 💦 🫧 🎉 🎊 🎈 🎀 🪄 🧿 🔮 🪬 🕯️ 💯 💢 💨 💤 💬 🗯️ 💭 🗨️ 🖤 🩶 🤍 ❗ ❕ ❓ ❔ ⁉️ ‼️ ♻️ ⚠️ 🚫 ⛔ 🔞 ♠️ ♥️ ♦️ ♣️ 🃏 🎴 🔱 ⚜️ 🔰 ☢️ ☣️ 🆘 🆙 🆒 🆕 🆓 🆗 🆖 🆔 🔟 🔢 🔣 🔤 🔡 🔠"},
-  {icon:"👾",name:"cyber",items:"👾 🤖 👽 🛸 💻 🖥️ 📟 📡 🔋 🪫 ⚙️ 🧬 🔬 🔭 💿 📀 💽 🕹️ 🎮 🧩 🌀 💠 🔷 🔹 🔶 🔸 🔺 🔻 🔲 🔳 ▪️ ◾ ◼️ ⬛ 🟪 🟣 🟦 🟩 🟨 🟥 🟧 ⬜ ⬜ 🔘 🔮 🪩 ✨ 💫 ⚡ 💥 🌐 🛰️ 🚀"}
+  {icon:"👾",name:"cyber",items:"👾 🤖 👽 🛸 💻 🖥️ 📟 📡 🔋 🪫 ⚙️ 🧬 🔬 🔭 💿 📀 💽 🕹️ 🎮 🧩 🌀 💠 🔷 🔹 🔶 🔸 🔺 🔻 🔲 🔳 ▪️ ◾ ◼️ ⬛ 🟪 🟣 🟦 🟩 🟨 🟥 🟧 ⬜ ⬜ 🔘 🔮 🪩 ✨ 💫 ⚡ 💥 🌐 🛰️ 🚀"},
+  {icon:"D",name:"DOLBY404",items:"◉_◉ ◉‿◉ ◉ᴗ◉ ◉益◉ ◉皿◉ ◉_• ◉‿• •_• x_x X_X O_O 0_0 >_< ^_^ T_T D404 404 ⟡ ⟢ ⟣ ◈ ◆ ◇ ▣ ▤ ▥ ⌁ ⌬ ⛭ ⛧ ⚡"}
  ];
  const host=document.createElement("div");host.className="emoji-picker";
  const trigger=document.createElement("button");trigger.type="button";trigger.className="emoji-picker-trigger";trigger.textContent="☺";trigger.setAttribute("aria-label","Открыть смайлы DOLBY404");trigger.setAttribute("aria-expanded","false");
@@ -563,9 +582,10 @@ function attachEmojiPicker(field){
   grid.replaceChildren();
   categories[index].items.split(/\s+/).filter(Boolean).forEach(symbol=>{
    const item=document.createElement("button");item.type="button";item.className="emoji-item";item.textContent=symbol;item.setAttribute("aria-label",symbol);item.addEventListener("click",()=>{
-    const start=field.selectionStart??field.value.length,end=field.selectionEnd??start,value=field.value;
-    field.value=value.slice(0,start)+symbol+value.slice(end);
-    const cursor=start+symbol.length;field.focus();field.setSelectionRange(cursor,cursor);
+    const start=field.dataset.emojiStart!==undefined?Number(field.dataset.emojiStart):(field.selectionStart??field.value.length);
+    const end=field.dataset.emojiEnd!==undefined?Number(field.dataset.emojiEnd):start;
+    const value=field.value;field.value=value.slice(0,start)+symbol+value.slice(end);
+    const cursor=start+symbol.length;field.dataset.emojiStart=String(cursor);field.dataset.emojiEnd=String(cursor);
     field.dispatchEvent(new Event("input",{bubbles:true}));
    });grid.append(item);
   });
@@ -574,7 +594,11 @@ function attachEmojiPicker(field){
   const tab=document.createElement("button");tab.type="button";tab.className="emoji-category-tab";tab.textContent=category.icon;tab.setAttribute("aria-label","Категория "+(index+1));tab.setAttribute("aria-pressed",String(index===0));tab.addEventListener("click",()=>renderCategory(index));tabs.append(tab);
  });
  panel.append(tabs,grid);host.append(trigger,panel);field.insertAdjacentElement("afterend",host);
- trigger.addEventListener("click",()=>{panel.hidden=!panel.hidden;trigger.setAttribute("aria-expanded",String(!panel.hidden));if(!panel.hidden)renderCategory(active);});
+ field.addEventListener("click",()=>{field.dataset.emojiStart=String(field.selectionStart??field.value.length);field.dataset.emojiEnd=String(field.selectionEnd??field.selectionStart??field.value.length);panel.hidden=true;trigger.setAttribute("aria-expanded","false");});
+ field.addEventListener("keyup",()=>{field.dataset.emojiStart=String(field.selectionStart??field.value.length);field.dataset.emojiEnd=String(field.selectionEnd??field.value.length);});
+ field.addEventListener("select",()=>{field.dataset.emojiStart=String(field.selectionStart??field.value.length);field.dataset.emojiEnd=String(field.selectionEnd??field.value.length);});
+ trigger.addEventListener("click",e=>{e.preventDefault();field.dataset.emojiStart=String(field.selectionStart??field.dataset.emojiStart??field.value.length);field.dataset.emojiEnd=String(field.selectionEnd??field.dataset.emojiEnd??field.value.length);field.blur();panel.hidden=!panel.hidden;trigger.setAttribute("aria-expanded",String(!panel.hidden));if(!panel.hidden)renderCategory(active);});
+
  field.addEventListener("keydown",e=>{if(e.key==="Escape"&&!panel.hidden){panel.hidden=true;trigger.setAttribute("aria-expanded","false");}});
 }
 
@@ -911,7 +935,7 @@ $("save-button").addEventListener("click",async()=>{
 });
 
 // Редактор публикаций: типы файлов определяются автоматически.
-$("open-publish").addEventListener("click",()=>{$("publish-editor").hidden=false;$("publish-editor").classList.add("composer-fullscreen");$("publish-status").textContent="";});
+$("open-publish").addEventListener("click",()=>{$("publish-editor").hidden=false;$("publish-editor").classList.add("composer-fullscreen");$("publish-status").textContent="";$("post-text").focus();});
 $("cancel-publish").addEventListener("click",()=>{$("publish-editor").hidden=true;$("publish-editor").classList.remove("composer-fullscreen");});
 $("submit-post").addEventListener("click",async()=>{
  const text=$("post-text").value.trim();
