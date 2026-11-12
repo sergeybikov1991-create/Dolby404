@@ -82,7 +82,7 @@ function loadLibrary(){return new Promise((resolve,reject)=>{if(window.supabase?
 function firstKey(keys){return keys.find(k=>columns.includes(k));}
 function setAvatar(url){const box=$("avatar");box.innerHTML="";if(url){const img=document.createElement("img");img.src=url;img.alt="Аватар";img.onerror=()=>{box.textContent="◉";};box.appendChild(img);}else{box.textContent="◉";}}
 function render(){
- const nameKey=firstKey(["display_name","full_name","name","username"]);
+ const nameKey=firstKey(["display_name","full_name","name"]);
  const usernameKey=firstKey(["username","handle","nickname"]);
  const bioKey=firstKey(["bio","about","description"]);
  const avatarKey=firstKey(["avatar_url","avatar"]);
@@ -92,7 +92,7 @@ function render(){
  $("bio").textContent=(bioKey&&profile[bioKey])||"Здесь скоро появится рассказ о тебе. Нажми «Редактировать профиль», чтобы заполнить страницу.";
  setAvatar(avatarKey&&profile[avatarKey]);
  $("name-input").value=((nameKey&&profile[nameKey])==="Новый пользователь")?"":((nameKey&&profile[nameKey])||"");
- $("username-input").value=(usernameKey&&profile[usernameKey])||"";
+ $("username-input").value=(usernameKey&&profile[usernameKey]&&!/^user_[a-f0-9]{12,}$/i.test(profile[usernameKey]))?profile[usernameKey]:"";
  $("bio-input").value=(bioKey&&profile[bioKey])||"";
  $("avatar-input").value=(avatarKey&&profile[avatarKey])||"";
  $("edit-button").hidden=false;
