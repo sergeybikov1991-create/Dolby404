@@ -398,7 +398,7 @@ async function openPhotoView(){
  $("photo-view-image").src=url;$("photo-viewer").hidden=false;
  await refreshPhotoLikes();
 }
-function closePhotoView(){$("photo-viewer").hidden=true;$("photo-view-image").removeAttribute("src");}
+function closePhotoView(){$("photo-viewer").hidden=true;$("photo-view-image").removeAttribute("src");closePhotoEditor();}
 let photoSwipeStart=null;
 $("photo-view-image").style.touchAction="none";
 $("photo-view-image").addEventListener("pointerdown",e=>{
