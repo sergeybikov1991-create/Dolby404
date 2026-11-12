@@ -50,15 +50,51 @@ h1{font-size:clamp(25px,5vw,36px);margin:12px 0 8px}
 .feed-more{align-self:center;border:1px solid #62458b;border-radius:22px;padding:10px 18px;background:#2a1b3d;color:#f1e7ff}
 #feed-sentinel{height:1px}
 
+
+/* Mobile edge-swipe navigation */
+.menu-toggle{display:none;width:40px;height:40px;border:1px solid #49345f;border-radius:12px;background:#171321;color:#e9d9ff;font-size:21px;line-height:1}
+.drawer-backdrop{display:none}
+@media(max-width:700px){
+  body{touch-action:pan-y}
+  .topbar{z-index:30;justify-content:flex-start;gap:12px}
+  .menu-toggle{display:grid;place-items:center;flex-shrink:0}
+  .account{margin-left:auto}
+  .layout{display:block;margin:18px auto;padding:0 12px}
+  .sidebar{
+    display:block;position:fixed;z-index:25;left:0;top:0;bottom:0;
+    width:min(82vw,300px);height:100dvh;margin:0;padding:76px 14px 20px;
+    border-radius:0 20px 20px 0;border-left:0;
+    background:linear-gradient(160deg,#1b1729,#0e0d16 78%);
+    box-shadow:12px 0 45px #0008;
+    transform:translate3d(-105%,0,0);transition:transform .24s cubic-bezier(.2,.75,.25,1);
+    will-change:transform;overflow-y:auto;overscroll-behavior:contain;
+  }
+  .sidebar.dragging{transition:none}
+  .nav{flex-direction:column;gap:8px}
+  .nav a{padding:15px 14px;font-size:15px}
+  .drawer-backdrop{
+    display:block;position:fixed;z-index:20;inset:0;background:#05040bc7;
+    opacity:0;visibility:hidden;transition:opacity .24s ease,visibility .24s;
+    touch-action:pan-y
+  }
+  .drawer-backdrop.visible{opacity:1;visibility:visible}
+  body.drawer-open{overflow:hidden}
+  .grid{grid-template-columns:1fr}
+  .welcome{padding:20px}
+  .logout{padding:8px 10px}
+}
+
 </style>
 </head>
 <body>
 <header class="topbar">
+  <button class="menu-toggle" id="menu-toggle" type="button" aria-label="Открыть меню" aria-expanded="false">☰</button>
   <div class="logo">DOLBY404</div>
   <div class="account"><span id="user-email">Проверяем аккаунт…</span><button class="logout" id="logout-button" hidden>Выйти</button></div>
 </header>
+<div class="drawer-backdrop" id="drawer-backdrop"></div>
 <div class="layout" id="app" hidden>
-  <aside class="sidebar">
+  <aside class="sidebar" id="sidebar">
     <nav class="nav">
       <a class="active" href="home.html">⌂ Главная</a>
       <a href="#messages" data-soon="Сообщения">✉ Сообщения</a>
@@ -231,6 +267,86 @@ async function initFeed(client){
   }catch(e){showError(e.message);}
 }
 
+
+function initMobileDrawer(){
+  const sidebar=document.getElementById("sidebar");
+  const backdrop=document.getElementById("drawer-backdrop");
+  const toggle=document.getElementById("menu-toggle");
+  if(!sidebar||!backdrop||!toggle)return;
+  const mobile=()=>window.matchMedia("(max-width:700px)").matches;
+  let opened=false,tracking=false,dragging=false,startX=0,lastX=0,lastTime=0,startTime=0,startProgress=0;
+  let panelWidth=0,progress=0,pointerId=null;
+  const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
+  function paint(value,animate){
+    progress=clamp(value,0,1);
+    sidebar.classList.toggle("dragging",!animate);
+    sidebar.style.transform="translate3d("+(-panelWidth*(1-progress))+"px,0,0)";
+    backdrop.style.opacity=String(progress*.72);
+    backdrop.classList.toggle("visible",progress>0);
+    backdrop.style.visibility=progress>0?"visible":"hidden";
+  }
+  function setOpen(value){
+    opened=value;
+    panelWidth=sidebar.getBoundingClientRect().width||Math.min(window.innerWidth*.82,300);
+    sidebar.classList.remove("dragging");
+    sidebar.style.transition="";
+    sidebar.style.transform=value?"translate3d(0,0,0)":"";
+    backdrop.style.opacity="";
+    backdrop.style.visibility="";
+    backdrop.classList.toggle("visible",value);
+    document.body.classList.toggle("drawer-open",value);
+    toggle.setAttribute("aria-expanded",String(value));
+    toggle.setAttribute("aria-label",value?"Закрыть меню":"Открыть меню");
+    toggle.textContent=value?"×":"☰";
+    progress=value?1:0;
+  }
+  function begin(x,id){
+    if(!mobile())return;
+    panelWidth=sidebar.getBoundingClientRect().width||Math.min(window.innerWidth*.82,300);
+    tracking=true;dragging=false;pointerId=id;startX=x;lastX=x;
+    startTime=lastTime=performance.now();startProgress=opened?1:0;
+  }
+  function move(x,id,event){
+    if(!tracking||id!==pointerId)return;
+    const dx=x-startX;
+    if(!dragging&&Math.abs(dx)>7){
+      if((opened&&dx<0)||(!opened&&dx>0)){dragging=true;sidebar.classList.add("dragging");}
+      else if(Math.abs(dx)>18){tracking=false;return;}
+    }
+    if(!dragging)return;
+    if(event.cancelable)event.preventDefault();
+    const next=opened?1+dx/panelWidth:dx/panelWidth;
+    paint(next,false);
+    const now=performance.now();lastX=x;lastTime=now;
+  }
+  function finish(id){
+    if(!tracking||id!==pointerId)return;
+    tracking=false;pointerId=null;
+    if(!dragging)return;
+    const elapsed=Math.max(1,performance.now()-lastTime);
+    const velocity=(lastX-startX)/Math.max(1,performance.now()-startTime);
+    const shouldOpen=progress>.38||(progress>.08&&velocity>.45);
+    setOpen(shouldOpen);
+    dragging=false;
+  }
+  document.addEventListener("pointerdown",event=>{
+    if(!mobile()||event.button!==0)return;
+    const x=event.clientX;
+    if(!opened&&x<=24)begin(x,event.pointerId);
+    else if(opened&&sidebar.contains(event.target))begin(x,event.pointerId);
+  },{passive:true});
+  document.addEventListener("pointermove",event=>move(event.clientX,event.pointerId,event),{passive:false});
+  document.addEventListener("pointerup",event=>finish(event.pointerId),{passive:true});
+  document.addEventListener("pointercancel",event=>finish(event.pointerId),{passive:true});
+  toggle.addEventListener("click",()=>setOpen(!opened));
+  backdrop.addEventListener("click",()=>setOpen(false));
+  sidebar.querySelectorAll("a").forEach(link=>link.addEventListener("click",()=>{if(mobile())setOpen(false);}));
+  document.addEventListener("keydown",event=>{if(event.key==="Escape"&&opened)setOpen(false);});
+  window.addEventListener("resize",()=>{if(!mobile()){setOpen(false);sidebar.style.transform="";}});
+  setOpen(false);
+}
+
+initMobileDrawer();
 start();
 </script>
 </body>
