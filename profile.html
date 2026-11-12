@@ -770,7 +770,7 @@ $("drawer-logout").addEventListener("click",signOutFromDrawer);
 const settingsBackdrop=$("settings-backdrop");
 function closeSettings(){settingsBackdrop.hidden=true;}
 function openSettingsPanel(){$("settings-language").value=localStorage.getItem("dolby404-language")||"ru";$("settings-theme").value=localStorage.getItem("dolby404-theme")||"cyber";$("settings-status").textContent="";settingsBackdrop.hidden=false;}
-$("open-settings").addEventListener("click",()=>{toggleDrawerFromSettings();openNavigationDestination("settings");});
+$("open-settings").addEventListener("click",()=>{$("drawer-close").click();openNavigationDestination("settings");});
 $("settings-close").addEventListener("click",closeSettings);
 settingsBackdrop.addEventListener("click",e=>{if(e.target===settingsBackdrop)closeSettings();});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!settingsBackdrop.hidden)closeSettings();});
