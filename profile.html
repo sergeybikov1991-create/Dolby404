@@ -121,7 +121,9 @@ textarea{min-height:90px;resize:vertical}
 .cover-tools button{background:#090910bb;border-color:#a66bff88;font-size:12px;padding:9px 13px;backdrop-filter:blur(10px)}
 .profile{padding:0 28px 24px}
 .identity{align-items:flex-end;gap:18px;margin-top:-56px}
-.avatar{width:124px;height:124px;border:4px solid #15121f;background:linear-gradient(135deg,#9b55e7,#19142b);box-shadow:0 0 0 1px #a66bff88,0 0 30px #9b55e755;z-index:2}
+.avatar{width:124px;height:124px;border:3px solid transparent;background:linear-gradient(#15121f,#15121f) padding-box,conic-gradient(from 0deg,#a66bff,#55e7ff,#d879ff,#a66bff) border-box;box-shadow:0 0 0 1px #a66bff66,0 0 16px #a66bff77,0 0 30px #55e7ff33;z-index:2;animation:avatarGlow 3.8s ease-in-out infinite}
+@keyframes avatarGlow{0%,100%{box-shadow:0 0 0 1px #a66bff66,0 0 14px #a66bff66,0 0 26px #55e7ff22}50%{box-shadow:0 0 0 1px #d879ffbb,0 0 22px #a66bffbb,0 0 38px #55e7ff55}}
+@media(prefers-reduced-motion:reduce){.avatar{animation:none}}
 .name{padding-bottom:10px}
 .name h1{font-size:clamp(22px,4vw,30px);letter-spacing:.01em}
 .name p{color:#c59aff}
