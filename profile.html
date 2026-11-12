@@ -135,16 +135,10 @@ textarea{min-height:90px;resize:vertical}
 <label for="post-text">Текст публикации</label>
 <textarea id="post-text" maxlength="5000" placeholder="Что хочешь рассказать?"></textarea>
 <div class="hint">Можно выбрать несколько форматов и опубликовать их вместе.</div>
-<div class="media-options">
-<label class="media-option"><input type="checkbox" id="type-photo"> ▧ Фото</label>
-<label class="media-option"><input type="checkbox" id="type-video"> ▶ Видео</label>
-<label class="media-option"><input type="checkbox" id="type-music"> ♫ Музыка</label>
-<label class="media-option"><input type="checkbox" id="type-clip"> ◉ Клип</label>
+<div class="media-file">
+<label for="post-files">Фото, видео или музыка — можно выбрать несколько файлов</label>
+<input id="post-files" type="file" accept="image/*,video/*,audio/*" multiple>
 </div>
-<div class="media-file" id="file-photo" hidden><label for="post-photo">Выбери фото (можно несколько)</label><input id="post-photo" type="file" accept="image/*" multiple></div>
-<div class="media-file" id="file-video" hidden><label for="post-video">Выбери видео</label><input id="post-video" type="file" accept="video/*"></div>
-<div class="media-file" id="file-music" hidden><label for="post-music">Выбери аудиофайл</label><input id="post-music" type="file" accept="audio/*"></div>
-<div class="media-file" id="file-clip" hidden><label for="post-clip">Выбери видео для клипа</label><input id="post-clip" type="file" accept="video/*"></div>
 <div class="actions"><button class="primary" id="submit-post">Опубликовать</button><button type="button" id="cancel-publish">Отмена</button></div>
 <div id="publish-status" aria-live="polite"></div>
 </div>
@@ -301,16 +295,16 @@ $("save-button").addEventListener("click",async()=>{
  finally{$("save-button").disabled=false;}
 });
 
-// Редактор публикаций: текст и несколько типов медиа в одной записи.
-const mediaTypes=["photo","video","music","clip"];
-mediaTypes.forEach(type=>{$("type-"+type).addEventListener("change",()=>{$("file-"+type).hidden=!$("type-"+type).checked;});});
+// Редактор публикаций: типы файлов определяются автоматически.
 $("open-publish").addEventListener("click",()=>{$("publish-editor").hidden=false;$("publish-status").textContent="";});
 $("cancel-publish").addEventListener("click",()=>{$("publish-editor").hidden=true;});
 $("submit-post").addEventListener("click",async()=>{
  const text=$("post-text").value.trim();
- const selected=mediaTypes.filter(type=>$("type-"+type).checked);
- const files=[];
- for(const type of selected){const input=$("post-"+type);for(const file of Array.from(input.files||[]))files.push({type,file});}
+ const files=Array.from($("post-files").files||[]).map(file=>({
+  type:file.type.startsWith("image/")?"photo":file.type.startsWith("audio/")?"music":file.type.startsWith("video/")?"video":null,
+  file
+ }));
+ if(files.some(item=>!item.type)){$("publish-status").textContent="Выбери фото, видео или аудиофайл.";return;}
  if(!text&&!files.length){$("publish-status").textContent="Добавь текст или выбери хотя бы один файл.";return;}
  $("submit-post").disabled=true;$("publish-status").textContent="Подготавливаем публикацию…";
  try{
@@ -329,10 +323,8 @@ $("submit-post").addEventListener("click",async()=>{
   const inserted=await client.from("posts").insert({user_id:user.id,content:text||null,image_url:firstPhoto?.url||null,media}).select("*").single();
   if(inserted.error)throw inserted.error;
   $("publish-status").textContent="Публикация размещена!";
-  $("post-text").value="";
-  mediaTypes.forEach(type=>{$("type-"+type).checked=false;$("file-"+type).hidden=true;$("post-"+type).value="";});
-  $("publish-editor").hidden=true;
-  $("feed-empty").hidden=true;
+  $("post-text").value="";$("post-files").value="";
+  $("publish-editor").hidden=true;$("feed-empty").hidden=true;
   const card=document.createElement("article");card.className="post";
   const head=document.createElement("div");head.className="post-head";
   const av=document.createElement("div");av.className="post-avatar";av.textContent=(($("display-name").textContent||"П")[0]).toUpperCase();
@@ -344,7 +336,6 @@ $("submit-post").addEventListener("click",async()=>{
  }catch(e){$("publish-status").textContent="Не удалось опубликовать: "+e.message;}
  finally{$("submit-post").disabled=false;}
 });
-
 document.querySelectorAll("[data-soon]").forEach(button=>button.addEventListener("click",()=>{$("quick-status").textContent="Раздел «"+button.dataset.soon+"» подключим следующим этапом.";}));
 $("logout-button").addEventListener("click",async()=>{const r=await client.auth.signOut();if(r.error){alert(r.error.message);return;}location.replace("portal.html");});
 start();
