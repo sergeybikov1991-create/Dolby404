@@ -175,7 +175,7 @@ textarea{min-height:90px;resize:vertical}
 <div class="cover" id="cover"><img class="cover-photo" id="cover-photo" alt="Обложка профиля" hidden><div class="cover-tools"><button type="button" id="change-cover">✎ Изменить обложку</button></div></div>
 <div class="profile">
 <div class="identity">
-<div class="avatar" id="avatar" role="button" tabindex="0" aria-label="Редактировать фото профиля">◉</div>
+<div class="avatar" id="avatar" role="button" tabindex="0" aria-label="Редактировать фото профиля"></div>
 <div class="name"><h1 id="display-name">Загружаем профиль…</h1><p id="username"></p></div>
 </div>
 <p class="bio" id="bio">Подготавливаем твою страницу…</p>
@@ -261,7 +261,7 @@ let client,user,profile={},columns=[];
 const $=id=>document.getElementById(id);
 function loadLibrary(){return new Promise((resolve,reject)=>{if(window.supabase?.createClient){resolve();return;}const s=document.createElement("script");s.src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";s.onload=()=>window.supabase?.createClient?resolve():reject(new Error("Supabase не загрузился"));s.onerror=()=>reject(new Error("Нет подключения к библиотеке Supabase"));document.head.appendChild(s);});}
 function firstKey(keys){return keys.find(k=>columns.includes(k));}
-function setAvatar(url){const box=$("avatar");box.innerHTML="";if(url){const img=document.createElement("img");img.src=url;img.alt="Аватар";img.onerror=()=>{box.textContent="◉";};box.appendChild(img);}else{box.textContent="◉";}}
+function setAvatar(url){const box=$("avatar");box.innerHTML="";if(url){const img=document.createElement("img");img.src=url;img.alt="Аватар";img.onerror=()=>{box.innerHTML="";};box.appendChild(img);}}
 function render(){
  const nameKey=firstKey(["display_name","full_name","name"]);
  const usernameKey=firstKey(["username","handle","nickname"]);
