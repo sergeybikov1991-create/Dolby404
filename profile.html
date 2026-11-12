@@ -166,9 +166,49 @@ textarea{min-height:90px;resize:vertical}
 .post-edit-media-row input{width:18px;height:18px;accent-color:#a66bff}
 .post-edit-status{font-size:12px;color:#c5a4ff;min-height:16px;overflow-wrap:anywhere}
 @media(max-width:380px){.post-edit-button{padding:6px 7px;font-size:11px}}
+
+/* DOLBY404 slide navigation */
+.quick-nav{display:none!important}
+.drawer-edge{position:fixed;z-index:81;left:0;top:0;bottom:0;width:22px;touch-action:pan-y}
+.drawer-menu-button{position:fixed;z-index:83;left:12px;top:14px;width:42px;height:42px;padding:0;border:1px solid #76519d;border-radius:13px;background:#151020e8;color:#eadcff;font-size:22px;box-shadow:0 0 18px #8d50e733;backdrop-filter:blur(12px)}
+.drawer-backdrop{position:fixed;z-index:80;inset:0;background:#030209;opacity:0;pointer-events:none;transition:opacity .18s}
+.drawer-backdrop.visible{pointer-events:auto}
+.side-drawer{--drawer-x:-100%;position:fixed;z-index:82;left:0;top:0;bottom:0;width:min(82vw,320px);padding:22px 16px max(22px,env(safe-area-inset-bottom));overflow-y:auto;overscroll-behavior:contain;background:linear-gradient(160deg,#1b1428,#0c0b14 72%);border-right:1px solid #8054aa;box-shadow:12px 0 42px #0009;transform:translate3d(var(--drawer-x),0,0);transition:transform .24s cubic-bezier(.2,.8,.2,1);will-change:transform;touch-action:pan-y}
+.side-drawer.dragging{transition:none}
+.side-drawer-head{display:flex;align-items:center;justify-content:space-between;margin:2px 2px 24px}
+.side-drawer-logo{font-size:21px;font-weight:900;letter-spacing:3px;color:#f5eaff;text-shadow:0 0 18px #9b55ff}
+.side-drawer-close{width:36px;height:36px;padding:0;border-radius:11px;background:#21172f;font-size:20px}
+.side-drawer-caption{margin:0 8px 9px;color:#8f83a5;font-size:10px;letter-spacing:1.5px;text-transform:uppercase}
+.side-drawer-links{display:grid;gap:7px}
+.side-drawer-link{display:flex;align-items:center;gap:13px;width:100%;min-height:49px;padding:10px 13px;border:1px solid transparent;border-radius:12px;background:transparent;color:#e9ddff;text-align:left;font-size:14px}
+.side-drawer-link:active,.side-drawer-link.active{background:linear-gradient(100deg,#392052aa,#1b1429);border-color:#68458d}
+.side-drawer-icon{width:23px;text-align:center;color:#c18aff;font-size:18px}
+.side-drawer-divider{height:1px;margin:17px 4px;background:#33283f}
+.side-drawer-foot{margin:22px 8px 0;color:#756b87;font-size:11px;line-height:1.5}
+@media(prefers-reduced-motion:reduce){.drawer-backdrop,.side-drawer{transition:none}}
+
 </style>
 </head>
 <body>
+
+<button type="button" class="drawer-menu-button" id="drawer-menu-button" aria-label="Открыть меню" aria-controls="side-drawer" aria-expanded="false">☰</button>
+<div class="drawer-edge" id="drawer-edge" aria-hidden="true"></div><div class="drawer-backdrop" id="drawer-backdrop"></div>
+<aside class="side-drawer" id="side-drawer" aria-label="Навигация DOLBY404" aria-hidden="true">
+ <div class="side-drawer-head"><div class="side-drawer-logo">DOLBY404</div><button type="button" class="side-drawer-close" id="drawer-close" aria-label="Закрыть меню">×</button></div>
+ <p class="side-drawer-caption">Навигация</p><nav class="side-drawer-links">
+ <button class="side-drawer-link active" data-drawer-action="home"><span class="side-drawer-icon">⌂</span>Главная</button>
+ <button class="side-drawer-link" data-drawer-action="profile"><span class="side-drawer-icon">◉</span>Мой профиль</button>
+ <button class="side-drawer-link" data-drawer-action="feed"><span class="side-drawer-icon">▤</span>Лента публикаций</button></nav>
+ <div class="side-drawer-divider"></div><p class="side-drawer-caption">Медиа и общение</p><nav class="side-drawer-links">
+ <button class="side-drawer-link" data-drawer-soon="Друзья"><span class="side-drawer-icon">♧</span>Друзья</button>
+ <button class="side-drawer-link" data-drawer-soon="Сообщения"><span class="side-drawer-icon">✉</span>Сообщения</button>
+ <button class="side-drawer-link" data-drawer-soon="Сообщества"><span class="side-drawer-icon">◎</span>Сообщества</button>
+ <button class="side-drawer-link" data-drawer-soon="Музыка"><span class="side-drawer-icon">♫</span>Музыка</button>
+ <button class="side-drawer-link" data-drawer-soon="Видео"><span class="side-drawer-icon">▶</span>Видео</button>
+ <button class="side-drawer-link" data-drawer-soon="Фото"><span class="side-drawer-icon">▧</span>Фото</button>
+ <button class="side-drawer-link" data-drawer-soon="Закладки"><span class="side-drawer-icon">☆</span>Закладки</button></nav>
+ <div class="side-drawer-foot">DOLBY404 · твоя цифровая территория</div>
+</aside>
 <main class="wrap">
 
 <section class="card">
@@ -639,6 +679,22 @@ $("submit-post").addEventListener("click",async()=>{
 });
 document.querySelectorAll("[data-soon]").forEach(button=>button.addEventListener("click",()=>{$("quick-status").textContent="Раздел «"+button.dataset.soon+"» подключим следующим этапом.";}));
 $("logout-button").addEventListener("click",async()=>{const r=await client.auth.signOut();if(r.error){alert(r.error.message);return;}location.replace("portal.html");});
+
+(function initSideDrawer(){
+ const d=$("side-drawer"),shade=$("drawer-backdrop"),edge=$("drawer-edge"),btn=$("drawer-menu-button");
+ let opened=false,g=null;const w=()=>d.getBoundingClientRect().width,clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
+ function paint(x){const width=w(),v=clamp(x,-width,0),p=(v+width)/width;d.style.setProperty("--drawer-x",v+"px");shade.style.opacity=String(p*.68);shade.classList.toggle("visible",p>.01);}
+ function toggle(v){opened=v;d.classList.remove("dragging");d.style.setProperty("--drawer-x",v?"0px":"-100%");shade.style.opacity=v?".68":"0";shade.classList.toggle("visible",v);d.setAttribute("aria-hidden",String(!v));btn.setAttribute("aria-expanded",String(v));document.body.style.overflow=v?"hidden":"";}
+ function down(e,fromEdge){if(e.pointerType==="mouse"&&e.button!==0)return;if(fromEdge&&!opened&&e.clientX>28)return;if(!fromEdge&&!opened)return;g={id:e.pointerId,x:e.clientX,y:e.clientY,last:e.clientX,t:performance.now(),vel:0,edge:fromEdge,drag:false};try{(fromEdge?edge:d).setPointerCapture(e.pointerId);}catch(_){}}
+ function move(e){if(!g||g.id!==e.pointerId)return;const dx=e.clientX-g.x,dy=e.clientY-g.y;if(!g.drag){if(Math.abs(dy)>Math.abs(dx)*1.15&&Math.abs(dy)>8){g=null;return;}if(Math.abs(dx)<4)return;if((g.edge&&dx<0)||(!g.edge&&dx>0)){g=null;return;}g.drag=true;d.classList.add("dragging");}const now=performance.now();g.vel=(e.clientX-g.last)/Math.max(1,now-g.t);g.last=e.clientX;g.t=now;paint(g.edge?-w()+Math.max(0,dx):Math.min(0,dx));}
+ function up(e){if(!g||g.id!==e.pointerId)return;const q=g;g=null;if(!q.drag){d.classList.remove("dragging");return;}const x=parseFloat(d.style.getPropertyValue("--drawer-x"))||-w();toggle((x+w())/w()>.42||q.vel>.45);}
+ edge.addEventListener("pointerdown",e=>down(e,true));d.addEventListener("pointerdown",e=>down(e,false));
+ [edge,d].forEach(el=>{el.addEventListener("pointermove",move);el.addEventListener("pointerup",up);el.addEventListener("pointercancel",()=>{g=null;toggle(opened);});});
+ btn.addEventListener("click",()=>toggle(!opened));$("drawer-close").addEventListener("click",()=>toggle(false));shade.addEventListener("click",()=>toggle(false));document.addEventListener("keydown",e=>{if(e.key==="Escape"&&opened)toggle(false);});
+ d.addEventListener("click",e=>{const a=e.target.closest("[data-drawer-action],[data-drawer-soon]");if(!a)return;toggle(false);if(a.dataset.drawerAction==="home")scrollTo({top:0,behavior:"smooth"});else if(a.dataset.drawerAction==="profile")$("cover").scrollIntoView({behavior:"smooth"});else if(a.dataset.drawerAction==="feed")$("feed-section").scrollIntoView({behavior:"smooth"});else $("quick-status").textContent="Раздел «"+a.dataset.drawerSoon+"» подключим следующим этапом.";});
+ toggle(false);
+})();
+
 start();
 </script>
 </body>
