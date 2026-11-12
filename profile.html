@@ -185,6 +185,14 @@ textarea{min-height:90px;resize:vertical}
 .side-drawer-link:active,.side-drawer-link.active{background:linear-gradient(100deg,#392052aa,#1b1429);border-color:#68458d}
 .side-drawer-icon{width:23px;text-align:center;color:#c18aff;font-size:18px}
 .side-drawer-divider{height:1px;margin:17px 4px;background:#33283f}
+.nav-history{margin:13px 4px 2px;padding:11px 9px 10px;border:1px solid #342541;border-radius:13px;background:#110e19aa}
+.nav-history .side-drawer-caption{margin:0 0 8px 2px}
+.nav-history-items{display:grid;gap:6px}
+.nav-history-item{display:flex;align-items:center;gap:9px;width:100%;min-height:37px;padding:7px 8px;border:1px solid #352744;border-radius:9px;background:#1b1525;color:#d9c8f2;text-align:left;font-size:12px;overflow:hidden}
+.nav-history-item:active{background:#352044}
+.nav-history-item .side-drawer-icon{width:19px;font-size:15px}
+.nav-history-empty{padding:5px 2px;color:#81758f;font-size:11px}
+
 .side-drawer-foot{margin:22px 8px 0;color:#756b87;font-size:11px;line-height:1.5}
 @media(prefers-reduced-motion:reduce){.drawer-backdrop,.side-drawer{transition:none}}
 
@@ -225,8 +233,8 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 <aside class="side-drawer" id="side-drawer" aria-label="Навигация DOLBY404" aria-hidden="true">
  <div class="drawer-shell"><div class="side-drawer-head"><div class="side-drawer-logo">DOLBY404</div><button type="button" class="side-drawer-close" id="drawer-close" aria-label="Закрыть меню">×</button></div>
  <p class="side-drawer-caption">Навигация</p><nav class="side-drawer-links">
- <button class="side-drawer-link active" data-drawer-action="profile"><span class="side-drawer-icon">◉</span>Мой профиль</button>
- <button class="side-drawer-link" data-drawer-action="feed"><span class="side-drawer-icon">▤</span>Лента публикаций</button></nav>
+ <button class="side-drawer-link active" data-drawer-action="profile"><span class="side-drawer-icon">◉</span>Мой профиль</button></nav>
+ <div class="nav-history" id="nav-history"><p class="side-drawer-caption" id="nav-history-title">Недавно посещали</p><div class="nav-history-items" id="nav-history-items"><span class="nav-history-empty">Пока пусто</span></div></div>
  <div class="side-drawer-divider"></div><p class="side-drawer-caption">Медиа и общение</p><nav class="side-drawer-links">
  <button class="side-drawer-link" data-drawer-soon="Друзья"><span class="side-drawer-icon">♧</span>Друзья</button>
  <button class="side-drawer-link" data-drawer-soon="Сообщения"><span class="side-drawer-icon">✉</span>Сообщения</button>
@@ -368,6 +376,25 @@ function render(){
  $("bio-input").value=(bioKey&&profile[bioKey])||"";
 
 }
+const navigationNames={profile:["Мой профиль","My profile","◉"],feed:["Лента публикаций","Posts feed","▤"],settings:["Настройки","Settings","⚙"],friends:["Друзья","Friends","♧"],messages:["Сообщения","Messages","✉"],communities:["Сообщества","Communities","◎"],music:["Музыка","Music","♫"],video:["Видео","Videos","▶"],photos:["Фото","Photos","▧"],bookmarks:["Закладки","Bookmarks","☆"]};
+function navigationHistoryKey(){return "dolby404-nav-history-"+(user?.id||"guest");}
+function renderNavigationHistory(){
+ const host=$("nav-history-items");if(!host)return;host.replaceChildren();
+ let entries=[];try{entries=JSON.parse(localStorage.getItem(navigationHistoryKey())||"[]");if(!Array.isArray(entries))entries=[];}catch(_){}
+ if(!entries.length){const empty=document.createElement("span");empty.className="nav-history-empty";empty.textContent=localStorage.getItem("dolby404-language")==="en"?"No recent places yet":"Пока пусто";host.append(empty);return;}
+ entries.slice(0,2).forEach(entry=>{const meta=navigationNames[entry.action]||[entry.label||"Раздел",entry.label||"Section",entry.icon||"•"];const b=document.createElement("button");b.type="button";b.className="nav-history-item";b.dataset.historyAction=entry.action;const icon=document.createElement("span");icon.className="side-drawer-icon";icon.textContent=meta[2];const label=document.createElement("span");label.textContent=localStorage.getItem("dolby404-language")==="en"?meta[1]:meta[0];b.append(icon,label);host.append(b);});
+}
+function recordNavigation(action,label,icon){
+ let entries=[];try{entries=JSON.parse(localStorage.getItem(navigationHistoryKey())||"[]");if(!Array.isArray(entries))entries=[];}catch(_){}
+ entries=entries.filter(item=>item.action!==action);entries.unshift({action,label:label||"",icon:icon||""});localStorage.setItem(navigationHistoryKey(),JSON.stringify(entries.slice(0,2)));renderNavigationHistory();
+}
+function openNavigationDestination(action,label,icon){
+ if(action==="profile"){$("cover").scrollIntoView({behavior:"smooth"});}
+ else if(action==="feed"){$("feed-section").scrollIntoView({behavior:"smooth"});}
+ else if(action==="settings"){openSettingsPanel();}
+ else {const meta=navigationNames[action];const title=meta?(localStorage.getItem("dolby404-language")==="en"?meta[1]:meta[0]):(label||"Раздел");$("quick-status").textContent=(localStorage.getItem("dolby404-language")==="en"?"The section “":"Раздел «")+title+(localStorage.getItem("dolby404-language")==="en"?"” will be connected in a later stage.":"» подключим следующим этапом.");}
+ recordNavigation(action,label,icon);
+}
 async function start(){
  try{
   await loadLibrary();client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
@@ -382,6 +409,7 @@ async function start(){
     columns=Object.keys(probe.data?.[0]||{});
   }
   render();
+  recordNavigation("profile");
   initProfileFeed(client);
   if(!result.data){$("notice").hidden=false;$("notice").textContent="Профиль ещё не найден в таблице. Страница открыта, но для сохранения сначала нужно проверить структуру таблицы profiles.";}
  }catch(e){$("display-name").textContent="Не удалось загрузить профиль";$("bio").textContent=e.message;$("notice").hidden=false;$("notice").textContent="Проверь подключение и настройки доступа к таблице profiles.";}
@@ -732,7 +760,8 @@ function signOutFromDrawer(){client.auth.signOut().then(({error})=>{if(error){$(
 $("drawer-logout").addEventListener("click",signOutFromDrawer);
 const settingsBackdrop=$("settings-backdrop");
 function closeSettings(){settingsBackdrop.hidden=true;}
-$("open-settings").addEventListener("click",()=>{ $("settings-language").value=localStorage.getItem("dolby404-language")||"ru";$("settings-theme").value=localStorage.getItem("dolby404-theme")||"cyber";$("settings-status").textContent="";settingsBackdrop.hidden=false;});
+function openSettingsPanel(){$("settings-language").value=localStorage.getItem("dolby404-language")||"ru";$("settings-theme").value=localStorage.getItem("dolby404-theme")||"cyber";$("settings-status").textContent="";settingsBackdrop.hidden=false;}
+$("open-settings").addEventListener("click",()=>{toggleDrawerFromSettings();openNavigationDestination("settings");});
 $("settings-close").addEventListener("click",closeSettings);
 settingsBackdrop.addEventListener("click",e=>{if(e.target===settingsBackdrop)closeSettings();});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!settingsBackdrop.hidden)closeSettings();});
@@ -740,7 +769,8 @@ function applyTheme(theme){const allowed=["cyber","ocean","rose","mono"];documen
 function applyLanguage(language){
  const en=language==="en";document.documentElement.lang=en?"en":"ru";
  $("side-drawer").querySelector(".side-drawer-caption").textContent=en?"Navigation":"Навигация";
- $("side-drawer").querySelectorAll("[data-drawer-action]").forEach((b,i)=>{const labels=en?["My profile","Posts feed"]:["Мой профиль","Лента публикаций"];const icons=["◉","▤"];b.innerHTML='<span class="side-drawer-icon">'+icons[i]+'</span>'+labels[i];});
+ $("side-drawer").querySelectorAll("[data-drawer-action]").forEach(b=>{b.innerHTML='<span class="side-drawer-icon">◉</span>'+(en?"My profile":"Мой профиль");});
+ $("nav-history-title").textContent=en?"Recently visited":"Недавно посещали";renderNavigationHistory();
  $("side-drawer").querySelectorAll("[data-drawer-soon]").forEach(b=>{const key=b.dataset.drawerSoon;const names=en?{"Друзья":"Friends","Сообщения":"Messages","Сообщества":"Communities","Музыка":"Music","Видео":"Videos","Фото":"Photos","Закладки":"Bookmarks"}:{"Друзья":"Друзья","Сообщения":"Сообщения","Сообщества":"Сообщества","Музыка":"Музыка","Видео":"Видео","Фото":"Фото","Закладки":"Закладки"};const icon=b.querySelector(".side-drawer-icon")?.textContent||"•";b.innerHTML='<span class="side-drawer-icon">'+icon+'</span>'+(names[key]||key);});
  $("open-settings").innerHTML='<span class="side-drawer-icon">⚙</span>'+(en?"Settings":"Настройки");
  $("drawer-logout").textContent=en?"↪ Sign out":"↪ Выйти";
@@ -786,7 +816,8 @@ document.querySelectorAll("[data-soon]").forEach(button=>button.addEventListener
  edge.addEventListener("pointerdown",e=>down(e,true));d.addEventListener("pointerdown",e=>down(e,false));
  [edge,d].forEach(el=>{el.addEventListener("pointermove",move);el.addEventListener("pointerup",up);el.addEventListener("pointercancel",()=>{g=null;toggle(opened);});});
  btn.addEventListener("click",()=>toggle(!opened));$("drawer-close").addEventListener("click",()=>toggle(false));shade.addEventListener("click",()=>toggle(false));document.addEventListener("keydown",e=>{if(e.key==="Escape"&&opened)toggle(false);});
- d.addEventListener("click",e=>{const a=e.target.closest("[data-drawer-action],[data-drawer-soon]");if(!a)return;toggle(false);if(a.dataset.drawerAction==="home")scrollTo({top:0,behavior:"smooth"});else if(a.dataset.drawerAction==="profile")$("cover").scrollIntoView({behavior:"smooth"});else if(a.dataset.drawerAction==="feed")$("feed-section").scrollIntoView({behavior:"smooth"});else $("quick-status").textContent="Раздел «"+a.dataset.drawerSoon+"» подключим следующим этапом.";});
+ function toggleDrawerFromSettings(){const drawer=$("side-drawer");drawer.setAttribute("aria-hidden","true");}
+ d.addEventListener("click",e=>{const recent=e.target.closest("[data-history-action]");if(recent){toggle(false);openNavigationDestination(recent.dataset.historyAction);return;}const a=e.target.closest("[data-drawer-action],[data-drawer-soon]");if(!a)return;toggle(false);const action=a.dataset.drawerAction||({Друзья:"friends",Сообщения:"messages",Сообщества:"communities",Музыка:"music",Видео:"video",Фото:"photos",Закладки:"bookmarks"}[a.dataset.drawerSoon]||"");openNavigationDestination(action,a.dataset.drawerSoon,a.querySelector(".side-drawer-icon")?.textContent);});
  toggle(false);
 })();
 
