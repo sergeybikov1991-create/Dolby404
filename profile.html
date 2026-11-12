@@ -361,13 +361,13 @@ function render(){
  const display=(nameKey&&profile[nameKey])||user.email||"Мой профиль";
  $("display-name").textContent=display;
  $("username").textContent=usernameKey&&profile[usernameKey]?"@"+profile[usernameKey]:"";
- $("bio").textContent=(bioKey&&profile[bioKey])||"Здесь скоро появится рассказ о тебе. Нажми «Редактировать профиль», чтобы заполнить страницу.";
+ $("bio").textContent=(bioKey&&profile[bioKey])||"Здесь скоро появится рассказ о тебе. Открой меню → Настройки → Профиль, чтобы заполнить страницу.";
  setAvatar(avatarKey&&profile[avatarKey]);
  const coverKey=firstKey(["cover_url","banner_url","cover"]);const coverUrl=coverKey&&profile[coverKey];const coverImage=$("cover-photo");if(coverUrl){coverImage.src=coverUrl;coverImage.hidden=false;}else{coverImage.removeAttribute("src");coverImage.hidden=true;}
  $("name-input").value=((nameKey&&profile[nameKey])==="Новый пользователь")?"":((nameKey&&profile[nameKey])||"");
  $("username-input").value=(usernameKey&&profile[usernameKey]&&!/^user_[a-f0-9]{12,}$/i.test(profile[usernameKey]))?profile[usernameKey]:"";
  $("bio-input").value=(bioKey&&profile[bioKey])||"";
- $("edit-button").hidden=false;
+
 }
 async function start(){
  try{
