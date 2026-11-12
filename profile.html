@@ -187,6 +187,34 @@ textarea{min-height:90px;resize:vertical}
 .side-drawer-foot{margin:22px 8px 0;color:#756b87;font-size:11px;line-height:1.5}
 @media(prefers-reduced-motion:reduce){.drawer-backdrop,.side-drawer{transition:none}}
 
+
+/* Настройки аккаунта и внешний вид */
+.drawer-bottom{margin-top:auto;padding-top:18px}
+.drawer-settings-button{margin-bottom:9px}
+.drawer-logout-button{width:100%;min-height:48px;border:1px solid #633746;border-radius:12px;background:#24131d;color:#ffb9c7;text-align:left;padding:10px 13px;font-size:14px}
+.drawer-shell{min-height:100%;display:flex;flex-direction:column}
+.settings-backdrop{position:fixed;z-index:110;inset:0;display:grid;place-items:center;padding:18px;background:#05030bd9;backdrop-filter:blur(8px)}
+.settings-backdrop[hidden]{display:none}
+.settings-panel{width:min(100%,440px);max-height:min(88vh,760px);overflow:auto;padding:20px;border:1px solid #76519d;border-radius:19px;background:linear-gradient(155deg,#1c1729,#0d0c15);box-shadow:0 0 38px #8d50e733}
+.settings-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
+.settings-head h2{margin:0;font-size:20px;color:#f2e9ff}
+.settings-close{width:36px;height:36px;border:1px solid #49375f;border-radius:10px;background:#21172f;color:#eee;font-size:21px}
+.settings-label{display:block;margin:16px 0 7px;color:#cbb9e6;font-size:13px}
+.settings-panel select,.settings-panel input{width:100%;min-height:44px;padding:10px 12px;border:1px solid #514264;border-radius:11px;background:#100e19;color:#f5efff;font-size:14px}
+.settings-help{margin:7px 0 0;color:#8f849f;font-size:11px;line-height:1.5}
+.settings-actions{display:flex;gap:9px;margin-top:15px}
+.settings-actions button{flex:1;min-height:43px}
+.settings-divider{height:1px;margin:21px 0;background:#382d49}
+.settings-status{min-height:18px;margin:12px 0 0;color:#c5a4ff;font-size:12px;line-height:1.5}
+body[data-theme="ocean"]{--purple:#54bfff}
+body[data-theme="ocean"] .cover{background:radial-gradient(ellipse at 70% 20%,#236caa 0,transparent 45%),linear-gradient(110deg,#102b42,#151b32 55%,#101c35)}
+body[data-theme="ocean"] .avatar{box-shadow:0 0 24px #249be777}
+body[data-theme="rose"]{--purple:#ff79b7}
+body[data-theme="rose"] .cover{background:radial-gradient(ellipse at 70% 20%,#a83d79 0,transparent 45%),linear-gradient(110deg,#35142c,#26152b 55%,#171323)}
+body[data-theme="rose"] .avatar{box-shadow:0 0 24px #ff69ae77}
+body[data-theme="mono"]{--purple:#c5c5d4;--line:#454552}
+body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#666676 0,transparent 45%),linear-gradient(110deg,#262630,#171720 55%,#101019)}
+
 </style>
 </head>
 <body>
@@ -194,7 +222,7 @@ textarea{min-height:90px;resize:vertical}
 <button type="button" class="drawer-menu-button" id="drawer-menu-button" aria-label="Открыть меню" aria-controls="side-drawer" aria-expanded="false">☰</button>
 <div class="drawer-edge" id="drawer-edge" aria-hidden="true"></div><div class="drawer-backdrop" id="drawer-backdrop"></div>
 <aside class="side-drawer" id="side-drawer" aria-label="Навигация DOLBY404" aria-hidden="true">
- <div class="side-drawer-head"><div class="side-drawer-logo">DOLBY404</div><button type="button" class="side-drawer-close" id="drawer-close" aria-label="Закрыть меню">×</button></div>
+ <div class="drawer-shell"><div class="side-drawer-head"><div class="side-drawer-logo">DOLBY404</div><button type="button" class="side-drawer-close" id="drawer-close" aria-label="Закрыть меню">×</button></div>
  <p class="side-drawer-caption">Навигация</p><nav class="side-drawer-links">
  <button class="side-drawer-link active" data-drawer-action="home"><span class="side-drawer-icon">⌂</span>Главная</button>
  <button class="side-drawer-link" data-drawer-action="profile"><span class="side-drawer-icon">◉</span>Мой профиль</button>
@@ -207,8 +235,27 @@ textarea{min-height:90px;resize:vertical}
  <button class="side-drawer-link" data-drawer-soon="Видео"><span class="side-drawer-icon">▶</span>Видео</button>
  <button class="side-drawer-link" data-drawer-soon="Фото"><span class="side-drawer-icon">▧</span>Фото</button>
  <button class="side-drawer-link" data-drawer-soon="Закладки"><span class="side-drawer-icon">☆</span>Закладки</button></nav>
- <div class="side-drawer-foot">DOLBY404 · твоя цифровая территория</div>
+ <div class="drawer-bottom"><button type="button" class="side-drawer-link drawer-settings-button" id="open-settings"><span class="side-drawer-icon">⚙</span>Настройки</button><button type="button" class="drawer-logout-button" id="drawer-logout">↪ Выйти</button><div class="side-drawer-foot">DOLBY404 · твоя цифровая территория</div></div></div>
 </aside>
+
+<div class="settings-backdrop" id="settings-backdrop" hidden>
+ <section class="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+  <div class="settings-head"><h2 id="settings-title">Настройки</h2><button type="button" class="settings-close" id="settings-close" aria-label="Закрыть">×</button></div>
+  <label class="settings-label" for="settings-language">Язык интерфейса</label>
+  <select id="settings-language"><option value="ru">Русский</option><option value="en">English</option></select>
+  <label class="settings-label" for="settings-theme">Стиль страницы</label>
+  <select id="settings-theme"><option value="cyber">Cyber violet — фиолетовый неон</option><option value="ocean">Ocean — синий неон</option><option value="rose">Rose — розовый неон</option><option value="mono">Mono — монохромный</option></select>
+  <div class="settings-actions"><button type="button" class="primary" id="save-preferences">Сохранить настройки</button></div>
+  <p class="settings-help">Выбранный стиль и язык сохраняются на этом устройстве.</p>
+  <div class="settings-divider"></div>
+  <h3 style="margin:0;color:#eee4ff;font-size:16px">Безопасность</h3>
+  <label class="settings-label" for="new-password">Новый пароль</label><input id="new-password" type="password" autocomplete="new-password" minlength="6" placeholder="Не менее 6 символов">
+  <label class="settings-label" for="confirm-password">Повтори новый пароль</label><input id="confirm-password" type="password" autocomplete="new-password" minlength="6" placeholder="Повтори пароль">
+  <div class="settings-actions"><button type="button" class="primary" id="change-password">Изменить пароль</button></div>
+  <p class="settings-help">После смены пароля используй его при следующем входе в DOLBY404.</p>
+  <div class="settings-status" id="settings-status" aria-live="polite"></div>
+ </section>
+</div>
 <main class="wrap">
 
 <section class="card">
@@ -224,7 +271,7 @@ textarea{min-height:90px;resize:vertical}
 <div><strong id="followers-count">—</strong>Подписчики</div>
 <div><strong id="following-count">—</strong>Подписки</div>
 </div>
-<div class="actions"><button class="primary" id="edit-button" hidden>✎ Редактировать профиль</button><button id="logout-button">Выйти</button></div>
+<div class="actions"><button class="primary" id="edit-button" hidden>✎ Редактировать профиль</button></div>
 <div class="editor" id="editor" hidden>
 <h2>Настроить профиль</h2>
 <input id="name-input" maxlength="60" placeholder="Как тебя зовут?">
@@ -677,8 +724,35 @@ $("submit-post").addEventListener("click",async()=>{
  }catch(e){$("publish-status").textContent="Не удалось опубликовать: "+e.message;}
  finally{$("submit-post").disabled=false;}
 });
+
+function signOutFromDrawer(){client.auth.signOut().then(({error})=>{if(error){$("quick-status").textContent="Не удалось выйти: "+error.message;return;}location.replace("portal.html");});}
+$("drawer-logout").addEventListener("click",signOutFromDrawer);
+const settingsBackdrop=$("settings-backdrop");
+function closeSettings(){settingsBackdrop.hidden=true;}
+$("open-settings").addEventListener("click",()=>{ $("settings-language").value=localStorage.getItem("dolby404-language")||"ru";$("settings-theme").value=localStorage.getItem("dolby404-theme")||"cyber";$("settings-status").textContent="";settingsBackdrop.hidden=false;});
+$("settings-close").addEventListener("click",closeSettings);
+settingsBackdrop.addEventListener("click",e=>{if(e.target===settingsBackdrop)closeSettings();});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!settingsBackdrop.hidden)closeSettings();});
+function applyTheme(theme){const allowed=["cyber","ocean","rose","mono"];document.body.dataset.theme=allowed.includes(theme)?theme:"cyber";}
+applyTheme(localStorage.getItem("dolby404-theme")||"cyber");
+$("save-preferences").addEventListener("click",()=>{
+ const language=$("settings-language").value,theme=$("settings-theme").value;
+ localStorage.setItem("dolby404-language",language);localStorage.setItem("dolby404-theme",theme);applyTheme(theme);
+ document.documentElement.lang=language;
+ $("settings-status").textContent=language==="en"?"Preferences saved on this device.":"Настройки сохранены на этом устройстве.";
+});
+$("change-password").addEventListener("click",async()=>{
+ const password=$("new-password").value,confirm=$("confirm-password").value;
+ if(password.length<6){$("settings-status").textContent="Пароль должен содержать не менее 6 символов.";return;}
+ if(password!==confirm){$("settings-status").textContent="Пароли не совпадают.";return;}
+ $("change-password").disabled=true;$("settings-status").textContent="Обновляем пароль…";
+ try{const result=await client.auth.updateUser({password});if(result.error)throw result.error;
+ $("new-password").value="";$("confirm-password").value="";$("settings-status").textContent="Пароль успешно изменён.";
+ }catch(error){$("settings-status").textContent="Не удалось изменить пароль: "+error.message;}
+ finally{$("change-password").disabled=false;}
+});
 document.querySelectorAll("[data-soon]").forEach(button=>button.addEventListener("click",()=>{$("quick-status").textContent="Раздел «"+button.dataset.soon+"» подключим следующим этапом.";}));
-$("logout-button").addEventListener("click",async()=>{const r=await client.auth.signOut();if(r.error){alert(r.error.message);return;}location.replace("portal.html");});
+
 
 (function initSideDrawer(){
  const d=$("side-drawer"),shade=$("drawer-backdrop"),edge=$("drawer-edge"),btn=$("drawer-menu-button");
