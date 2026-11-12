@@ -93,6 +93,15 @@ textarea{min-height:90px;resize:vertical}
 .post-media{display:grid;gap:10px;margin-top:12px}
 .post-media img,.post-media video{display:block;width:100%;max-height:520px;object-fit:contain;border-radius:12px;background:#090910}
 .post-media audio{width:100%}
+.post-photo-wrap{position:relative;width:100%;overflow:hidden;border-radius:12px;background:#090910}
+.post-photo-wrap>img{display:block;width:100%;max-height:520px;object-fit:contain;border-radius:12px;background:#090910}
+.mini-audio-bar{position:absolute;left:7px;right:7px;bottom:7px;z-index:2;display:flex;align-items:center;gap:8px;height:32px;padding:0 9px;border:1px solid #ffffff20;border-radius:9px;background:rgba(8,7,13,.43);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);color:#fff;box-sizing:border-box}
+.mini-audio-play{flex:0 0 21px;width:21px;height:21px;padding:0;border:0;border-radius:50%;background:#a66bff;color:#fff;font-size:11px;line-height:21px;text-align:center}
+.mini-audio-progress{flex:1;min-width:20px;width:100%;height:3px;margin:0;accent-color:#c69aff;cursor:pointer}
+.mini-audio-time{flex:0 0 auto;color:#eee;font-size:9px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.mini-audio-standalone{position:relative;display:flex;align-items:center;min-height:34px;padding:0;border-radius:10px}
+.mini-audio-standalone .mini-audio-bar{position:relative;left:auto;right:auto;bottom:auto;width:100%;height:34px;background:rgba(30,22,43,.7)}
+
 @media(max-width:380px){.media-options{grid-template-columns:1fr}}
 
 
@@ -292,6 +301,24 @@ async function initProfileFeed(client){
  const batchSize=10;
  function safeUrl(value){if(!value)return "";try{const u=new URL(value,location.href);return ["http:","https:"].includes(u.protocol)?u.href:"";}catch(_){return "";}}
  function dateText(value){if(!value)return "";const d=new Date(value);return Number.isNaN(d.getTime())?"":d.toLocaleString("ru-RU",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});}
+ function makeMiniAudio(audio,photo){
+  const bar=document.createElement("div");bar.className="mini-audio-bar";
+  const play=document.createElement("button");play.type="button";play.className="mini-audio-play";play.textContent="▶";play.setAttribute("aria-label","Воспроизвести");
+  const progress=document.createElement("input");progress.type="range";progress.className="mini-audio-progress";progress.min="0";progress.max="1000";progress.value="0";progress.setAttribute("aria-label","Позиция аудио");
+  const time=document.createElement("span");time.className="mini-audio-time";time.textContent="0:00 / 0:00";
+  const fmt=value=>{if(!Number.isFinite(value)||value<0)return "0:00";const m=Math.floor(value/60),sec=Math.floor(value%60);return m+":"+String(sec).padStart(2,"0");};
+  const sync=()=>{const duration=audio.duration||0;progress.value=duration?String(Math.round(audio.currentTime/duration*1000)):"0";time.textContent=fmt(audio.currentTime)+" / "+fmt(duration);};
+  play.addEventListener("click",async()=>{if(audio.paused){try{await audio.play();}catch(e){time.textContent="Ошибка";}}else audio.pause();});
+  audio.addEventListener("play",()=>{play.textContent="Ⅱ";play.setAttribute("aria-label","Пауза");});
+  audio.addEventListener("pause",()=>{play.textContent="▶";play.setAttribute("aria-label","Воспроизвести");});
+  audio.addEventListener("ended",()=>{play.textContent="▶";play.setAttribute("aria-label","Воспроизвести");});
+  audio.addEventListener("timeupdate",sync);audio.addEventListener("loadedmetadata",sync);audio.addEventListener("durationchange",sync);
+  progress.addEventListener("input",()=>{if(audio.duration)audio.currentTime=Number(progress.value)/1000*audio.duration;});
+  bar.append(play,progress,time);
+  if(photo){const wrap=document.createElement("div");wrap.className="post-photo-wrap";photo.parentNode.insertBefore(wrap,photo);wrap.append(photo,bar);}
+  else{const wrap=document.createElement("div");wrap.className="mini-audio-standalone";audio.parentNode.insertBefore(wrap,audio);wrap.append(bar);}
+  audio.preload="metadata";audio.style.display="none";sync();
+ }
  function renderPost(post,profiles){
   const profile=profiles[post.user_id]||{},author=profile.name||profile.display_name||profile.full_name||profile.username||"Пользователь";
   const card=document.createElement("article");card.className="post";
@@ -304,7 +331,7 @@ async function initProfileFeed(client){
   card.append(head);
   if(post.content){const content=document.createElement("div");content.className="post-content";content.textContent=post.content;card.append(content);}
   const mediaItems=Array.isArray(post.media)&&post.media.length?post.media:(post.image_url?[{type:"photo",url:post.image_url,name:"Фото"}]:[]);
-  if(mediaItems.length){const mediaBox=document.createElement("div");mediaBox.className="post-media";for(const item of mediaItems){const url=safeUrl(item.url);if(!url)continue;let node;if(item.type==="photo"){node=document.createElement("img");node.alt="Фото публикации";node.loading="lazy";node.decoding="async";}else if(item.type==="music"){node=document.createElement("audio");node.controls=true;}else{node=document.createElement("video");node.controls=true;node.playsInline=true;node.preload="metadata";}node.src=url;mediaBox.appendChild(node);}if(mediaBox.children.length)card.append(mediaBox);}
+  if(mediaItems.length){const mediaBox=document.createElement("div");mediaBox.className="post-media";let firstPhoto=null,firstAudio=null;for(const item of mediaItems){const url=safeUrl(item.url);if(!url)continue;let node;if(item.type==="photo"){node=document.createElement("img");node.alt="Фото публикации";node.loading="lazy";node.decoding="async";if(!firstPhoto)firstPhoto=node;}else if(item.type==="music"){node=document.createElement("audio");node.controls=true;if(!firstAudio)firstAudio=node;}else{node=document.createElement("video");node.controls=true;node.playsInline=true;node.preload="metadata";}node.src=url;mediaBox.appendChild(node);}if(firstAudio)makeMiniAudio(firstAudio,firstPhoto);if(mediaBox.children.length)card.append(mediaBox);}
   return card;
  }
  function startEditPost(post,card){
@@ -572,7 +599,7 @@ $("submit-post").addEventListener("click",async()=>{
   const ident=document.createElement("div");const author=document.createElement("div");author.className="post-author";author.textContent=$("display-name").textContent;
   const date=document.createElement("div");date.className="post-date";date.textContent="только что";ident.append(author,date);head.append(av,ident);card.append(head);
   if(text){const body=document.createElement("div");body.className="post-content";body.textContent=text;card.append(body);}
-  if(media.length){const box=document.createElement("div");box.className="post-media";media.forEach(item=>{const node=document.createElement(item.type==="photo"?"img":item.type==="music"?"audio":"video");if(node.tagName==="IMG")node.alt="Фото публикации";else{node.controls=true;if(node.tagName==="VIDEO")node.playsInline=true;}node.src=item.url;box.append(node);});card.append(box);}
+  if(media.length){const box=document.createElement("div");box.className="post-media";let firstPhoto=null,firstAudio=null;media.forEach(item=>{const node=document.createElement(item.type==="photo"?"img":item.type==="music"?"audio":"video");if(node.tagName==="IMG"){node.alt="Фото публикации";if(!firstPhoto)firstPhoto=node;}else{node.controls=true;if(node.tagName==="VIDEO")node.playsInline=true;if(node.tagName==="AUDIO"&&!firstAudio)firstAudio=node;}node.src=item.url;box.append(node);});if(firstAudio)makeMiniAudio(firstAudio,firstPhoto);card.append(box);}
   $("feed-list").prepend(card);$("posts-count").textContent=String((Number($("posts-count").textContent)||0)+1);
  }catch(e){$("publish-status").textContent="Не удалось опубликовать: "+e.message;}
  finally{$("submit-post").disabled=false;}
