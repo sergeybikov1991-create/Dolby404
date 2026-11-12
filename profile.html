@@ -126,6 +126,22 @@ textarea{min-height:90px;resize:vertical}
 #logout-button{background:#17131f;border-color:#393044;color:#bcb3ca}
 @media(max-width:600px){.wrap{margin:14px auto;padding:0 11px}.cover{height:158px}.profile{padding:0 15px 18px}.identity{gap:12px;margin-top:-43px}.avatar{width:96px;height:96px;font-size:32px}.name{padding-bottom:6px}.stats{gap:7px;padding:12px 0}.stats>div{padding:10px 4px;font-size:11px}.stats strong{font-size:18px}.cover-tools{right:9px;top:9px}.cover-tools button{font-size:11px;padding:8px 10px}}
 
+.photo-likers{display:flex;align-items:center;justify-content:center;gap:9px;flex-wrap:wrap}
+.photo-liker-avatars{display:flex;align-items:center;padding-left:5px}
+.photo-liker-avatar{width:30px;height:30px;border-radius:50%;border:2px solid #171321;margin-left:-6px;overflow:hidden;background:#39234f;display:grid;place-items:center;color:#f2e8ff;font-size:11px;font-weight:700}
+.photo-liker-avatar img{width:100%;height:100%;object-fit:cover}
+.photo-like-count-button{border:0;background:transparent;color:#d8c5ff;padding:7px 9px;min-width:0;text-decoration:underline;text-underline-offset:3px}
+.photo-like-count-button:hover{color:#fff}
+.likers-modal{position:fixed;inset:0;z-index:40;background:#05040be8;display:grid;place-items:center;padding:18px}
+.likers-modal[hidden]{display:none}
+.likers-panel{width:min(100%,390px);max-height:78vh;overflow:auto;padding:20px;border:1px solid #55416f;border-radius:18px;background:#171321;box-shadow:0 18px 60px #0009}
+.likers-panel h2{font-size:18px;margin:0 0 15px}
+.likers-list{display:flex;flex-direction:column;gap:10px}
+.liker-row{display:flex;align-items:center;gap:11px;padding:8px;border:1px solid #342943;border-radius:12px;background:#100f19}
+.liker-row .photo-liker-avatar{width:40px;height:40px;margin:0;flex:0 0 40px}
+.liker-name{font-size:14px;color:#f2eaff;overflow-wrap:anywhere}
+.likers-empty{color:var(--muted);font-size:13px;padding:12px 2px}
+
 </style>
 </head>
 <body>
@@ -202,8 +218,16 @@ textarea{min-height:90px;resize:vertical}
 </div>
 <div class="photo-viewer" id="photo-viewer" hidden>
  <img id="photo-view-image" alt="Фотография профиля целиком">
- <div class="photo-viewer-tools"><button type="button" class="photo-like" id="photo-like">♡ Нравится</button><span id="photo-like-count">0 лайков</span><button type="button" id="close-photo-view">Закрыть</button></div>
+ <div class="photo-viewer-tools"><button type="button" class="photo-like" id="photo-like">♡ Нравится</button><button type="button" class="photo-like-count-button" id="photo-like-count" aria-label="Открыть список лайков">0 лайков</button><button type="button" id="close-photo-view">Закрыть</button></div>
+ <div class="photo-likers"><div class="photo-liker-avatars" id="photo-liker-avatars"></div></div>
  <div id="photo-view-status" aria-live="polite"></div>
+</div>
+<div class="likers-modal" id="likers-modal" hidden>
+ <div class="likers-panel" role="dialog" aria-modal="true" aria-labelledby="likers-title">
+  <h2 id="likers-title">Понравилось</h2>
+  <div class="likers-list" id="likers-list"></div>
+  <div class="actions"><button type="button" id="close-likers">Закрыть</button></div>
+ </div>
 </div>
 <input id="avatar-file" type="file" accept="image/jpeg,image/png,image/webp" hidden>
 <input id="cover-file" type="file" accept="image/jpeg,image/png,image/webp" hidden>
@@ -316,23 +340,59 @@ $("cover-file").addEventListener("change",async()=>{
 function currentAvatarUrl(){const key=firstKey(["avatar_url","avatar"]);return key&&profile[key]?profile[key]:null;}
 function openPhotoEditor(){$("photo-modal").hidden=false;$("photo-status").textContent="";$("open-photo-view").disabled=!currentAvatarUrl();}
 function closePhotoEditor(){$("photo-modal").hidden=true;}
+function likerAvatar(profile){
+ const holder=document.createElement("div");holder.className="photo-liker-avatar";
+ const url=profile?.avatar_url||profile?.avatar||"";
+ if(url){const img=document.createElement("img");img.src=url;img.alt="";img.loading="lazy";img.onerror=()=>{holder.textContent=(profile?.name||profile?.display_name||profile?.username||"П")[0].toUpperCase();};holder.appendChild(img);}
+ else holder.textContent=String(profile?.name||profile?.display_name||profile?.full_name||profile?.username||"П").trim()[0].toUpperCase();
+ return holder;
+}
+async function fetchPhotoLikers(){
+ const result=await client.from("profile_photo_likes").select("user_id,created_at").eq("profile_id",user.id).order("created_at",{ascending:false});
+ if(result.error)throw result.error;
+ const rows=result.data||[],ids=[...new Set(rows.map(row=>row.user_id).filter(Boolean))];
+ let profilesById={};
+ if(ids.length){
+  const profilesResult=await client.from("profiles").select("*").in("id",ids);
+  if(profilesResult.error)throw profilesResult.error;
+  for(const p of profilesResult.data||[])profilesById[p.id]=p;
+ }
+ return rows.map(row=>({user_id:row.user_id,profile:profilesById[row.user_id]||{}}));
+}
 async function refreshPhotoLikes(){
  $("photo-like").disabled=true;$("photo-view-status").textContent="Загружаем лайки…";
  try{
-  const [countResult,mineResult]=await Promise.all([
-   client.from("profile_photo_likes").select("*",{count:"exact",head:true}).eq("profile_id",user.id),
+  const [likers,mineResult]=await Promise.all([
+   fetchPhotoLikers(),
    client.from("profile_photo_likes").select("user_id").eq("profile_id",user.id).eq("user_id",user.id).maybeSingle()
   ]);
-  if(countResult.error)throw countResult.error;if(mineResult.error)throw mineResult.error;
-  const count=countResult.count||0,liked=!!mineResult.data;
-  $("photo-like-count").textContent=count+" "+(count===1?"лайк":"лайков");
+  if(mineResult.error)throw mineResult.error;
+  const liked=!!mineResult.data;
+  $("photo-like-count").textContent=likers.length+" "+(likers.length===1?"лайк":"лайков");
   $("photo-like").textContent=liked?"♥ Нравится":"♡ Нравится";
   $("photo-like").classList.toggle("liked",liked);
   $("photo-like").dataset.liked=liked?"true":"false";
+  const avatars=$("photo-liker-avatars");avatars.replaceChildren();
+  likers.slice(0,3).forEach(item=>avatars.appendChild(likerAvatar(item.profile)));
   $("photo-view-status").textContent="";
- }catch(e){$("photo-view-status").textContent="Не удалось загрузить лайки. Проверь таблицу лайков в Supabase.";}
+ }catch(e){$("photo-view-status").textContent="Не удалось загрузить лайки или аватары. Проверь доступ к таблице profiles.";}
  finally{$("photo-like").disabled=false;}
 }
+async function openLikersList(){
+ $("likers-modal").hidden=false;$("likers-list").innerHTML='<div class="likers-empty">Загружаем список…</div>';
+ try{
+  const likers=await fetchPhotoLikers(),list=$("likers-list");list.replaceChildren();
+  $("likers-title").textContent="Понравилось · "+likers.length;
+  if(!likers.length){const empty=document.createElement("div");empty.className="likers-empty";empty.textContent="Пока никто не поставил лайк.";list.appendChild(empty);return;}
+  likers.forEach(item=>{
+   const row=document.createElement("div");row.className="liker-row";row.appendChild(likerAvatar(item.profile));
+   const name=document.createElement("div");name.className="liker-name";
+   name.textContent=item.profile.name||item.profile.display_name||item.profile.full_name||item.profile.username||"Пользователь";
+   row.appendChild(name);list.appendChild(row);
+  });
+ }catch(e){$("likers-list").textContent="Не удалось загрузить список лайков. Проверь доступ к таблице profiles.";}
+}
+
 async function openPhotoView(){
  const url=currentAvatarUrl();if(!url)return;
  $("photo-view-image").src=url;$("photo-viewer").hidden=false;
@@ -344,6 +404,9 @@ $("avatar").addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.pr
 $("close-photo").addEventListener("click",closePhotoEditor);
 $("open-photo-view").addEventListener("click",openPhotoView);
 $("close-photo-view").addEventListener("click",closePhotoView);
+$("photo-like-count").addEventListener("click",openLikersList);
+$("close-likers").addEventListener("click",()=>$("likers-modal").hidden=true);
+$("likers-modal").addEventListener("click",e=>{if(e.target===$("likers-modal"))$("likers-modal").hidden=true;});
 $("photo-like").addEventListener("click",async()=>{
  const liked=$("photo-like").dataset.liked==="true";
  $("photo-like").disabled=true;$("photo-view-status").textContent="Сохраняем…";
