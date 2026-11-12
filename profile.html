@@ -142,6 +142,18 @@ textarea{min-height:90px;resize:vertical}
 .liker-name{font-size:14px;color:#f2eaff;overflow-wrap:anywhere}
 .likers-empty{color:var(--muted);font-size:13px;padding:12px 2px}
 
+
+.post-owner-tools{margin-left:auto;display:flex;align-items:center}
+.post-edit-button{padding:7px 10px;font-size:12px;border-radius:10px;background:#21172f;border-color:#65458a;color:#dfc9ff;white-space:nowrap}
+.post-edit-panel{display:grid;gap:10px;margin-top:12px;padding:13px;border:1px solid #65458a;border-radius:13px;background:#100d19}
+.post-edit-panel label{display:grid;gap:7px;font-size:12px;color:#cfc2e8}
+.post-edit-panel textarea{width:100%;min-height:100px;padding:11px;border:1px solid #49385e;border-radius:10px;background:#090811;color:#fff;font:inherit;resize:vertical}
+.post-edit-panel input[type=file]{width:100%;font-size:12px}
+.post-edit-label{font-size:12px;color:#cfc2e8}
+.post-edit-media-row{display:flex!important;align-items:center;justify-content:space-between;padding:8px 10px;border:1px solid #302640;border-radius:9px;background:#171321}
+.post-edit-media-row input{width:18px;height:18px;accent-color:#a66bff}
+.post-edit-status{font-size:12px;color:#c5a4ff;min-height:16px;overflow-wrap:anywhere}
+@media(max-width:380px){.post-edit-button{padding:6px 7px;font-size:11px}}
 </style>
 </head>
 <body>
@@ -288,12 +300,60 @@ async function initProfileFeed(client){
   const avatar=document.createElement("div");avatar.className="post-avatar";const avatarUrl=safeUrl(profile.avatar_url||profile.avatar);
   if(avatarUrl){const img=document.createElement("img");img.src=avatarUrl;img.alt="";img.loading="lazy";avatar.appendChild(img);}else avatar.textContent=(String(author).trim()[0]||"◉").toUpperCase();
   const identity=document.createElement("div");const name=document.createElement("div");name.className="post-author";name.textContent=author;
-  const date=document.createElement("div");date.className="post-date";date.textContent=dateText(post.created_at);identity.append(name,date);head.append(avatar,identity);card.append(head);
+  const date=document.createElement("div");date.className="post-date";date.textContent=dateText(post.created_at);identity.append(name,date);head.append(avatar,identity);
+  if(post.user_id===user.id){const tools=document.createElement("div");tools.className="post-owner-tools";const edit=document.createElement("button");edit.type="button";edit.className="post-edit-button";edit.textContent="✎ Изменить";edit.addEventListener("click",()=>startEditPost(post,card));tools.append(edit);head.append(tools);}
+  card.append(head);
   if(post.content){const content=document.createElement("div");content.className="post-content";content.textContent=post.content;card.append(content);}
-  const mediaItems=Array.isArray(post.media)?post.media:[];
+  const mediaItems=Array.isArray(post.media)&&post.media.length?post.media:(post.image_url?[{type:"photo",url:post.image_url,name:"Фото"}]:[]);
   if(mediaItems.length){const mediaBox=document.createElement("div");mediaBox.className="post-media";for(const item of mediaItems){const url=safeUrl(item.url);if(!url)continue;let node;if(item.type==="photo"){node=document.createElement("img");node.alt="Фото публикации";node.loading="lazy";node.decoding="async";}else if(item.type==="music"){node=document.createElement("audio");node.controls=true;}else{node=document.createElement("video");node.controls=true;node.playsInline=true;node.preload="metadata";}node.src=url;mediaBox.appendChild(node);}if(mediaBox.children.length)card.append(mediaBox);}
-  else {const imageUrl=safeUrl(post.image_url);if(imageUrl){const img=document.createElement("img");img.className="post-image";img.src=imageUrl;img.alt="Фото публикации";img.loading="lazy";img.decoding="async";card.append(img);}}
   return card;
+ }
+ function startEditPost(post,card){
+  if(post.user_id!==user.id)return;
+  if(card.querySelector(".post-edit-panel"))return;
+  const originalMedia=Array.isArray(post.media)&&post.media.length?post.media.slice():(post.image_url?[{type:"photo",url:post.image_url,name:"Фото"}]:[]);
+  const panel=document.createElement("div");panel.className="post-edit-panel";
+  const label=document.createElement("label");label.textContent="Текст публикации";
+  const textarea=document.createElement("textarea");textarea.maxLength=5000;textarea.value=post.content||"";label.append(textarea);panel.append(label);
+  const mediaTitle=document.createElement("div");mediaTitle.className="post-edit-label";mediaTitle.textContent="Прикреплённые файлы — отметь, что убрать";panel.append(mediaTitle);
+  const rows=[];
+  originalMedia.forEach((item,index)=>{
+   const row=document.createElement("label");row.className="post-edit-media-row";
+   const name=document.createElement("span");name.textContent=(item.name||({photo:"Фото",video:"Видео",music:"Музыка"}[item.type]||"Файл"))+" · "+(index+1);
+   const remove=document.createElement("input");remove.type="checkbox";remove.setAttribute("aria-label","Убрать файл "+(index+1));
+   row.append(name,remove);panel.append(row);rows.push({item,remove});
+  });
+  const fileLabel=document.createElement("label");fileLabel.textContent="Добавить фото, видео или музыку";
+  const fileInput=document.createElement("input");fileInput.type="file";fileInput.accept="image/*,video/*,audio/*";fileInput.multiple=true;fileLabel.append(fileInput);panel.append(fileLabel);
+  const status=document.createElement("div");status.className="post-edit-status";status.setAttribute("aria-live","polite");panel.append(status);
+  const actions=document.createElement("div");actions.className="actions";
+  const save=document.createElement("button");save.type="button";save.className="primary";save.textContent="Сохранить";
+  const cancel=document.createElement("button");cancel.type="button";cancel.textContent="Отмена";
+  actions.append(save,cancel);panel.append(actions);card.append(panel);
+  cancel.addEventListener("click",()=>panel.remove());
+  save.addEventListener("click",async()=>{
+   const content=textarea.value.trim();
+   const kept=rows.filter(row=>!row.remove.checked).map(row=>row.item);
+   const files=Array.from(fileInput.files||[]).map(file=>({file,type:file.type.startsWith("image/")?"photo":file.type.startsWith("video/")?"video":file.type.startsWith("audio/")?"music":null}));
+   if(files.some(item=>!item.type)){status.textContent="Выбери фото, видео или аудиофайл.";return;}
+   if(!content&&!kept.length&&!files.length){status.textContent="В публикации должен остаться текст или хотя бы один файл.";return;}
+   save.disabled=true;cancel.disabled=true;status.textContent="Сохраняем изменения…";
+   try{
+    for(let i=0;i<files.length;i++){
+     const {file,type}=files[i],safeName=file.name.replace(/[^a-zA-Z0-9._-]/g,"_").slice(-80);
+     const path=`${user.id}/${Date.now()}-edit-${i}-${safeName}`;
+     status.textContent=`Загружаем новые файлы: ${i+1} из ${files.length}…`;
+     const uploaded=await client.storage.from("posts").upload(path,file,{upsert:false,contentType:file.type||undefined});
+     if(uploaded.error)throw uploaded.error;
+     const url=client.storage.from("posts").getPublicUrl(path).data.publicUrl;
+     kept.push({type,url,name:file.name});
+    }
+    const firstPhoto=kept.find(item=>item.type==="photo");
+    const updated=await client.from("posts").update({content:content||null,image_url:firstPhoto?.url||null,media:kept}).eq("id",post.id).eq("user_id",user.id).select("*").single();
+    if(updated.error)throw updated.error;
+    const replacement=renderPost(updated.data,{[user.id]:profile});card.replaceWith(replacement);
+   }catch(e){status.textContent="Не удалось сохранить: "+e.message;save.disabled=false;cancel.disabled=false;}
+  });
  }
  async function loadBatch(){
   if(busy||done)return;busy=true;loading.hidden=false;
