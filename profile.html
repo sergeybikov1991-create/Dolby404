@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DOLBY404 — Мой профиль</title>
+<style>
+*{box-sizing:border-box}
+:root{--bg:#090910;--panel:#141320;--line:#302b43;--purple:#a66bff;--muted:#a39db5;--text:#f7f4ff}
+body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 15% 0%,#281342 0,transparent 38%),var(--bg);color:var(--text);font-family:Arial,sans-serif}
+.topbar{height:68px;display:flex;align-items:center;justify-content:space-between;padding:0 max(calc((100% - 1050px)/2),18px);border-bottom:1px solid var(--line);background:#0b0b13eF;position:sticky;top:0}
+.logo{font-size:24px;font-weight:900;letter-spacing:3px;text-shadow:0 0 18px #7b4bff}
+a{color:#d8c5ff;text-decoration:none}
+.wrap{max-width:900px;margin:32px auto;padding:0 16px}
+.back{display:inline-block;margin-bottom:18px;color:#c7b2ed}
+.card{border:1px solid var(--line);border-radius:20px;background:linear-gradient(145deg,#191625,#101019);overflow:hidden}
+.cover{height:150px;background:radial-gradient(ellipse at 70% 20%,#7742b4 0,transparent 45%),linear-gradient(110deg,#201238,#17152a 55%,#101c35)}
+.profile{padding:0 26px 26px}
+.identity{display:flex;align-items:end;gap:18px;margin-top:-48px;position:relative}
+.avatar{width:112px;height:112px;border-radius:50%;border:4px solid #171522;background:linear-gradient(135deg,#6336a3,#17152b);display:grid;place-items:center;font-size:42px;overflow:hidden;flex-shrink:0;box-shadow:0 0 24px #8d50e755}
+.avatar img{width:100%;height:100%;object-fit:cover}
+.name{padding-bottom:9px;min-width:0}
+.name h1{font-size:26px;margin:0 0 6px;overflow-wrap:anywhere}
+.name p{margin:0;color:var(--muted);font-size:13px;overflow-wrap:anywhere}
+.bio{color:#c9c2d7;line-height:1.6;margin:20px 0}
+.stats{display:flex;gap:24px;padding:15px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);color:var(--muted);font-size:13px}
+.stats strong{color:#fff;font-size:17px;display:block;margin-bottom:3px}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+button{cursor:pointer;border:1px solid #62458b;border-radius:24px;padding:11px 18px;background:#2a1b3d;color:#f1e7ff;font-size:14px}
+button.primary{background:linear-gradient(100deg,#6335a0,#39205f);border-color:#9b69d8}
+button:disabled{opacity:.5;cursor:wait}
+.editor{margin-top:20px;padding:20px;border:1px solid var(--line);border-radius:16px;background:#100f19}
+.editor[hidden]{display:none}
+.editor h2{font-size:17px;margin:0 0 16px}
+label{display:block;color:#c9bddc;font-size:13px;margin:13px 0 7px}
+input,textarea{width:100%;padding:12px 14px;border-radius:11px;border:1px solid #403653;background:#0b0a12;color:#fff;font:inherit;outline:none}
+textarea{min-height:90px;resize:vertical}
+.hint{font-size:12px;color:var(--muted);line-height:1.5}
+#message{min-height:20px;margin-top:12px;color:#c5a4ff;font-size:13px;overflow-wrap:anywhere}
+.empty{padding:22px;border:1px dashed #55456c;border-radius:14px;color:var(--muted);margin-top:20px;line-height:1.55}
+@media(max-width:600px){.topbar{height:60px;padding:0 14px}.logo{font-size:20px}.wrap{margin:18px auto;padding:0 12px}.cover{height:115px}.profile{padding:0 16px 20px}.avatar{width:88px;height:88px;font-size:34px}.identity{gap:12px;margin-top:-38px}.name h1{font-size:21px}.stats{gap:18px}}
+</style>
+</head>
+<body>
+<header class="topbar"><div class="logo">DOLBY404</div><a href="home.html">На главную ↗</a></header>
+<main class="wrap">
+<a class="back" href="home.html">← Вернуться в пространство</a>
+<section class="card">
+<div class="cover"></div>
+<div class="profile">
+<div class="identity">
+<div class="avatar" id="avatar">◉</div>
+<div class="name"><h1 id="display-name">Загружаем профиль…</h1><p id="username"></p></div>
+</div>
+<p class="bio" id="bio">Подготавливаем твою страницу…</p>
+<div class="stats">
+<div><strong id="posts-count">—</strong>Публикации</div>
+<div><strong id="followers-count">—</strong>Подписчики</div>
+<div><strong id="following-count">—</strong>Подписки</div>
+</div>
+<div class="actions"><button class="primary" id="edit-button" hidden>Редактировать профиль</button><button id="logout-button">Выйти из аккаунта</button></div>
+<div class="editor" id="editor" hidden>
+<h2>Настроить профиль</h2>
+<label for="name-input">Имя</label><input id="name-input" maxlength="60" placeholder="Как тебя зовут?">
+<label for="username-input">Никнейм</label><input id="username-input" maxlength="30" placeholder="Например, dolby_user">
+<label for="bio-input">О себе</label><textarea id="bio-input" maxlength="300" placeholder="Расскажи немного о себе…"></textarea>
+<label for="avatar-input">Ссылка на аватар</label><input id="avatar-input" type="url" placeholder="https://…">
+<p class="hint">Поля сохраняются, только если соответствующие столбцы уже существуют в таблице profiles. Загрузка файла-аватара добавится отдельно.</p>
+<div class="actions"><button class="primary" id="save-button">Сохранить</button><button id="cancel-button">Отмена</button></div>
+<div id="message"></div>
+</div>
+<div id="notice" class="empty" hidden></div>
+</div>
+</section>
+</main>
+<script>
+const SUPABASE_URL="https://qhpobdktlbhdqsnajypr.supabase.co";
+const SUPABASE_KEY="sb_publishable_tzG1qVsbjaW8YE_LBVN87Q_v0CahKN5";
+let client,user,profile={},columns=[];
+const $=id=>document.getElementById(id);
+function loadLibrary(){return new Promise((resolve,reject)=>{if(window.supabase?.createClient){resolve();return;}const s=document.createElement("script");s.src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";s.onload=()=>window.supabase?.createClient?resolve():reject(new Error("Supabase не загрузился"));s.onerror=()=>reject(new Error("Нет подключения к библиотеке Supabase"));document.head.appendChild(s);});}
+function firstKey(keys){return keys.find(k=>columns.includes(k));}
+function setAvatar(url){const box=$("avatar");box.innerHTML="";if(url){const img=document.createElement("img");img.src=url;img.alt="Аватар";img.onerror=()=>{box.textContent="◉";};box.appendChild(img);}else{box.textContent="◉";}}
+function render(){
+ const nameKey=firstKey(["display_name","full_name","name","username"]);
+ const usernameKey=firstKey(["username","handle","nickname"]);
+ const bioKey=firstKey(["bio","about","description"]);
+ const avatarKey=firstKey(["avatar_url","avatar"]);
+ const display=(nameKey&&profile[nameKey])||user.email||"Мой профиль";
+ $("display-name").textContent=display;
+ $("username").textContent=usernameKey&&profile[usernameKey]?"@"+profile[usernameKey]:"";
+ $("bio").textContent=(bioKey&&profile[bioKey])||"Здесь скоро появится рассказ о тебе. Нажми «Редактировать профиль», чтобы заполнить страницу.";
+ setAvatar(avatarKey&&profile[avatarKey]);
+ $("name-input").value=(nameKey&&profile[nameKey])||"";
+ $("username-input").value=(usernameKey&&profile[usernameKey])||"";
+ $("bio-input").value=(bioKey&&profile[bioKey])||"";
+ $("avatar-input").value=(avatarKey&&profile[avatarKey])||"";
+ $("edit-button").hidden=false;
+}
+async function start(){
+ try{
+  await loadLibrary();client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+  const auth=await client.auth.getUser();if(auth.error)throw auth.error;user=auth.data.user;
+  if(!user){location.replace("portal.html");return;}
+  const result=await client.from("profiles").select("*").eq("id",user.id).maybeSingle();
+  if(result.error)throw result.error;
+  profile=result.data||{};columns=Object.keys(profile);
+  if(!columns.length){
+    const probe=await client.from("profiles").select("*").limit(1);
+    if(probe.error)throw probe.error;
+    columns=Object.keys(probe.data?.[0]||{});
+  }
+  render();
+  if(!result.data){$("notice").hidden=false;$("notice").textContent="Профиль ещё не найден в таблице. Страница открыта, но для сохранения сначала нужно проверить структуру таблицы profiles.";}
+ }catch(e){$("display-name").textContent="Не удалось загрузить профиль";$("bio").textContent=e.message;$("notice").hidden=false;$("notice").textContent="Проверь подключение и настройки доступа к таблице profiles.";}
+}
+$("edit-button").addEventListener("click",()=>{$("editor").hidden=false;$("message").textContent="";});
+$("cancel-button").addEventListener("click",()=>{$("editor").hidden=true;});
+$("save-button").addEventListener("click",async()=>{
+ const nameKey=firstKey(["display_name","full_name","name"]);
+ const usernameKey=firstKey(["username","handle","nickname"]);
+ const bioKey=firstKey(["bio","about","description"]);
+ const avatarKey=firstKey(["avatar_url","avatar"]);
+ const patch={};
+ if(nameKey)patch[nameKey]=$("name-input").value.trim();
+ if(usernameKey)patch[usernameKey]=$("username-input").value.trim().replace(/^@/,"");
+ if(bioKey)patch[bioKey]=$("bio-input").value.trim();
+ if(avatarKey)patch[avatarKey]=$("avatar-input").value.trim();
+ if(!Object.keys(patch).length){$("message").textContent="В таблице пока не найдены поля для имени, никнейма, описания или аватара. Нужна небольшая настройка базы данных.";return;}
+ $("save-button").disabled=true;$("message").textContent="Сохраняем…";
+ try{
+  const result=await client.from("profiles").update(patch).eq("id",user.id).select("*").single();
+  if(result.error)throw result.error;profile=result.data;columns=Object.keys(profile);render();$("editor").hidden=true;$("message").textContent="Профиль сохранён!";
+ }catch(e){$("message").textContent="Не удалось сохранить: "+e.message;}
+ finally{$("save-button").disabled=false;}
+});
+$("logout-button").addEventListener("click",async()=>{const r=await client.auth.signOut();if(r.error){alert(r.error.message);return;}location.replace("portal.html");});
+start();
+</script>
+</body>
+</html>
