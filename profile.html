@@ -797,9 +797,17 @@ function renderPost(post,profiles){
   const status=document.createElement("div");status.className="post-edit-status";status.setAttribute("aria-live","polite");panel.append(status);
   const actions=document.createElement("div");actions.className="actions";
   const save=document.createElement("button");save.type="button";save.className="primary";save.textContent="Сохранить";
+  const del=document.createElement("button");del.type="button";del.textContent="Удалить публикацию";
   const cancel=document.createElement("button");cancel.type="button";cancel.textContent="Отмена";
-  actions.append(save,cancel);panel.append(actions);card.append(panel);
+  actions.append(save,del,cancel);panel.append(actions);card.append(panel);
   cancel.addEventListener("click",()=>panel.remove());
+  del.addEventListener("click",async()=>{
+   if(!confirm("Удалить эту публикацию без возможности восстановления?"))return;
+   del.disabled=true;save.disabled=true;cancel.disabled=true;status.textContent="Удаляем публикацию…";
+   const removed=await client.from("posts").delete().eq("id",post.id).eq("user_id",user.id);
+   if(removed.error){status.textContent="Не удалось удалить: "+removed.error.message;del.disabled=false;save.disabled=false;cancel.disabled=false;return;}
+   card.remove();
+  });
   save.addEventListener("click",async()=>{
    const content=textarea.value.trim();
    const kept=rows.filter(row=>!row.remove.checked).map(row=>row.item);
