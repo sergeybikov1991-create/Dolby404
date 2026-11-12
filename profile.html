@@ -225,8 +225,7 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 <aside class="side-drawer" id="side-drawer" aria-label="Навигация DOLBY404" aria-hidden="true">
  <div class="drawer-shell"><div class="side-drawer-head"><div class="side-drawer-logo">DOLBY404</div><button type="button" class="side-drawer-close" id="drawer-close" aria-label="Закрыть меню">×</button></div>
  <p class="side-drawer-caption">Навигация</p><nav class="side-drawer-links">
- <button class="side-drawer-link active" data-drawer-action="home"><span class="side-drawer-icon">⌂</span>Главная</button>
- <button class="side-drawer-link" data-drawer-action="profile"><span class="side-drawer-icon">◉</span>Мой профиль</button>
+ <button class="side-drawer-link active" data-drawer-action="profile"><span class="side-drawer-icon">◉</span>Мой профиль</button>
  <button class="side-drawer-link" data-drawer-action="feed"><span class="side-drawer-icon">▤</span>Лента публикаций</button></nav>
  <div class="side-drawer-divider"></div><p class="side-drawer-caption">Медиа и общение</p><nav class="side-drawer-links">
  <button class="side-drawer-link" data-drawer-soon="Друзья"><span class="side-drawer-icon">♧</span>Друзья</button>
@@ -741,7 +740,7 @@ function applyTheme(theme){const allowed=["cyber","ocean","rose","mono"];documen
 function applyLanguage(language){
  const en=language==="en";document.documentElement.lang=en?"en":"ru";
  $("side-drawer").querySelector(".side-drawer-caption").textContent=en?"Navigation":"Навигация";
- $("side-drawer").querySelectorAll("[data-drawer-action]").forEach((b,i)=>{const labels=en?["Home","My profile","Posts feed"]:["Главная","Мой профиль","Лента публикаций"];const icons=["⌂","◉","▤"];b.innerHTML='<span class="side-drawer-icon">'+icons[i]+'</span>'+labels[i];});
+ $("side-drawer").querySelectorAll("[data-drawer-action]").forEach((b,i)=>{const labels=en?["My profile","Posts feed"]:["Мой профиль","Лента публикаций"];const icons=["◉","▤"];b.innerHTML='<span class="side-drawer-icon">'+icons[i]+'</span>'+labels[i];});
  $("side-drawer").querySelectorAll("[data-drawer-soon]").forEach(b=>{const key=b.dataset.drawerSoon;const names=en?{"Друзья":"Friends","Сообщения":"Messages","Сообщества":"Communities","Музыка":"Music","Видео":"Videos","Фото":"Photos","Закладки":"Bookmarks"}:{"Друзья":"Друзья","Сообщения":"Сообщения","Сообщества":"Сообщества","Музыка":"Музыка","Видео":"Видео","Фото":"Фото","Закладки":"Закладки"};const icon=b.querySelector(".side-drawer-icon")?.textContent||"•";b.innerHTML='<span class="side-drawer-icon">'+icon+'</span>'+(names[key]||key);});
  $("open-settings").innerHTML='<span class="side-drawer-icon">⚙</span>'+(en?"Settings":"Настройки");
  $("drawer-logout").textContent=en?"↪ Sign out":"↪ Выйти";
