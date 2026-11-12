@@ -15,6 +15,22 @@ a{color:#d8c5ff;text-decoration:none}
 .quick-nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0 0 18px}
 .quick-nav a,.quick-nav button{display:flex;align-items:center;justify-content:center;min-height:54px;padding:10px 8px;border:1px solid var(--line);border-radius:13px;background:#151321;color:#e9ddff;text-decoration:none;font-size:13px}
 .quick-status{min-height:18px;margin:0 0 14px;color:#c5a4ff;font-size:12px;text-align:center}
+.feed-section{margin-top:24px}
+.feed-title{font-size:19px;margin:0 0 14px}
+.feed{display:flex;flex-direction:column;gap:12px}
+.post{background:linear-gradient(145deg,#191625,#101019);border:1px solid var(--line);border-radius:16px;padding:16px;overflow:hidden}
+.post-head{display:flex;align-items:center;gap:11px;margin-bottom:12px}
+.post-avatar{width:42px;height:42px;border-radius:50%;background:#302044;border:1px solid #62458b;display:grid;place-items:center;overflow:hidden;flex-shrink:0;color:#e7d8ff;font-weight:bold}
+.post-avatar img{width:100%;height:100%;object-fit:cover}
+.post-author{font-size:14px;font-weight:700;overflow-wrap:anywhere}
+.post-date{font-size:11px;color:var(--muted);margin-top:4px}
+.post-content{font-size:14px;line-height:1.6;color:#e9e4f2;white-space:pre-wrap;overflow-wrap:anywhere}
+.post-image{display:block;width:100%;max-height:520px;object-fit:contain;border-radius:12px;margin-top:12px;background:#090910}
+.feed-loading,.feed-error{padding:14px;text-align:center;color:var(--muted);font-size:13px}
+.feed-error{color:#ffb4c0}
+.feed-empty{padding:22px;text-align:center;background:#141320;border:1px dashed #55456c;border-radius:15px;color:var(--muted);line-height:1.6}
+.feed-empty strong{display:block;color:#eee5ff;margin-bottom:7px}
+#feed-sentinel{height:1px}
 @media(max-width:380px){.quick-nav{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .back{display:inline-block;margin-bottom:18px;color:#c7b2ed}
 .card{border:1px solid var(--line);border-radius:20px;background:linear-gradient(145deg,#191625,#101019);overflow:hidden}
@@ -94,6 +110,16 @@ textarea{min-height:90px;resize:vertical}
 <div id="notice" class="empty" hidden></div>
 </div>
 </section>
+<section class="feed-section">
+<h2 class="feed-title">Лента публикаций</h2>
+<div class="feed" id="feed" aria-live="polite">
+<div id="feed-list"></div>
+<div class="feed-loading" id="feed-loading">Загружаем публикации…</div>
+<div class="feed-empty" id="feed-empty" hidden><strong>Пока публикаций нет</strong>Здесь появятся записи пользователей DOLBY404.</div>
+<div class="feed-error" id="feed-error" hidden></div>
+<div id="feed-sentinel" aria-hidden="true"></div>
+</div>
+</section>
 </main>
 <div class="photo-modal" id="photo-modal" hidden>
  <div class="photo-panel" role="dialog" aria-modal="true" aria-labelledby="photo-title">
@@ -141,10 +167,55 @@ async function start(){
     columns=Object.keys(probe.data?.[0]||{});
   }
   render();
+  initProfileFeed(client);
   if(!result.data){$("notice").hidden=false;$("notice").textContent="Профиль ещё не найден в таблице. Страница открыта, но для сохранения сначала нужно проверить структуру таблицы profiles.";}
  }catch(e){$("display-name").textContent="Не удалось загрузить профиль";$("bio").textContent=e.message;$("notice").hidden=false;$("notice").textContent="Проверь подключение и настройки доступа к таблице profiles.";}
 }
 $("edit-button").addEventListener("click",()=>{$("editor").hidden=false;$("message").textContent="";});
+
+async function initProfileFeed(client){
+ const list=$("feed-list"),loading=$("feed-loading"),empty=$("feed-empty"),errorBox=$("feed-error"),sentinel=$("feed-sentinel");
+ const seen=new Set();let offset=0,busy=false,done=false;
+ const batchSize=10;
+ function safeUrl(value){if(!value)return "";try{const u=new URL(value,location.href);return ["http:","https:"].includes(u.protocol)?u.href:"";}catch(_){return "";}}
+ function dateText(value){if(!value)return "";const d=new Date(value);return Number.isNaN(d.getTime())?"":d.toLocaleString("ru-RU",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});}
+ function renderPost(post,profiles){
+  const profile=profiles[post.user_id]||{},author=profile.name||profile.display_name||profile.full_name||profile.username||"Пользователь";
+  const card=document.createElement("article");card.className="post";
+  const head=document.createElement("div");head.className="post-head";
+  const avatar=document.createElement("div");avatar.className="post-avatar";const avatarUrl=safeUrl(profile.avatar_url||profile.avatar);
+  if(avatarUrl){const img=document.createElement("img");img.src=avatarUrl;img.alt="";img.loading="lazy";avatar.appendChild(img);}else avatar.textContent=(String(author).trim()[0]||"◉").toUpperCase();
+  const identity=document.createElement("div");const name=document.createElement("div");name.className="post-author";name.textContent=author;
+  const date=document.createElement("div");date.className="post-date";date.textContent=dateText(post.created_at);identity.append(name,date);head.append(avatar,identity);card.append(head);
+  if(post.content){const content=document.createElement("div");content.className="post-content";content.textContent=post.content;card.append(content);}
+  const imageUrl=safeUrl(post.image_url);if(imageUrl){const img=document.createElement("img");img.className="post-image";img.src=imageUrl;img.alt="Фото публикации";img.loading="lazy";img.decoding="async";card.append(img);}
+  return card;
+ }
+ async function loadBatch(){
+  if(busy||done)return;busy=true;loading.hidden=false;
+  try{
+   const result=await client.from("posts").select("*").order("created_at",{ascending:false}).order("id",{ascending:false}).range(offset,offset+batchSize-1);
+   if(result.error)throw result.error;
+   const posts=result.data||[];
+   if(!posts.length){done=true;if(!list.children.length)empty.hidden=false;loading.hidden=true;return;}
+   const ids=[...new Set(posts.map(p=>p.user_id).filter(Boolean))];let profiles={};
+   if(ids.length){const res=await client.from("profiles").select("*").in("id",ids);if(!res.error)for(const p of res.data||[])profiles[p.id]=p;}
+   let added=0;for(const post of posts){if(seen.has(post.id))continue;seen.add(post.id);list.appendChild(renderPost(post,profiles));added++;}
+   offset+=posts.length;if(posts.length<batchSize)done=true;
+   loading.hidden=done;
+   if(added===0&&!done){busy=false;await loadBatch();return;}
+  }catch(e){errorBox.hidden=false;errorBox.textContent="Не удалось загрузить публикации: "+e.message;loading.hidden=true;done=true;}
+  finally{busy=false;}
+ }
+ if("IntersectionObserver" in window){
+  const observer=new IntersectionObserver(entries=>{if(entries.some(e=>e.isIntersecting))loadBatch();},{rootMargin:"700px 0px"});
+  observer.observe(sentinel);
+ }else{
+  window.addEventListener("scroll",()=>{if(window.innerHeight+window.scrollY>=document.body.offsetHeight-700)loadBatch();},{passive:true});
+ }
+ await loadBatch();
+}
+
 function openPhotoEditor(){$("photo-modal").hidden=false;$("photo-status").textContent="";}
 function closePhotoEditor(){$("photo-modal").hidden=true;}
 $("avatar").addEventListener("click",openPhotoEditor);
