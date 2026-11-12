@@ -65,7 +65,9 @@ textarea{min-height:90px;resize:vertical}
 <input id="username-input" maxlength="30" placeholder="Например, dolby_user">
 <textarea id="bio-input" maxlength="300" placeholder="Расскажи немного о себе…"></textarea>
 <input id="avatar-input" type="url" placeholder="https://…">
-<p class="hint">Поля сохраняются, только если соответствующие столбцы уже существуют в таблице profiles. Загрузка файла-аватара добавится отдельно.</p>
+<label for="avatar-file">Или выбери фотографию из галереи</label>
+<input id="avatar-file" type="file" accept="image/jpeg,image/png,image/webp">
+<p class="hint">Подойдут JPG, PNG или WebP. Максимальный размер — 10 МБ. Загруженное фото будет доступно по публичной ссылке.</p>
 <div class="actions"><button class="primary" id="save-button">Сохранить</button><button id="cancel-button">Отмена</button></div>
 <div id="message"></div>
 </div>
@@ -121,16 +123,28 @@ $("save-button").addEventListener("click",async()=>{
  const usernameKey=firstKey(["username","handle","nickname"]);
  const bioKey=firstKey(["bio","about","description"]);
  const avatarKey=firstKey(["avatar_url","avatar"]);
+ const selectedFile=$("avatar-file").files[0];
  const patch={};
  if(nameKey)patch[nameKey]=$("name-input").value.trim();
  if(usernameKey)patch[usernameKey]=$("username-input").value.trim().replace(/^@/,"");
  if(bioKey)patch[bioKey]=$("bio-input").value.trim();
  if(avatarKey)patch[avatarKey]=$("avatar-input").value.trim();
+ if(selectedFile){
+  if(!avatarKey){$("message").textContent="В профиле не найдено поле для ссылки на аватар.";return;}
+  if(!["image/jpeg","image/png","image/webp"].includes(selectedFile.type)){$("message").textContent="Выбери JPG, PNG или WebP.";return;}
+  if(selectedFile.size>10*1024*1024){$("message").textContent="Файл больше 10 МБ. Выбери фото поменьше.";return;}
+  const ext=selectedFile.type==="image/jpeg"?"jpg":selectedFile.type.split("/")[1];
+  const path=`${user.id}/avatar-${Date.now()}.${ext}`;
+  $("save-button").disabled=true;$("message").textContent="Загружаем фотографию…";
+  const upload=await client.storage.from("avatars").upload(path,selectedFile,{upsert:false,contentType:selectedFile.type});
+  if(upload.error){$("save-button").disabled=false;$("message").textContent="Не удалось загрузить фото: "+upload.error.message;return;}
+  patch[avatarKey]=client.storage.from("avatars").getPublicUrl(path).data.publicUrl;
+ }
  if(!Object.keys(patch).length){$("message").textContent="В таблице пока не найдены поля для имени, никнейма, описания или аватара. Нужна небольшая настройка базы данных.";return;}
  $("save-button").disabled=true;$("message").textContent="Сохраняем…";
  try{
   const result=await client.from("profiles").update(patch).eq("id",user.id).select("*").single();
-  if(result.error)throw result.error;profile=result.data;columns=Object.keys(profile);render();$("editor").hidden=true;$("message").textContent="Профиль сохранён!";
+  if(result.error)throw result.error;profile=result.data;columns=Object.keys(profile);$("avatar-file").value="";render();$("editor").hidden=true;$("message").textContent="Профиль сохранён!";
  }catch(e){$("message").textContent="Не удалось сохранить: "+e.message;}
  finally{$("save-button").disabled=false;}
 });
