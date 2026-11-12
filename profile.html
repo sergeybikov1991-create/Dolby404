@@ -399,19 +399,21 @@ async function openPhotoView(){
  await refreshPhotoLikes();
 }
 function closePhotoView(){$("photo-viewer").hidden=true;$("photo-view-image").removeAttribute("src");}
-let photoTouchStart=null;
-$("photo-viewer").addEventListener("touchstart",e=>{
- if(e.touches.length!==1)return;
- photoTouchStart={x:e.touches[0].clientX,y:e.touches[0].clientY};
-},{passive:true});
-$("photo-viewer").addEventListener("touchend",e=>{
- if(!photoTouchStart||e.changedTouches.length!==1){photoTouchStart=null;return;}
- const dx=e.changedTouches[0].clientX-photoTouchStart.x;
- const dy=e.changedTouches[0].clientY-photoTouchStart.y;
- photoTouchStart=null;
- if(dy < -85 && Math.abs(dy)>Math.abs(dx)*1.2)closePhotoView();
-},{passive:true});
-$("photo-viewer").addEventListener("touchcancel",()=>{photoTouchStart=null;},{passive:true});
+let photoSwipeStart=null;
+$("photo-view-image").style.touchAction="none";
+$("photo-view-image").addEventListener("pointerdown",e=>{
+ if(e.pointerType==="mouse")return;
+ photoSwipeStart={x:e.clientX,y:e.clientY,id:e.pointerId};
+ try{$("photo-view-image").setPointerCapture(e.pointerId);}catch(_){}
+});
+$("photo-view-image").addEventListener("pointerup",e=>{
+ if(!photoSwipeStart||photoSwipeStart.id!==e.pointerId){photoSwipeStart=null;return;}
+ const dx=e.clientX-photoSwipeStart.x;
+ const dy=e.clientY-photoSwipeStart.y;
+ photoSwipeStart=null;
+ if(dy < -55 && Math.abs(dy)>Math.abs(dx)*1.15)closePhotoView();
+});
+$("photo-view-image").addEventListener("pointercancel",()=>{photoSwipeStart=null;});
 $("avatar").addEventListener("click",openPhotoEditor);
 $("avatar").addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();openPhotoEditor();}});
 $("close-photo").addEventListener("click",closePhotoEditor);
