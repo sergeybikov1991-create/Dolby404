@@ -173,7 +173,7 @@ textarea{min-height:90px;resize:vertical}
 .drawer-menu-button{position:fixed;z-index:83;left:12px;top:14px;width:42px;height:42px;padding:0;border:1px solid #76519d;border-radius:13px;background:#151020e8;color:#eadcff;font-size:22px;box-shadow:0 0 18px #8d50e733;backdrop-filter:blur(12px)}
 .drawer-backdrop{position:fixed;z-index:80;inset:0;background:#030209;opacity:0;pointer-events:none;transition:opacity .18s}
 .drawer-backdrop.visible{pointer-events:auto}
-.side-drawer{--drawer-x:-100%;position:fixed;z-index:82;left:0;top:0;bottom:0;width:min(82vw,320px);padding:22px 16px max(22px,env(safe-area-inset-bottom));overflow-y:auto;overscroll-behavior:contain;background:linear-gradient(160deg,#1b1428,#0c0b14 72%);border-right:1px solid #8054aa;box-shadow:12px 0 42px #0009;transform:translate3d(var(--drawer-x),0,0);transition:transform .24s cubic-bezier(.2,.8,.2,1);will-change:transform;touch-action:pan-y}
+.side-drawer{display:flex;flex-direction:column;--drawer-x:-100%;position:fixed;z-index:82;left:0;top:0;bottom:0;width:min(82vw,320px);padding:22px 16px max(22px,env(safe-area-inset-bottom));overflow-y:auto;overscroll-behavior:contain;background:linear-gradient(160deg,#1b1428,#0c0b14 72%);border-right:1px solid #8054aa;box-shadow:12px 0 42px #0009;transform:translate3d(var(--drawer-x),0,0);transition:transform .24s cubic-bezier(.2,.8,.2,1);will-change:transform;touch-action:pan-y}
 .side-drawer.dragging{transition:none}
 .side-drawer-head{display:flex;align-items:center;justify-content:space-between;margin:2px 2px 24px}
 .side-drawer-logo{font-size:21px;font-weight:900;letter-spacing:3px;color:#f5eaff;text-shadow:0 0 18px #9b55ff}
@@ -734,11 +734,28 @@ $("settings-close").addEventListener("click",closeSettings);
 settingsBackdrop.addEventListener("click",e=>{if(e.target===settingsBackdrop)closeSettings();});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!settingsBackdrop.hidden)closeSettings();});
 function applyTheme(theme){const allowed=["cyber","ocean","rose","mono"];document.body.dataset.theme=allowed.includes(theme)?theme:"cyber";}
+function applyLanguage(language){
+ const en=language==="en";document.documentElement.lang=en?"en":"ru";
+ $("side-drawer").querySelector(".side-drawer-caption").textContent=en?"Navigation":"Навигация";
+ $("side-drawer").querySelectorAll("[data-drawer-action]").forEach((b,i)=>{const labels=en?["Home","My profile","Posts feed"]:["Главная","Мой профиль","Лента публикаций"];const icons=["⌂","◉","▤"];b.innerHTML='<span class="side-drawer-icon">'+icons[i]+'</span>'+labels[i];});
+ $("side-drawer").querySelectorAll("[data-drawer-soon]").forEach(b=>{const key=b.dataset.drawerSoon;const names=en?{"Друзья":"Friends","Сообщения":"Messages","Сообщества":"Communities","Музыка":"Music","Видео":"Videos","Фото":"Photos","Закладки":"Bookmarks"}:{"Друзья":"Друзья","Сообщения":"Сообщения","Сообщества":"Сообщества","Музыка":"Музыка","Видео":"Видео","Фото":"Фото","Закладки":"Закладки"};const icon=b.querySelector(".side-drawer-icon")?.textContent||"•";b.innerHTML='<span class="side-drawer-icon">'+icon+'</span>'+(names[key]||key);});
+ $("open-settings").innerHTML='<span class="side-drawer-icon">⚙</span>'+(en?"Settings":"Настройки");
+ $("drawer-logout").textContent=en?"↪ Sign out":"↪ Выйти";
+ $("settings-title").textContent=en?"Settings":"Настройки";
+ const labels=$("settings-backdrop").querySelectorAll(".settings-label");
+ if(labels[0])labels[0].textContent=en?"Interface language":"Язык интерфейса";
+ if(labels[1])labels[1].textContent=en?"Page appearance":"Стиль страницы";
+ if(labels[2])labels[2].textContent=en?"New password":"Новый пароль";
+ if(labels[3])labels[3].textContent=en?"Confirm new password":"Повтори новый пароль";
+ $("save-preferences").textContent=en?"Save preferences":"Сохранить настройки";
+ $("change-password").textContent=en?"Change password":"Изменить пароль";
+}
 applyTheme(localStorage.getItem("dolby404-theme")||"cyber");
+applyLanguage(localStorage.getItem("dolby404-language")||"ru");
 $("save-preferences").addEventListener("click",()=>{
  const language=$("settings-language").value,theme=$("settings-theme").value;
  localStorage.setItem("dolby404-language",language);localStorage.setItem("dolby404-theme",theme);applyTheme(theme);
- document.documentElement.lang=language;
+ applyLanguage(language);
  $("settings-status").textContent=language==="en"?"Preferences saved on this device.":"Настройки сохранены на этом устройстве.";
 });
 $("change-password").addEventListener("click",async()=>{
