@@ -395,6 +395,7 @@ async function openLikersList(){
 
 async function openPhotoView(){
  const url=currentAvatarUrl();if(!url)return;
+ $("photo-modal").hidden=true;
  $("photo-view-image").src=url;$("photo-viewer").hidden=false;
  await refreshPhotoLikes();
 }
