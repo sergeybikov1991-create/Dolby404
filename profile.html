@@ -826,7 +826,7 @@ function renderPost(post,profiles){
  }
 
  const queue=$("scheduled-queue"),queueList=$("scheduled-queue-list"),queueCount=$("scheduled-queue-count");
- let queueRefreshing=false;
+ let queueRefreshing=false,scheduledOwnerProfile=null;
  async function refreshPublishedScheduledPosts(){
   const queued=await client.from("scheduled_posts").select("published_post_id").eq("user_id",user.id).eq("status","published").not("published_post_id","is",null).order("published_at",{ascending:false}).limit(50);
   if(queued.error)return;
@@ -835,9 +835,13 @@ function renderPost(post,profiles){
   const result=await client.from("posts").select("*").in("id",ids);
   if(result.error)return;
   const posts=(result.data||[]).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+  if(!scheduledOwnerProfile){
+   const owner=await client.from("profiles").select("*").eq("id",user.id).maybeSingle();
+   scheduledOwnerProfile=owner.data||{};
+  }
   for(const post of posts){
    if(seen.has(post.id))continue;
-   seen.add(post.id);list.prepend(renderPost(post,{[user.id]:profile}));empty.hidden=true;
+   seen.add(post.id);list.prepend(renderPost(post,{[user.id]:scheduledOwnerProfile}));empty.hidden=true;
   }
  }
  function renderScheduledMedia(container,item){
