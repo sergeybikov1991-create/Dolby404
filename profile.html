@@ -87,22 +87,45 @@ textarea{min-height:90px;resize:vertical}
 .post-media audio{width:100%}
 @media(max-width:380px){.media-options{grid-template-columns:1fr}}
 
+
+/* Cyber profile refresh */
+.wrap{max-width:960px;margin:22px auto}
+.quick-nav{display:flex;gap:8px;overflow-x:auto;padding:3px 1px 12px;margin:0 0 14px;scrollbar-width:none}
+.quick-nav::-webkit-scrollbar{display:none}
+.quick-nav a,.quick-nav button{flex:0 0 auto;min-height:42px;padding:9px 15px;border-radius:12px;background:#11101b;border-color:#38304c;white-space:nowrap}
+.quick-nav a:first-child{background:linear-gradient(110deg,#382052,#1a1529);border-color:#8154ad}
+.card{border:1px solid #49345f;border-radius:22px;background:linear-gradient(145deg,#171321,#0e0d16);box-shadow:0 12px 45px #0007,0 0 28px #7d3fba12}
+.cover{height:210px;position:relative;overflow:hidden;background:radial-gradient(ellipse at 72% 30%,#a34bff66 0,transparent 34%),radial-gradient(ellipse at 22% 80%,#4626a966 0,transparent 42%),linear-gradient(125deg,#090912 5%,#21102f 48%,#111b35 100%)}
+.cover:before{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent 0 35%,#c16aff18 36%,transparent 39% 62%,#8a50ff20 63%,transparent 67%),repeating-linear-gradient(135deg,transparent 0 24px,#ffffff08 25px,transparent 26px 48px)}
+.cover:after{content:"DOLBY404";position:absolute;right:22px;bottom:16px;font-size:clamp(24px,6vw,44px);font-weight:900;letter-spacing:.18em;color:#ffffff12;text-shadow:0 0 25px #a45bff55;pointer-events:none}
+.cover-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0}
+.cover-photo[hidden]{display:none}
+.cover-tools{position:absolute;right:14px;top:14px;z-index:2}
+.cover-tools button{background:#090910bb;border-color:#a66bff88;font-size:12px;padding:9px 13px;backdrop-filter:blur(10px)}
+.profile{padding:0 28px 24px}
+.identity{align-items:flex-end;gap:18px;margin-top:-56px}
+.avatar{width:124px;height:124px;border:4px solid #15121f;background:linear-gradient(135deg,#9b55e7,#19142b);box-shadow:0 0 0 1px #a66bff88,0 0 30px #9b55e755;z-index:2}
+.name{padding-bottom:10px}
+.name h1{font-size:clamp(22px,4vw,30px);letter-spacing:.01em}
+.name p{color:#c59aff}
+.bio{margin:16px 0 18px;max-width:650px;color:#c9c0d8}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:14px 0;border:0}
+.stats>div{padding:12px 10px;border:1px solid #342943;border-radius:13px;background:linear-gradient(145deg,#1b1627,#11101a);text-align:center}
+.stats strong{font-size:20px;color:#f4eaff}
+.profile .actions{margin-top:8px}
+.profile .actions button{border-radius:12px}
+#edit-button{box-shadow:0 0 20px #8c4be522}
+#logout-button{background:#17131f;border-color:#393044;color:#bcb3ca}
+@media(max-width:600px){.wrap{margin:14px auto;padding:0 11px}.cover{height:158px}.profile{padding:0 15px 18px}.identity{gap:12px;margin-top:-43px}.avatar{width:96px;height:96px;font-size:32px}.name{padding-bottom:6px}.stats{gap:7px;padding:12px 0}.stats>div{padding:10px 4px;font-size:11px}.stats strong{font-size:18px}.cover-tools{right:9px;top:9px}.cover-tools button{font-size:11px;padding:8px 10px}}
+
 </style>
 </head>
 <body>
 <header class="topbar"><div class="logo">DOLBY404</div></header>
 <main class="wrap">
-<nav class="quick-nav" aria-label="Разделы DOLBY404">
-<a href="#feed">▤ Лента</a>
-<button type="button" data-soon="Фотографии">▧ Фото</button>
-<button type="button" data-soon="Видео">▶ Видео</button>
-<button type="button" data-soon="Музыка">♫ Музыка</button>
-<button type="button" data-soon="Сообщения">✉ Сообщения</button>
-<button type="button" data-soon="Сообщества">◎ Сообщества</button>
-</nav>
-<div class="quick-status" id="quick-status" aria-live="polite"></div>
+
 <section class="card">
-<div class="cover"></div>
+<div class="cover" id="cover"><img class="cover-photo" id="cover-photo" alt="Обложка профиля" hidden><div class="cover-tools"><button type="button" id="change-cover">✎ Изменить обложку</button></div></div>
 <div class="profile">
 <div class="identity">
 <div class="avatar" id="avatar" role="button" tabindex="0" aria-label="Редактировать фото профиля">◉</div>
@@ -114,7 +137,7 @@ textarea{min-height:90px;resize:vertical}
 <div><strong id="followers-count">—</strong>Подписчики</div>
 <div><strong id="following-count">—</strong>Подписки</div>
 </div>
-<div class="actions"><button class="primary" id="edit-button" hidden>Редактировать профиль</button><button id="logout-button">Выйти из аккаунта</button></div>
+<div class="actions"><button class="primary" id="edit-button" hidden>✎ Редактировать профиль</button><button id="logout-button">Выйти</button></div>
 <div class="editor" id="editor" hidden>
 <h2>Настроить профиль</h2>
 <input id="name-input" maxlength="60" placeholder="Как тебя зовут?">
@@ -127,6 +150,15 @@ textarea{min-height:90px;resize:vertical}
 <div id="notice" class="empty" hidden></div>
 </div>
 </section>
+<nav class="quick-nav" aria-label="Разделы DOLBY404">
+<a href="#feed">▤ Лента</a>
+<button type="button" data-soon="Фотографии">▧ Фото</button>
+<button type="button" data-soon="Видео">▶ Видео</button>
+<button type="button" data-soon="Музыка">♫ Музыка</button>
+<button type="button" data-soon="Сообщения">✉ Сообщения</button>
+<button type="button" data-soon="Сообщества">◎ Сообщества</button>
+</nav>
+<div class="quick-status" id="quick-status" aria-live="polite"></div>
 <section class="feed-section">
 <div class="publish-box">
 <button type="button" class="primary" id="open-publish">＋ Опубликовать</button>
@@ -162,6 +194,7 @@ textarea{min-height:90px;resize:vertical}
  </div>
 </div>
 <input id="avatar-file" type="file" accept="image/jpeg,image/png,image/webp" hidden>
+<input id="cover-file" type="file" accept="image/jpeg,image/png,image/webp" hidden>
 <script>
 const SUPABASE_URL="https://qhpobdktlbhdqsnajypr.supabase.co";
 const SUPABASE_KEY="sb_publishable_tzG1qVsbjaW8YE_LBVN87Q_v0CahKN5";
@@ -180,6 +213,7 @@ function render(){
  $("username").textContent=usernameKey&&profile[usernameKey]?"@"+profile[usernameKey]:"";
  $("bio").textContent=(bioKey&&profile[bioKey])||"Здесь скоро появится рассказ о тебе. Нажми «Редактировать профиль», чтобы заполнить страницу.";
  setAvatar(avatarKey&&profile[avatarKey]);
+ const coverKey=firstKey(["cover_url","banner_url","cover"]);const coverUrl=coverKey&&profile[coverKey];const coverImage=$("cover-photo");if(coverUrl){coverImage.src=coverUrl;coverImage.hidden=false;}else{coverImage.removeAttribute("src");coverImage.hidden=true;}
  $("name-input").value=((nameKey&&profile[nameKey])==="Новый пользователь")?"":((nameKey&&profile[nameKey])||"");
  $("username-input").value=(usernameKey&&profile[usernameKey]&&!/^user_[a-f0-9]{12,}$/i.test(profile[usernameKey]))?profile[usernameKey]:"";
  $("bio-input").value=(bioKey&&profile[bioKey])||"";
@@ -250,6 +284,23 @@ async function initProfileFeed(client){
  await loadBatch();
 }
 
+$("change-cover").addEventListener("click",()=>$("cover-file").click());
+$("cover-file").addEventListener("change",async()=>{
+ const file=$("cover-file").files[0];if(!file)return;
+ const coverKey=firstKey(["cover_url","banner_url","cover"]);
+ if(!coverKey){$("quick-status").textContent="Сначала добавим поле cover_url в таблицу profiles.";return;}
+ if(!["image/jpeg","image/png","image/webp"].includes(file.type)){$("quick-status").textContent="Выбери JPG, PNG или WebP.";return;}
+ if(file.size>10*1024*1024){$("quick-status").textContent="Обложка должна быть не больше 10 МБ.";return;}
+ const ext=file.type==="image/jpeg"?"jpg":file.type.split("/")[1],path=`${user.id}/cover-${Date.now()}.${ext}`;
+ $("change-cover").disabled=true;$("quick-status").textContent="Загружаем обложку…";
+ try{
+  const upload=await client.storage.from("avatars").upload(path,file,{upsert:false,contentType:file.type});if(upload.error)throw upload.error;
+  const url=client.storage.from("avatars").getPublicUrl(path).data.publicUrl;
+  const saved=await client.from("profiles").update({[coverKey]:url}).eq("id",user.id).select("*").single();if(saved.error)throw saved.error;
+  profile=saved.data;columns=Object.keys(profile);render();$("quick-status").textContent="Обложка обновлена!";
+ }catch(e){$("quick-status").textContent="Не удалось обновить обложку: "+e.message;}
+ finally{$("change-cover").disabled=false;$("cover-file").value="";}
+});
 function openPhotoEditor(){$("photo-modal").hidden=false;$("photo-status").textContent="";}
 function closePhotoEditor(){$("photo-modal").hidden=true;}
 $("avatar").addEventListener("click",openPhotoEditor);
