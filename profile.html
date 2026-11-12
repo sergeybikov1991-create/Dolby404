@@ -295,6 +295,14 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 .emoji-item:active{background:#a66bff33;transform:scale(.9)}
 @media(max-width:380px){.emoji-grid{grid-template-columns:repeat(7,minmax(0,1fr))}.emoji-item{font-size:22px}}
 
+
+/* Compact emoji layout: keep every row inside the screen */
+.emoji-picker-panel{width:100%;max-width:100%;min-width:0;padding:8px;overflow:hidden}
+.emoji-category-tabs{width:100%;max-width:100%;min-width:0;gap:4px}
+.emoji-grid{width:100%;min-width:0;grid-template-columns:repeat(9,minmax(0,1fr));gap:2px;padding:0;overflow-x:hidden}
+.emoji-item{width:100%;min-width:0;max-width:100%;font-size:clamp(16px,4.8vw,20px);line-height:1;overflow:hidden}
+@media(max-width:360px){.emoji-grid{grid-template-columns:repeat(8,minmax(0,1fr))}.emoji-item{font-size:18px}}
+
 </style>
 </head>
 <body>
