@@ -613,8 +613,7 @@ async function initProfileFeed(client){
  const seen=new Set();let offset=0,busy=false,done=false;
  const batchSize=10;
  function safeUrl(value){if(!value)return "";try{const u=new URL(value,location.href);return ["http:","https:"].includes(u.protocol)?u.href:"";}catch(_){return "";}}
- const SITE_TIME_ZONE="Europe/Moscow";
- function dateText(value){if(!value)return "";const d=new Date(value);return Number.isNaN(d.getTime())?"":new Intl.DateTimeFormat("ru-RU",{timeZone:SITE_TIME_ZONE,day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(d);}
+ function dateText(value){if(!value)return "";const d=new Date(value);return Number.isNaN(d.getTime())?"":d.toLocaleString("ru-RU",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});}
  function makeMiniAudio(audio,photo){
   const bar=document.createElement("div");bar.className="mini-audio-bar";
   const play=document.createElement("button");play.type="button";play.className="mini-audio-play";play.textContent="▶";play.setAttribute("aria-label","Воспроизвести");
