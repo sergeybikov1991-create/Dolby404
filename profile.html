@@ -170,18 +170,6 @@ textarea{min-height:90px;resize:vertical}
 /* DOLBY404 slide navigation */
 .quick-nav{display:none!important}
 .drawer-edge{position:fixed;z-index:81;left:0;top:0;bottom:0;width:22px;touch-action:pan-y}
-.drawer-menu-button{position:fixed;z-index:83;left:12px;top:14px;width:42px;height:42px;display:grid;place-items:center;padding:0;border:1px solid #76519d;border-radius:13px;background:linear-gradient(145deg,#21152fef,#100d19ef);color:#eadcff;box-shadow:0 0 18px #8d50e733, inset 0 0 12px #a66bff0c;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);transition:width .32s cubic-bezier(.2,.8,.2,1),height .32s cubic-bezier(.2,.8,.2,1),border-radius .32s,background .32s,box-shadow .32s,transform .32s}
-.pulse-mark{width:27px;height:27px;overflow:visible;filter:drop-shadow(0 0 4px #b879ff99);animation:pulseBreath 2.4s ease-in-out infinite}
-.pulse-line{fill:#d8b5ff;transform-box:fill-box;transform-origin:center;animation:lineGlow 2.4s ease-in-out infinite}
-.line-mid{animation-delay:.16s}.line-bottom{animation-delay:.32s}
-@keyframes pulseBreath{0%,100%{filter:drop-shadow(0 0 3px #a66bff77)}50%{filter:drop-shadow(0 0 8px #c58aff)}
-}
-@keyframes lineGlow{0%,100%{opacity:.78}50%{opacity:1}}
-.drawer-menu-button.in-drawer{position:static;flex:0 0 30px;width:30px;height:30px;border-radius:9px;box-shadow:0 0 13px #a66bff55;padding:0;transform:scale(.94)}
-.drawer-menu-button.in-drawer .pulse-mark{width:20px;height:20px}
-.side-drawer-head{gap:10px}
-.side-drawer-head .side-drawer-logo{margin-right:auto}
-@media(prefers-reduced-motion:reduce){.drawer-menu-button,.pulse-mark,.pulse-line{animation:none;transition:none}}
 .drawer-backdrop{position:fixed;z-index:80;inset:0;background:#030209;opacity:0;pointer-events:none;transition:opacity .18s}
 .drawer-backdrop.visible{pointer-events:auto}
 .side-drawer{display:flex;flex-direction:column;--drawer-x:-100%;position:fixed;z-index:82;left:0;top:0;bottom:0;width:min(82vw,320px);padding:22px 16px max(22px,env(safe-area-inset-bottom));overflow-y:auto;overscroll-behavior:contain;background:linear-gradient(160deg,#1b1428,#0c0b14 72%);border-right:1px solid #8054aa;box-shadow:12px 0 42px #0009;transform:translate3d(var(--drawer-x),0,0);transition:transform .24s cubic-bezier(.2,.8,.2,1);will-change:transform;touch-action:pan-y}
@@ -230,7 +218,7 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 </head>
 <body>
 
-<span id="drawer-menu-button-slot" hidden></span><button type="button" class="drawer-menu-button" id="drawer-menu-button" aria-label="Открыть меню" aria-controls="side-drawer" aria-expanded="false"><svg class="pulse-mark" viewBox="0 0 40 40" aria-hidden="true"><rect class="pulse-line line-top" x="5" y="8" width="30" height="4" rx="2"/><rect class="pulse-line line-mid" x="10" y="18" width="25" height="4" rx="2"/><rect class="pulse-line line-bottom" x="5" y="28" width="30" height="4" rx="2"/></svg></button>
+
 <div class="drawer-edge" id="drawer-edge" aria-hidden="true"></div><div class="drawer-backdrop" id="drawer-backdrop"></div>
 <aside class="side-drawer" id="side-drawer" aria-label="Навигация DOLBY404" aria-hidden="true">
  <div class="drawer-shell"><div class="side-drawer-head"><div class="side-drawer-logo">DOLBY404</div><button type="button" class="side-drawer-close" id="drawer-close" aria-label="Закрыть меню">×</button></div>
@@ -783,16 +771,16 @@ document.querySelectorAll("[data-soon]").forEach(button=>button.addEventListener
 
 
 (function initSideDrawer(){
- const d=$("side-drawer"),shade=$("drawer-backdrop"),edge=$("drawer-edge"),btn=$("drawer-menu-button");
+ const d=$("side-drawer"),shade=$("drawer-backdrop"),edge=$("drawer-edge");
  let opened=false,g=null;const w=()=>d.getBoundingClientRect().width,clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
  function paint(x){const width=w(),v=clamp(x,-width,0),p=(v+width)/width;d.style.setProperty("--drawer-x",v+"px");shade.style.opacity=String(p*.68);shade.classList.toggle("visible",p>.01);}
- function toggle(v){opened=v;d.classList.remove("dragging");if(v){btn.classList.add("in-drawer");d.querySelector(".side-drawer-head").insertBefore(btn,d.querySelector(".side-drawer-logo"));btn.setAttribute("aria-label","Меню открыто");}else{btn.classList.remove("in-drawer");$("drawer-menu-button-slot").after(btn);btn.setAttribute("aria-label","Открыть меню");}d.style.setProperty("--drawer-x",v?"0px":"-100%");shade.style.opacity=v?".68":"0";shade.classList.toggle("visible",v);d.setAttribute("aria-hidden",String(!v));btn.setAttribute("aria-expanded",String(v));document.body.style.overflow=v?"hidden":"";}
+ function toggle(v){opened=v;d.classList.remove("dragging");d.style.setProperty("--drawer-x",v?"0px":"-100%");shade.style.opacity=v?".68":"0";shade.classList.toggle("visible",v);d.setAttribute("aria-hidden",String(!v));document.body.style.overflow=v?"hidden":"";}
  function down(e,fromEdge){if(e.pointerType==="mouse"&&e.button!==0)return;if(fromEdge&&!opened&&e.clientX>28)return;if(!fromEdge&&!opened)return;g={id:e.pointerId,x:e.clientX,y:e.clientY,last:e.clientX,t:performance.now(),vel:0,edge:fromEdge,drag:false};try{(fromEdge?edge:d).setPointerCapture(e.pointerId);}catch(_){}}
  function move(e){if(!g||g.id!==e.pointerId)return;const dx=e.clientX-g.x,dy=e.clientY-g.y;if(!g.drag){if(Math.abs(dy)>Math.abs(dx)*1.15&&Math.abs(dy)>8){g=null;return;}if(Math.abs(dx)<4)return;if((g.edge&&dx<0)||(!g.edge&&dx>0)){g=null;return;}g.drag=true;d.classList.add("dragging");}const now=performance.now();g.vel=(e.clientX-g.last)/Math.max(1,now-g.t);g.last=e.clientX;g.t=now;paint(g.edge?-w()+Math.max(0,dx):Math.min(0,dx));}
  function up(e){if(!g||g.id!==e.pointerId)return;const q=g;g=null;if(!q.drag){d.classList.remove("dragging");return;}const x=parseFloat(d.style.getPropertyValue("--drawer-x"))||-w();toggle((x+w())/w()>.42||q.vel>.45);}
  edge.addEventListener("pointerdown",e=>down(e,true));d.addEventListener("pointerdown",e=>down(e,false));
  [edge,d].forEach(el=>{el.addEventListener("pointermove",move);el.addEventListener("pointerup",up);el.addEventListener("pointercancel",()=>{g=null;toggle(opened);});});
- btn.addEventListener("click",()=>toggle(!opened));$("drawer-close").addEventListener("click",()=>toggle(false));shade.addEventListener("click",()=>toggle(false));document.addEventListener("keydown",e=>{if(e.key==="Escape"&&opened)toggle(false);});
+ $("drawer-close").addEventListener("click",()=>toggle(false));shade.addEventListener("click",()=>toggle(false));document.addEventListener("keydown",e=>{if(e.key==="Escape"&&opened)toggle(false);});
  d.addEventListener("click",e=>{const a=e.target.closest("[data-drawer-action],[data-drawer-soon]");if(!a)return;toggle(false);if(a.dataset.drawerAction==="home")scrollTo({top:0,behavior:"smooth"});else if(a.dataset.drawerAction==="profile")$("cover").scrollIntoView({behavior:"smooth"});else if(a.dataset.drawerAction==="feed")$("feed-section").scrollIntoView({behavior:"smooth"});else $("quick-status").textContent="Раздел «"+a.dataset.drawerSoon+"» подключим следующим этапом.";});
  toggle(false);
 })();
