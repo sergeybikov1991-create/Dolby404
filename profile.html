@@ -33,7 +33,7 @@ button:disabled{opacity:.5;cursor:wait}
 .editor[hidden]{display:none}
 .editor h2{font-size:17px;margin:0 0 16px}
 label{display:block;color:#c9bddc;font-size:13px;margin:13px 0 7px}
-input,textarea{width:100%;padding:12px 14px;border-radius:11px;border:1px solid #403653;background:#0b0a12;color:#fff;font:inherit;outline:none}
+input,textarea{width:100%;margin-top:12px;padding:12px 14px;border-radius:11px;border:1px solid #403653;background:#0b0a12;color:#fff;font:inherit;outline:none}
 textarea{min-height:90px;resize:vertical}
 .hint{font-size:12px;color:var(--muted);line-height:1.5}
 #message{min-height:20px;margin-top:12px;color:#c5a4ff;font-size:13px;overflow-wrap:anywhere}
@@ -61,10 +61,10 @@ textarea{min-height:90px;resize:vertical}
 <div class="actions"><button class="primary" id="edit-button" hidden>Редактировать профиль</button><button id="logout-button">Выйти из аккаунта</button></div>
 <div class="editor" id="editor" hidden>
 <h2>Настроить профиль</h2>
-<label for="name-input">Имя</label><input id="name-input" maxlength="60" placeholder="Как тебя зовут?">
-<label for="username-input">Никнейм</label><input id="username-input" maxlength="30" placeholder="Например, dolby_user">
-<label for="bio-input">О себе</label><textarea id="bio-input" maxlength="300" placeholder="Расскажи немного о себе…"></textarea>
-<label for="avatar-input">Ссылка на аватар</label><input id="avatar-input" type="url" placeholder="https://…">
+<input id="name-input" maxlength="60" placeholder="Как тебя зовут?">
+<input id="username-input" maxlength="30" placeholder="Например, dolby_user">
+<textarea id="bio-input" maxlength="300" placeholder="Расскажи немного о себе…"></textarea>
+<input id="avatar-input" type="url" placeholder="https://…">
 <p class="hint">Поля сохраняются, только если соответствующие столбцы уже существуют в таблице profiles. Загрузка файла-аватара добавится отдельно.</p>
 <div class="actions"><button class="primary" id="save-button">Сохранить</button><button id="cancel-button">Отмена</button></div>
 <div id="message"></div>
