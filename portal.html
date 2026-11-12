@@ -190,7 +190,10 @@ button:hover {
 </div>
 
 <script>
-const crackLayer = document.getElementById("cracks");
+const SUPABASE_URL = "https://qhpobdktlbhdqsnajypr.supabase.co";
+const SUPABASE_KEY = "sb_publishable_tzG1qVsbjaW8YE_LBVN87Q_v0CahKN5";
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    const crackLayer = document.getElementById("cracks");
 
 document.addEventListener("pointerdown", function(event) {
     const x = event.clientX;
