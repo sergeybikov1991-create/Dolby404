@@ -347,6 +347,44 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 .publish-editor.composer-fullscreen .actions{flex:0 0 auto;margin:0}
 .publish-editor.composer-fullscreen #publish-status{flex:0 0 auto;max-height:36px;overflow:auto}
 @media(max-width:380px){.publish-editor.composer-fullscreen .emoji-grid{grid-template-columns:repeat(7,minmax(0,1fr))}.publish-editor.composer-fullscreen .emoji-item{font-size:18px}}
+
+/* DOLBY404 scheduled publishing queue */
+.schedule-options{display:flex;flex-direction:column;gap:10px;margin:12px 0;padding:12px;border:1px solid #4c3764;border-radius:13px;background:#120f1c}
+.schedule-toggle{display:flex;align-items:center;gap:9px;color:#e8dcf7;font-size:13px}
+.schedule-toggle input{width:18px;height:18px;accent-color:#a66bff}
+.schedule-time-wrap{display:flex;flex-direction:column;gap:7px}
+.schedule-time-wrap[hidden]{display:none}
+.schedule-time-wrap label,.scheduled-edit-panel label{color:#cdb9e8;font-size:12px}
+.schedule-time-wrap input,.scheduled-edit-panel input[type="datetime-local"],.scheduled-edit-panel textarea{width:100%;min-height:43px;padding:10px;border:1px solid #594273;border-radius:10px;background:#0b0a12;color:#f5efff;font:inherit}
+.schedule-help{color:#9385a7;font-size:11px;line-height:1.5}
+.scheduled-queue{margin:0 0 18px;padding:13px;border:1px solid #76519d;border-radius:17px;background:linear-gradient(155deg,#1b1527,#0d0c15);box-shadow:0 0 22px #8d50e722}
+.scheduled-queue[hidden]{display:none}
+.scheduled-queue-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.scheduled-queue-head h2{margin:0;color:#eadcff;font-size:16px}
+.scheduled-queue-head span{color:#bda0e7;font-size:11px}
+#scheduled-queue-list{display:flex;flex-direction:column;gap:12px}
+.scheduled-item{padding:12px;border:1px solid #3f3151;border-radius:13px;background:#100e18}
+.scheduled-item-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:9px}
+.scheduled-item-head strong{color:#f1e8ff;font-size:13px}
+.scheduled-item-head time{color:#bca2df;font-size:11px;text-align:right}
+.scheduled-content{color:#e8e0f2;font-size:14px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
+.scheduled-media{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.scheduled-media img,.scheduled-media video{display:block;width:100%;max-height:320px;object-fit:contain;border-radius:10px;background:#08070c}
+.scheduled-media audio{width:100%}
+.scheduled-failed{margin:8px 0;padding:9px;border:1px solid #8d4b4b;border-radius:9px;background:#351919;color:#ffcaca;font-size:11px;line-height:1.45;overflow-wrap:anywhere}
+.scheduled-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:11px}
+.scheduled-actions button{min-height:36px;padding:7px 12px;border:1px solid #594273;border-radius:9px;background:#21172f;color:#eee;font-size:12px}
+.scheduled-actions button.primary{background:linear-gradient(120deg,#6938a1,#9b5de5);border-color:#a66bff}
+.scheduled-edit-panel{display:flex;flex-direction:column;gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid #443454}
+.scheduled-edit-panel textarea{min-height:100px;resize:vertical}
+.scheduled-edit-panel input[type="file"]{display:block;width:100%;margin-top:6px;color:#cdb9e8;font-size:12px}
+.scheduled-edit-label{color:#cdb9e8;font-size:12px}
+.scheduled-file-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px;border:1px solid #352a43;border-radius:9px;background:#15111e}
+.scheduled-file-row input{width:18px;height:18px;accent-color:#a66bff}
+.scheduled-edit-status{min-height:16px;color:#c9a8ff;font-size:12px;overflow-wrap:anywhere}
+#feed-list{display:flex;flex-direction:column;gap:16px}
+#feed-list>.post{margin:0}
+
 </style>
 </head>
 <body>
@@ -441,9 +479,21 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 <input id="post-files" type="file" accept="image/*,video/*,audio/*" multiple>
 </div>
 <div class="actions"><button class="primary" id="submit-post">Опубликовать</button><button type="button" id="cancel-publish">Отмена</button></div>
+<div class="schedule-options">
+<label class="schedule-toggle" for="post-schedule-toggle"><input type="checkbox" id="post-schedule-toggle"> Отложить публикацию</label>
+<div class="schedule-time-wrap" id="schedule-time-wrap" hidden>
+<label for="post-scheduled-at">Дата и время выхода (Москва)</label>
+<input type="datetime-local" id="post-scheduled-at">
+<div class="schedule-help">Публикации выходят по очереди, в порядке добавления.</div>
+</div>
+</div>
 <div id="publish-status" aria-live="polite"></div>
 </div>
 </div>
+<section class="scheduled-queue" id="scheduled-queue" hidden>
+<div class="scheduled-queue-head"><h2>Отложенные публикации</h2><span id="scheduled-queue-count"></span></div>
+<div id="scheduled-queue-list"></div>
+</section>
 <h2 class="feed-title">Лента публикаций</h2>
 <div class="feed" id="feed" aria-live="polite">
 <div id="feed-list"></div>
@@ -608,7 +658,28 @@ function renderFormattedText(target,value){
  while((match=pattern.exec(source))){if(match.index>last)target.append(document.createTextNode(source.slice(last,match.index)));const span=document.createElement("span");span.style.color=match[1];span.textContent=match[2];target.append(span);last=pattern.lastIndex;}
  if(last<source.length)target.append(document.createTextNode(source.slice(last)));
 }
-async function initProfileFeed(client){
+async 
+function moscowInputToIso(value){
+ if(!/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}$/.test(value||""))return null;
+ const date=new Date(value+":00+03:00");
+ return Number.isNaN(date.getTime())?null:date.toISOString();
+}
+function moscowInputValue(value){
+ const date=value instanceof Date?value:new Date(value);
+ if(Number.isNaN(date.getTime()))return "";
+ const parts=new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Moscow",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(date);
+ const part=k=>parts.find(x=>x.type===k)?.value||"";
+ return part("year")+"-"+part("month")+"-"+part("day")+"T"+part("hour")+":"+part("minute");
+}
+function moscowDateText(value){
+ if(!value)return "";
+ const date=new Date(value);
+ return Number.isNaN(date.getTime())?"":new Intl.DateTimeFormat("ru-RU",{timeZone:"Europe/Moscow",day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}).format(date)+" · Москва";
+}
+function postFileType(file){
+ return file.type.startsWith("image/")?"photo":file.type.startsWith("audio/")?"music":file.type.startsWith("video/")?"video":null;
+}
+\nfunction initProfileFeed(client){
  const list=$("feed-list"),loading=$("feed-loading"),empty=$("feed-empty"),errorBox=$("feed-error"),sentinel=$("feed-sentinel");
  const seen=new Set();let offset=0,busy=false,done=false;
  const batchSize=10;
@@ -753,7 +824,131 @@ function renderPost(post,profiles){
    }catch(e){status.textContent="Не удалось сохранить: "+e.message;save.disabled=false;cancel.disabled=false;}
   });
  }
- async function loadBatch(){
+
+ const queue=$("scheduled-queue"),queueList=$("scheduled-queue-list"),queueCount=$("scheduled-queue-count");
+ let queueRefreshing=false;
+ async function refreshPublishedScheduledPosts(){
+  const queued=await client.from("scheduled_posts").select("published_post_id").eq("user_id",user.id).eq("status","published").not("published_post_id","is",null).order("published_at",{ascending:false}).limit(50);
+  if(queued.error)return;
+  const ids=[...new Set((queued.data||[]).map(x=>x.published_post_id).filter(Boolean))];
+  if(!ids.length)return;
+  const result=await client.from("posts").select("*").in("id",ids);
+  if(result.error)return;
+  const posts=(result.data||[]).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+  for(const post of posts){
+   if(seen.has(post.id))continue;
+   seen.add(post.id);list.prepend(renderPost(post,{[user.id]:profile}));empty.hidden=true;
+  }
+ }
+ function renderScheduledMedia(container,item){
+  const media=Array.isArray(item.media)&&item.media.length?item.media:(item.image_url?[{type:"photo",url:item.image_url,name:"Фото"}]:[]);
+  if(!media.length)return;
+  const box=document.createElement("div");box.className="scheduled-media";
+  let firstPhoto=null,firstAudio=null;
+  for(const file of media){
+   const url=safeUrl(file.url);if(!url)continue;
+   let node;
+   if(file.type==="photo"){node=document.createElement("img");node.alt="Фото отложенной публикации";node.loading="lazy";if(!firstPhoto)firstPhoto=node;}
+   else if(file.type==="music"){node=document.createElement("audio");node.controls=true;if(!firstAudio)firstAudio=node;}
+   else{node=document.createElement("video");node.controls=true;node.playsInline=true;node.preload="metadata";}
+   node.src=url;
+   if(node.tagName==="IMG")node.addEventListener("click",()=>openPostPhotoView(url));
+   box.append(node);
+  }
+  if(firstAudio)makeMiniAudio(firstAudio,firstPhoto);
+  if(box.children.length)container.append(box);
+ }
+ async function deleteScheduledPost(item,card){
+  if(!confirm("Удалить эту отложенную публикацию?"))return;
+  const result=await client.from("scheduled_posts").delete().eq("id",item.id).eq("user_id",user.id);
+  if(result.error){alert("Не удалось удалить: "+result.error.message);return;}
+  card.remove();await refreshScheduledQueue();
+ }
+ function editScheduledPost(item,card){
+  if(card.querySelector(".scheduled-edit-panel"))return;
+  const original=Array.isArray(item.media)&&item.media.length?item.media.slice():(item.image_url?[{type:"photo",url:item.image_url,name:"Фото"}]:[]);
+  const panel=document.createElement("div");panel.className="scheduled-edit-panel";
+  const textLabel=document.createElement("label");textLabel.textContent="Текст публикации";
+  const textarea=document.createElement("textarea");textarea.maxLength=5000;textarea.value=item.content||"";textLabel.append(textarea);panel.append(textLabel);attachEmojiPicker(textarea);
+  const filesTitle=document.createElement("div");filesTitle.className="scheduled-edit-label";filesTitle.textContent="Прикреплённые файлы — отметь, что убрать";panel.append(filesTitle);
+  const rows=[];
+  original.forEach((file,index)=>{
+   const row=document.createElement("label");row.className="scheduled-file-row";
+   const name=document.createElement("span");name.textContent=(file.name||({photo:"Фото",video:"Видео",music:"Музыка"}[file.type]||"Файл"))+" · "+(index+1);
+   const remove=document.createElement("input");remove.type="checkbox";remove.setAttribute("aria-label","Убрать файл "+(index+1));
+   row.append(name,remove);panel.append(row);rows.push({file,remove});
+  });
+  const addLabel=document.createElement("label");addLabel.textContent="Добавить фото, видео или музыку";
+  const fileInput=document.createElement("input");fileInput.type="file";fileInput.accept="image/*,video/*,audio/*";fileInput.multiple=true;addLabel.append(fileInput);panel.append(addLabel);
+  const timeLabel=document.createElement("label");timeLabel.textContent="Дата и время выхода (Москва)";
+  const timeInput=document.createElement("input");timeInput.type="datetime-local";timeInput.value=moscowInputValue(item.scheduled_at);timeInput.min=moscowInputValue(new Date(Date.now()+60000));timeLabel.append(timeInput);panel.append(timeLabel);
+  const help=document.createElement("div");help.className="schedule-help";help.textContent="Порядок публикаций сохраняется. Время должно оставаться между соседними записями очереди.";panel.append(help);
+  const status=document.createElement("div");status.className="scheduled-edit-status";status.setAttribute("aria-live","polite");panel.append(status);
+  const actions=document.createElement("div");actions.className="scheduled-actions";
+  const save=document.createElement("button");save.type="button";save.className="primary";save.textContent=item.status==="failed"?"Сохранить и повторить":"Сохранить";
+  const removePost=document.createElement("button");removePost.type="button";removePost.textContent="Удалить";
+  const cancel=document.createElement("button");cancel.type="button";cancel.textContent="Отмена";
+  actions.append(save,removePost,cancel);panel.append(actions);card.append(panel);
+  cancel.addEventListener("click",()=>panel.remove());
+  removePost.addEventListener("click",()=>deleteScheduledPost(item,card));
+  save.addEventListener("click",async()=>{
+   const content=textarea.value.trim(),scheduledAt=moscowInputToIso(timeInput.value);
+   const newFiles=Array.from(fileInput.files||[]).map(file=>({type:postFileType(file),file}));
+   if(newFiles.some(x=>!x.type)){status.textContent="Выбери фото, видео или аудиофайл.";return;}
+   if(!scheduledAt||new Date(scheduledAt).getTime()<=Date.now()){status.textContent="Укажи будущее время по Москве.";return;}
+   const kept=rows.filter(x=>!x.remove.checked).map(x=>x.file);
+   if(!content&&!kept.length&&!newFiles.length){status.textContent="Добавь текст или хотя бы один файл.";return;}
+   save.disabled=true;removePost.disabled=true;cancel.disabled=true;status.textContent="Сохраняем изменения…";
+   try{
+    for(let i=0;i<newFiles.length;i++){
+     const {type,file}=newFiles[i],safeName=file.name.replace(/[^a-zA-Z0-9._-]/g,"_").slice(-80);
+     const path=`${user.id}/${Date.now()}-${i}-scheduled-${safeName}`;
+     status.textContent=`Загружаем файлы: ${i+1} из ${newFiles.length}…`;
+     const upload=await client.storage.from("posts").upload(path,file,{upsert:false,contentType:file.type||undefined});
+     if(upload.error)throw upload.error;
+     kept.push({type,url:client.storage.from("posts").getPublicUrl(path).data.publicUrl,name:file.name});
+    }
+    const firstPhoto=kept.find(x=>x.type==="photo");
+    const updated=await client.from("scheduled_posts").update({content:content||null,image_url:firstPhoto?.url||null,media:kept,scheduled_at:scheduledAt}).eq("id",item.id).eq("user_id",user.id).select("*").single();
+    if(updated.error)throw updated.error;
+    if(item.status==="failed"){
+     const retry=await client.rpc("retry_scheduled_post",{p_post_id:item.id});
+     if(retry.error)throw retry.error;
+    }
+    await refreshScheduledQueue();
+   }catch(error){status.textContent="Не удалось сохранить: "+error.message;save.disabled=false;removePost.disabled=false;cancel.disabled=false;}
+  });
+ }
+ async function refreshScheduledQueue(){
+  if(queueRefreshing)return;queueRefreshing=true;
+  try{
+   const result=await client.from("scheduled_posts").select("*").in("status",["pending","failed"]).order("queue_order",{ascending:true});
+   if(result.error)throw result.error;
+   const items=result.data||[];
+   queueList.replaceChildren();queue.hidden=items.length===0;
+   queueCount.textContent=items.length?items.length+" в очереди":"";
+   items.forEach((item,index)=>{
+    const card=document.createElement("article");card.className="scheduled-item";
+    const head=document.createElement("div");head.className="scheduled-item-head";
+    const title=document.createElement("strong");title.textContent="Публикация "+(index+1);
+    const time=document.createElement("time");time.textContent=moscowDateText(item.scheduled_at);head.append(title,time);card.append(head);
+    if(item.status==="failed"){
+     const warning=document.createElement("div");warning.className="scheduled-failed";warning.textContent="Не удалось опубликовать. Исправь запись и нажми «Сохранить и повторить»."+(item.last_error?" Причина: "+item.last_error:"");card.append(warning);
+    }
+    if(item.content){const body=document.createElement("div");body.className="scheduled-content";renderFormattedText(body,item.content);card.append(body);}
+    renderScheduledMedia(card,item);
+    const actions=document.createElement("div");actions.className="scheduled-actions";
+    const edit=document.createElement("button");edit.type="button";edit.textContent="✎ Изменить";edit.addEventListener("click",()=>editScheduledPost(item,card));
+    const del=document.createElement("button");del.type="button";del.textContent="Удалить";del.addEventListener("click",()=>deleteScheduledPost(item,card));
+    actions.append(edit,del);card.append(actions);queueList.append(card);
+   });
+   await refreshPublishedScheduledPosts();
+  }catch(error){
+   queue.hidden=false;queueList.textContent="Не удалось загрузить отложенные публикации: "+error.message;
+  }finally{queueRefreshing=false;}
+ }
+ window.dolbyRefreshScheduledQueue=refreshScheduledQueue;
+\n async function loadBatch(){
   if(busy||done)return;busy=true;loading.hidden=false;
   try{
    const result=await client.from("posts").select("*").order("created_at",{ascending:false}).order("id",{ascending:false}).range(offset,offset+batchSize-1);
@@ -776,6 +971,8 @@ function renderPost(post,profiles){
   window.addEventListener("scroll",()=>{if(window.innerHeight+window.scrollY>=document.body.offsetHeight-700)loadBatch();},{passive:true});
  }
  await loadBatch();
+ await refreshScheduledQueue();
+ setInterval(refreshScheduledQueue,30000);
 }
 
 $("settings-change-cover").addEventListener("click",()=>$("cover-file").click());
@@ -936,14 +1133,34 @@ $("save-button").addEventListener("click",async()=>{
 });
 
 // Редактор публикаций: типы файлов определяются автоматически.
-$("open-publish").addEventListener("click",()=>{$("publish-editor").hidden=false;$("publish-editor").classList.remove("composer-fullscreen");$("publish-status").textContent="";});
-$("cancel-publish").addEventListener("click",()=>{$("publish-editor").hidden=true;$("publish-editor").classList.remove("composer-fullscreen");});
+$("open-publish").addEventListener("click",()=>{$("publish-editor").hidden=false;$("publish-editor").classList.remove("composer-fullscreen");$("publish-status").textContent="";$("post-schedule-toggle").checked=false;$("schedule-time-wrap").hidden=true;$("submit-post").textContent="Опубликовать";});
+$("cancel-publish").addEventListener("click",()=>{$("publish-editor").hidden=true;$("publish-editor").classList.remove("composer-fullscreen");$("post-schedule-toggle").checked=false;$("schedule-time-wrap").hidden=true;$("submit-post").textContent="Опубликовать";});
+$("post-schedule-toggle").addEventListener("change",async()=>{
+ const enabled=$("post-schedule-toggle").checked,wrap=$("schedule-time-wrap"),input=$("post-scheduled-at");
+ wrap.hidden=!enabled;$("submit-post").textContent=enabled?"В отложенные":"Опубликовать";
+ if(!enabled)return;
+ const now=Date.now()+60000;
+ let min=now;
+ try{
+  const latest=await client.from("scheduled_posts").select("scheduled_at").in("status",["pending","failed"]).order("queue_order",{ascending:false}).limit(1).maybeSingle();
+  if(latest.error)throw latest.error;
+  if(latest.data?.scheduled_at)min=Math.max(min,new Date(latest.data.scheduled_at).getTime()+60000);
+ }catch(error){$("publish-status").textContent="Не удалось проверить очередь: "+error.message;return;}
+ input.min=moscowInputValue(min);
+ input.value=moscowInputValue(Math.max(min,Date.now()+3600000));
+});
 $("submit-post").addEventListener("click",async()=>{
  const text=$("post-text").value.trim();
- const files=Array.from($("post-files").files||[]).map(file=>({
-  type:file.type.startsWith("image/")?"photo":file.type.startsWith("audio/")?"music":file.type.startsWith("video/")?"video":null,
-  file
- }));
+ const files=Array.from($("post-files").files||[]).map(file=>({type:postFileType(file),file}));
+ const isScheduled=$("post-schedule-toggle").checked;
+ let scheduledAt=null;
+ if(isScheduled){
+  scheduledAt=moscowInputToIso($("post-scheduled-at").value);
+  if(!scheduledAt||new Date(scheduledAt).getTime()<=Date.now()){$("publish-status").textContent="Укажи будущее время публикации по Москве.";return;}
+  const latest=await client.from("scheduled_posts").select("scheduled_at").in("status",["pending","failed"]).order("queue_order",{ascending:false}).limit(1).maybeSingle();
+  if(latest.error){$("publish-status").textContent="Не удалось проверить очередь: "+latest.error.message;return;}
+  if(latest.data?.scheduled_at&&new Date(scheduledAt).getTime()<=new Date(latest.data.scheduled_at).getTime()){$("publish-status").textContent="Для следующей публикации выбери время позже предыдущей.";return;}
+ }
  if(files.some(item=>!item.type)){$("publish-status").textContent="Выбери фото, видео или аудиофайл.";return;}
  if(!text&&!files.length){$("publish-status").textContent="Добавь текст или выбери хотя бы один файл.";return;}
  $("submit-post").disabled=true;$("publish-status").textContent="Подготавливаем публикацию…";
@@ -960,6 +1177,15 @@ $("submit-post").addEventListener("click",async()=>{
    media.push({type,url,name:file.name});
   }
   const firstPhoto=media.find(item=>item.type==="photo");
+  if(isScheduled){
+   const queued=await client.from("scheduled_posts").insert({user_id:user.id,content:text||null,image_url:firstPhoto?.url||null,media,scheduled_at:scheduledAt}).select("*").single();
+   if(queued.error)throw queued.error;
+   $("publish-status").textContent="Добавлено в отложенные публикации!";
+   $("post-text").value="";$("post-files").value="";$("post-schedule-toggle").checked=false;$("schedule-time-wrap").hidden=true;$("submit-post").textContent="Опубликовать";
+   $("publish-editor").hidden=true;$("publish-editor").classList.remove("composer-fullscreen");
+   if(window.dolbyRefreshScheduledQueue)await window.dolbyRefreshScheduledQueue();
+   return;
+  }
   const inserted=await client.from("posts").insert({user_id:user.id,content:text||null,image_url:firstPhoto?.url||null,media}).select("*").single();
   if(inserted.error)throw inserted.error;
   $("publish-status").textContent="Публикация размещена!";
