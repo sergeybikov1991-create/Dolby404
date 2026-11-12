@@ -375,7 +375,7 @@ $("avatar-file").addEventListener("change",async()=>{
   const publicUrl=client.storage.from("avatars").getPublicUrl(path).data.publicUrl;
   const saved=await client.from("profiles").update({[avatarKey]:publicUrl}).eq("id",user.id).select("*").single();
   if(saved.error)throw saved.error;
-  profile=saved.data;columns=Object.keys(profile);render();$("photo-status").textContent="Фотография профиля обновлена!";
+  profile=saved.data;columns=Object.keys(profile);render();$("open-photo-view").disabled=!currentAvatarUrl();$("photo-status").textContent="Фотография профиля обновлена!";
   setTimeout(()=>{closePhotoEditor();$("avatar-file").value="";},900);
  }catch(e){$("photo-status").textContent="Не удалось обновить фото: "+e.message;}
  finally{$("choose-photo").disabled=false;}
