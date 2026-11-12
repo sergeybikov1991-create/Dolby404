@@ -121,7 +121,12 @@ textarea{min-height:90px;resize:vertical}
 .cover-tools button{background:#090910bb;border-color:#a66bff88;font-size:12px;padding:9px 13px;backdrop-filter:blur(10px)}
 .profile{padding:0 28px 24px}
 .identity{align-items:flex-end;gap:18px;margin-top:-56px}
-.avatar{width:124px;height:124px;border:3px solid #59436f;background:#15121f;box-shadow:0 0 0 1px #a66bff33,0 0 12px #8d50e733;z-index:2}
+.avatar{width:124px;height:124px;border:3px solid #59436f;background:#15121f;box-shadow:0 0 0 1px #a66bff33,0 0 12px #8d50e733;z-index:2;overflow:visible}
+.avatar::before{content:"";position:absolute;inset:-5px;border-radius:50%;padding:3px;background:conic-gradient(from 0deg,transparent 0deg 300deg,#b98aff55 318deg,#e0c5ff 330deg,#b98aff 337deg,transparent 350deg 360deg);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;filter:drop-shadow(0 0 3px #a66bff);pointer-events:none;animation:avatarOrbit 3.2s linear infinite}
+@keyframes avatarOrbit{to{transform:rotate(360deg)}}
+.avatar img{border-radius:50%}
+.avatar::after{border-radius:0 0 50% 50%}
+@media(prefers-reduced-motion:reduce){.avatar::before{animation:none}}
 .name{padding-bottom:10px}
 .name h1{font-size:clamp(22px,4vw,30px);letter-spacing:.01em}
 .name p{color:#c59aff}
