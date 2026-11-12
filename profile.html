@@ -64,6 +64,13 @@ a{color:#d8c5ff;text-decoration:none}
 .bio{color:#c9c2d7;line-height:1.6;margin:20px 0}
 .stats{display:flex;gap:24px;padding:15px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);color:var(--muted);font-size:13px}
 .stats strong{color:#fff;font-size:17px;display:block;margin-bottom:3px}
+.friends-panel{margin-top:20px;padding:16px;border:1px solid #342943;border-radius:15px;background:linear-gradient(145deg,#191625,#100f19)}
+.friends-panel h2{margin:0 0 12px;font-size:16px;color:#f0e5ff}
+.profile-friends{display:flex;gap:10px;flex-wrap:wrap}
+.profile-friend{display:flex;align-items:center;gap:9px;min-width:145px;padding:8px 10px;border:1px solid #382b4b;border-radius:12px;background:#100e18;color:#eee5ff;font-size:13px}
+.profile-friend-avatar{width:34px;height:34px;flex:0 0 34px;overflow:hidden;border-radius:50%;display:grid;place-items:center;background:#39234f;color:#f2e8ff;font-weight:700}
+.profile-friend-avatar img{width:100%;height:100%;object-fit:cover}
+.friends-empty{color:var(--muted);font-size:12px;padding:4px 0}
 .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
 button{cursor:pointer;border:1px solid #62458b;border-radius:24px;padding:11px 18px;background:#2a1b3d;color:#f1e7ff;font-size:14px}
 button.primary{background:linear-gradient(100deg,#6335a0,#39205f);border-color:#9b69d8}
@@ -286,11 +293,10 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 <div class="name"><h1 id="display-name">Загружаем профиль…</h1><p id="username"></p></div>
 </div>
 <p class="bio" id="bio">Подготавливаем твою страницу…</p>
-<div class="stats">
-<div><strong id="posts-count">—</strong>Публикации</div>
-<div><strong id="followers-count">—</strong>Подписчики</div>
-<div><strong id="following-count">—</strong>Подписки</div>
-</div>
+<section class="friends-panel" aria-labelledby="friends-title">
+<h2 id="friends-title">Друзья</h2>
+<div id="profile-friends" class="profile-friends"><div class="friends-empty">Загружаем друзей…</div></div>
+</section>
 
 <div class="editor" id="editor" hidden>
 <h2>Настроить профиль</h2>
@@ -418,6 +424,7 @@ async function start(){
     columns=Object.keys(probe.data?.[0]||{});
   }
   render();
+  loadProfileFriends();
   recordNavigation("profile");
   initProfileFeed(client);
   if(!result.data){$("notice").hidden=false;$("notice").textContent="Профиль ещё не найден в таблице. Страница открыта, но для сохранения сначала нужно проверить структуру таблицы profiles.";}
@@ -760,10 +767,40 @@ $("submit-post").addEventListener("click",async()=>{
   const date=document.createElement("div");date.className="post-date";date.textContent="только что";ident.append(author,date);head.append(av,ident);card.append(head);
   if(text){const body=document.createElement("div");body.className="post-content";body.textContent=text;card.append(body);}
   if(media.length){const box=document.createElement("div");box.className="post-media";let firstPhoto=null,firstAudio=null;media.forEach(item=>{const node=document.createElement(item.type==="photo"?"img":item.type==="music"?"audio":"video");if(node.tagName==="IMG"){node.alt="Фото публикации";if(!firstPhoto)firstPhoto=node;}else{node.controls=true;if(node.tagName==="VIDEO")node.playsInline=true;if(node.tagName==="AUDIO"&&!firstAudio)firstAudio=node;}if(node.tagName==="IMG")node.crossOrigin="anonymous";node.src=item.url;box.append(node);});if(firstAudio)makeMiniAudio(firstAudio,firstPhoto);card.append(box);}
-  $("feed-list").prepend(card);$("posts-count").textContent=String((Number($("posts-count").textContent)||0)+1);
+  $("feed-list").prepend(card);
  }catch(e){$("publish-status").textContent="Не удалось опубликовать: "+e.message;}
  finally{$("submit-post").disabled=false;}
 });
+
+async function loadProfileFriends(){
+ const host=$("profile-friends");if(!host)return;
+ host.innerHTML='<div class="friends-empty">Пока друзей нет. Здесь появятся взаимные подписки.</div>';
+ try{
+  const result=await client.from("follows").select("*");
+  if(result.error)throw result.error;
+  const rows=result.data||[];if(!rows.length)return;
+  const sample=rows[0],keys=Object.keys(sample);
+  const fromKey=keys.find(k=>["follower_id","user_id","from_user_id","subscriber_id"].includes(k));
+  const toKey=keys.find(k=>["following_id","followed_id","target_id","to_user_id"].includes(k));
+  if(!fromKey||!toKey)return;
+  const outgoing=new Set(rows.filter(r=>r[fromKey]===user.id).map(r=>r[toKey]));
+  const incoming=new Set(rows.filter(r=>r[toKey]===user.id).map(r=>r[fromKey]));
+  const friendIds=[...outgoing].filter(id=>incoming.has(id)&&id!==user.id);
+  if(!friendIds.length)return;
+  const people=await client.from("profiles").select("*").in("id",friendIds);
+  if(people.error)throw people.error;
+  host.replaceChildren();
+  (people.data||[]).forEach(person=>{
+   const card=document.createElement("div");card.className="profile-friend";
+   const avatar=document.createElement("div");avatar.className="profile-friend-avatar";
+   const url=person.avatar_url||person.avatar;
+   if(url){const img=document.createElement("img");img.src=url;img.alt="";avatar.append(img);}else avatar.textContent=(person.name||person.display_name||person.username||"П")[0].toUpperCase();
+   const name=document.createElement("span");name.textContent=person.name||person.display_name||person.full_name||person.username||"Пользователь";
+   card.append(avatar,name);host.append(card);
+  });
+  if(!host.children.length)host.innerHTML='<div class="friends-empty">Пока друзей нет. Здесь появятся взаимные подписки.</div>';
+ }catch(error){host.innerHTML='<div class="friends-empty">Друзья появятся здесь, когда будут настроены подписки.</div>';}
+}
 
 function signOutFromDrawer(){client.auth.signOut().then(({error})=>{if(error){$("quick-status").textContent="Не удалось выйти: "+error.message;return;}location.replace("portal.html");});}
 $("drawer-logout").addEventListener("click",signOutFromDrawer);
