@@ -377,7 +377,7 @@ async function registerUser() {
         message.textContent = "Регистрируем...";
 
         const redirectUrl = new URL(
-            "home.html",
+            "profile.html",
             window.location.href
         ).href;
 
@@ -447,7 +447,7 @@ async function loginUser() {
         message.textContent = "Вход выполнен!";
 
         window.location.href = new URL(
-            "home.html",
+            "profile.html",
             window.location.href
         ).href;
 
