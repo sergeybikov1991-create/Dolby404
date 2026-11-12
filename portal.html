@@ -717,12 +717,17 @@ function createGlass(event) {
 }
 
 document.addEventListener("pointerdown", (event) => {
-    const field = event.target.closest("input");
+    const target = event.target;
 
-    if (!field) return;
-    if (field.value.trim() !== "") return;
-
-    createGlass(event);
+    /* Эффект только на свободном фоне, не на элементах страницы */
+    if (
+        target === document.body ||
+        target === document.documentElement ||
+        target === document.querySelector(".portal") ||
+        target === glassLayer
+    ) {
+        createGlass(event);
+    }
 });
 
 </script>
