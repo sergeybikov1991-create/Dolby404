@@ -19,6 +19,17 @@ a{color:#d8c5ff;text-decoration:none}
 .identity{display:flex;align-items:end;gap:18px;margin-top:-48px;position:relative}
 .avatar{width:112px;height:112px;border-radius:50%;border:4px solid #171522;background:linear-gradient(135deg,#6336a3,#17152b);display:grid;place-items:center;font-size:42px;overflow:hidden;flex-shrink:0;box-shadow:0 0 24px #8d50e755}
 .avatar img{width:100%;height:100%;object-fit:cover}
+.avatar{cursor:pointer;position:relative;outline:none}
+.avatar:focus-visible{box-shadow:0 0 0 3px #c5a4ff,0 0 24px #8d50e755}
+.avatar::after{content:"Изменить фото";position:absolute;inset:auto 0 0;background:#090910c9;color:#fff;font-size:10px;text-align:center;padding:5px 2px;opacity:0;transition:opacity .2s}
+.avatar:hover::after,.avatar:focus-visible::after{opacity:1}
+.photo-modal{position:fixed;inset:0;z-index:20;background:#05040bd9;display:grid;place-items:center;padding:20px}
+.photo-modal[hidden]{display:none}
+.photo-panel{width:min(100%,340px);padding:24px;border:1px solid #55416f;border-radius:18px;background:#171321;box-shadow:0 18px 60px #0009;text-align:center}
+.photo-panel h2{font-size:19px;margin:0 0 8px}
+.photo-panel p{font-size:13px;color:var(--muted);line-height:1.5;margin:0 0 18px}
+.photo-panel .actions{justify-content:center;margin-top:0}
+#photo-status{min-height:18px;margin-top:12px;color:#c5a4ff;font-size:12px}
 .name{padding-bottom:9px;min-width:0}
 .name h1{font-size:26px;margin:0 0 6px;overflow-wrap:anywhere}
 .name p{margin:0;color:var(--muted);font-size:13px;overflow-wrap:anywhere}
@@ -49,7 +60,7 @@ textarea{min-height:90px;resize:vertical}
 <div class="cover"></div>
 <div class="profile">
 <div class="identity">
-<div class="avatar" id="avatar">◉</div>
+<div class="avatar" id="avatar" role="button" tabindex="0" aria-label="Редактировать фото профиля">◉</div>
 <div class="name"><h1 id="display-name">Загружаем профиль…</h1><p id="username"></p></div>
 </div>
 <p class="bio" id="bio">Подготавливаем твою страницу…</p>
@@ -64,10 +75,7 @@ textarea{min-height:90px;resize:vertical}
 <input id="name-input" maxlength="60" placeholder="Как тебя зовут?">
 <input id="username-input" maxlength="30" placeholder="Например, dolby_user">
 <textarea id="bio-input" maxlength="300" placeholder="Расскажи немного о себе…"></textarea>
-<input id="avatar-input" type="url" placeholder="https://…">
-<label for="avatar-file">Или выбери фотографию из галереи</label>
-<input id="avatar-file" type="file" accept="image/jpeg,image/png,image/webp">
-<p class="hint">Подойдут JPG, PNG или WebP. Максимальный размер — 10 МБ. Загруженное фото будет доступно по публичной ссылке.</p>
+<p class="hint">Чтобы изменить фотографию, просто нажми на круглый аватар.</p>
 <div class="actions"><button class="primary" id="save-button">Сохранить</button><button id="cancel-button">Отмена</button></div>
 <div id="message"></div>
 </div>
@@ -75,6 +83,15 @@ textarea{min-height:90px;resize:vertical}
 </div>
 </section>
 </main>
+<div class="photo-modal" id="photo-modal" hidden>
+ <div class="photo-panel" role="dialog" aria-modal="true" aria-labelledby="photo-title">
+  <h2 id="photo-title">Редактировать фото профиля</h2>
+  <p>Выбери фотографию из галереи телефона. Подойдут JPG, PNG или WebP размером до 10 МБ.</p>
+  <div class="actions"><button class="primary" id="choose-photo">Выбрать из галереи</button><button id="close-photo">Отмена</button></div>
+  <div id="photo-status"></div>
+ </div>
+</div>
+<input id="avatar-file" type="file" accept="image/jpeg,image/png,image/webp" hidden>
 <script>
 const SUPABASE_URL="https://qhpobdktlbhdqsnajypr.supabase.co";
 const SUPABASE_KEY="sb_publishable_tzG1qVsbjaW8YE_LBVN87Q_v0CahKN5";
@@ -96,7 +113,6 @@ function render(){
  $("name-input").value=((nameKey&&profile[nameKey])==="Новый пользователь")?"":((nameKey&&profile[nameKey])||"");
  $("username-input").value=(usernameKey&&profile[usernameKey]&&!/^user_[a-f0-9]{12,}$/i.test(profile[usernameKey]))?profile[usernameKey]:"";
  $("bio-input").value=(bioKey&&profile[bioKey])||"";
- $("avatar-input").value=(avatarKey&&profile[avatarKey])||"";
  $("edit-button").hidden=false;
 }
 async function start(){
@@ -117,34 +133,47 @@ async function start(){
  }catch(e){$("display-name").textContent="Не удалось загрузить профиль";$("bio").textContent=e.message;$("notice").hidden=false;$("notice").textContent="Проверь подключение и настройки доступа к таблице profiles.";}
 }
 $("edit-button").addEventListener("click",()=>{$("editor").hidden=false;$("message").textContent="";});
+function openPhotoEditor(){$("photo-modal").hidden=false;$("photo-status").textContent="";}
+function closePhotoEditor(){$("photo-modal").hidden=true;}
+$("avatar").addEventListener("click",openPhotoEditor);
+$("avatar").addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();openPhotoEditor();}});
+$("close-photo").addEventListener("click",closePhotoEditor);
+$("photo-modal").addEventListener("click",e=>{if(e.target===$("photo-modal"))closePhotoEditor();});
+$("choose-photo").addEventListener("click",()=>$("avatar-file").click());
+$("avatar-file").addEventListener("change",async()=>{
+ const file=$("avatar-file").files[0];if(!file)return;
+ const avatarKey=firstKey(["avatar_url","avatar"]);
+ if(!avatarKey){$("photo-status").textContent="В профиле не найдено поле для фотографии.";return;}
+ if(!["image/jpeg","image/png","image/webp"].includes(file.type)){$("photo-status").textContent="Выбери JPG, PNG или WebP."; $("avatar-file").value="";return;}
+ if(file.size>10*1024*1024){$("photo-status").textContent="Файл больше 10 МБ. Выбери фото до 10 МБ."; $("avatar-file").value="";return;}
+ const ext=file.type==="image/jpeg"?"jpg":file.type.split("/")[1];
+ const path=`${user.id}/avatar-${Date.now()}.${ext}`;
+ $("choose-photo").disabled=true;$("photo-status").textContent="Загружаем фотографию…";
+ try{
+  const upload=await client.storage.from("avatars").upload(path,file,{upsert:false,contentType:file.type});
+  if(upload.error)throw upload.error;
+  const publicUrl=client.storage.from("avatars").getPublicUrl(path).data.publicUrl;
+  const saved=await client.from("profiles").update({[avatarKey]:publicUrl}).eq("id",user.id).select("*").single();
+  if(saved.error)throw saved.error;
+  profile=saved.data;columns=Object.keys(profile);render();$("photo-status").textContent="Фотография профиля обновлена!";
+  setTimeout(()=>{closePhotoEditor();$("avatar-file").value="";},900);
+ }catch(e){$("photo-status").textContent="Не удалось обновить фото: "+e.message;}
+ finally{$("choose-photo").disabled=false;}
+});
 $("cancel-button").addEventListener("click",()=>{$("editor").hidden=true;});
 $("save-button").addEventListener("click",async()=>{
  const nameKey=firstKey(["display_name","full_name","name"]);
  const usernameKey=firstKey(["username","handle","nickname"]);
  const bioKey=firstKey(["bio","about","description"]);
- const avatarKey=firstKey(["avatar_url","avatar"]);
- const selectedFile=$("avatar-file").files[0];
  const patch={};
  if(nameKey)patch[nameKey]=$("name-input").value.trim();
  if(usernameKey)patch[usernameKey]=$("username-input").value.trim().replace(/^@/,"");
  if(bioKey)patch[bioKey]=$("bio-input").value.trim();
- if(avatarKey)patch[avatarKey]=$("avatar-input").value.trim();
- if(selectedFile){
-  if(!avatarKey){$("message").textContent="В профиле не найдено поле для ссылки на аватар.";return;}
-  if(!["image/jpeg","image/png","image/webp"].includes(selectedFile.type)){$("message").textContent="Выбери JPG, PNG или WebP.";return;}
-  if(selectedFile.size>10*1024*1024){$("message").textContent="Файл больше 10 МБ. Выбери фото поменьше.";return;}
-  const ext=selectedFile.type==="image/jpeg"?"jpg":selectedFile.type.split("/")[1];
-  const path=`${user.id}/avatar-${Date.now()}.${ext}`;
-  $("save-button").disabled=true;$("message").textContent="Загружаем фотографию…";
-  const upload=await client.storage.from("avatars").upload(path,selectedFile,{upsert:false,contentType:selectedFile.type});
-  if(upload.error){$("save-button").disabled=false;$("message").textContent="Не удалось загрузить фото: "+upload.error.message;return;}
-  patch[avatarKey]=client.storage.from("avatars").getPublicUrl(path).data.publicUrl;
- }
  if(!Object.keys(patch).length){$("message").textContent="В таблице пока не найдены поля для имени, никнейма, описания или аватара. Нужна небольшая настройка базы данных.";return;}
  $("save-button").disabled=true;$("message").textContent="Сохраняем…";
  try{
   const result=await client.from("profiles").update(patch).eq("id",user.id).select("*").single();
-  if(result.error)throw result.error;profile=result.data;columns=Object.keys(profile);$("avatar-file").value="";render();$("editor").hidden=true;$("message").textContent="Профиль сохранён!";
+  if(result.error)throw result.error;profile=result.data;columns=Object.keys(profile);render();$("editor").hidden=true;$("message").textContent="Профиль сохранён!";
  }catch(e){$("message").textContent="Не удалось сохранить: "+e.message;}
  finally{$("save-button").disabled=false;}
 });
