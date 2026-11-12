@@ -717,17 +717,15 @@ function createGlass(event) {
 }
 
 document.addEventListener("pointerdown", (event) => {
-    const target = event.target;
-
-    /* Эффект только на свободном фоне, не на элементах страницы */
-    if (
-        target === document.body ||
-        target === document.documentElement ||
-        target === document.querySelector(".portal") ||
-        target === glassLayer
-    ) {
-        createGlass(event);
+    /* Не запускаем эффект на самих элементах интерфейса */
+    if (event.target.closest(
+        "input, button, .logo, .subtitle, #auth-message, .music-note, iframe"
+    )) {
+        return;
     }
+
+    /* Любое свободное место страницы — фон, отступ или промежуток */
+    createGlass(event);
 });
 
 </script>
