@@ -280,6 +280,21 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
  .post{width:calc(100% - 14px);margin-left:7px;margin-right:7px;border:1px solid var(--line);border-radius:17px}
  .post+.post{border-top:1px solid var(--line)}
 }
+
+/* DOLBY EMOJI STATION */
+.emoji-picker{position:relative;margin:8px 0 12px}
+.emoji-picker-trigger{display:inline-flex;align-items:center;justify-content:center;width:39px;height:36px;border:1px solid #594078;border-radius:11px;background:linear-gradient(145deg,#21172f,#100d19);color:#eadcff;font-size:21px;box-shadow:0 0 13px #8d50e722}
+.emoji-picker-trigger:active{transform:scale(.94)}
+.emoji-picker-panel{margin-top:8px;padding:10px;border:1px solid #63458b;border-radius:15px;background:linear-gradient(145deg,#171222,#0b0a12);box-shadow:0 12px 35px #0009,0 0 18px #8d50e722}
+.emoji-picker-panel[hidden]{display:none}
+.emoji-category-tabs{display:flex;gap:6px;overflow-x:auto;padding:1px 1px 9px;scrollbar-width:thin;scrollbar-color:#65458a transparent}
+.emoji-category-tab{flex:0 0 37px;width:37px;height:36px;padding:0;border:1px solid #342943;border-radius:10px;background:#100d19;color:#fff;font-size:20px}
+.emoji-category-tab[aria-pressed="true"]{border-color:#b47aff;background:linear-gradient(145deg,#38204f,#1b1428);box-shadow:0 0 12px #a66bff55}
+.emoji-grid{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:4px;max-height:190px;overflow-y:auto;padding:2px;overscroll-behavior:contain}
+.emoji-item{min-width:0;aspect-ratio:1;border:0;border-radius:9px;background:transparent;color:#fff;font-size:24px;display:grid;place-items:center;padding:0}
+.emoji-item:active{background:#a66bff33;transform:scale(.9)}
+@media(max-width:380px){.emoji-grid{grid-template-columns:repeat(7,minmax(0,1fr))}.emoji-item{font-size:22px}}
+
 </style>
 </head>
 <body>
@@ -476,7 +491,51 @@ async function start(){
   if(!result.data){$("notice").hidden=false;$("notice").textContent="Профиль ещё не найден в таблице. Страница открыта, но для сохранения сначала нужно проверить структуру таблицы profiles.";}
  }catch(e){$("display-name").textContent="Не удалось загрузить профиль";$("bio").textContent=e.message;$("notice").hidden=false;$("notice").textContent="Проверь подключение и настройки доступа к таблице profiles.";}
 }
+attachEmojiPicker($("post-text"));attachEmojiPicker($("bio-input"));
 $("open-profile-editor").addEventListener("click",()=>{closeSettings();$("editor").hidden=false;$("message").textContent="";$("editor").scrollIntoView({behavior:"smooth",block:"center"});});
+
+
+function attachEmojiPicker(field){
+ if(!field||field.dataset.emojiReady==="1")return;
+ field.dataset.emojiReady="1";
+ const categories=[
+  {icon:"😎",name:"faces",items:"😀 😃 😄 😁 😆 😅 😂 🤣 🥲 😊 😇 🙂 🙃 😉 😌 😍 🥰 😘 😗 😙 😚 😋 😛 😜 🤪 😝 🤑 🤗 🤭 🫢 🫣 🤫 🤔 🫡 🤐 🤨 😐 😑 😶 🫥 😏 😒 🙄 😬 🤥 😔 😪 🤤 😴 😷 🤒 🤕 🤢 🤮 🤧 🥵 🥶 🥴 😵 🤯 🥳 🥸 😎 🤓 🧐 😕 🫤 😟 🙁 ☹️ 😮 😯 😲 😳 🥺 😦 😧 😨 😰 😥 😢 😭 😱 😖 😣 😞 😓 😩 😫 🥱 😤 😡 😠 🤬 😈 👿 💀 ☠️ 👻 👽 🤖 🎃"},
+  {icon:"💜",name:"love",items:"❤️ 🧡 💛 💚 💙 💜 🖤 🤍 🤎 🩷 🩵 🩶 💔 ❤️‍🔥 ❤️‍🩹 ❣️ 💕 💞 💓 💗 💖 💘 💝 💟 💌 💋 💍 💎 🌹 🥀 🌷 🌸 🌺 🌻 🌼 🪷 💐 🫶 💑 💏"},
+  {icon:"👋",name:"hands",items:"👋 🤚 🖐️ ✋ 🖖 🫱 🫲 🫳 🫴 👌 🤌 🤏 ✌️ 🤞 🫰 🤟 🤘 🤙 👈 👉 👆 🖕 👇 ☝️ 👍 👎 ✊ 👊 🤛 🤜 👏 🙌 👐 🤲 🤝 🙏 ✍️ 💅 🤳 💪 🦾 🦿 🦵 🦶 👂 🦻 👃 🧠 👀 👁️ 👅 👄 🫦"},
+  {icon:"🐈",name:"animals",items:"🐶 🐱 🐭 🐹 🐰 🦊 🐻 🐼 🐻‍❄️ 🐨 🐯 🦁 🐮 🐷 🐸 🐵 🙈 🙉 🙊 🐒 🐔 🐧 🐦 🐤 🦆 🦅 🦉 🦇 🐺 🐗 🐴 🦄 🐝 🪱 🦋 🐌 🐞 🐜 🪰 🪲 🕷️ 🦂 🐢 🐍 🦎 🦖 🦕 🐙 🦑 🦀 🦞 🦐 🐠 🐟 🐬 🐳 🦈 🐊 🦩 🦚 🦜 🦢 🦃 🦤 🦥 🦦 🦨 🦘 🦬 🐘 🦒 🦓 🦍 🦧 🐪 🐫 🦙 🐄 🐎 🐖 🐏 🐑 🦌 🐕 🐈 🐓"},
+  {icon:"🌌",name:"nature",items:"🌍 🌎 🌏 🌕 🌖 🌗 🌘 🌑 🌒 🌓 🌔 🌙 🌚 🌛 🌜 🌞 ☀️ 🌤️ ⛅ 🌥️ 🌦️ 🌧️ ⛈️ 🌩️ 🌨️ ❄️ ☃️ ⛄ 🌬️ 💨 🌪️ 🌫️ 🌈 ☔ ⚡ 🔥 💧 🌊 🌫️ 🌲 🌳 🌴 🌵 🌱 🌿 ☘️ 🍀 🎋 🍃 🍂 🍁 🪴 🌾 🌻 🌼 🌷 🌹 🪻 🌺 🪷"},
+  {icon:"🍕",name:"food",items:"🍏 🍎 🍐 🍊 🍋 🍌 🍉 🍇 🍓 🫐 🍈 🍒 🍑 🥭 🍍 🥥 🥝 🍅 🥑 🍆 🥔 🥕 🌽 🌶️ 🫑 🥒 🥬 🥦 🧄 🧅 🍄 🥜 🌰 🍞 🥐 🥖 🥨 🧀 🥚 🍳 🧈 🥞 🧇 🥓 🥩 🍗 🍖 🌭 🍔 🍟 🍕 🫓 🥪 🌮 🌯 🫔 🥙 🧆 🍝 🍜 🍲 🍛 🍣 🍱 🥟 🍤 🍙 🍚 🍘 🍥 🥠 🍡 🍧 🍨 🍦 🥧 🧁 🍰 🎂 🍮 🍭 🍬 🍫 🍿 🍩 🍪 ☕ 🫖 🍵 🧃 🥤 🧋 🍺 🍻 🥂 🍷 🍸 🍹"},
+  {icon:"⚽",name:"activity",items:"⚽ 🏀 🏈 ⚾ 🥎 🎾 🏐 🏉 🎱 🏓 🏸 🏒 🏑 🥍 🏏 🥊 🥋 🥅 ⛳ ⛸️ 🎣 🤿 🎽 🎿 🛷 🥌 🎯 🪀 🪁 🎮 🕹️ 🎲 ♟️ 🧩 🎭 🎨 🧵 🪡 🧶 🎼 🎹 🥁 🪘 🎷 🎺 🎸 🪕 🎻 🪈 🎤 🎧 🎬 🎟️ 🎪 🎫 🏆 🥇 🥈 🥉 🏅"},
+  {icon:"🚀",name:"travel",items:"🚗 🚕 🚙 🚌 🚎 🏎️ 🚓 🚑 🚒 🚐 🛻 🚚 🚛 🚜 🛵 🏍️ 🚲 🛴 🛹 🛼 🚏 🛣️ 🛤️ 🚦 🚥 🚧 ⚓ ⛵ 🚤 🛳️ 🚢 ✈️ 🛩️ 🛫 🛬 🚁 🚟 🚠 🚡 🛰️ 🚀 🛸 🌠 🎇 🎆 🌃 🌆 🌇 🌉 🏙️ 🌄 🌅 🏖️ 🏝️ 🏜️ 🏕️ 🏟️ 🏛️ 🏰 🏯 🗼 🗽 🏠 🏡 🏢 🏬 🏭 🏥 🏦 🏫 🏩"},
+  {icon:"🎧",name:"objects",items:"⌚ 📱 📲 💻 ⌨️ 🖥️ 🖨️ 🖱️ 🖲️ 💽 💾 💿 📀 🧮 🎥 📷 📸 📹 📼 🔍 🔎 💡 🔦 🕯️ 🪔 🧯 🛢️ 💸 💵 💴 💶 💷 💰 🪙 💳 🧾 💎 ⚖️ 🪜 🧰 🔧 🔨 ⚒️ 🛠️ ⛏️ 🔩 ⚙️ 🧲 🪛 🧪 🧫 🧬 🔬 🔭 📡 💊 🩹 🩺 🚪 🪞 🪟 🛏️ 🛋️ 🪑 🚽 🚿 🛁 🧴 🧷 🧹 🧺 🧻 🪣 🧼 🪥"},
+  {icon:"⚡",name:"symbols",items:"✨ ⭐ 🌟 💫 ⚡ ☄️ 💥 🔥 🌈 ☀️ 🌙 ☁️ ❄️ 💧 💦 🫧 🎉 🎊 🎈 🎀 🪄 🧿 🔮 🪬 🕯️ 💯 💢 💨 💤 💬 🗯️ 💭 🗨️ 🖤 🩶 🤍 ❗ ❕ ❓ ❔ ⁉️ ‼️ ♻️ ⚠️ 🚫 ⛔ 🔞 ♠️ ♥️ ♦️ ♣️ 🃏 🎴 🔱 ⚜️ 🔰 ☢️ ☣️ 🆘 🆙 🆒 🆕 🆓 🆗 🆖 🆔 🔟 🔢 🔣 🔤 🔡 🔠"},
+  {icon:"👾",name:"cyber",items:"👾 🤖 👽 🛸 💻 🖥️ 📟 📡 🔋 🪫 ⚙️ 🧬 🔬 🔭 💿 📀 💽 🕹️ 🎮 🧩 🌀 💠 🔷 🔹 🔶 🔸 🔺 🔻 🔲 🔳 ▪️ ◾ ◼️ ⬛ 🟪 🟣 🟦 🟩 🟨 🟥 🟧 ⬜ ⬜ 🔘 🔮 🪩 ✨ 💫 ⚡ 💥 🌐 🛰️ 🚀"}
+ ];
+ const host=document.createElement("div");host.className="emoji-picker";
+ const trigger=document.createElement("button");trigger.type="button";trigger.className="emoji-picker-trigger";trigger.textContent="☺";trigger.setAttribute("aria-label","Открыть смайлы DOLBY404");trigger.setAttribute("aria-expanded","false");
+ const panel=document.createElement("div");panel.className="emoji-picker-panel";panel.hidden=true;
+ const tabs=document.createElement("div");tabs.className="emoji-category-tabs";tabs.setAttribute("role","group");tabs.setAttribute("aria-label","Категории смайлов");
+ const grid=document.createElement("div");grid.className="emoji-grid";
+ let active=0;
+ function renderCategory(index){
+  active=index;tabs.querySelectorAll("button").forEach((b,i)=>b.setAttribute("aria-pressed",String(i===index)));
+  grid.replaceChildren();
+  categories[index].items.split(/\s+/).filter(Boolean).forEach(symbol=>{
+   const item=document.createElement("button");item.type="button";item.className="emoji-item";item.textContent=symbol;item.setAttribute("aria-label",symbol);item.addEventListener("click",()=>{
+    const start=field.selectionStart??field.value.length,end=field.selectionEnd??start,value=field.value;
+    field.value=value.slice(0,start)+symbol+value.slice(end);
+    const cursor=start+symbol.length;field.focus();field.setSelectionRange(cursor,cursor);
+    field.dispatchEvent(new Event("input",{bubbles:true}));
+   });grid.append(item);
+  });
+ }
+ categories.forEach((category,index)=>{
+  const tab=document.createElement("button");tab.type="button";tab.className="emoji-category-tab";tab.textContent=category.icon;tab.setAttribute("aria-label","Категория "+(index+1));tab.setAttribute("aria-pressed",String(index===0));tab.addEventListener("click",()=>renderCategory(index));tabs.append(tab);
+ });
+ panel.append(tabs,grid);host.append(trigger,panel);field.insertAdjacentElement("afterend",host);
+ trigger.addEventListener("click",()=>{panel.hidden=!panel.hidden;trigger.setAttribute("aria-expanded",String(!panel.hidden));if(!panel.hidden)renderCategory(active);});
+ field.addEventListener("keydown",e=>{if(e.key==="Escape"&&!panel.hidden){panel.hidden=true;trigger.setAttribute("aria-expanded","false");}});
+}
 
 async function initProfileFeed(client){
  const list=$("feed-list"),loading=$("feed-loading"),empty=$("feed-empty"),errorBox=$("feed-error"),sentinel=$("feed-sentinel");
@@ -581,7 +640,7 @@ function renderPost(post,profiles){
   const originalMedia=Array.isArray(post.media)&&post.media.length?post.media.slice():(post.image_url?[{type:"photo",url:post.image_url,name:"Фото"}]:[]);
   const panel=document.createElement("div");panel.className="post-edit-panel";
   const label=document.createElement("label");label.textContent="Текст публикации";
-  const textarea=document.createElement("textarea");textarea.maxLength=5000;textarea.value=post.content||"";label.append(textarea);panel.append(label);
+  const textarea=document.createElement("textarea");textarea.maxLength=5000;textarea.value=post.content||"";label.append(textarea);panel.append(label);attachEmojiPicker(textarea);
   const mediaTitle=document.createElement("div");mediaTitle.className="post-edit-label";mediaTitle.textContent="Прикреплённые файлы — отметь, что убрать";panel.append(mediaTitle);
   const rows=[];
   originalMedia.forEach((item,index)=>{
