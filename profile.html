@@ -524,6 +524,7 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 .video-album-panel,.private-video-panel{width:min(100%,620px);max-height:92vh;overflow:auto;padding:20px;border:1px solid #76519d;border-radius:19px;background:linear-gradient(155deg,#1c1729,#0d0c15);box-shadow:0 0 38px #8d50e733}
 .video-album-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:2px;margin-top:12px}
 .video-album-item{position:relative;display:block;aspect-ratio:1;min-width:0;padding:0!important;border:0!important;border-radius:3px!important;overflow:hidden;background:linear-gradient(145deg,#21172f,#0b0912);cursor:pointer}
+.video-album-frame{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#100c18;pointer-events:none}
 .video-album-playmark{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:#09070dbb;border:1px solid #ffffff77;color:white;font-size:17px;pointer-events:none}
 .video-album-empty{grid-column:1/-1;padding:24px 8px;text-align:center;color:#9589a6;font-size:13px}
 .video-album-upload{display:grid;gap:12px;margin-top:8px;padding:14px;border:1px solid #49375f;border-radius:14px;background:#120f1c}
@@ -1160,6 +1161,19 @@ $("music-backdrop").addEventListener("click",e=>{if(e.target===$("music-backdrop
 
 let videoAlbumItems=[],videoAlbumIndex=0,privateVideoItems=[],privateVideoIndex=0;
 function videoAlbumMessage(id,message){const node=$(id);if(node)node.textContent=message||"";}
+function addVideoFrameThumbnail(tile,item){
+ const frame=document.createElement("video");
+ frame.className="video-album-frame";
+ frame.muted=true;frame.defaultMuted=true;frame.playsInline=true;
+ frame.preload="metadata";frame.setAttribute("aria-hidden","true");
+ frame.addEventListener("loadedmetadata",()=>{
+  if(!Number.isFinite(frame.duration)||frame.duration<=0)return;
+  try{frame.currentTime=Math.min(0.25,frame.duration/2);}catch(_){}
+ },{once:true});
+ frame.addEventListener("error",()=>{frame.removeAttribute("src");frame.load();},{once:true});
+ frame.src=item.url;
+ tile.append(frame);
+}
 function stopVideoPlayer(id){const player=$(id);if(player){player.pause();player.removeAttribute("src");player.load();}}
 async function openVideoAlbum(){
  $("video-album-backdrop").hidden=false;
@@ -1186,6 +1200,7 @@ async function loadVideoAlbum(){
   if(!videoAlbumItems.length){const empty=document.createElement("div");empty.className="album-empty";empty.textContent="Не удалось получить ссылки на видео. Попробуй обновить альбом.";grid.append(empty);return;}
   videoAlbumItems.forEach((item,index)=>{
    const tile=document.createElement("button");tile.type="button";tile.className="video-album-item";tile.setAttribute("aria-label","Открыть видео: "+(item.file_name||"видео"));
+   addVideoFrameThumbnail(tile,item);
    const preview=document.createElement("span");preview.className="video-album-playmark";preview.textContent="▶";preview.setAttribute("aria-hidden","true");
    tile.append(preview);
    tile.addEventListener("click",()=>showVideoAlbumItem(index,false,true));grid.append(tile);
@@ -1209,6 +1224,7 @@ async function loadPrivateVideoAlbum(){
   if(!privateVideoItems.length){const empty=document.createElement("div");empty.className="album-empty";empty.textContent="Не удалось получить ссылки на приватные видео.";grid.append(empty);return;}
   privateVideoItems.forEach((item,index)=>{
    const tile=document.createElement("button");tile.type="button";tile.className="video-album-item";tile.setAttribute("aria-label","Открыть приватное видео");
+   addVideoFrameThumbnail(tile,item);
    const preview=document.createElement("span");preview.className="video-album-playmark";preview.textContent="▶";preview.setAttribute("aria-hidden","true");
    tile.append(preview);
    tile.addEventListener("click",()=>showVideoAlbumItem(index,true,true));grid.append(tile);
