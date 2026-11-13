@@ -513,6 +513,37 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 .feed-compose-trigger:hover,.feed-compose-trigger:focus-visible{color:#fff!important;background:transparent!important;outline:0; text-shadow:0 0 12px #a66bff99}
 @media(max-width:700px){.feed-heading{padding:0 12px}.feed-heading .feed-title{padding:0}.publish-box{padding:0}}
 
+
+/* FLOUSTREAM video albums */
+.video-album-backdrop,.private-video-backdrop{position:fixed;inset:0;z-index:126;background:#05030bef;backdrop-filter:blur(9px);display:grid;place-items:center;padding:14px}
+.video-album-backdrop[hidden],.private-video-backdrop[hidden],.video-album-viewer[hidden],.private-video-viewer[hidden]{display:none}
+.video-album-panel,.private-video-panel{width:min(100%,620px);max-height:92vh;overflow:auto;padding:20px;border:1px solid #76519d;border-radius:19px;background:linear-gradient(155deg,#1c1729,#0d0c15);box-shadow:0 0 38px #8d50e733}
+.video-album-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:2px;margin-top:12px}
+.video-album-item{position:relative;display:block;aspect-ratio:1;min-width:0;padding:0!important;border:0!important;border-radius:3px!important;overflow:hidden;background:#100e19;cursor:pointer}
+.video-album-item video{width:100%;height:100%;display:block;object-fit:cover;background:#09070f;pointer-events:none}
+.video-album-playmark{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:#09070dbb;border:1px solid #ffffff77;color:white;font-size:17px;pointer-events:none}
+.video-album-empty{grid-column:1/-1;padding:24px 8px;text-align:center;color:#9589a6;font-size:13px}
+.video-album-upload{display:grid;gap:12px;margin-top:8px;padding:14px;border:1px solid #49375f;border-radius:14px;background:#120f1c}
+.video-album-upload[hidden]{display:none}
+.video-album-upload label{display:flex;align-items:center;gap:10px;color:#eee4ff;font-size:14px}
+.video-album-upload input[type=checkbox]{width:19px;height:19px;accent-color:#a66bff}
+.video-album-upload input[type=file]{width:100%;color:#cbb9e6}
+.video-album-viewer,.private-video-viewer{position:fixed;inset:0;z-index:185;background:#05030bf7;display:grid;grid-template-rows:auto minmax(0,1fr) auto;align-items:center;justify-items:center;gap:10px;padding:14px 14px max(14px,env(safe-area-inset-bottom));overflow:hidden}
+.video-viewer-toolbar{width:min(100%,900px);display:flex;align-items:center;justify-content:space-between;gap:10px;color:#eee;font-size:12px}
+.video-viewer-toolbar button,.video-viewer-nav{width:44px!important;min-width:44px!important;height:44px!important;min-height:44px!important;padding:0!important;border-radius:14px!important;display:grid;place-items:center;background:#21172eea;border:1px solid #ffffff35;color:#fff;font-size:25px}
+.video-viewer-toolbar .danger{border-color:#ff718b99;background:#401b2bea;color:#ffe2e8}
+.video-viewer-stage{display:flex;align-items:center;justify-content:center;width:100%;height:100%;min-height:0;gap:10px}
+.video-viewer-stage video{display:block;width:min(100%,900px);height:100%;max-height:100%;object-fit:contain;background:#000;border-radius:8px}
+.video-viewer-stage .video-viewer-nav{flex:0 0 44px}
+.video-viewer-footer{width:min(100%,900px);display:grid;gap:5px;justify-items:center}
+.video-viewer-thumbs{display:flex;gap:7px;max-width:100%;overflow-x:auto;padding:5px;scrollbar-width:none}
+.video-viewer-thumbs::-webkit-scrollbar{display:none}
+.video-viewer-thumb{flex:0 0 62px;width:62px;height:62px;padding:0!important;border:2px solid #ffffff55!important;border-radius:8px!important;overflow:hidden;background:#171321;opacity:.78}
+.video-viewer-thumb.active{border-color:#d5aaff!important;opacity:1;box-shadow:0 0 0 2px #a66bff66}
+.video-viewer-thumb video{width:100%;height:100%;object-fit:cover;pointer-events:none}
+@media(max-width:700px){.video-album-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.video-album-viewer,.private-video-viewer{padding:10px 8px max(10px,env(safe-area-inset-bottom));gap:8px}.video-viewer-stage{gap:4px}.video-viewer-stage .video-viewer-nav{width:36px!important;min-width:36px!important;height:42px!important;min-height:42px!important}.video-viewer-stage video{width:calc(100% - 80px)}}
+@media(max-width:420px){.video-album-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+
 </style>
 <style>
 .privacy-option{display:flex;align-items:center;gap:11px;padding:11px 12px;margin:8px 0;border:1px solid #403653;border-radius:11px;background:#100e18;color:#eee5ff;font-size:13px}
@@ -651,8 +682,9 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
   <button type="button" class="primary privacy-toggle" id="privacy-toggle" aria-expanded="false" aria-controls="privacy-panel">Приватность <span class="privacy-chevron" aria-hidden="true">⌄</span></button>
   <div class="privacy-panel" id="privacy-panel" aria-hidden="true">
    <div class="privacy-panel-inner" inert>
-    <p class="settings-help">Управляй тем, что видно другим пользователям. Секретный фотоальбом здесь не отображается и не управляется этими настройками.</p>
+    <p class="settings-help">Управляй тем, что видно другим пользователям. Секретные фото- и видеоальбомы здесь не отображаются и не управляются этими настройками.</p>
     <label class="privacy-option"><input id="privacy-public-album" type="checkbox" checked> <span>Обычный фотоальбом — виден всем</span></label>
+     <label class="privacy-option"><input id="privacy-video-visible" type="checkbox" checked> <span>Обычный видеоальбом — виден всем</span></label>
     <label class="privacy-option"><input id="privacy-music-visible" type="checkbox" checked> <span>Моя музыка — видно всем</span></label>
     <label class="privacy-option"><input id="privacy-comments-visible" type="checkbox" checked> <span>Комментарии — видны всем</span></label>
     <label class="privacy-option"><input id="privacy-feed-visible" type="checkbox" checked> <span>Публикации в ленте профиля — видны всем</span></label>
@@ -808,6 +840,15 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
   <div class="album-status" id="album-share-status" aria-live="polite"></div>
  </section>
 </div>
+
+<div class="video-album-backdrop" id="video-album-backdrop" hidden><section class="video-album-panel" role="dialog" aria-modal="true" aria-labelledby="video-album-title">
+<div class="album-head album-head-centered"><div class="album-head-actions"><button type="button" class="album-private-open" id="private-video-open" aria-label="Открыть приватный видеоальбом" title="Приватный видеоальбом">🔒</button><button type="button" class="album-add-trigger" id="video-album-add-open" aria-label="Добавить видео" title="Добавить видео">+</button></div><h2 id="video-album-title" style="margin:0;color:#f2e9ff;font-size:20px">Видео</h2><button type="button" class="settings-close album-head-close" id="video-album-close" aria-label="Закрыть">×</button></div>
+<div class="video-album-upload" id="video-album-upload-panel" hidden><strong style="color:#eee4ff">Добавить видео</strong><input id="video-album-file" type="file" accept="video/mp4,video/webm,video/quicktime" multiple><label><input id="video-album-private" type="checkbox"> <span>Приватный видеоальбом</span></label><p class="album-note" id="video-album-privacy-note">Обычные видео будут доступны в профиле согласно настройкам приватности. Если включить галочку, выбранные ролики попадут в секретный видеоальбом.</p><p class="album-note">Форматы MP4, WebM и MOV. Максимальный размер одного видео — 100 МБ.</p><button type="button" class="primary" id="video-album-upload-button">Загрузить выбранные видео</button><button type="button" class="album-cancel-upload" id="video-album-add-cancel">Отмена</button></div>
+<div class="album-status" id="video-album-status" aria-live="polite"></div><div class="video-album-grid" id="video-album-grid"></div></section></div>
+<div class="private-video-backdrop" id="private-video-backdrop" hidden><section class="private-video-panel" role="dialog" aria-modal="true" aria-labelledby="private-video-title"><div class="album-head"><h2 id="private-video-title" style="margin:0;color:#f2e9ff;font-size:20px">🔒 Приватный видеоальбом</h2><button type="button" class="settings-close" id="private-video-close" aria-label="Закрыть приватный видеоальбом">×</button></div><p class="private-album-note">Только ты можешь просматривать эти видео. Альбом не отображается в настройках приватности и обычном профиле.</p><div class="album-status" id="private-video-status" aria-live="polite"></div><div class="video-album-grid" id="private-video-grid"></div></section></div>
+<div class="video-album-viewer" id="video-album-viewer" hidden><div class="video-viewer-toolbar"><button type="button" id="video-album-viewer-delete" class="danger" aria-label="Удалить видео" title="Удалить видео">⌫</button><span id="video-album-viewer-counter"></span><button type="button" id="video-album-viewer-close" aria-label="Закрыть просмотр" title="Закрыть">×</button></div><div class="video-viewer-stage"><button type="button" class="video-viewer-nav" id="video-album-viewer-prev" aria-label="Предыдущее видео">‹</button><video id="video-album-player" controls playsinline preload="metadata"></video><button type="button" class="video-viewer-nav" id="video-album-viewer-next" aria-label="Следующее видео">›</button></div><div class="video-viewer-footer"><div class="video-viewer-thumbs" id="video-album-viewer-thumbs"></div></div></div>
+<div class="private-video-viewer" id="private-video-viewer" hidden><div class="video-viewer-toolbar"><button type="button" id="private-video-viewer-delete" class="danger" aria-label="Удалить приватное видео" title="Удалить видео">⌫</button><span id="private-video-viewer-counter"></span><button type="button" id="private-video-viewer-close" aria-label="Закрыть просмотр" title="Закрыть">×</button></div><div class="video-viewer-stage"><button type="button" class="video-viewer-nav" id="private-video-viewer-prev" aria-label="Предыдущее видео">‹</button><video id="private-video-player" controls playsinline preload="metadata"></video><button type="button" class="video-viewer-nav" id="private-video-viewer-next" aria-label="Следующее видео">›</button></div><div class="video-viewer-footer"><div class="video-viewer-thumbs" id="private-video-viewer-thumbs"></div></div></div>
+
 <div class="messages-backdrop" id="messages-backdrop" hidden>
  <section class="messages-panel" role="dialog" aria-modal="true" aria-labelledby="messages-title">
   <div class="album-head"><button type="button" id="messages-back" hidden>‹ Назад</button><h2 id="messages-title">Сообщения</h2><button type="button" class="settings-close" id="messages-close" aria-label="Закрыть">×</button></div>
@@ -872,13 +913,14 @@ function recordNavigation(action,label,icon){
 }
 
 async function loadPrivacySettings(){
- const defaults={owner_id:user.id,public_album_visible:true,music_visible:true,comments_visible:true,feed_posts_visible:true};
+ const defaults={owner_id:user.id,public_album_visible:true,video_album_visible:true,music_visible:true,comments_visible:true,feed_posts_visible:true};
  const saved=await client.from("profile_privacy_settings").upsert(defaults,{onConflict:"owner_id",ignoreDuplicates:true});
  if(saved.error)throw saved.error;
  const result=await client.from("profile_privacy_settings").select("*").eq("owner_id",user.id).single();
  if(result.error)throw result.error;
  const row=result.data;
  $("privacy-public-album").checked=row.public_album_visible;
+  $("privacy-video-visible").checked=row.video_album_visible!==false;
  $("privacy-music-visible").checked=row.music_visible;
  $("privacy-comments-visible").checked=row.comments_visible;
  $("privacy-feed-visible").checked=row.feed_posts_visible;
@@ -902,6 +944,7 @@ $("save-privacy-settings").addEventListener("click",async()=>{
   const result=await client.from("profile_privacy_settings").upsert({
    owner_id:user.id,
    public_album_visible:$("privacy-public-album").checked,
+    video_album_visible:$("privacy-video-visible").checked,
    music_visible:$("privacy-music-visible").checked,
    comments_visible:$("privacy-comments-visible").checked,
    feed_posts_visible:$("privacy-feed-visible").checked,
@@ -1318,6 +1361,7 @@ function openNavigationDestination(action,label,icon){
  else if(action==="feed"){$("feed-section").scrollIntoView({behavior:"smooth"});}
  else if(action==="settings"){openSettingsPanel();}
  else if(action==="photos"){openPhotoAlbum();}
+  else if(action==="video"){openVideoAlbum();}
  else if(action==="music"){openMusicSection();} else if(action==="messages"){openMessagesSection();}
  else {const meta=navigationNames[action];const title=meta?(localStorage.getItem("dolby404-language")==="en"?meta[1]:meta[0]):(label||"Раздел");$("quick-status").textContent=(localStorage.getItem("dolby404-language")==="en"?"The section “":"Раздел «")+title+(localStorage.getItem("dolby404-language")==="en"?"” will be connected in a later stage.":"» подключим следующим этапом.");}
  recordNavigation(action,label,icon);
