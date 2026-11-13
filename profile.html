@@ -1476,10 +1476,21 @@ $("album-viewer-delete").addEventListener("click",async()=>{
  if(!confirm("Удалить эту фотографию без возможности восстановления?"))return;
  const button=$("album-viewer-delete");button.disabled=true;
  try{
-  const removed=await client.storage.from("photo-albums").remove([item.object_path]);
-  if(removed.error)throw removed.error;
-  const row=await client.from("photo_album_photos").delete().eq("id",item.id).eq("owner_id",user.id);
+  const isCurrentAvatar=profile?.avatar_photo_id===item.id;
+  const oldAvatarUrl=isCurrentAvatar?profile.avatar_url:null;
+  const row=await client.from("photo_album_photos").delete().eq("id",item.id).eq("owner_id",user.id).select("id").maybeSingle();
   if(row.error)throw row.error;
+  if(!row.data)throw new Error("Фотография уже удалена или недоступна.");
+  if(isCurrentAvatar){
+   profile.avatar_photo_id=null;profile.avatar_url=null;columns=Object.keys(profile);render();
+   const marker="/storage/v1/object/public/avatars/";
+   const markerIndex=oldAvatarUrl?oldAvatarUrl.indexOf(marker):-1;
+   if(markerIndex>=0){
+    try{const avatarPath=decodeURIComponent(oldAvatarUrl.slice(markerIndex+marker.length).split("?")[0]);await client.storage.from("avatars").remove([avatarPath]);}catch(_){}
+   }
+  }
+  const removed=await client.storage.from("photo-albums").remove([item.object_path]);
+  if(removed.error)console.warn("FLOUSTREAM album file cleanup:",removed.error);
   albumViewerItems.splice(albumViewerIndex,1);
   if(!albumViewerItems.length){closeAlbumViewer();await loadPhotoAlbum();return;}
   if(albumViewerIndex>=albumViewerItems.length)albumViewerIndex=albumViewerItems.length-1;
@@ -2507,17 +2518,35 @@ $("avatar-file").addEventListener("change",async()=>{
  if(!["image/jpeg","image/png","image/webp"].includes(file.type)){$("photo-status").textContent="Выбери JPG, PNG или WebP."; $("avatar-file").value="";return;}
  if(file.size>10*1024*1024){$("photo-status").textContent="Файл больше 10 МБ. Выбери фото до 10 МБ."; $("avatar-file").value="";return;}
  const ext=file.type==="image/jpeg"?"jpg":file.type.split("/")[1];
- const path=`${user.id}/avatar-${Date.now()}.${ext}`;
- $("choose-photo").disabled=true;$("photo-status").textContent="Загружаем фотографию…";
+ const token=Date.now()+"-"+crypto.randomUUID();
+ const originalPath=`${user.id}/avatar-original-${token}.${ext}`;
+ const avatarPath=`${user.id}/avatar-${token}.${ext}`;
+ let originalUploaded=false,avatarUploaded=false,albumPhotoId=null;
+ $("choose-photo").disabled=true;$("photo-status").textContent="Сохраняем оригинал в фотоальбом…";
  try{
-  const upload=await client.storage.from("avatars").upload(path,file,{upsert:false,contentType:file.type});
-  if(upload.error)throw upload.error;
-  const publicUrl=client.storage.from("avatars").getPublicUrl(path).data.publicUrl;
-  const saved=await client.from("profiles").update({[avatarKey]:publicUrl}).eq("id",user.id).select("*").single();
+  const original=await client.storage.from("photo-albums").upload(originalPath,file,{upsert:false,contentType:file.type});
+  if(original.error)throw original.error;
+  originalUploaded=true;
+  const albumRow=await client.from("photo_album_photos").insert({owner_id:user.id,object_path:originalPath,file_name:file.name,mime_type:file.type}).select("id").single();
+  if(albumRow.error)throw albumRow.error;
+  albumPhotoId=albumRow.data.id;
+  $("photo-status").textContent="Готовим фотографию профиля…";
+  const avatarUpload=await client.storage.from("avatars").upload(avatarPath,file,{upsert:false,contentType:file.type});
+  if(avatarUpload.error)throw avatarUpload.error;
+  avatarUploaded=true;
+  const publicUrl=client.storage.from("avatars").getPublicUrl(avatarPath).data.publicUrl;
+  const saved=await client.from("profiles").update({[avatarKey]:publicUrl,avatar_photo_id:albumPhotoId}).eq("id",user.id).select("*").single();
   if(saved.error)throw saved.error;
-  profile=saved.data;columns=Object.keys(profile);render();$("open-photo-view").disabled=!currentAvatarUrl();$("photo-status").textContent="Фотография профиля обновлена!";
+  profile=saved.data;columns=Object.keys(profile);render();
+  $("open-photo-view").disabled=!currentAvatarUrl();$("photo-status").textContent="Оригинал добавлен в открытый фотоальбом, аватар обновлён!";
+  await loadPhotoAlbum();
   setTimeout(()=>{closePhotoEditor();$("avatar-file").value="";},900);
- }catch(e){$("photo-status").textContent="Не удалось обновить фото: "+e.message;}
+ }catch(e){
+  if(albumPhotoId)await client.from("photo_album_photos").delete().eq("id",albumPhotoId).eq("owner_id",user.id);
+  if(originalUploaded)await client.storage.from("photo-albums").remove([originalPath]);
+  if(avatarUploaded)await client.storage.from("avatars").remove([avatarPath]);
+  $("photo-status").textContent="Не удалось обновить фото: "+e.message;
+ }
  finally{$("choose-photo").disabled=false;}
 });
 $("cancel-button").addEventListener("click",()=>{$("editor").hidden=true;});
