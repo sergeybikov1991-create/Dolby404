@@ -847,11 +847,11 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
 
 <div class="video-album-backdrop" id="video-album-backdrop" hidden><section class="video-album-panel" role="dialog" aria-modal="true" aria-labelledby="video-album-title">
 <div class="album-head album-head-centered"><div class="album-head-actions"><button type="button" class="album-private-open" id="private-video-open" aria-label="Открыть приватный видеоальбом" title="Приватный видеоальбом">🔒</button><button type="button" class="album-add-trigger" id="video-album-add-open" aria-label="Добавить видео" title="Добавить видео">+</button></div><h2 id="video-album-title" style="margin:0;color:#f2e9ff;font-size:20px">Видео</h2><button type="button" class="settings-close album-head-close" id="video-album-close" aria-label="Закрыть">×</button></div>
-<div class="video-album-upload" id="video-album-upload-panel" hidden><strong style="color:#eee4ff">Добавить видео</strong><input id="video-album-file" type="file" accept="video/mp4,video/webm,video/quicktime" multiple><label><input id="video-album-private" type="checkbox"> <span>Приватный видеоальбом</span></label><p class="album-note" id="video-album-privacy-note">Обычные видео будут доступны в профиле согласно настройкам приватности. Если включить галочку, выбранные ролики попадут в секретный видеоальбом.</p><p class="album-note">Форматы MP4, WebM и MOV. Максимальный размер одного видео — 100 МБ.</p><button type="button" class="primary" id="video-album-upload-button">Загрузить выбранные видео</button><button type="button" class="album-cancel-upload" id="video-album-add-cancel">Отмена</button></div>
+<div class="video-album-upload" id="video-album-upload-panel" hidden><strong style="color:#eee4ff">Добавить видео</strong><input id="video-album-file" type="file" accept="video/mp4,video/webm,video/quicktime" multiple><label><input id="video-album-private" type="checkbox"> <span>Приватный видеоальбом</span></label><p class="album-note" id="video-album-privacy-note">Обычные видео будут доступны в профиле согласно настройкам приватности. Если включить галочку, выбранные ролики попадут в секретный видеоальбом.</p><p class="album-note">Форматы MP4, WebM и MOV. Максимальный размер одного видео — 50 МБ (лимит бесплатного тарифа).</p><button type="button" class="primary" id="video-album-upload-button">Загрузить выбранные видео</button><button type="button" class="album-cancel-upload" id="video-album-add-cancel">Отмена</button></div>
 <div class="album-status" id="video-album-status" aria-live="polite"></div><div class="video-album-grid" id="video-album-grid"></div></section></div>
 <div class="private-video-backdrop" id="private-video-backdrop" hidden><section class="private-video-panel" role="dialog" aria-modal="true" aria-labelledby="private-video-title"><div class="album-head"><h2 id="private-video-title" style="margin:0;color:#f2e9ff;font-size:20px">🔒 Приватный видеоальбом</h2><button type="button" class="settings-close" id="private-video-close" aria-label="Закрыть приватный видеоальбом">×</button></div><p class="private-album-note">Только ты можешь просматривать эти видео. Альбом не отображается в настройках приватности и обычном профиле.</p><div class="album-status" id="private-video-status" aria-live="polite"></div><div class="video-album-grid" id="private-video-grid"></div></section></div>
-<div class="video-album-viewer" id="video-album-viewer" hidden><div class="video-viewer-toolbar"><button type="button" id="video-album-viewer-delete" class="danger" aria-label="Удалить видео" title="Удалить видео">⌫</button><span id="video-album-viewer-counter"></span><button type="button" id="video-album-viewer-close" aria-label="Закрыть просмотр" title="Закрыть">×</button></div><div class="video-viewer-stage"><button type="button" class="video-viewer-nav" id="video-album-viewer-prev" aria-label="Предыдущее видео">‹</button><video id="video-album-player" controls playsinline preload="metadata"></video><button type="button" class="video-viewer-nav" id="video-album-viewer-next" aria-label="Следующее видео">›</button></div><div class="video-viewer-footer"><div class="video-viewer-thumbs" id="video-album-viewer-thumbs"></div></div></div>
-<div class="private-video-viewer" id="private-video-viewer" hidden><div class="video-viewer-toolbar"><button type="button" id="private-video-viewer-delete" class="danger" aria-label="Удалить приватное видео" title="Удалить видео">⌫</button><span id="private-video-viewer-counter"></span><button type="button" id="private-video-viewer-close" aria-label="Закрыть просмотр" title="Закрыть">×</button></div><div class="video-viewer-stage"><button type="button" class="video-viewer-nav" id="private-video-viewer-prev" aria-label="Предыдущее видео">‹</button><video id="private-video-player" controls playsinline preload="metadata"></video><button type="button" class="video-viewer-nav" id="private-video-viewer-next" aria-label="Следующее видео">›</button></div><div class="video-viewer-footer"><div class="video-viewer-thumbs" id="private-video-viewer-thumbs"></div></div></div>
+<div class="video-album-viewer" id="video-album-viewer" hidden><div class="video-viewer-toolbar"><button type="button" id="video-album-viewer-delete" class="danger" aria-label="Удалить видео" title="Удалить видео">⌫</button><span id="video-album-viewer-counter"></span><button type="button" id="video-album-viewer-close" aria-label="Закрыть просмотр" title="Закрыть">×</button></div><div class="video-viewer-stage"><video id="video-album-player" controls playsinline preload="metadata"></video></div><div class="video-viewer-footer"><div class="video-viewer-thumbs" id="video-album-viewer-thumbs"></div></div></div>
+<div class="private-video-viewer" id="private-video-viewer" hidden><div class="video-viewer-toolbar"><button type="button" id="private-video-viewer-delete" class="danger" aria-label="Удалить приватное видео" title="Удалить видео">⌫</button><span id="private-video-viewer-counter"></span><button type="button" id="private-video-viewer-close" aria-label="Закрыть просмотр" title="Закрыть">×</button></div><div class="video-viewer-stage"><video id="private-video-player" controls playsinline preload="metadata"></video></div><div class="video-viewer-footer"><div class="video-viewer-thumbs" id="private-video-viewer-thumbs"></div></div></div>
 
 <div class="messages-backdrop" id="messages-backdrop" hidden>
  <section class="messages-panel" role="dialog" aria-modal="true" aria-labelledby="messages-title">
@@ -1055,7 +1055,7 @@ async function loadVideoAlbum(){
    const tile=document.createElement("button");tile.type="button";tile.className="video-album-item";tile.setAttribute("aria-label","Открыть видео: "+(item.file_name||"видео"));
    const preview=document.createElement("video");preview.muted=true;preview.playsInline=true;preview.preload="metadata";preview.src=item.url;preview.setAttribute("aria-hidden","true");
    const play=document.createElement("span");play.className="video-album-play";play.textContent="▶";tile.append(preview,play);
-   tile.addEventListener("click",()=>showVideoAlbumItem(index,false));grid.append(tile);
+   tile.addEventListener("click",()=>showVideoAlbumItem(index,false,true));grid.append(tile);
   });
   videoAlbumMessage("video-album-status","");
  }catch(error){grid.replaceChildren();const empty=document.createElement("div");empty.className="album-empty";empty.textContent="Не удалось загрузить видео: "+error.message;grid.append(empty);}
@@ -1078,7 +1078,7 @@ async function loadPrivateVideoAlbum(){
    const tile=document.createElement("button");tile.type="button";tile.className="video-album-item";tile.setAttribute("aria-label","Открыть приватное видео");
    const preview=document.createElement("video");preview.muted=true;preview.playsInline=true;preview.preload="metadata";preview.src=item.url;preview.setAttribute("aria-hidden","true");
    const play=document.createElement("span");play.className="video-album-play";play.textContent="▶";tile.append(preview,play);
-   tile.addEventListener("click",()=>showVideoAlbumItem(index,true));grid.append(tile);
+   tile.addEventListener("click",()=>showVideoAlbumItem(index,true,true));grid.append(tile);
   });
   videoAlbumMessage("private-video-status","");
  }catch(error){grid.replaceChildren();const empty=document.createElement("div");empty.className="album-empty";empty.textContent="Не удалось открыть приватный видеоальбом: "+error.message;grid.append(empty);}
@@ -1097,18 +1097,27 @@ function renderVideoThumbs(isPrivate){
   thumb.addEventListener("click",()=>showVideoAlbumItem(index,isPrivate));host.append(thumb);
  });
 }
-function showVideoAlbumItem(index,isPrivate){
+function showVideoAlbumItem(index,isPrivate,openFullscreen=false){
  const items=isPrivate?privateVideoItems:videoAlbumItems;
  if(!items.length)return;
  const next=Math.max(0,Math.min(index,items.length-1));
  if(isPrivate)privateVideoIndex=next;else videoAlbumIndex=next;
  const item=items[next],player=$(isPrivate?"private-video-player":"video-album-player");
- player.src=item.url;player.load();
+ player.pause();player.src=item.url;player.load();
  $(isPrivate?"private-video-viewer-counter":"video-album-viewer-counter").textContent=(next+1)+" / "+items.length;
- $(isPrivate?"private-video-viewer-prev":"video-album-viewer-prev").hidden=items.length<2;
- $(isPrivate?"private-video-viewer-next":"video-album-viewer-next").hidden=items.length<2;
  $(isPrivate?"private-video-viewer":"video-album-viewer").hidden=false;
  renderVideoThumbs(isPrivate);
+ if(openFullscreen){
+  const playRequest=player.play();
+  if(playRequest&&typeof playRequest.catch==="function")playRequest.catch(()=>{});
+  try{
+   if(typeof player.webkitEnterFullscreen==="function")player.webkitEnterFullscreen();
+   else if(typeof player.requestFullscreen==="function"){
+    const fullscreenRequest=player.requestFullscreen();
+    if(fullscreenRequest&&typeof fullscreenRequest.catch==="function")fullscreenRequest.catch(()=>{});
+   }
+  }catch(error){}
+ }
 }
 function closeVideoAlbumViewer(isPrivate){
  const viewer=isPrivate?"private-video-viewer":"video-album-viewer";
@@ -1136,6 +1145,55 @@ $("video-album-backdrop").addEventListener("click",e=>{if(e.target===$("video-al
 $("video-album-add-open").addEventListener("click",()=>{$("video-album-upload-panel").hidden=!$("video-album-upload-panel").hidden;if(!$("video-album-upload-panel").hidden)$("video-album-file").focus();});
 $("video-album-add-cancel").addEventListener("click",()=>{$("video-album-upload-panel").hidden=true;$("video-album-file").value="";videoAlbumMessage("video-album-status","");});
 $("video-album-private").addEventListener("change",()=>{videoAlbumMessage("video-album-privacy-note",$("video-album-private").checked?"🔒 Видео сохранится в закрытом хранилище. Только твой аккаунт сможет его открыть.":"Обычные видео будут доступны в профиле согласно настройкам приватности. Если включить галочку, выбранные ролики попадут в секретный видеоальбом.");});
+let tusLibraryPromise=null;
+function loadTusLibrary(){
+ if(window.tus&&window.tus.Upload)return Promise.resolve();
+ if(!tusLibraryPromise){
+  tusLibraryPromise=new Promise((resolve,reject)=>{
+   const script=document.createElement("script");
+   script.src="https://cdn.jsdelivr.net/npm/tus-js-client@4/dist/tus.min.js";
+   script.onload=()=>window.tus&&window.tus.Upload?resolve():reject(new Error("Библиотека возобновляемой загрузки не загрузилась."));
+   script.onerror=()=>reject(new Error("Не удалось загрузить модуль загрузки видео."));
+   document.head.appendChild(script);
+  });
+ }
+ return tusLibraryPromise;
+}
+async function uploadVideoResumable(bucket,path,file,onProgress){
+ await loadTusLibrary();
+ const sessionResult=await client.auth.getSession();
+ if(sessionResult.error)throw sessionResult.error;
+ const token=sessionResult.data&&sessionResult.data.session&&sessionResult.data.session.access_token;
+ if(!token)throw new Error("Сессия истекла. Войди в аккаунт заново.");
+ const ext=(file.name.split(".").pop()||"mp4").toLowerCase();
+ const contentType=file.type||"video/"+(ext==="mov"?"quicktime":ext);
+ const endpoint=SUPABASE_URL.replace(".supabase.co",".storage.supabase.co")+"/storage/v1/upload/resumable";
+ return await new Promise((resolve,reject)=>{
+  let settled=false;
+  const finish=(error,value)=>{if(settled)return;settled=true;error?reject(error):resolve(value);};
+  const upload=new window.tus.Upload(file,{
+   endpoint,
+   retryDelays:[0,3000,5000,10000,20000],
+   headers:{authorization:"Bearer "+token,apikey:SUPABASE_KEY},
+   metadata:{bucketName:bucket,objectName:path,contentType,cacheControl:"3600"},
+   chunkSize:6*1024*1024,
+   uploadDataDuringCreation:true,
+   removeFingerprintOnSuccess:true,
+   onError:error=>finish(error),
+   onProgress:(uploaded,total)=>onProgress(uploaded,total),
+   onSuccess:()=>finish(null,path)
+  });
+  upload.findPreviousUploads().then(previous=>{
+   const match=previous.find(item=>item.metadata&&item.metadata.bucketName===bucket&&item.metadata.objectName&&item.metadata.objectName.startsWith(user.id+"/"));
+   if(match){
+    path=match.metadata.objectName;
+    upload.options.metadata.objectName=path;
+    upload.resumeFromPreviousUpload(match);
+   }
+   upload.start();
+  }).catch(error=>finish(error));
+ });
+}
 $("video-album-upload-button").addEventListener("click",async()=>{
  const files=Array.from($("video-album-file").files||[]);
  if(!files.length){videoAlbumMessage("video-album-status","Сначала выбери одно или несколько видео.");return;}
@@ -1143,19 +1201,23 @@ $("video-album-upload-button").addEventListener("click",async()=>{
  const extAllowed=/\.(mp4|webm|mov)$/i;
  const invalid=files.find(file=>!(allowed.includes(file.type)||(!file.type&&extAllowed.test(file.name))));
  if(invalid){videoAlbumMessage("video-album-status","Файл «"+invalid.name+"» имеет неподдерживаемый формат. Подойдут MP4, WebM и MOV.");return;}
- const tooLarge=files.find(file=>file.size>100*1024*1024);
- if(tooLarge){videoAlbumMessage("video-album-status","Файл «"+tooLarge.name+"» больше 100 МБ.");return;}
+ const tooLarge=files.find(file=>file.size>50*1024*1024);
+ if(tooLarge){videoAlbumMessage("video-album-status","Файл «"+tooLarge.name+"» превышает лимит бесплатного тарифа — 50 МБ.");return;}
  const isPrivate=$("video-album-private").checked;
  const bucket=isPrivate?"private-video-albums":"video-albums";
  const table=isPrivate?"private_video_album_videos":"video_album_videos";
  const button=$("video-album-upload-button");button.disabled=true;let count=0;const failures=[];
  try{
   for(let i=0;i<files.length;i++){
-   const file=files[i];videoAlbumMessage("video-album-status","Загружаем "+(i+1)+" из "+files.length+": "+file.name);
+   const file=files[i];videoAlbumMessage("video-album-status","Подготавливаем загрузку "+(i+1)+" из "+files.length+": "+file.name);
    const ext=(file.name.split(".").pop()||"mp4").toLowerCase();
-   const path=user.id+"/"+Date.now()+"-"+(crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2))+"."+ext;
+   let path=user.id+"/"+Date.now()+"-"+(crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2))+"."+ext;
    try{
-    const uploaded=await client.storage.from(bucket).upload(path,file,{contentType:file.type||"video/"+(ext==="mov"?"quicktime":ext),upsert:false});if(uploaded.error)throw uploaded.error;
+    path=await uploadVideoResumable(bucket,path,file,(uploaded,total)=>{
+     const percent=total?Math.floor(uploaded/total*100):0;
+     const mb=(uploaded/1024/1024).toFixed(1),totalMb=(total/1024/1024).toFixed(1);
+     videoAlbumMessage("video-album-status","Загружаем "+(i+1)+" из "+files.length+": "+file.name+" — "+percent+"% ("+mb+" / "+totalMb+" МБ)");
+    });
     const saved=await client.from(table).insert({owner_id:user.id,object_path:path,file_name:file.name,mime_type:file.type||null});
     if(saved.error){await client.storage.from(bucket).remove([path]);throw saved.error;}
     count++;
@@ -1172,10 +1234,6 @@ $("private-video-close").addEventListener("click",()=>{$("private-video-backdrop
 $("private-video-backdrop").addEventListener("click",e=>{if(e.target===$("private-video-backdrop"))$("private-video-backdrop").hidden=true;});
 $("video-album-viewer-close").addEventListener("click",()=>closeVideoAlbumViewer(false));
 $("private-video-viewer-close").addEventListener("click",()=>closeVideoAlbumViewer(true));
-$("video-album-viewer-prev").addEventListener("click",()=>showVideoAlbumItem(videoAlbumIndex-1,false));
-$("video-album-viewer-next").addEventListener("click",()=>showVideoAlbumItem(videoAlbumIndex+1,false));
-$("private-video-viewer-prev").addEventListener("click",()=>showVideoAlbumItem(privateVideoIndex-1,true));
-$("private-video-viewer-next").addEventListener("click",()=>showVideoAlbumItem(privateVideoIndex+1,true));
 $("video-album-viewer-delete").addEventListener("click",()=>deleteCurrentVideo(false));
 $("private-video-viewer-delete").addEventListener("click",()=>deleteCurrentVideo(true));
 $("video-album-viewer").addEventListener("click",e=>{if(e.target===$("video-album-viewer"))closeVideoAlbumViewer(false);});
