@@ -12,7 +12,7 @@ function makeTone(){
  if(!AudioContext)return null;
  try{
   const context=new AudioContext();
-  return async function(){
+  const play=async function(){
    try{
     if(context.state==="suspended")await context.resume();
     const now=context.currentTime;
@@ -27,6 +27,8 @@ function makeTone(){
     });
    }catch(_){}
   };
+  play.unlock=()=>{try{if(context.state==="suspended")return context.resume();}catch(_){}};
+  return play;
  }catch(_){return null;}
 }
 window.initFloustreamMessageNotifications=function(client,userId){
@@ -43,7 +45,7 @@ window.initFloustreamMessageNotifications=function(client,userId){
  }
  const playTone=makeTone();
  let audioUnlocked=false;
- const unlockAudio=()=>{if(audioUnlocked)return;audioUnlocked=true;if(playTone)playTone();};
+ const unlockAudio=()=>{if(audioUnlocked)return;audioUnlocked=true;if(playTone?.unlock)playTone.unlock();};
  document.addEventListener("pointerdown",unlockAudio,{once:true,passive:true});
  document.addEventListener("keydown",unlockAudio,{once:true});
  async function refreshCount(){
