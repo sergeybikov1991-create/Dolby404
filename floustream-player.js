@@ -95,6 +95,7 @@ async function start(i,show){
  catch(e){miniSub.textContent="Не удалось запустить трек: "+(e&&e.message?e.message:"нажми ▶ ещё раз");}
 }
 function playQueue(items,i){queue=(items||[]).filter(t=>t&&t.url);if(queue.length){shuffle=false;repeatMode=0;shuffleBtn.classList.remove("active");repeatBtn.classList.remove("active");start(Math.max(0,Math.min(i||0,queue.length-1)),true);}}
+function addToQueue(track){if(!track||!track.url)return false;queue.push(track);if(index<0)index=0;if(activePanel==="queue")renderQueue();paint();return queue.length;}
 miniPlay.addEventListener("click",()=>{if(!current())return;if(audio.paused){if(ctx&&ctx.state==="suspended")ctx.resume();audio.play().then(paint).catch(()=>{});}else audio.pause();});miniExpand.addEventListener("click",open);mini.addEventListener("click",e=>{if([mini,miniCover,miniCopy,miniTitle,miniSub,miniProgress,miniFill].includes(e.target))open();});
 play.addEventListener("click",()=>{if(!current())return;if(audio.paused){if(ctx&&ctx.state==="suspended")ctx.resume();audio.play().then(paint).catch(()=>{});}else audio.pause();});
 prev.addEventListener("click",()=>audio.currentTime>3?audio.currentTime=0:start(index-1,false));next.addEventListener("click",()=>start(shuffle?Math.floor(Math.random()*queue.length):index+1,false));
@@ -105,5 +106,5 @@ audio.addEventListener("play",()=>{paint();if(ctx&&ctx.state==="suspended")ctx.r
 audio.addEventListener("ended",()=>{if(repeatMode===2){audio.currentTime=0;audio.play().catch(()=>{});}else if(index<queue.length-1||shuffle){let n=shuffle?Math.floor(Math.random()*queue.length):index+1;if(shuffle&&queue.length>1&&n===index)n=(n+1)%queue.length;start(n,false);}else if(repeatMode===1)start(0,false);else paint();});
 audio.addEventListener("timeupdate",()=>{seek.value=audio.duration?String(Math.round(audio.currentTime/audio.duration*1000)):"0";now.textContent=fmt(audio.currentTime);end.textContent=fmt(audio.duration);miniFill.style.width=audio.duration?audio.currentTime/audio.duration*100+"%":"0%";});audio.addEventListener("loadedmetadata",()=>{end.textContent=fmt(audio.duration);now.textContent=fmt(audio.currentTime);});seek.addEventListener("input",()=>{if(audio.duration)audio.currentTime=Number(seek.value)/1000*audio.duration;});
 bassSwitch.addEventListener("click",()=>{bassBoost=!bassBoost;bassSwitch.classList.toggle("on",bassBoost);if(lowShelf)lowShelf.gain.value=bassBoost?Math.max(5,Number(bassSlider.value)):Number(bassSlider.value);});
-window.FloustreamPlayer={playQueue,open,close:closeFull,pause:()=>audio.pause(),next:()=>start(index+1,false),get currentTrack(){return current();},get queue(){return queue.slice();}};
+window.FloustreamPlayer={playQueue,addToQueue,open,close:closeFull,pause:()=>audio.pause(),next:()=>start(index+1,false),get currentTrack(){return current();},get queue(){return queue.slice();}};
 })();
