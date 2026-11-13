@@ -518,6 +518,14 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 .album-share-avatar img{width:100%;height:100%;object-fit:cover}
 .album-share-send{display:block;margin:0 auto;width:54px;height:54px;border-radius:50%;font-size:28px;padding:0;background:linear-gradient(145deg,#7546ad,#39205f)}
 .album-share-send:disabled{opacity:.35}
+.messages-backdrop{position:fixed;inset:0;z-index:225;background:#05030bf0;display:grid;place-items:center;padding:12px}.messages-backdrop[hidden]{display:none}
+.messages-panel{width:min(100%,560px);height:min(82vh,720px);display:flex;flex-direction:column;padding:16px;border:1px solid #59436f;border-radius:20px;background:linear-gradient(155deg,#1b1727,#0e0c15)}
+.messages-list,.messages-thread{min-height:0;overflow:auto;flex:1;margin-top:12px}
+.message-conversation{width:100%;display:flex;align-items:center;gap:12px;text-align:left;margin:5px 0;padding:10px;border-radius:13px;background:#171321}
+.message-conversation .album-share-avatar{width:44px;height:44px;flex:0 0 44px}.message-conversation small{display:block;color:#aa9bbd;margin-top:3px}
+.message-bubble{max-width:88%;margin:8px 0;padding:10px 12px;border:1px solid #47375a;border-radius:14px;background:#191523;color:#f3eaff;overflow-wrap:anywhere}
+.message-bubble.mine{margin-left:auto;background:#382451}.message-bubble img{display:block;max-width:100%;max-height:360px;object-fit:contain;border-radius:9px;margin-top:5px}
+
 .album-share-friends .album-empty{grid-column:1/-1}
 @media(max-width:600px){.album-viewer-nav{width:36px;height:46px;font-size:31px}.album-viewer-prev{left:5px}.album-viewer-next{right:5px}}
 </style></head>
@@ -707,6 +715,12 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
   <div class="album-share-friends" id="album-share-friends"><div class="album-empty">Загружаем друзей…</div></div>
   <button type="button" class="album-share-send" id="album-share-send" disabled aria-label="Отправить выбранному пользователю">➜</button>
   <div class="album-status" id="album-share-status" aria-live="polite"></div>
+ </section>
+</div>
+<div class="messages-backdrop" id="messages-backdrop" hidden>
+ <section class="messages-panel" role="dialog" aria-modal="true" aria-labelledby="messages-title">
+  <div class="album-head"><button type="button" id="messages-back" hidden>‹ Назад</button><h2 id="messages-title">Сообщения</h2><button type="button" class="settings-close" id="messages-close" aria-label="Закрыть">×</button></div>
+  <div id="messages-list" class="messages-list"></div><div id="messages-thread" class="messages-thread" hidden></div>
  </section>
 </div>
 <input id="avatar-file" type="file" accept="image/jpeg,image/png,image/webp" hidden>
@@ -1044,12 +1058,68 @@ $("album-upload-button").addEventListener("click",async()=>{
  }catch(error){$("album-status").textContent="Ошибка загрузки: "+error.message;}
  finally{button.disabled=false;}
 });
+let activeMessageFriend=null;
+async function openMessagesSection(){
+ $("messages-backdrop").hidden=false;$("messages-list").hidden=false;$("messages-thread").hidden=true;$("messages-back").hidden=true;$("messages-title").textContent="Сообщения";
+ await loadMessageConversations();
+}
+$("messages-close").addEventListener("click",()=>$("messages-backdrop").hidden=true);
+$("messages-backdrop").addEventListener("click",e=>{if(e.target===$("messages-backdrop"))$("messages-backdrop").hidden=true;});
+$("messages-back").addEventListener("click",()=>{activeMessageFriend=null;$("messages-list").hidden=false;$("messages-thread").hidden=true;$("messages-back").hidden=true;$("messages-title").textContent="Сообщения";});
+async function loadMessageConversations(){
+ const host=$("messages-list");host.replaceChildren();const loading=document.createElement("div");loading.className="album-empty";loading.textContent="Загружаем сообщения…";host.append(loading);
+ try{
+  const [sent,received]=await Promise.all([
+   client.from("direct_messages").select("id,sender_id,recipient_id,content,attachment_path,attachment_name,attachment_mime,created_at").eq("sender_id",user.id).order("created_at",{ascending:false}),
+   client.from("direct_messages").select("id,sender_id,recipient_id,content,attachment_path,attachment_name,attachment_mime,created_at").eq("recipient_id",user.id).order("created_at",{ascending:false})
+  ]);
+  if(sent.error)throw sent.error;if(received.error)throw received.error;
+  const all=[...(sent.data||[]),...(received.data||[])].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+  const latest=new Map();all.forEach(m=>{const id=m.sender_id===user.id?m.recipient_id:m.sender_id;if(!latest.has(id))latest.set(id,m);});
+  const ids=[...latest.keys()];host.replaceChildren();
+  if(!ids.length){host.innerHTML='<div class="album-empty">Пока нет сообщений. Отправь фото другу из фотоальбома.</div>';return;}
+  const prof=await client.from("profiles").select("id,username,display_name,avatar_url").in("id",ids);if(prof.error)throw prof.error;
+  const byId=new Map((prof.data||[]).map(p=>[p.id,p]));
+  for(const id of ids){
+   const friend=byId.get(id)||{id,display_name:"Пользователь"};const last=latest.get(id);
+   const btn=document.createElement("button");btn.type="button";btn.className="message-conversation";
+   const avatar=document.createElement("span");avatar.className="album-share-avatar";
+   if(friend.avatar_url){const img=document.createElement("img");img.src=friend.avatar_url;img.alt="";avatar.append(img);}else avatar.textContent=(friend.display_name||friend.username||"?").slice(0,1).toUpperCase();
+   const details=document.createElement("span"),name=document.createElement("strong"),preview=document.createElement("small");
+   name.textContent=friend.display_name||friend.username||"Пользователь";preview.textContent=last.attachment_path?"📷 Фото":(last.content||"Сообщение");details.append(name,preview);btn.append(avatar,details);
+   btn.addEventListener("click",()=>openMessageThread(friend));host.append(btn);
+  }
+ }catch(error){host.replaceChildren();const e=document.createElement("div");e.className="album-empty";e.textContent="Не удалось загрузить сообщения: "+error.message;host.append(e);}
+}
+async function openMessageThread(friend){
+ activeMessageFriend=friend;$("messages-title").textContent=friend.display_name||friend.username||"Переписка";$("messages-list").hidden=true;$("messages-thread").hidden=false;$("messages-back").hidden=false;
+ const host=$("messages-thread");host.replaceChildren();const loading=document.createElement("div");loading.className="album-empty";loading.textContent="Загружаем переписку…";host.append(loading);
+ try{
+  const [sent,received]=await Promise.all([
+   client.from("direct_messages").select("id,sender_id,recipient_id,content,attachment_path,attachment_name,created_at").eq("sender_id",user.id).eq("recipient_id",friend.id).order("created_at",{ascending:true}),
+   client.from("direct_messages").select("id,sender_id,recipient_id,content,attachment_path,attachment_name,created_at").eq("sender_id",friend.id).eq("recipient_id",user.id).order("created_at",{ascending:true})
+  ]);
+  if(sent.error)throw sent.error;if(received.error)throw received.error;
+  const all=[...(sent.data||[]),...(received.data||[])].sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));host.replaceChildren();
+  if(!all.length){host.innerHTML='<div class="album-empty">Пока нет сообщений.</div>';return;}
+  for(const msg of all){
+   const bubble=document.createElement("div");bubble.className="message-bubble"+(msg.sender_id===user.id?" mine":"");
+   if(msg.content){const p=document.createElement("div");p.textContent=msg.content;bubble.append(p);}
+   if(msg.attachment_path){const signed=await client.storage.from("message-media").createSignedUrl(msg.attachment_path,3600);
+    if(!signed.error){const img=document.createElement("img");img.src=signed.data.signedUrl;img.alt=msg.attachment_name||"Отправленное фото";bubble.append(img);}
+    else{const note=document.createElement("small");note.textContent="Фото недоступно";bubble.append(note);}
+   }
+   host.append(bubble);
+  }
+  host.scrollTop=host.scrollHeight;
+ }catch(error){host.replaceChildren();const e=document.createElement("div");e.className="album-empty";e.textContent="Не удалось открыть переписку: "+error.message;host.append(e);}
+}
 function openNavigationDestination(action,label,icon){
  if(action==="profile"){$("cover").scrollIntoView({behavior:"smooth"});}
  else if(action==="feed"){$("feed-section").scrollIntoView({behavior:"smooth"});}
  else if(action==="settings"){openSettingsPanel();}
  else if(action==="photos"){openPhotoAlbum();}
- else if(action==="music"){openMusicSection();}
+ else if(action==="music"){openMusicSection();} else if(action==="messages"){openMessagesSection();}
  else {const meta=navigationNames[action];const title=meta?(localStorage.getItem("dolby404-language")==="en"?meta[1]:meta[0]):(label||"Раздел");$("quick-status").textContent=(localStorage.getItem("dolby404-language")==="en"?"The section “":"Раздел «")+title+(localStorage.getItem("dolby404-language")==="en"?"” will be connected in a later stage.":"» подключим следующим этапом.");}
  recordNavigation(action,label,icon);
 }
