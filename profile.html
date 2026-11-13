@@ -961,6 +961,7 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
   <div class="music-track-list" id="music-track-list"></div>
  </section>
 </div>
+<script src="floustream-player.js?v=20261114-1"></script>
 <script src="message-notifications.js"></script>
 <script src="friend-notifications.js"></script>
 <script>
@@ -1082,6 +1083,7 @@ async function loadMusicTracks(){
   if(result.error)throw result.error;
   host.replaceChildren();
   if(!result.data?.length){const e=document.createElement("div");e.className="album-empty";e.textContent="Здесь пока нет треков. Добавь свою музыку!";host.append(e);return;}
+  const playableTracks=[];
   for(const track of result.data){
    const bucket=track.visibility==="private"?"music-private":"music-public";
    const signed=track.visibility==="private"?await client.storage.from(bucket).createSignedUrl(track.object_path,300):null;
@@ -1092,10 +1094,12 @@ async function loadMusicTracks(){
    const title=document.createElement("strong");title.textContent=track.title;
    const visibility=document.createElement("small");visibility.textContent=track.visibility==="private"?"🔒 Только мне":"Видно всем";
    head.append(title,visibility);
-   const audio=document.createElement("audio");audio.controls=true;audio.preload="none";audio.src=url;
+   const listen=document.createElement("button");listen.type="button";listen.textContent="▶ Слушать";
+   const queueIndex=playableTracks.length;playableTracks.push({id:track.id,title:track.title,url,visibility:track.visibility});
+   listen.addEventListener("click",()=>window.FloustreamPlayer?.playQueue(playableTracks,queueIndex));
    const remove=document.createElement("button");remove.type="button";remove.textContent="Удалить";
    remove.addEventListener("click",()=>deleteMusicTrack(track,bucket,card));
-   card.append(head,audio,remove);host.append(card);
+   card.append(head,listen,remove);host.append(card);
   }
  }catch(error){host.replaceChildren();const e=document.createElement("div");e.className="album-empty";e.textContent="Не удалось загрузить музыку: "+error.message;host.append(e);}
 }
