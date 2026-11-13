@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Сообщения · FLOUSTREAM</title>
+<style>
+:root{color-scheme:dark;--bg:#090910;--panel:#15121f;--line:#382b4b;--purple:#a66bff;--muted:#aaa0ba;--text:#f5f0ff}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 18% 0%,#281342 0,transparent 38%),var(--bg);color:var(--text);font-family:Arial,sans-serif}
+.topbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;padding:12px max(calc((100% - 760px)/2),16px);border-bottom:1px solid var(--line);background:#0b0a12ed;backdrop-filter:blur(12px)}
+.back{width:40px;height:40px;display:grid;place-items:center;border:1px solid #65458a;border-radius:12px;background:#21172f;color:#eee2ff;text-decoration:none;font-size:22px}
+.brand{font-size:18px;font-weight:900;letter-spacing:3px;color:#e9d8ff;text-shadow:0 0 18px #7b4bff}
+.wrap{width:min(760px,100%);height:calc(100dvh - 65px);min-height:420px;margin:0 auto;padding:16px;display:flex;flex-direction:column}
+.chat{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;border:1px solid #49345f;border-radius:20px;background:linear-gradient(145deg,#171321,#0e0d16);box-shadow:0 12px 45px #0007}
+.chat-head{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid #382b4b;background:#171321}
+.avatar{width:44px;height:44px;flex:0 0 44px;display:grid;place-items:center;overflow:hidden;border:2px solid #b879e8;border-radius:50%;background:#352044;color:#fff;font-weight:800;box-shadow:0 0 12px #a66bff55}
+.avatar img{width:100%;height:100%;object-fit:cover}
+.person{min-width:0;flex:1}.person-name{font-size:15px;font-weight:800;overflow-wrap:anywhere}.person-handle{margin-top:4px;color:#c59aff;font-size:12px}
+.messages{display:flex;flex:1;flex-direction:column;gap:10px;overflow:auto;padding:18px 14px;overscroll-behavior:contain}
+.empty{margin:auto;padding:24px;text-align:center;color:#a99bbd;line-height:1.6}
+.bubble-row{display:flex}.bubble-row.mine{justify-content:flex-end}
+.bubble{max-width:min(82%,520px);padding:10px 13px;border:1px solid #49385e;border-radius:15px 15px 15px 4px;background:#21192d;color:#f2eaff;white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:1.5}
+.mine .bubble{border-color:#7952a0;border-radius:15px 15px 4px 15px;background:linear-gradient(135deg,#553078,#342047)}
+.time{display:block;margin-top:5px;color:#bca9d2;font-size:10px;text-align:right}
+.composer{display:flex;align-items:flex-end;gap:9px;padding:12px;border-top:1px solid #382b4b;background:#110e19}
+.composer textarea{flex:1;min-height:44px;max-height:130px;resize:vertical;padding:12px;border:1px solid #49385e;border-radius:13px;background:#090811;color:#fff;font:inherit;font-size:14px;line-height:1.4;outline:none}
+.composer textarea:focus{border-color:#a66bff;box-shadow:0 0 0 2px #a66bff22}
+.send{width:46px;height:44px;flex:0 0 46px;border:1px solid #9a69c7;border-radius:13px;background:linear-gradient(135deg,#7139c9,#48216f);color:#fff;font-size:21px;font-weight:800;cursor:pointer}
+.send:disabled{opacity:.5;cursor:default}
+.notice{min-height:19px;padding:0 14px 8px;color:#c8a7e8;font-size:11px}
+@media(max-width:600px){.topbar{padding:10px 12px}.wrap{height:calc(100dvh - 61px);padding:9px}.chat{border-radius:15px}.messages{padding:14px 10px}.composer{padding:9px}}
+</style>
+</head>
+<body>
+<header class="topbar"><a class="back" id="back" href="profile.html" aria-label="Назад">‹</a><div class="brand">FLOUSTREAM</div></header>
+<main class="wrap">
+<section class="chat">
+ <header class="chat-head">
+  <div class="avatar" id="peer-avatar">◉</div>
+  <div class="person"><div class="person-name" id="peer-name">Открываем переписку…</div><div class="person-handle" id="peer-handle"></div></div>
+ </header>
+ <div class="messages" id="messages"><div class="empty">Подключаем сообщения…</div></div>
+ <div class="notice" id="notice" aria-live="polite"></div>
+ <form class="composer" id="composer">
+  <textarea id="message-input" maxlength="5000" rows="1" placeholder="Написать сообщение…" aria-label="Текст сообщения"></textarea>
+  <button class="send" id="send" type="submit" aria-label="Отправить">➤</button>
+ </form>
+</section>
+</main>
+<script>
+const SUPABASE_URL="https://qhpobdktlbhdqsnajypr.supabase.co";
+const SUPABASE_KEY="sb_publishable_tzG1qVsbjaW8YE_LBVN87Q_v0CahKN5";
+const $=id=>document.getElementById(id);
+let client,viewer,peerId,lastMessageId="",loading=false;
+function loadLibrary(){return new Promise((resolve,reject)=>{if(window.supabase?.createClient){resolve();return;}const script=document.createElement("script");script.src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";script.onload=()=>window.supabase?.createClient?resolve():reject(new Error("Supabase не загрузился"));script.onerror=()=>reject(new Error("Не удалось загрузить библиотеку Supabase"));document.head.append(script);});}
+function safeUrl(value){if(!value)return "";try{const u=new URL(value,location.href);return ["http:","https:"].includes(u.protocol)?u.href:"";}catch(_){return "";}}
+function timeText(value){const d=new Date(value);return Number.isNaN(d.getTime())?"":d.toLocaleString("ru-RU",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});}
+function showNotice(message,error=false){$("notice").textContent=message||"";$("notice").style.color=error?"#ffb4c0":"#c8a7e8";}
+function renderMessages(rows){
+ const host=$("messages");host.replaceChildren();
+ if(!rows.length){const empty=document.createElement("div");empty.className="empty";empty.textContent="Это начало вашей переписки. Отправь первое сообщение!";host.append(empty);return;}
+ for(const row of rows){
+  const line=document.createElement("div");line.className="bubble-row"+(row.sender_id===viewer.id?" mine":"");
+  const bubble=document.createElement("div");bubble.className="bubble";bubble.textContent=row.content||"";
+  const time=document.createElement("span");time.className="time";time.textContent=timeText(row.created_at);bubble.append(time);line.append(bubble);host.append(line);
+ }
+ host.scrollTop=host.scrollHeight;
+ lastMessageId=rows[rows.length-1]?.id||lastMessageId;
+}
+async function loadMessages(silent=false){
+ if(loading)return;loading=true;
+ try{
+  const filter="and(sender_id.eq."+viewer.id+",recipient_id.eq."+peerId+"),and(sender_id.eq."+peerId+",recipient_id.eq."+viewer.id+")";
+  const result=await client.from("direct_messages").select("id,sender_id,recipient_id,content,created_at").or(filter).order("created_at",{ascending:true}).limit(200);
+  if(result.error)throw result.error;
+  const rows=result.data||[];
+  const newest=rows[rows.length-1]?.id||"";
+  if(!silent||newest!==lastMessageId)renderMessages(rows);
+ }catch(error){if(!silent)showNotice("Не удалось загрузить сообщения: "+error.message,true);}
+ finally{loading=false;}
+}
+async function start(){
+ try{
+  await loadLibrary();client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+  const auth=await client.auth.getUser();if(auth.error)throw auth.error;viewer=auth.data.user;
+  if(!viewer){location.replace("portal.html");return;}
+  peerId=new URLSearchParams(location.search).get("with");
+  if(!peerId){$("peer-name").textContent="Сообщения";$("messages").innerHTML='<div class="empty">Открой профиль пользователя и нажми «Открыть общение», чтобы начать переписку.</div>';$("composer").hidden=true;return;}
+  if(peerId===viewer.id){showNotice("Открой профиль другого пользователя, чтобы начать переписку.",true);$("composer").hidden=true;return;}
+  const profile=await client.from("profiles").select("id,username,display_name,avatar_url").eq("id",peerId).maybeSingle();
+  if(profile.error)throw profile.error;if(!profile.data)throw new Error("Пользователь не найден.");
+  const p=profile.data;$("peer-name").textContent=p.display_name||p.username||"Пользователь";$("peer-handle").textContent=p.username?"@"+p.username:"";
+  const avatar=safeUrl(p.avatar_url);if(avatar){const img=document.createElement("img");img.src=avatar;img.alt="";$("peer-avatar").replaceChildren(img);}else $("peer-avatar").textContent=($("peer-name").textContent.trim()[0]||"◉").toUpperCase();
+  $("back").href="public-profile.html?id="+encodeURIComponent(peerId);
+  await loadMessages();
+  $("composer").addEventListener("submit",async event=>{
+   event.preventDefault();const input=$("message-input"),content=input.value.trim();if(!content)return;
+   const button=$("send");button.disabled=true;showNotice("Отправляем…");
+   const result=await client.from("direct_messages").insert({sender_id:viewer.id,recipient_id:peerId,content});
+   if(result.error){showNotice("Не удалось отправить: "+result.error.message,true);button.disabled=false;return;}
+   input.value="";showNotice("Сообщение отправлено.");await loadMessages();button.disabled=false;input.focus();
+  });
+  $("message-input").addEventListener("keydown",event=>{if(event.key==="Enter"&&!event.shiftKey){event.preventDefault();$("composer").requestSubmit();}});
+  setInterval(()=>{if(!document.hidden)loadMessages(true);},5000);
+ }catch(error){$("peer-name").textContent="Не удалось открыть переписку";showNotice(error.message,true);$("messages").replaceChildren();}
+}
+start();
+</script>
+</body>
+</html>
