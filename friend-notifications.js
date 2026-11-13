@@ -26,7 +26,7 @@ window.initFloustreamFriendNotifications=function(client,userId){
    }
   })
   .on("postgres_changes",{event:"UPDATE",schema:"public",table:"friend_requests",filter:"recipient_id=eq."+userId},refreshCount)
-  .on("postgres_changes",{event:"DELETE",schema:"public",table:"friend_requests",filter:"recipient_id=eq."+userId},refreshCount)
+  .on("postgres_changes",{event:"DELETE",schema:"public",table:"friend_requests"},refreshCount)
   .subscribe(status=>{if(status==="CHANNEL_ERROR"||status==="TIMED_OUT")console.warn("FLOUSTREAM friend notifications realtime:",status);});
  window.addEventListener("pageshow",refreshCount);
  document.addEventListener("visibilitychange",()=>{if(!document.hidden)refreshCount();});
