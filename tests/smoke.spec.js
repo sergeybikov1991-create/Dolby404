@@ -5,6 +5,7 @@ const supabaseBrowserStub = `
     createClient: () => ({
       auth: {
         getSession: async () => ({ data: { session: null }, error: null }),
+        getUser: async () => ({ data: { user: null }, error: null }),
         signUp: async () => ({ data: { session: null }, error: null }),
         signInWithPassword: async () => ({ data: { session: null }, error: null })
       }
@@ -65,4 +66,29 @@ test("portal fits a mobile viewport without horizontal overflow", async ({ page 
     content: document.documentElement.scrollWidth
   }));
   expect(dimensions.content).toBeLessThanOrEqual(dimensions.viewport);
+});
+
+
+test("profile redirects signed-out visitors to the portal", async ({ page }) => {
+  await mockSupabaseCdn(page);
+  await page.goto("/profile.html");
+  await expect(page).toHaveURL(/\\/portal\\.html$/);
+  await expect(page.locator(".logo")).toHaveText("FLOUSTREAM");
+});
+
+test("video album keeps public and private players, native controls and swipe navigation", async () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const profile = fs.readFileSync(path.join(__dirname, "../profile.html"), "utf8");
+
+  expect(profile).toContain('id="video-album-player" controls playsinline');
+  expect(profile).toContain('id="private-video-player" controls playsinline');
+  expect(profile).toContain('id="video-album-viewer"');
+  expect(profile).toContain('id="private-video-viewer"');
+  expect(profile).toContain('bindVideoSwipe("video-album-viewer","video-album-player",false)');
+  expect(profile).toContain('bindVideoSwipe("private-video-viewer","private-video-player",true)');
+  expect(profile).toContain('stage.addEventListener("touchstart"');
+  expect(profile).toContain('stage.addEventListener("touchend"');
+  expect(profile).not.toContain("video-album-playmark");
+  expect(profile).not.toContain("video-viewer-thumb-mark");
 });
