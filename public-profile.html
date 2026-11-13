@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Профиль · FLOUSTREAM</title>
+<style>
+:root{color-scheme:dark;--bg:#090910;--panel:#15121f;--line:#382b4b;--purple:#a66bff;--muted:#aaa0ba;--text:#f5f0ff}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 20% 0%,#281342 0,transparent 38%),var(--bg);color:var(--text);font-family:Arial,sans-serif}
+.topbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px max(calc((100% - 900px)/2),16px);border-bottom:1px solid var(--line);background:#0b0a12ed;backdrop-filter:blur(12px)}
+.logo{font-size:20px;font-weight:900;letter-spacing:3px;color:#e9d8ff;text-shadow:0 0 18px #7b4bff}
+.topbar a,.topbar button{border:1px solid #65458a;border-radius:12px;background:#21172f;color:#eee2ff;padding:10px 13px;text-decoration:none;font-size:13px}
+.wrap{width:min(900px,100%);margin:24px auto;padding:0 16px}
+.profile{overflow:hidden;border:1px solid #49345f;border-radius:20px;background:linear-gradient(145deg,#171321,#0e0d16);box-shadow:0 12px 45px #0007}
+.cover{height:170px;background:radial-gradient(ellipse at 72% 30%,#a34bff66 0,transparent 34%),linear-gradient(125deg,#090912,#21102f 55%,#111b35)}
+.identity{display:flex;align-items:end;gap:16px;margin:-46px 22px 0;position:relative}
+.avatar{width:100px;height:100px;flex:0 0 100px;display:grid;place-items:center;overflow:hidden;border:3px solid #171321;border-radius:50%;background:#352044;font-size:32px;font-weight:700;box-shadow:0 0 18px #a66bff55}
+.avatar img{width:100%;height:100%;object-fit:cover}
+.name{min-width:0;padding-bottom:7px}.name h1{margin:0 0 5px;font-size:clamp(21px,4vw,29px);overflow-wrap:anywhere}.name p{margin:0;color:#c59aff;font-size:13px}
+.bio{margin:16px 22px 22px;color:#c9c0d8;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
+.feed-section{margin-top:24px}.feed-title{margin:0 0 14px;font-size:19px}
+.feed{display:flex;flex-direction:column;gap:12px}
+.post{padding:16px;overflow:hidden;border:1px solid var(--line);border-radius:16px;background:linear-gradient(145deg,#191625,#101019)}
+.flow-banner{display:flex;align-items:center;gap:8px;margin:0 0 12px;padding:8px 11px;border:1px solid #63477f;border-radius:10px;background:linear-gradient(100deg,#281936,#171321);color:#d9baff;font-size:11px;font-weight:700}
+.flow-banner:before{content:"↗";display:grid;place-items:center;width:19px;height:19px;border-radius:50%;background:#593477;color:#fff;font-size:13px}
+.post-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.post-avatar{width:40px;height:40px;flex:0 0 40px;display:grid;place-items:center;overflow:hidden;border-radius:50%;background:#302044;font-weight:700}
+.post-avatar img{width:100%;height:100%;object-fit:cover}
+.post-author{font-size:14px;font-weight:700}.post-date{margin-top:4px;color:var(--muted);font-size:11px}
+.post-content{color:#e9e4f2;font-size:14px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
+.post-media{display:grid;gap:10px;margin-top:12px}.post-media img,.post-media video{display:block;width:100%;max-height:520px;object-fit:contain;border-radius:12px;background:#090910}.post-media audio{width:100%}
+.post-actions{display:flex;align-items:center;gap:10px;margin-top:14px;padding-top:11px;border-top:1px solid #342943}
+.flow-button{display:inline-flex;align-items:center;gap:7px;padding:8px 13px;border:1px solid #59436f;border-radius:999px;background:linear-gradient(135deg,#21192d,#15111e);color:#e5d4ff;font-size:12px;font-weight:800;letter-spacing:1px}
+.flow-button.active{border-color:#c18aff;background:linear-gradient(135deg,#49265f,#21152f);box-shadow:0 0 12px #a66bff38}
+.flow-button:disabled{opacity:.55}
+.status,.empty{padding:20px;text-align:center;color:var(--muted);line-height:1.6}
+.error{color:#ffb4c0}
+@media(max-width:600px){.topbar{padding:10px 12px}.logo{font-size:17px}.wrap{margin:14px auto;padding:0 10px}.cover{height:130px}.identity{margin:-39px 14px 0;gap:12px}.avatar{width:82px;height:82px;flex-basis:82px}.bio{margin:14px}.post{border-radius:0;border-left:0;border-right:0}.feed{gap:0}.post+.post{border-top:0}}
+</style>
+</head>
+<body>
+<header class="topbar"><a href="profile.html">← Назад</a><div class="logo">FLOUSTREAM</div><a href="profile.html">Моя страница</a></header>
+<main class="wrap">
+<section class="profile">
+ <div class="cover" id="cover"></div>
+ <div class="identity"><div class="avatar" id="avatar">◉</div><div class="name"><h1 id="display-name">Загружаем профиль…</h1><p id="username"></p></div></div>
+ <p class="bio" id="bio"></p>
+</section>
+<section class="feed-section"><h2 class="feed-title">Публикации</h2><div class="feed" id="feed"><div class="status" id="status">Загружаем публикации…</div></div></section>
+</main>
+<script>
+const SUPABASE_URL="https://qhpobdktlbhdqsnajypr.supabase.co";
+const SUPABASE_KEY="sb_publishable_tzG1qVsbjaW8YE_LBVN87Q_v0CahKN5";
+const $=id=>document.getElementById(id);
+let client,viewer,target;
+function loadLibrary(){return new Promise((resolve,reject)=>{if(window.supabase?.createClient){resolve();return;}const script=document.createElement("script");script.src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";script.onload=()=>window.supabase?.createClient?resolve():reject(new Error("Supabase не загрузился"));script.onerror=()=>reject(new Error("Не удалось загрузить библиотеку Supabase"));document.head.append(script);});}
+function safeUrl(value){if(!value)return "";try{const url=new URL(value,location.href);return ["http:","https:"].includes(url.protocol)?url.href:"";}catch(_){return "";}}
+function dateText(value){if(!value)return "";const d=new Date(value);return Number.isNaN(d.getTime())?"":d.toLocaleString("ru-RU",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"});}
+function showError(message){$("feed").replaceChildren();const box=document.createElement("div");box.className="status error";box.textContent=message;$("feed").append(box);}
+function avatarNode(url,name){const node=document.createElement("div");node.className="post-avatar";const src=safeUrl(url);if(src){const img=document.createElement("img");img.src=src;img.alt="";node.append(img);}else node.textContent=(name||"◉").trim().slice(0,1).toUpperCase();return node;}
+async function renderPost(post,authors,flowMeta){
+ const author=authors.get(post.user_id)||{};const authorName=author.display_name||author.username||"Пользователь";
+ const card=document.createElement("article");card.className="post";
+ if(flowMeta){const banner=document.createElement("div");banner.className="flow-banner";banner.textContent="FLOW · "+(target.display_name||target.username||"Пользователь")+(flowMeta.created_at?" · "+dateText(flowMeta.created_at):"");card.append(banner);}
+ const head=document.createElement("div");head.className="post-head";head.append(avatarNode(author.avatar_url,authorName));
+ const identity=document.createElement("div"),name=document.createElement("div"),date=document.createElement("div");name.className="post-author";name.textContent=authorName;date.className="post-date";date.textContent=dateText(post.created_at);identity.append(name,date);head.append(identity);card.append(head);
+ if(post.content){const body=document.createElement("div");body.className="post-content";body.textContent=post.content;card.append(body);}
+ const media=Array.isArray(post.media)&&post.media.length?post.media:(post.image_url?[{type:"photo",url:post.image_url}]:[]);
+ if(media.length){const box=document.createElement("div");box.className="post-media";for(const item of media){const url=safeUrl(item.url);if(!url)continue;let node;if(item.type==="photo"){node=document.createElement("img");node.alt="Фото публикации";node.loading="lazy";}else if(item.type==="music"){node=document.createElement("audio");node.controls=true;}else{node=document.createElement("video");node.controls=true;node.playsInline=true;node.preload="metadata";}node.src=url;box.append(node);}if(box.children.length)card.append(box);}
+ const actions=document.createElement("div");actions.className="post-actions";const flow=document.createElement("button");flow.type="button";flow.className="flow-button";flow.textContent="FLOW";actions.append(flow);card.append(actions);
+ if(!viewer){flow.disabled=true;flow.title="Войди, чтобы использовать FLOW";return card;}
+ let active=false,count=0;
+ const refresh=async()=>{const [total,own]=await Promise.all([client.from("reposts").select("id",{count:"exact",head:true}).eq("post_id",post.id),client.from("reposts").select("id").eq("post_id",post.id).eq("user_id",viewer.id).maybeSingle()]);if(total.error||own.error)return;active=!!own.data;count=total.count||0;flow.textContent="FLOW · "+count;flow.classList.toggle("active",active);flow.setAttribute("aria-pressed",String(active));flow.title=active?"Отменить FLOW":"Добавить оригинальную публикацию в свои публикации";}
+ await refresh();
+ flow.addEventListener("click",async()=>{flow.disabled=true;const result=active?await client.from("reposts").delete().eq("post_id",post.id).eq("user_id",viewer.id):await client.from("reposts").insert({post_id:post.id,user_id:viewer.id});if(result.error){flow.title="Не удалось выполнить FLOW: "+result.error.message;}else{flow.title=active?"FLOW отменён":"Публикация добавлена в твои публикации";}await refresh();flow.disabled=false;});
+ return card;
+}
+async function start(){
+ try{
+  await loadLibrary();client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+  const auth=await client.auth.getUser();if(auth.error)throw auth.error;viewer=auth.data.user;
+  if(!viewer){location.replace("portal.html");return;}
+  const targetId=new URLSearchParams(location.search).get("id");if(!targetId){showError("Не указан профиль для просмотра.");return;}
+  if(targetId===viewer.id){location.replace("profile.html");return;}
+  const profileResult=await client.from("profiles").select("id,username,display_name,bio,avatar_url,cover_url").eq("id",targetId).maybeSingle();
+  if(profileResult.error)throw profileResult.error;if(!profileResult.data){showError("Профиль не найден или недоступен.");return;}
+  target=profileResult.data;
+  $("display-name").textContent=target.display_name||target.username||"Пользователь";
+  $("username").textContent=target.username?"@"+target.username:"";
+  $("bio").textContent=target.bio||"";
+  const avatar=safeUrl(target.avatar_url);if(avatar){$("avatar").replaceChildren();const img=document.createElement("img");img.src=avatar;img.alt="Аватар";$("avatar").append(img);}else $("avatar").textContent=(target.display_name||target.username||"◉").slice(0,1).toUpperCase();
+  const cover=safeUrl(target.cover_url);if(cover)$("cover").style.backgroundImage="linear-gradient(#09091055,#09091055),url("+JSON.stringify(cover)+")";
+  const [ownPosts,flows]=await Promise.all([
+   client.from("posts").select("*").eq("user_id",targetId).order("created_at",{ascending:false}).limit(50),
+   client.from("reposts").select("id,user_id,post_id,created_at").eq("user_id",targetId).order("created_at",{ascending:false}).limit(50)
+  ]);
+  if(ownPosts.error)throw ownPosts.error;if(flows.error)throw flows.error;
+  const flowRows=flows.data||[],flowIds=flowRows.map(row=>row.post_id).filter(Boolean);
+  const flowPosts=flowIds.length?await client.from("posts").select("*").in("id",flowIds):{data:[],error:null};
+  if(flowPosts.error)throw flowPosts.error;
+  const flowById=new Map(flowRows.map(row=>[String(row.post_id),row])),merged=new Map();
+  for(const post of ownPosts.data||[])merged.set(String(post.id),{post,sortAt:post.created_at||"",flowMeta:null});
+  for(const post of flowPosts.data||[]){const meta=flowById.get(String(post.id));if(!meta)continue;const key=String(post.id),existing=merged.get(key);if(!existing||new Date(meta.created_at||0)>new Date(existing.sortAt||0))merged.set(key,{post,sortAt:meta.created_at||post.created_at||"",flowMeta:meta});}
+  const entries=[...merged.values()].sort((a,b)=>new Date(b.sortAt||0)-new Date(a.sortAt||0));
+  if(!entries.length){$("feed").replaceChildren();const empty=document.createElement("div");empty.className="empty";empty.textContent="Пока нет доступных публикаций."; $("feed").append(empty);return;}
+  const authorIds=[...new Set(entries.map(x=>x.post.user_id).filter(Boolean))];
+  const authorResult=authorIds.length?await client.from("profiles").select("id,username,display_name,avatar_url").in("id",authorIds):{data:[],error:null};
+  if(authorResult.error)throw authorResult.error;
+  const authors=new Map((authorResult.data||[]).map(p=>[p.id,p]));$("feed").replaceChildren();
+  for(const entry of entries)$("feed").append(await renderPost(entry.post,authors,entry.flowMeta));
+ }catch(error){showError("Не удалось открыть страницу: "+error.message);}
+}
+start();
+</script>
+</body>
+</html>
