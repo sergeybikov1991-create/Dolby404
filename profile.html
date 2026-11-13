@@ -595,12 +595,22 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 .privacy-panel.is-open{grid-template-rows:1fr;opacity:1}
 .privacy-panel-inner{min-height:0;overflow:hidden}
 @media(prefers-reduced-motion:reduce){.privacy-panel,.privacy-chevron{transition:none}}
-.music-track-list{display:grid;gap:12px;margin-top:16px}
-.music-track{padding:13px;border:1px solid #49375f;border-radius:13px;background:#100e18}
-.music-track-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:9px;color:#f2e9ff;font-size:14px}
+.music-upload-section,.music-tracks-section{padding:13px;border:1px solid #49375f;border-radius:14px;background:#120f1c}
+.music-upload-toggle{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:left;padding:12px 14px}
+.music-upload-chevron{font-size:20px;line-height:1;transition:transform .25s ease}
+.music-upload-toggle[aria-expanded="true"] .music-upload-chevron{transform:rotate(180deg)}
+.music-upload-panel{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows .32s ease,opacity .25s ease,margin .25s ease}
+.music-upload-panel.is-open{grid-template-rows:1fr;opacity:1;margin-top:10px}
+.music-upload-panel-inner{min-height:0;overflow:hidden}
+.music-upload-panel .album-upload{margin:0}
+.music-tracks-section{margin-top:12px}
+.music-tracks-section h3{margin:0 0 10px;color:#eee4ff;font-size:15px}
+.music-track-list{display:grid;gap:10px;margin-top:0}
+.music-track{padding:12px;border:1px solid #49375f;border-radius:13px;background:#100e18}
+.music-track-head{display:flex;justify-content:flex-start;align-items:center;gap:10px;margin-bottom:8px;color:#f2e9ff;font-size:14px}
 .music-track audio{display:block;width:100%;height:38px}
-.music-track small{color:#a99bb9;font-size:11px}
-.music-track button{margin-top:9px;padding:7px 11px;border-radius:9px;font-size:12px}
+.music-track button{margin-top:8px;min-height:30px;padding:5px 9px;border-radius:8px;font-size:11px}
+@media(prefers-reduced-motion:reduce){.music-upload-panel,.music-upload-chevron{transition:none}}
 </style><style>
 .album-head-actions{display:flex;align-items:center;justify-content:flex-start;gap:10px}
  .album-head-centered{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px}
@@ -779,7 +789,6 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
     <p class="settings-help">Управляй тем, что видно другим пользователям. Секретные фото- и видеоальбомы здесь не отображаются и не управляются этими настройками.</p>
     <label class="privacy-option"><input id="privacy-public-album" type="checkbox" checked> <span>Обычный фотоальбом — виден всем</span></label>
      <label class="privacy-option"><input id="privacy-video-visible" type="checkbox" checked> <span>Обычный видеоальбом — виден всем</span></label>
-    <label class="privacy-option"><input id="privacy-music-visible" type="checkbox" checked> <span>Моя музыка — видно всем</span></label>
     <label class="privacy-option"><input id="privacy-comments-visible" type="checkbox" checked> <span>Комментарии — видны всем</span></label>
     <label class="privacy-option"><input id="privacy-feed-visible" type="checkbox" checked> <span>Публикации в ленте профиля — видны всем</span></label>
     <div class="settings-actions"><button type="button" class="primary" id="save-privacy-settings">Сохранить приватность</button></div>
@@ -948,17 +957,23 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
 <div class="album-backdrop" id="music-backdrop" hidden>
  <section class="album-panel" role="dialog" aria-modal="true" aria-labelledby="music-title">
   <div class="album-head"><h2 id="music-title">Моя музыка</h2><button type="button" class="settings-close" id="music-close" aria-label="Закрыть">×</button></div>
-  <div class="album-upload">
-   <strong style="color:#eee4ff">Добавить свой трек</strong>
-   <label for="music-track-file">Аудиофайл</label>
-   <input id="music-track-file" type="file" accept="audio/*">
-   <label for="music-track-visibility">Кто сможет слушать</label>
-   <select id="music-track-visibility"><option value="public">Видно всем</option><option value="private">Только мне</option></select>
-   <button type="button" class="primary" id="music-upload-button">Добавить музыку</button>
-   <p class="album-note">По умолчанию новая музыка доступна всем. Закрытые треки хранятся отдельно и открываются только владельцу.</p>
-  </div>
-  <div class="album-status" id="music-status" aria-live="polite"></div>
-  <div class="music-track-list" id="music-track-list"></div>
+  <section class="music-upload-section" aria-label="Добавление музыки">
+   <button type="button" class="primary music-upload-toggle" id="music-upload-toggle" aria-expanded="false" aria-controls="music-upload-panel"><span>＋ Добавить свой трек</span><span class="music-upload-chevron" aria-hidden="true">⌄</span></button>
+   <div class="music-upload-panel" id="music-upload-panel" aria-hidden="true">
+    <div class="music-upload-panel-inner">
+     <div class="album-upload">
+      <label for="music-track-file">Аудиофайл</label>
+      <input id="music-track-file" type="file" accept="audio/*">
+      <button type="button" class="primary" id="music-upload-button">Загрузить трек</button>
+     </div>
+    </div>
+   </div>
+   <div class="album-status" id="music-status" aria-live="polite"></div>
+  </section>
+  <section class="music-tracks-section" aria-label="Мои треки">
+   <h3>Мои треки</h3>
+   <div class="music-track-list" id="music-track-list"></div>
+  </section>
  </section>
 </div>
 <script src="floustream-player.js?v=20261114-8"></script>
@@ -1034,7 +1049,6 @@ async function loadPrivacySettings(){
  const row=result.data;
  $("privacy-public-album").checked=row.public_album_visible;
   $("privacy-video-visible").checked=row.video_album_visible!==false;
- $("privacy-music-visible").checked=row.music_visible;
  $("privacy-comments-visible").checked=row.comments_visible;
  $("privacy-feed-visible").checked=row.feed_posts_visible;
 }
@@ -1058,7 +1072,7 @@ $("save-privacy-settings").addEventListener("click",async()=>{
    owner_id:user.id,
    public_album_visible:$("privacy-public-album").checked,
     video_album_visible:$("privacy-video-visible").checked,
-   music_visible:$("privacy-music-visible").checked,
+   music_visible:true,
    comments_visible:$("privacy-comments-visible").checked,
    feed_posts_visible:$("privacy-feed-visible").checked,
    updated_at:new Date().toISOString()
@@ -1092,8 +1106,7 @@ async function loadMusicTracks(){
    const card=document.createElement("article");card.className="music-track";
    const head=document.createElement("div");head.className="music-track-head";
    const title=document.createElement("strong");title.textContent=track.title;
-   const visibility=document.createElement("small");visibility.textContent=track.visibility==="private"?"🔒 Только мне":"Видно всем";
-   head.append(title,visibility);
+   head.append(title);
    const listen=document.createElement("button");listen.type="button";listen.textContent="▶ Слушать";
    const queueIndex=playableTracks.length;playableTracks.push({id:track.id,title:track.title,url,visibility:track.visibility});
    listen.addEventListener("click",()=>window.FloustreamPlayer?.playQueue(playableTracks,queueIndex));
@@ -1118,7 +1131,7 @@ $("music-upload-button").addEventListener("click",async()=>{
  if(!file.type.startsWith("audio/")){$("music-status").textContent="Нужен аудиофайл.";return;}
  if(file.size>100*1024*1024){$("music-status").textContent="Максимальный размер файла — 100 МБ.";return;}
  const title=(file.name||"").replace(/\.[^.]+$/,"").trim()||"Аудиозапись";
- const visibility=$("music-track-visibility").value,bucket=visibility==="private"?"music-private":"music-public";
+ const visibility="public",bucket="music-public";
  const ext=(file.name.split(".").pop()||"audio").replace(/[^a-z0-9]/gi,"").toLowerCase()||"audio";
  const path=user.id+"/"+crypto.randomUUID()+"."+ext,button=$("music-upload-button");button.disabled=true;
  $("music-status").textContent="Загружаем трек…";
@@ -1131,6 +1144,10 @@ $("music-upload-button").addEventListener("click",async()=>{
   await loadMusicTracks();
  }catch(error){$("music-status").textContent="Не удалось добавить трек: "+error.message;}
  finally{button.disabled=false;}
+});
+$("music-upload-toggle").addEventListener("click",()=>{
+ const toggle=$("music-upload-toggle"),panel=$("music-upload-panel"),open=toggle.getAttribute("aria-expanded")!=="true";
+ toggle.setAttribute("aria-expanded",String(open));panel.setAttribute("aria-hidden",String(!open));panel.classList.toggle("is-open",open);
 });
 $("music-close").addEventListener("click",()=>$("music-backdrop").hidden=true);
 $("music-backdrop").addEventListener("click",e=>{if(e.target===$("music-backdrop"))$("music-backdrop").hidden=true;});
