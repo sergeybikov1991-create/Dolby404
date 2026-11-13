@@ -180,7 +180,7 @@ function renderTargetPresence(online){
  const host=$("profile-presence");if(!host||!target)return;
  host.replaceChildren();
  if(online){
-  const dot=document.createElement("span");dot.className="dolby-online-indicator";dot.setAttribute("role","img");dot.setAttribute("aria-label","В сети");
+  const dot=document.createElement("span");dot.className="dolby-online-indicator is-online";dot.setAttribute("role","img");dot.setAttribute("aria-label","В сети");
   host.append(dot,document.createTextNode("В сети"));
   return;
  }
