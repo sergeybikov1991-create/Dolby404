@@ -388,6 +388,15 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 
 .post-social-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px;padding-top:11px;border-top:1px solid #342943}
 .post-reaction-wrap{position:relative;display:inline-flex}
+.post-reaction-impact{position:relative;isolation:isolate}
+.post-reaction-impact::after{content:"";position:absolute;inset:-9px;border:2px solid #c18aff;border-radius:50%;pointer-events:none;animation:reactionImpactRing .62s ease-out forwards}
+@keyframes reactionImpactRing{0%{transform:scale(.35);opacity:0;box-shadow:0 0 0 #a66bff}25%{opacity:1;box-shadow:0 0 22px #b879ff}100%{transform:scale(1.65);opacity:0;box-shadow:0 0 34px #a66bff}}
+@keyframes reactionButtonPulse{0%{transform:scale(1)}35%{transform:scale(1.2);filter:brightness(1.65);box-shadow:0 0 24px #b879ff}100%{transform:scale(1);filter:none}}
+.post-reaction-toggle.reaction-button-pulse{animation:reactionButtonPulse .55s cubic-bezier(.2,.8,.2,1)}
+.reaction-flight{position:fixed;z-index:99999;left:0;top:0;pointer-events:none;font-size:30px;line-height:1;filter:drop-shadow(0 0 9px #c18aff);will-change:transform,opacity}
+.reaction-spark{position:fixed;z-index:99998;left:0;top:0;width:5px;height:5px;border-radius:50%;background:#e7c7ff;box-shadow:0 0 8px 2px #a66bff;pointer-events:none;will-change:transform,opacity}
+@media(prefers-reduced-motion:reduce){.post-reaction-impact::after,.post-reaction-toggle.reaction-button-pulse{animation:none}.reaction-flight,.reaction-spark{display:none}}
+
 .post-reaction-picker{position:absolute;left:0;bottom:calc(100% + 9px);z-index:15;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:5px;width:min(306px,calc(100vw - 58px));padding:9px;border:1px solid #7952a0;border-radius:15px;background:rgba(18,14,28,.97);box-shadow:0 12px 36px #000b,0 0 22px #9b5bff22;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
 .post-reaction-picker[hidden]{display:none}
 .post-reaction-option{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:0;min-height:49px;padding:5px 2px;border:1px solid #3c304d;border-radius:10px;background:#171321;color:#f5eaff}
@@ -827,7 +836,7 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape")closePostPhotoView()
 async function attachPostActions(post,card){
  const bar=document.createElement("div");bar.className="post-social-actions";
  const reactionWrap=document.createElement("div");reactionWrap.className="post-reaction-wrap";
- const reactionToggle=document.createElement("button");reactionToggle.type="button";reactionToggle.className="post-social-button";reactionToggle.textContent="＋ 0";reactionToggle.setAttribute("aria-label","Выбрать реакцию");reactionToggle.setAttribute("aria-expanded","false");
+ const reactionToggle=document.createElement("button");reactionToggle.type="button";reactionToggle.className="post-social-button";reactionToggle.classList.add("post-reaction-toggle");reactionToggle.textContent="＋ 0";reactionToggle.setAttribute("aria-label","Выбрать реакцию");reactionToggle.setAttribute("aria-expanded","false");
  const reactionPanel=document.createElement("div");reactionPanel.className="post-reaction-picker";reactionPanel.hidden=true;
  const reactionNote=document.createElement("div");reactionNote.className="post-comment-note";reactionNote.setAttribute("aria-live","polite");
  const reactionOptions=[
@@ -851,7 +860,37 @@ async function attachPostActions(post,card){
   const count=document.createElement("span");count.className="reaction-count";count.textContent="0";
   option.append(emoji,count);reactionPanel.append(option);optionButtons[item.key]={button:option,count};
  }
- reactionWrap.append(reactionToggle,reactionPanel);
+ 
+function playReactionFlight(emoji,source){
+ if(window.matchMedia("(prefers-reduced-motion: reduce)").matches)return;
+ const from=source.getBoundingClientRect(),to=reactionToggle.getBoundingClientRect();
+ const startX=from.left+from.width/2-15,startY=from.top+from.height/2-15;
+ const endX=to.left+to.width/2-15,endY=to.top+to.height/2-15;
+ const flyer=document.createElement("span");flyer.className="reaction-flight";flyer.textContent=emoji;
+ flyer.style.transform="translate("+startX+"px,"+startY+"px) scale(.55) rotate(-18deg)";
+ document.body.append(flyer);
+ const dx=endX-startX,dy=endY-startY;
+ flyer.animate([
+  {transform:"translate("+startX+"px,"+startY+"px) scale(.55) rotate(-18deg)",opacity:0},
+  {transform:"translate("+(startX+dx*.38)+"px,"+(startY+dy*.38-42)+"px) scale(1.55) rotate(12deg)",opacity:1,offset:.42},
+  {transform:"translate("+endX+"px,"+endY+"px) scale(.72) rotate(0deg)",opacity:0}
+ ],{duration:620,easing:"cubic-bezier(.18,.72,.24,1)",fill:"forwards"}).onfinish=()=>flyer.remove();
+ reactionToggle.classList.remove("reaction-button-pulse");
+ void reactionToggle.offsetWidth;
+ reactionToggle.classList.add("reaction-button-pulse","post-reaction-impact");
+ window.setTimeout(()=>reactionToggle.classList.remove("reaction-button-pulse","post-reaction-impact"),700);
+ for(let n=0;n<8;n++){
+  const spark=document.createElement("i");spark.className="reaction-spark";
+  spark.style.left=(endX+15)+"px";spark.style.top=(endY+15)+"px";document.body.append(spark);
+  const angle=(Math.PI*2*n)/8, distance=20+(n%3)*7;
+  spark.animate([
+   {transform:"translate(0,0) scale(.3)",opacity:1},
+   {transform:"translate("+Math.cos(angle)*distance+"px,"+Math.sin(angle)*distance+"px) scale(0)",opacity:0}
+  ],{duration:480,easing:"ease-out",fill:"forwards"}).onfinish=()=>spark.remove();
+ }
+}
+
+reactionWrap.append(reactionToggle,reactionPanel);
  const like=document.createElement("button");like.type="button";like.className="post-social-button";like.textContent="♡ 0";
  const commentToggle=document.createElement("button");commentToggle.type="button";commentToggle.className="post-social-button";commentToggle.textContent="💬 0";
  const repost=document.createElement("button");repost.type="button";repost.className="post-social-button repost-flow";repost.setAttribute("aria-label","Сделать репост");repost.title="Репост Dolby404";repost.innerHTML='<svg class="flow-mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.2h10.4a4.1 4.1 0 0 1 0 8.2H8.8"/><path d="m11.8 4.8 3.5 3.4-3.5 3.4"/><path d="m8.8 13-3.5 3.4 3.5 3.4"/></svg><span class="flow-count">0</span>';
@@ -899,6 +938,8 @@ async function attachPostActions(post,card){
  document.addEventListener("click",event=>{if(!reactionWrap.contains(event.target)&&!reactionPanel.hidden){reactionPanel.hidden=true;reactionToggle.setAttribute("aria-expanded","false");}});
  for(const item of reactionOptions){
   optionButtons[item.key].button.addEventListener("click",async()=>{
+   const previousReaction=ownReaction?.reaction_key;
+   const isRemoving=previousReaction===item.key;
    for(const option of Object.values(optionButtons))option.button.disabled=true;
    reactionNote.textContent="";
    let result;
@@ -910,7 +951,7 @@ async function attachPostActions(post,card){
     result=await client.from("post_reactions").insert({post_id:post.id,user_id:user.id,reaction_key:item.key});
    }
    if(result.error)reactionNote.textContent="Не удалось изменить реакцию: "+result.error.message;
-   else{reactionPanel.hidden=true;reactionToggle.setAttribute("aria-expanded","false");}
+   else{if(!isRemoving)playReactionFlight(item.emoji,optionButtons[item.key].button);reactionPanel.hidden=true;reactionToggle.setAttribute("aria-expanded","false");}
    await refreshCounts();
    for(const option of Object.values(optionButtons))option.button.disabled=false;
   });
