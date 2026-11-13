@@ -278,6 +278,39 @@ const SUPABASE_KEY =
     "sb_publishable_tzG1qVsbjaW8YE_LBVN87Q_v0CahKN5";
 
 let supabaseClient = null;
+let registrationInProgress = false;
+let registrationCooldownUntil = 0;
+let registrationCooldownTimer = null;
+
+function startRegistrationCooldown(seconds, template) {
+    if (registrationCooldownTimer) {
+        clearInterval(registrationCooldownTimer);
+    }
+
+    const duration = Math.max(1, Math.ceil(seconds));
+    registrationCooldownUntil = Date.now() + duration * 1000;
+    registerButton.disabled = true;
+
+    const updateCountdown = () => {
+        const remaining = Math.max(
+            0,
+            Math.ceil((registrationCooldownUntil - Date.now()) / 1000)
+        );
+
+        if (remaining === 0) {
+            clearInterval(registrationCooldownTimer);
+            registrationCooldownTimer = null;
+            registerButton.disabled = false;
+            message.textContent = "Можно зарегистрироваться снова.";
+            return;
+        }
+
+        message.textContent = template.replace("{seconds}", remaining);
+    };
+
+    updateCountdown();
+    registrationCooldownTimer = setInterval(updateCountdown, 1000);
+}
 
 const message = document.getElementById("auth-message");
 const registerButton = document.getElementById("register-button");
@@ -358,6 +391,10 @@ async function registerUser() {
         return;
     }
 
+    if (registrationInProgress || Date.now() < registrationCooldownUntil) {
+        return;
+    }
+
     const email =
         document.getElementById("email").value.trim();
 
@@ -374,6 +411,8 @@ async function registerUser() {
             "Пароль должен содержать минимум 8 символов.";
         return;
     }
+
+    registrationInProgress = true;
 
     try {
         registerButton.disabled = true;
@@ -394,7 +433,19 @@ async function registerUser() {
             });
 
         if (error) {
-            showError("Ошибка регистрации: ", error);
+            if (
+                error.status === 429 ||
+                error.code === "over_email_send_rate_limit"
+            ) {
+                const match = String(error.message || "").match(/after\s+(\d+)\s+seconds/i);
+                const waitSeconds = match ? Number(match[1]) + 2 : 60;
+                startRegistrationCooldown(
+                    waitSeconds,
+                    "Письмо уже запрашивалось. Повторная попытка через {seconds} сек."
+                );
+            } else {
+                showError("Ошибка регистрации: ", error);
+            }
             return;
         }
 
@@ -402,14 +453,19 @@ async function registerUser() {
             message.textContent = "Регистрация успешна!";
             window.location.href = redirectUrl;
         } else {
-            message.textContent =
-                "Регистрация принята. Проверь почту и подтверди Email.";
+            startRegistrationCooldown(
+                60,
+                "Письмо отправлено. Проверь почту. Повторная попытка через {seconds} сек."
+            );
         }
 
     } catch (error) {
         showError("Сбой регистрации: ", error);
     } finally {
-        registerButton.disabled = false;
+        registrationInProgress = false;
+        if (Date.now() >= registrationCooldownUntil) {
+            registerButton.disabled = false;
+        }
     }
 }
 
