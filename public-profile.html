@@ -352,7 +352,9 @@ async function start(){
   if(viewer&&targetId===viewer.id){location.replace("profile.html");return;}
   const profileResult=await client.from("profiles").select("id,username,display_name,bio,avatar_url,avatar_photo_id,cover_url,last_activity_at,time_zone").eq("id",targetId).maybeSingle();
   if(profileResult.error)throw profileResult.error;if(!profileResult.data){showError("Профиль не найден или недоступен.");return;}
-  target=profileResult.data;\n  renderTargetPresence(false);\n  watchTargetPresence();
+  target=profileResult.data;
+  renderTargetPresence(false);
+  watchTargetPresence();
   if(viewer){
    const recorded=await client.from("profile_visits").upsert({visitor_id:viewer.id,visited_profile_id:target.id,last_visited_at:new Date().toISOString()},{onConflict:"visitor_id,visited_profile_id"});
    if(recorded.error)console.warn("FLOUSTREAM visit recording:",recorded.error);
