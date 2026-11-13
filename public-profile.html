@@ -68,10 +68,91 @@ body.lightbox-open{overflow:hidden}
 
 .error{color:#ffb4c0}
 @media(max-width:600px){.topbar{padding:10px 12px}.logo{font-size:17px}.wrap{margin:14px auto;padding:0 10px}.cover{height:130px}.identity{margin:-39px 14px 0;gap:12px}.avatar{width:82px;height:82px;flex-basis:82px}.bio{margin:14px}.post{border-radius:0;border-left:0;border-right:0}.feed{gap:0}.post+.post{border-top:0}}
+/* FLOUSTREAM slide navigation */
+.quick-nav{display:none!important}
+.drawer-menu-button{position:fixed;z-index:83;left:14px;top:15px;width:44px;height:44px;display:grid;place-items:center;padding:0;border:1px solid #704b91;border-radius:14px;background:linear-gradient(145deg,#21152ff2,#100d19f2);box-shadow:0 0 16px #8d50e733,inset 0 0 12px #9b5bd511;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);opacity:1;transform:scale(1);visibility:visible;transition:opacity .18s ease,transform .18s ease,visibility .18s}
+.drawer-menu-button.is-hidden{opacity:0;transform:scale(.78);visibility:hidden;pointer-events:none}
+.sound-signal{display:flex;align-items:center;justify-content:center;gap:3px;width:22px;height:22px}
+.sound-signal i{display:block;width:3px;border-radius:3px;background:linear-gradient(180deg,#e9d5ff,#a66bff);box-shadow:0 0 7px #b879ff99}
+.sound-signal i{transform-origin:center;animation:signalEqualizer .78s ease-in-out infinite alternate}
+.sound-signal i:nth-child(1){height:8px;animation-delay:-.62s}
+.sound-signal i:nth-child(2){height:16px;animation-delay:-.38s}
+.sound-signal i:nth-child(3){height:21px;animation-delay:-.12s}
+.sound-signal i:nth-child(4){height:12px;animation-delay:-.5s}
+.sound-signal i:nth-child(5){height:6px;animation-delay:-.27s}
+@keyframes signalEqualizer{0%{transform:scaleY(.28);opacity:.68}100%{transform:scaleY(1);opacity:1}}
+@media(prefers-reduced-motion:reduce){.sound-signal i{animation:none}}
+.drawer-edge{position:fixed;z-index:81;left:0;top:0;bottom:0;width:22px;touch-action:pan-y}
+.drawer-backdrop{position:fixed;z-index:80;inset:0;background:#030209;opacity:0;pointer-events:none;transition:opacity .18s}
+.drawer-backdrop.visible{pointer-events:auto}
+.side-drawer{display:flex;flex-direction:column;--drawer-x:-100%;position:fixed;z-index:82;left:0;top:0;bottom:0;width:min(82vw,320px);padding:22px 16px max(22px,env(safe-area-inset-bottom));overflow-y:auto;overscroll-behavior:contain;background:linear-gradient(160deg,#1b1428,#0c0b14 72%);border-right:1px solid #8054aa;box-shadow:12px 0 42px #0009;transform:translate3d(var(--drawer-x),0,0);transition:transform .24s cubic-bezier(.2,.8,.2,1);will-change:transform;touch-action:pan-y}
+.side-drawer.dragging{transition:none}
+.side-drawer-head{display:flex;align-items:center;justify-content:space-between;margin:2px 2px 24px}
+.side-drawer-logo{font-size:21px;font-weight:900;letter-spacing:3px;color:#f5eaff;text-shadow:0 0 18px #9b55ff}
+.side-drawer-close{width:36px;height:36px;padding:0;border-radius:11px;background:#21172f;font-size:20px}
+.side-drawer-caption{margin:0 8px 9px;color:#8f83a5;font-size:10px;letter-spacing:1.5px;text-transform:uppercase}
+.side-drawer-links{display:grid;gap:7px}
+.side-drawer-link{display:flex;align-items:center;gap:13px;width:100%;min-height:49px;padding:10px 13px;border:1px solid transparent;border-radius:12px;background:transparent;color:#e9ddff;text-align:left;font-size:14px}
+.side-drawer-link:active,.side-drawer-link.active{background:linear-gradient(100deg,#392052aa,#1b1429);border-color:#68458d}
+.side-drawer-icon{width:23px;text-align:center;color:#c18aff;font-size:18px}
+.side-drawer-divider{height:1px;margin:17px 4px;background:#33283f}
+.nav-history{margin:13px 4px 2px;padding:11px 9px 10px;border:1px solid #342541;border-radius:13px;background:#110e19aa}
+.nav-history .side-drawer-caption{margin:0 0 8px 2px}
+.nav-history-items{display:grid;gap:6px}
+.nav-history-item{display:flex;align-items:center;gap:9px;width:100%;min-height:37px;padding:7px 8px;border:1px solid #352744;border-radius:9px;background:#1b1525;color:#d9c8f2;text-align:left;font-size:12px;overflow:hidden}
+.nav-history-item:active{background:#352044}
+.nav-history-item .side-drawer-icon{width:19px;font-size:15px}
+.nav-history-empty{padding:5px 2px;color:#81758f;font-size:11px}
+
+
+/* Drawer search menu */
+.drawer-search{margin:12px 4px 2px}
+.drawer-search-toggle{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:46px;padding:10px 13px;border:1px solid #654586;border-radius:12px;background:linear-gradient(110deg,#342044,#1a1426);color:#f0e4ff;font-size:14px;font-weight:700;box-shadow:0 5px 18px #0003;transition:border-color .18s,background .18s}
+.drawer-search-toggle:active,.drawer-search-toggle[aria-expanded="true"]{border-color:#b17bea;background:linear-gradient(110deg,#492966,#241831)}
+.drawer-search-toggle .drawer-search-chevron{margin-left:auto;color:#bd8aff;transition:transform .18s}
+.drawer-search-toggle[aria-expanded="true"] .drawer-search-chevron{transform:rotate(180deg)}
+.drawer-search-options{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.drawer-search-options[hidden]{display:none}
+.drawer-search-option{display:flex;align-items:center;justify-content:center;gap:7px;min-height:42px;padding:8px 6px;border:1px solid #49345f;border-radius:10px;background:#15101f;color:#e6d5fb;font-size:12px;font-weight:600}
+.drawer-search-option:active{background:#38214e;border-color:#9d69cf}
+.drawer-search-option span{font-size:16px;color:#c18aff}
+.side-drawer-foot{margin:22px 8px 0;color:#756b87;font-size:11px;line-height:1.5}
+@media(prefers-reduced-motion:reduce){.drawer-backdrop,.side-drawer{transition:none}}
+
+
+
+/* Unified FLOUSTREAM profile appearance */
+body{background:radial-gradient(ellipse at 15% 0%,#281342 0,transparent 38%),#090910;color:#f7f4ff}
+.wrap{max-width:960px;margin:22px auto;padding:0 16px}
+.profile{border:1px solid #49345f;border-radius:22px;background:linear-gradient(145deg,#171321,#0e0d16);box-shadow:0 12px 45px #0007,0 0 28px #7d3fba12}
+.cover{height:210px;position:relative;overflow:hidden;background:radial-gradient(ellipse at 72% 30%,#a34bff66 0,transparent 34%),radial-gradient(ellipse at 22% 80%,#4626a966 0,transparent 42%),linear-gradient(125deg,#090912 5%,#21102f 48%,#111b35 100%)}
+.cover:after{content:"FLOUSTREAM";position:absolute;right:22px;bottom:16px;font-size:clamp(24px,6vw,44px);font-weight:900;letter-spacing:.18em;color:#ffffff12;text-shadow:0 0 25px #a45bff55;pointer-events:none}
+.identity{align-items:flex-end;gap:18px;margin:-56px 22px 0}
+.avatar{width:124px;height:124px;flex:0 0 124px;border:3px solid #a66bff;border-radius:50%;background:linear-gradient(135deg,#6336a3,#17152b);box-shadow:0 0 0 1px #a66bff44,0 0 13px #8d50e744}
+.avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.name{padding-bottom:10px}
+.name h1{font-size:clamp(22px,4vw,30px);letter-spacing:.01em}
+.name p{color:#c59aff}
+.bio{margin:16px 22px 22px;max-width:650px;color:#c9c0d8}
+.feed-section{margin-top:24px}
+.feed-title{font-size:19px}
+.post{border:1px solid #302b43;border-radius:16px;background:linear-gradient(145deg,#191625,#101019);box-shadow:0 8px 26px #0003}
+.post-media img,.post-media video{max-height:520px;object-fit:contain}
+@media(max-width:600px){.wrap{margin:14px auto;padding:0 11px}.cover{height:158px}.profile{padding:0 15px 18px}.identity{gap:12px;margin:-43px 14px 0}.avatar{width:96px;height:96px;flex-basis:96px}.name{padding-bottom:6px}.bio{margin:14px}.post{border-radius:0;border-left:0;border-right:0}.feed{gap:0}.post+.post{border-top:0}}
 </style>
 </head>
 <body>
-<header class="topbar"><a href="profile.html">← Назад</a><div class="logo">FLOUSTREAM</div><a href="profile.html">Моя страница</a></header>
+<button type="button" class="drawer-menu-button" id="drawer-menu-button" aria-label="Открыть меню" aria-controls="side-drawer" aria-expanded="false"><span class="sound-signal" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span></button>
+<div class="drawer-edge" id="drawer-edge" aria-hidden="true"></div><div class="drawer-backdrop" id="drawer-backdrop"></div>
+<aside class="side-drawer" id="side-drawer" aria-label="Навигация FLOUSTREAM" aria-hidden="true">
+ <div class="drawer-shell"><div class="side-drawer-head"><div class="side-drawer-logo">FLOUSTREAM</div><button type="button" class="side-drawer-close" id="drawer-close" aria-label="Закрыть меню">×</button></div>
+ <p class="side-drawer-caption">Навигация</p><nav class="side-drawer-links"><a class="side-drawer-link active" href="profile.html"><span class="side-drawer-icon">◉</span>Мой профиль</a></nav>
+ <div class="nav-history"><p class="side-drawer-caption">Недавно посещали</p><div class="nav-history-items"><span class="nav-history-empty">Пока пусто</span></div></div>
+ <section class="drawer-search" aria-label="Поиск FLOUSTREAM"><button type="button" class="drawer-search-toggle" id="drawer-search-toggle" aria-expanded="false" aria-controls="drawer-search-options"><span aria-hidden="true">⌕</span> Поиск <span class="drawer-search-chevron" aria-hidden="true">⌄</span></button><div class="drawer-search-options" id="drawer-search-options" hidden><a class="drawer-search-option" href="profile.html"><span>⌕</span>Поиск</a><a class="drawer-search-option" href="profile.html"><span>✧</span>Рекомендации</a></div></section>
+ <div class="side-drawer-divider"></div><p class="side-drawer-caption">Медиа и общение</p><nav class="side-drawer-links"><a class="side-drawer-link" href="profile.html"><span class="side-drawer-icon">♧</span>Друзья</a><a class="side-drawer-link" href="profile.html"><span class="side-drawer-icon">✉</span>Сообщения</a><a class="side-drawer-link" href="profile.html"><span class="side-drawer-icon">◎</span>Сообщества</a><a class="side-drawer-link" href="profile.html"><span class="side-drawer-icon">♫</span>Музыка</a><a class="side-drawer-link" href="profile.html"><span class="side-drawer-icon">▶</span>Видео</a><a class="side-drawer-link" href="profile.html"><span class="side-drawer-icon">▧</span>Фото</a><a class="side-drawer-link" href="profile.html"><span class="side-drawer-icon">☆</span>Закладки</a></nav>
+ <div class="drawer-bottom"><div class="side-drawer-foot">FLOUSTREAM · твоя цифровая территория</div></div></div>
+</aside>
+
 <main class="wrap">
 <section class="profile">
  <div class="cover" id="cover"></div>
@@ -224,6 +305,16 @@ async function start(){
   for(const entry of entries)$("feed").append(await renderPost(entry.post,authors,entry.flowMeta));
  }catch(error){showError("Не удалось открыть страницу: "+error.message);}
 }
+(function initPublicSideDrawer(){
+ const button=$("drawer-menu-button"),drawer=$("side-drawer"),backdrop=$("drawer-backdrop"),edge=$("drawer-edge"),close=$("drawer-close");
+ if(!button||!drawer||!backdrop||!close)return;
+ let opened=false;
+ function setOpen(value){opened=!!value;drawer.style.setProperty("--drawer-x",opened?"0%":"-100%");backdrop.classList.toggle("visible",opened);backdrop.style.opacity=opened?"1":"0";button.classList.toggle("is-hidden",opened);button.setAttribute("aria-expanded",String(opened));drawer.setAttribute("aria-hidden",String(!opened));document.body.style.overflow=opened?"hidden":"";}
+ button.addEventListener("click",()=>setOpen(!opened));close.addEventListener("click",()=>setOpen(false));backdrop.addEventListener("click",()=>setOpen(false));
+ document.addEventListener("keydown",event=>{if(event.key==="Escape"&&opened)setOpen(false);});
+ const searchToggle=$("drawer-search-toggle"),searchOptions=$("drawer-search-options");if(searchToggle&&searchOptions)searchToggle.addEventListener("click",()=>{const expanded=searchToggle.getAttribute("aria-expanded")==="true";searchToggle.setAttribute("aria-expanded",String(!expanded));searchOptions.hidden=expanded;});
+ let startX=null;edge.addEventListener("touchstart",event=>{startX=event.touches[0].clientX;},{passive:true});edge.addEventListener("touchend",event=>{if(startX!==null&&event.changedTouches[0].clientX-startX>45)setOpen(true);startX=null;},{passive:true});
+})();
 start();
 </script>
 </body>
