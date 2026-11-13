@@ -949,8 +949,8 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
 <div class="video-album-upload" id="video-album-upload-panel" hidden><strong style="color:#eee4ff">Добавить видео</strong><input id="video-album-file" type="file" accept="video/mp4,video/webm,video/quicktime" multiple><label><input id="video-album-private" type="checkbox"> <span>Приватный видеоальбом</span></label><p class="album-note" id="video-album-privacy-note">Обычные видео будут доступны в профиле согласно настройкам приватности. Если включить галочку, выбранные ролики попадут в секретный видеоальбом.</p><p class="album-note">Форматы MP4, WebM и MOV. Максимальный размер одного видео — 50 МБ (лимит бесплатного тарифа).</p><button type="button" class="primary" id="video-album-upload-button">Загрузить выбранные видео</button><button type="button" class="album-cancel-upload" id="video-album-add-cancel">Отмена</button></div>
 <div class="album-status" id="video-album-status" aria-live="polite"></div><div class="video-album-grid" id="video-album-grid"></div></section></div>
 <div class="private-video-backdrop" id="private-video-backdrop" hidden><section class="private-video-panel" role="dialog" aria-modal="true" aria-labelledby="private-video-title"><div class="album-head"><h2 id="private-video-title" style="margin:0;color:#f2e9ff;font-size:20px">🔒 Приватный видеоальбом</h2><button type="button" class="settings-close" id="private-video-close" aria-label="Закрыть приватный видеоальбом">×</button></div><p class="private-album-note">Только ты можешь просматривать эти видео. Альбом не отображается в настройках приватности и обычном профиле.</p><div class="album-status" id="private-video-status" aria-live="polite"></div><div class="video-album-grid" id="private-video-grid"></div></section></div>
-<div class="video-album-viewer" id="video-album-viewer" hidden><div class="video-viewer-toolbar"><button type="button" id="video-album-viewer-delete" class="danger" aria-label="Удалить видео" title="Удалить видео">⌫</button><span id="video-album-viewer-counter"></span><button type="button" id="video-album-viewer-close" aria-label="Закрыть просмотр" title="Закрыть">×</button></div><div class="video-viewer-stage"><video id="video-album-player" controls playsinline preload="metadata"></video></div><div class="video-viewer-footer"><div class="video-viewer-thumbs" id="video-album-viewer-thumbs"></div></div></div>
-<div class="private-video-viewer" id="private-video-viewer" hidden><div class="video-viewer-toolbar"><button type="button" id="private-video-viewer-delete" class="danger" aria-label="Удалить приватное видео" title="Удалить видео">⌫</button><span id="private-video-viewer-counter"></span><button type="button" id="private-video-viewer-close" aria-label="Закрыть просмотр" title="Закрыть">×</button></div><div class="video-viewer-stage"><video id="private-video-player" controls playsinline preload="metadata"></video></div><div class="video-viewer-footer"><div class="video-viewer-thumbs" id="private-video-viewer-thumbs"></div></div></div>
+<div class="video-album-viewer" id="video-album-viewer" hidden><div class="video-viewer-toolbar"><button type="button" id="video-album-viewer-delete" class="danger" aria-label="Удалить видео" title="Удалить видео">⌫</button><span id="video-album-viewer-counter"></span><button type="button" id="video-album-viewer-close" aria-label="Закрыть просмотр" title="Закрыть">×</button></div><div class="video-viewer-stage"><video id="video-album-player" controls playsinline preload="metadata"></video></div></div>
+<div class="private-video-viewer" id="private-video-viewer" hidden><div class="video-viewer-toolbar"><button type="button" id="private-video-viewer-delete" class="danger" aria-label="Удалить приватное видео" title="Удалить видео">⌫</button><span id="private-video-viewer-counter"></span><button type="button" id="private-video-viewer-close" aria-label="Закрыть просмотр" title="Закрыть">×</button></div><div class="video-viewer-stage"><video id="private-video-player" controls playsinline preload="metadata"></video></div></div>
 
 <div class="messages-backdrop" id="messages-backdrop" hidden>
  <section class="messages-panel" role="dialog" aria-modal="true" aria-labelledby="messages-title">
@@ -1201,8 +1201,6 @@ async function loadVideoAlbum(){
   videoAlbumItems.forEach((item,index)=>{
    const tile=document.createElement("button");tile.type="button";tile.className="video-album-item";tile.setAttribute("aria-label","Открыть видео: "+(item.file_name||"видео"));
    addVideoFrameThumbnail(tile,item);
-   const preview=document.createElement("span");preview.className="video-album-playmark";preview.textContent="▶";preview.setAttribute("aria-hidden","true");
-   tile.append(preview);
    tile.addEventListener("click",()=>showVideoAlbumItem(index,false,true));grid.append(tile);
   });
   videoAlbumMessage("video-album-status","");
@@ -1225,8 +1223,6 @@ async function loadPrivateVideoAlbum(){
   privateVideoItems.forEach((item,index)=>{
    const tile=document.createElement("button");tile.type="button";tile.className="video-album-item";tile.setAttribute("aria-label","Открыть приватное видео");
    addVideoFrameThumbnail(tile,item);
-   const preview=document.createElement("span");preview.className="video-album-playmark";preview.textContent="▶";preview.setAttribute("aria-hidden","true");
-   tile.append(preview);
    tile.addEventListener("click",()=>showVideoAlbumItem(index,true,true));grid.append(tile);
   });
   videoAlbumMessage("private-video-status","");
@@ -1235,16 +1231,6 @@ async function loadPrivateVideoAlbum(){
 async function openPrivateVideoAlbum(){
  $("private-video-backdrop").hidden=false;
  await loadPrivateVideoAlbum();
-}
-function renderVideoThumbs(isPrivate){
- const items=isPrivate?privateVideoItems:videoAlbumItems;
- const current=isPrivate?privateVideoIndex:videoAlbumIndex;
- const host=$(isPrivate?"private-video-viewer-thumbs":"video-album-viewer-thumbs");host.replaceChildren();
- items.forEach((item,index)=>{
-  const thumb=document.createElement("button");thumb.type="button";thumb.className="video-viewer-thumb"+(index===current?" active":"");thumb.setAttribute("aria-label","Видео "+(index+1));
-  const mark=document.createElement("span");mark.className="video-viewer-thumb-mark";mark.textContent=String(index+1);thumb.append(mark);
-  thumb.addEventListener("click",()=>showVideoAlbumItem(index,isPrivate));host.append(thumb);
- });
 }
 function showVideoAlbumItem(index,isPrivate,openFullscreen=false){
  const items=isPrivate?privateVideoItems:videoAlbumItems;
@@ -1255,19 +1241,33 @@ function showVideoAlbumItem(index,isPrivate,openFullscreen=false){
  player.pause();player.src=item.url;player.load();
  $(isPrivate?"private-video-viewer-counter":"video-album-viewer-counter").textContent=(next+1)+" / "+items.length;
  $(isPrivate?"private-video-viewer":"video-album-viewer").hidden=false;
- renderVideoThumbs(isPrivate);
  if(openFullscreen){
   const playRequest=player.play();
   if(playRequest&&typeof playRequest.catch==="function")playRequest.catch(()=>{});
-  try{
-   if(typeof player.webkitEnterFullscreen==="function")player.webkitEnterFullscreen();
-   else if(typeof player.requestFullscreen==="function"){
-    const fullscreenRequest=player.requestFullscreen();
-    if(fullscreenRequest&&typeof fullscreenRequest.catch==="function")fullscreenRequest.catch(()=>{});
-   }
-  }catch(error){}
  }
 }
+function bindVideoSwipe(viewerId,playerId,isPrivate){
+ const stage=$(viewerId).querySelector(".video-viewer-stage");
+ if(!stage||stage.dataset.swipeBound)return;
+ stage.dataset.swipeBound="true";
+ let start=null;
+ stage.addEventListener("touchstart",event=>{
+  if(event.touches.length!==1)return;
+  const touch=event.touches[0];start={x:touch.clientX,y:touch.clientY};
+ },{passive:true});
+ stage.addEventListener("touchend",event=>{
+  if(!start||!event.changedTouches.length)return;
+  const touch=event.changedTouches[0],dx=touch.clientX-start.x,dy=touch.clientY-start.y;start=null;
+  if(Math.abs(dx)<55||Math.abs(dx)<Math.abs(dy)*1.25)return;
+  const items=isPrivate?privateVideoItems:videoAlbumItems;
+  const current=isPrivate?privateVideoIndex:videoAlbumIndex;
+  const next=current+(dx<0?1:-1);
+  if(next<0||next>=items.length)return;
+  showVideoAlbumItem(next,isPrivate,true);
+ },{passive:true});
+}
+bindVideoSwipe("video-album-viewer","video-album-player",false);
+bindVideoSwipe("private-video-viewer","private-video-player",true);
 function closeVideoAlbumViewer(isPrivate){
  const viewer=isPrivate?"private-video-viewer":"video-album-viewer";
  const player=isPrivate?"private-video-player":"video-album-player";
