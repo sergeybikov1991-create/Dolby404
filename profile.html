@@ -1086,9 +1086,9 @@ async function loadMusicTracks(){
   const playableTracks=[];
   for(const track of result.data){
    const bucket=track.visibility==="private"?"music-private":"music-public";
-   const signed=track.visibility==="private"?await client.storage.from(bucket).createSignedUrl(track.object_path,300):null;
+   const signed=track.visibility==="private"?await client.storage.from(bucket).createSignedUrl(track.object_path,3600):null;
    if(signed?.error)throw signed.error;
-   const publicSigned=track.visibility==="public"?await client.storage.from(bucket).createSignedUrl(track.object_path,300):null;if(publicSigned?.error)throw publicSigned.error;const url=track.visibility==="private"?signed.data.signedUrl:publicSigned.data.signedUrl;
+   const publicSigned=track.visibility==="public"?await client.storage.from(bucket).createSignedUrl(track.object_path,3600):null;if(publicSigned?.error)throw publicSigned.error;const url=track.visibility==="private"?signed.data.signedUrl:publicSigned.data.signedUrl;
    const card=document.createElement("article");card.className="music-track";
    const head=document.createElement("div");head.className="music-track-head";
    const title=document.createElement("strong");title.textContent=track.title;
