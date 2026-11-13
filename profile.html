@@ -229,6 +229,20 @@ textarea{min-height:90px;resize:vertical}
 .nav-history-item .side-drawer-icon{width:19px;font-size:15px}
 .nav-history-empty{padding:5px 2px;color:#81758f;font-size:11px}
 
+
+/* Drawer search preview */
+.drawer-search{margin:12px 4px 2px;padding:12px 10px 11px;border:1px solid #49345f;border-radius:14px;background:linear-gradient(145deg,#1a1425dd,#100d18ee);box-shadow:inset 0 1px 0 #ffffff08}
+.drawer-search-title{display:flex;align-items:center;gap:7px;margin:0 2px 9px;color:#d9c3f7;font-size:11px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase}
+.drawer-search-title span{color:#bd8aff;font-size:15px}
+.drawer-search-form{display:flex;align-items:center;gap:7px;padding:0 10px;border:1px solid #55416d;border-radius:10px;background:#0d0b14;transition:border-color .18s,box-shadow .18s}
+.drawer-search-form:focus-within{border-color:#a66bff;box-shadow:0 0 0 3px #a66bff20}
+.drawer-search-input{width:100%;min-width:0;height:39px;padding:0;border:0;outline:0;background:transparent;color:#f5edff;font-size:12px}
+.drawer-search-input::placeholder{color:#82758f}
+.drawer-search-categories{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:9px}
+.drawer-search-category{display:flex;align-items:center;justify-content:center;gap:6px;min-height:32px;padding:6px 5px;border:1px solid #382a49;border-radius:9px;background:#1a1423;color:#cdb9e7;font-size:11px;transition:background .16s,border-color .16s,color .16s}
+.drawer-search-category.active{border-color:#8755b6;background:linear-gradient(100deg,#492568,#281a3b);color:#fff;box-shadow:inset 0 0 12px #b66aff18}
+.drawer-search-category:focus-visible{outline:2px solid #bd8aff;outline-offset:2px}
+.drawer-search-status{min-height:13px;margin:7px 2px 0;color:#9886ad;font-size:10px;line-height:1.35}
 .side-drawer-foot{margin:22px 8px 0;color:#756b87;font-size:11px;line-height:1.5}
 @media(prefers-reduced-motion:reduce){.drawer-backdrop,.side-drawer{transition:none}}
 
@@ -657,6 +671,23 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
  <p class="side-drawer-caption">Навигация</p><nav class="side-drawer-links">
  <button class="side-drawer-link active" data-drawer-action="profile"><span class="side-drawer-icon">◉</span>Мой профиль</button></nav>
  <div class="nav-history" id="nav-history"><p class="side-drawer-caption" id="nav-history-title">Недавно посещали</p><div class="nav-history-items" id="nav-history-items"><span class="nav-history-empty">Пока пусто</span></div></div>
+ 
+  <section class="drawer-search" aria-label="Поиск FLOUSTREAM">
+   <h2 class="drawer-search-title"><span aria-hidden="true">⌕</span> Поиск</h2>
+   <form class="drawer-search-form" id="drawer-search-form" role="search">
+    <span aria-hidden="true" style="color:#b98ae8;font-size:16px">⌕</span>
+    <input class="drawer-search-input" id="drawer-search-input" type="search" placeholder="Люди, музыка, видео..." autocomplete="off" aria-label="Что ищем?">
+   </form>
+   <div class="drawer-search-categories" id="drawer-search-categories" aria-label="Категории поиска">
+    <button type="button" class="drawer-search-category active" data-search-category="all" aria-pressed="true">✧ Всё</button>
+    <button type="button" class="drawer-search-category" data-search-category="people" aria-pressed="false">♧ Люди</button>
+    <button type="button" class="drawer-search-category" data-search-category="music" aria-pressed="false">♫ Музыка</button>
+    <button type="button" class="drawer-search-category" data-search-category="video" aria-pressed="false">▶ Видео</button>
+    <button type="button" class="drawer-search-category" data-search-category="posts" aria-pressed="false">▤ Публикации</button>
+    <button type="button" class="drawer-search-category" data-search-category="tags" aria-pressed="false"># Теги</button>
+   </div>
+   <p class="drawer-search-status" id="drawer-search-status" aria-live="polite">Выбери категорию или введи запрос</p>
+  </section>
  <div class="side-drawer-divider"></div><p class="side-drawer-caption">Медиа и общение</p><nav class="side-drawer-links">
  <button class="side-drawer-link" data-drawer-soon="Друзья"><span class="side-drawer-icon">♧</span>Друзья</button>
  <button class="side-drawer-link" data-drawer-soon="Сообщения"><span class="side-drawer-icon">✉</span>Сообщения</button>
@@ -2581,6 +2612,25 @@ document.querySelectorAll("[data-soon]").forEach(button=>button.addEventListener
 })();
 
 start();
+</script>
+
+<script>
+(()=>{
+ const form=document.getElementById("drawer-search-form");
+ const input=document.getElementById("drawer-search-input");
+ const status=document.getElementById("drawer-search-status");
+ const buttons=[...document.querySelectorAll("[data-search-category]")];
+ if(!form||!input||!status||!buttons.length)return;
+ let category="all";
+ const labels={all:"Всё",people:"Люди",music:"Музыка",video:"Видео",posts:"Публикации",tags:"Теги"};
+ buttons.forEach(button=>button.addEventListener("click",()=>{
+  category=button.dataset.searchCategory;
+  buttons.forEach(item=>{const active=item===button;item.classList.toggle("active",active);item.setAttribute("aria-pressed",String(active));});
+  input.placeholder=category==="all"?"Люди, музыка, видео...":"Поиск: "+labels[category].toLowerCase()+"...";
+  status.textContent="Выбрана категория: "+labels[category];input.focus();
+ }));
+ form.addEventListener("submit",event=>{event.preventDefault();const query=input.value.trim();status.textContent=query?"Макет поиска: «"+query+"» · "+labels[category]+". Подключим поиск следующим этапом.":"Введи запрос для поиска";});
+})();
 </script>
 </body>
 </html>
