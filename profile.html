@@ -950,8 +950,6 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
   <div class="album-head"><h2 id="music-title">Моя музыка</h2><button type="button" class="settings-close" id="music-close" aria-label="Закрыть">×</button></div>
   <div class="album-upload">
    <strong style="color:#eee4ff">Добавить свой трек</strong>
-   <label for="music-track-title">Название композиции</label>
-   <input id="music-track-title" type="text" maxlength="160" placeholder="Название трека">
    <label for="music-track-file">Аудиофайл</label>
    <input id="music-track-file" type="file" accept="audio/*">
    <label for="music-track-visibility">Кто сможет слушать</label>
@@ -1073,7 +1071,6 @@ $("save-privacy-settings").addEventListener("click",async()=>{
 async function openMusicSection(){
  $("music-backdrop").hidden=false;
  $("music-status").textContent="";
- $("music-track-title").value="";
  $("music-track-file").value="";
  await loadMusicTracks();
 }
@@ -1112,11 +1109,11 @@ async function deleteMusicTrack(track,bucket,card){
  }catch(error){$("music-status").textContent="Не удалось удалить трек: "+error.message;}
 }
 $("music-upload-button").addEventListener("click",async()=>{
- const file=$("music-track-file").files[0],title=$("music-track-title").value.trim();
+ const file=$("music-track-file").files[0];
  if(!file){$("music-status").textContent="Сначала выбери аудиофайл.";return;}
  if(!file.type.startsWith("audio/")){$("music-status").textContent="Нужен аудиофайл.";return;}
  if(file.size>100*1024*1024){$("music-status").textContent="Максимальный размер файла — 100 МБ.";return;}
- if(!title){$("music-status").textContent="Укажи название трека.";return;}
+ const title=(file.name||"").replace(/\\.[^.]+$/,"").trim()||"Аудиозапись";
  const visibility=$("music-track-visibility").value,bucket=visibility==="private"?"music-private":"music-public";
  const ext=(file.name.split(".").pop()||"audio").replace(/[^a-z0-9]/gi,"").toLowerCase()||"audio";
  const path=user.id+"/"+crypto.randomUUID()+"."+ext,button=$("music-upload-button");button.disabled=true;
@@ -1125,7 +1122,7 @@ $("music-upload-button").addEventListener("click",async()=>{
   const uploaded=await client.storage.from(bucket).upload(path,file,{upsert:false,contentType:file.type});if(uploaded.error)throw uploaded.error;
   const saved=await client.from("music_tracks").insert({owner_id:user.id,title,object_path:path,visibility});
   if(saved.error){await client.storage.from(bucket).remove([path]);throw saved.error;}
-  $("music-track-title").value="";$("music-track-file").value="";
+  $("music-track-file").value="";
   $("music-status").textContent="Трек добавлен.";
   await loadMusicTracks();
  }catch(error){$("music-status").textContent="Не удалось добавить трек: "+error.message;}
