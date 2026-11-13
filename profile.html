@@ -491,6 +491,12 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 @keyframes dolbyPulseRing{0%{transform:scale(.55);opacity:.75}85%,100%{transform:scale(1.8);opacity:0}}
 @media(prefers-reduced-motion:reduce){.dolby-online-indicator.is-online,.dolby-online-indicator.is-online::after{animation:none}.dolby-online-indicator.is-online::after{opacity:.35;transform:scale(1.2)}}
 
+/* Final compact album layout overrides */
+.album-grid{grid-template-columns:repeat(6,minmax(0,1fr));gap:2px!important}
+.album-item{aspect-ratio:1;border:0!important;border-radius:3px!important}
+.album-item small{display:none!important}
+@media(max-width:700px){.album-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:2px!important}}
+@media(max-width:420px){.album-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:2px!important}}
 </style>
 <style>
 .privacy-option{display:flex;align-items:center;gap:11px;padding:11px 12px;margin:8px 0;border:1px solid #403653;border-radius:11px;background:#100e18;color:#eee5ff;font-size:13px}
