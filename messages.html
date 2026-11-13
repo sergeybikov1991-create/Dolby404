@@ -75,6 +75,8 @@ async function loadMessages(silent=false){
   const result=await client.from("direct_messages").select("id,sender_id,recipient_id,content,created_at").or(filter).order("created_at",{ascending:true}).limit(200);
   if(result.error)throw result.error;
   const rows=result.data||[];
+  const marked=await client.from("direct_messages").update({read_at:new Date().toISOString()}).eq("recipient_id",viewer.id).eq("sender_id",peerId).is("read_at",null);
+  if(marked.error)throw marked.error;
   const newest=rows[rows.length-1]?.id||"";
   if(!silent||newest!==lastMessageId)renderMessages(rows);
  }catch(error){if(!silent)showNotice("Не удалось загрузить сообщения: "+error.message,true);}
