@@ -84,6 +84,22 @@ h1{font-size:clamp(25px,5vw,36px);margin:12px 0 8px}
   .logout{padding:8px 10px}
 }
 
+
+.post-social-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px;padding-top:11px;border-top:1px solid #342943}
+.post-social-button{min-height:36px;padding:7px 13px;border:1px solid #49385e;border-radius:11px;background:#171321;color:#d9c9f0;font-size:13px}
+.post-social-button.is-active{border-color:#a66bff;background:#38204e;color:#fff;box-shadow:0 0 12px #9d5bff22}
+.post-comments-panel{margin-top:10px;padding:12px;border:1px solid #3c2d50;border-radius:13px;background:#0e0c16}
+.post-comments-panel[hidden]{display:none}
+.post-comments-list{display:flex;flex-direction:column;gap:8px;max-height:280px;overflow:auto}
+.post-comment{padding:9px 10px;border:1px solid #302640;border-radius:10px;background:#171321;color:#e9e1f5;font-size:13px;overflow-wrap:anywhere}
+.post-comment strong{display:block;margin-bottom:5px;color:#d7baff}
+.post-comment time{display:block;margin-top:5px;color:#8f879d;font-size:10px}
+.post-comment-form{display:grid;grid-template-columns:1fr auto;align-items:end;gap:8px;margin-top:10px}
+.post-comment-form textarea{min-height:40px;max-height:110px;margin:0;padding:10px;border:1px solid #403653;border-radius:10px;background:#090811;color:#fff;font:inherit;resize:vertical}
+.post-comment-form button{padding:9px 12px;border-radius:10px;font-size:12px}
+.post-comment-note{margin-top:7px;color:#bda1ff;font-size:11px;overflow-wrap:anywhere}
+@media(max-width:380px){.post-social-actions{gap:6px}.post-social-button{padding:7px 10px;font-size:12px}.post-comment-form{grid-template-columns:1fr}.post-comment-form button{justify-self:end}}
+
 </style>
 </head>
 <body>
@@ -187,6 +203,8 @@ async function initFeed(client){
   const errorBox=document.getElementById("feed-error");
   const more=document.getElementById("feed-more");
   const sentinel=document.getElementById("feed-sentinel");
+  const auth=await client.auth.getUser();
+  const userId=auth.data.user?.id;
   const seen=new Set();
   let offset=0, pendingBatch=null, loadingMore=false, finished=false;
   const batchSize=5;
@@ -213,6 +231,78 @@ async function initFeed(client){
     if(!value)return "";
     try{const url=new URL(value,location.href);return ["http:","https:"].includes(url.protocol)?url.href:"";}catch(_){return "";}
   }
+
+ function attachPostActions(post,card){
+  const bar=document.createElement("div");bar.className="post-social-actions";
+  const like=document.createElement("button");like.type="button";like.className="post-social-button";like.textContent="♡ 0";
+  const commentToggle=document.createElement("button");commentToggle.type="button";commentToggle.className="post-social-button";commentToggle.textContent="💬 0";
+  const repost=document.createElement("button");repost.type="button";repost.className="post-social-button";repost.textContent="↻ 0";
+  const panel=document.createElement("section");panel.className="post-comments-panel";panel.hidden=true;
+  const list=document.createElement("div");list.className="post-comments-list";
+  const form=document.createElement("form");form.className="post-comment-form";
+  const input=document.createElement("textarea");input.maxLength=2000;input.rows=2;input.placeholder="Написать комментарий…";
+  const send=document.createElement("button");send.type="submit";send.className="primary";send.textContent="Отправить";
+  const note=document.createElement("div");note.className="post-comment-note";
+  form.append(input,send);panel.append(list,form,note);bar.append(like,commentToggle,repost);card.append(bar,panel);
+  let liked=false,reposted=false,likesCount=0,commentsCount=0,repostsCount=0;
+  async function refreshCounts(){
+   const [likes,ownLike,comments,reposts,ownRepost]=await Promise.all([
+    client.from("likes").select("id",{count:"exact",head:true}).eq("post_id",post.id),
+    client.from("likes").select("id").eq("post_id",post.id).eq("user_id",userId).maybeSingle(),
+    client.from("comments").select("id",{count:"exact",head:true}).eq("post_id",post.id),
+    client.from("reposts").select("id",{count:"exact",head:true}).eq("post_id",post.id),
+    client.from("reposts").select("id").eq("post_id",post.id).eq("user_id",userId).maybeSingle()
+   ]);
+   if(likes.error||comments.error||reposts.error){note.textContent="Не удалось загрузить счётчики взаимодействий.";return;}
+   likesCount=likes.count||0;commentsCount=comments.count||0;repostsCount=reposts.count||0;
+   liked=!!ownLike.data;reposted=!!ownRepost.data;
+   like.textContent=(liked?"♥ ":"♡ ")+likesCount;like.classList.toggle("is-active",liked);
+   commentToggle.textContent="💬 "+commentsCount;
+   repost.textContent=(reposted?"✓ ":"↻ ")+repostsCount;repost.classList.toggle("is-active",reposted);
+  }
+  like.addEventListener("click",async()=>{
+   like.disabled=true;note.textContent="";
+   const result=liked
+    ?await client.from("likes").delete().eq("post_id",post.id).eq("user_id",userId)
+    :await client.from("likes").insert({post_id:post.id,user_id:userId});
+   if(result.error)note.textContent="Не удалось изменить лайк: "+result.error.message;
+   await refreshCounts();like.disabled=false;
+  });
+  repost.addEventListener("click",async()=>{
+   repost.disabled=true;note.textContent="";
+   const result=reposted
+    ?await client.from("reposts").delete().eq("post_id",post.id).eq("user_id",userId)
+    :await client.from("reposts").insert({post_id:post.id,user_id:userId});
+   if(result.error)note.textContent="Не удалось изменить репост: "+result.error.message;
+   await refreshCounts();repost.disabled=false;
+  });
+  async function loadComments(){
+   list.replaceChildren();const loading=document.createElement("div");loading.className="post-comment-note";loading.textContent="Загружаем комментарии…";list.append(loading);
+   const result=await client.from("comments").select("id,user_id,content,created_at").eq("post_id",post.id).order("created_at",{ascending:true}).limit(100);
+   if(result.error){loading.textContent="Не удалось загрузить комментарии: "+result.error.message;return;}
+   list.replaceChildren();
+   const ids=[...new Set((result.data||[]).map(x=>x.user_id).filter(Boolean))];let profiles={};
+   if(ids.length){const p=await client.from("profiles").select("id,username,display_name").in("id",ids);if(!p.error)for(const item of p.data||[])profiles[item.id]=item;}
+   if(!result.data?.length){const empty=document.createElement("div");empty.className="post-comment-note";empty.textContent="Пока нет комментариев. Будь первым!";list.append(empty);return;}
+   for(const item of result.data){
+    const row=document.createElement("article");row.className="post-comment";
+    const author=document.createElement("strong");const p=profiles[item.user_id]||{};author.textContent=p.display_name||p.username||"Пользователь";
+    const body=document.createElement("div");body.textContent=item.content;
+    const time=document.createElement("time");time.textContent=new Date(item.created_at).toLocaleString("ru-RU",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
+    row.append(author,body,time);list.append(row);
+   }
+  }
+  commentToggle.addEventListener("click",async()=>{panel.hidden=!panel.hidden;if(!panel.hidden){await loadComments();input.focus();}});
+  form.addEventListener("submit",async event=>{
+   event.preventDefault();const content=input.value.trim();if(!content)return;
+   send.disabled=true;note.textContent="Отправляем…";
+   const result=await client.from("comments").insert({post_id:post.id,user_id:userId,content});
+   if(result.error){note.textContent="Не удалось отправить комментарий: "+result.error.message;send.disabled=false;return;}
+   input.value="";note.textContent="Комментарий добавлен.";await loadComments();await refreshCounts();send.disabled=false;
+  });
+  refreshCounts();
+ }
+
   function makePost(post,profilesById){
     const profile=profilesById[post.user_id]||{};
     const author=profile.name||profile.display_name||profile.full_name||profile.username||"Пользователь";
@@ -229,6 +319,7 @@ async function initFeed(client){
     if(post.content){const content=document.createElement("div");content.className="post-content";content.textContent=post.content;card.appendChild(content);}
     const imageUrl=safeImageUrl(post.image_url);
     if(imageUrl){const image=document.createElement("img");image.className="post-image";image.src=imageUrl;image.alt="Фото публикации";image.loading="lazy";image.decoding="async";card.appendChild(image);}
+    if(userId)attachPostActions(post,card);
     return card;
   }
   function appendBatch(batch){
