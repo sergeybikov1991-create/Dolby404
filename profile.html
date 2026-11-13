@@ -559,6 +559,37 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 .video-album-panel .album-head-centered{grid-template-columns:auto minmax(0,1fr) auto!important}
 .video-album-panel .album-head-centered h2{grid-column:2;grid-row:1;text-align:center}
 .video-album-panel .album-head-centered .album-head-close{grid-column:3!important;grid-row:1!important}
+
+/* FLOUSTREAM search and discovery */
+.discovery-backdrop{position:fixed;inset:0;z-index:160;display:grid;place-items:center;padding:14px;background:#05030bf2;backdrop-filter:blur(10px)}
+.discovery-backdrop[hidden]{display:none}
+.discovery-panel{width:min(100%,680px);max-height:min(92dvh,850px);display:flex;flex-direction:column;overflow:hidden;border:1px solid #76519d;border-radius:20px;background:linear-gradient(155deg,#1c1729,#0d0c15);box-shadow:0 18px 70px #000b}
+.discovery-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:17px 18px;border-bottom:1px solid #382d49}
+.discovery-head h2{margin:0;font-size:19px;color:#f2e9ff}
+.discovery-close{width:36px;height:36px;padding:0;border:1px solid #49375f;border-radius:10px;background:#21172f;color:#eee;font-size:22px}
+.discovery-searchbar{display:flex;gap:8px;padding:14px 16px 10px}
+.discovery-searchbar input{flex:1;min-width:0;margin:0;min-height:44px;padding:10px 13px;border:1px solid #514264;border-radius:11px;background:#100e19;color:#fff;font-size:14px}
+.discovery-searchbar button{min-height:44px;padding:9px 15px;border-radius:11px}
+.discovery-tabs{display:flex;gap:7px;overflow-x:auto;padding:0 16px 12px;scrollbar-width:none}
+.discovery-tabs::-webkit-scrollbar{display:none}
+.discovery-tab{flex:0 0 auto;min-height:34px;padding:7px 12px;border:1px solid #423352;border-radius:10px;background:#14101d;color:#bdb0d0;font-size:12px}
+.discovery-tab[aria-pressed="true"]{border-color:#9b69d8;background:#38204f;color:#fff}
+.discovery-results{overflow:auto;overscroll-behavior:contain;padding:0 16px 18px}
+.discovery-status{padding:18px 8px;text-align:center;color:#a99bb9;font-size:13px;line-height:1.5}
+.discovery-result{display:flex;align-items:center;gap:11px;margin:0 0 9px;padding:11px;border:1px solid #382d49;border-radius:13px;background:#12101b}
+.discovery-avatar{width:42px;height:42px;flex:0 0 42px;display:grid;place-items:center;overflow:hidden;border-radius:50%;background:#39234f;color:#f2e8ff;font-weight:700}
+.discovery-avatar img{width:100%;height:100%;object-fit:cover}
+.discovery-copy{min-width:0;flex:1}
+.discovery-title{display:block;color:#f2eaff;font-size:13px;font-weight:700;overflow-wrap:anywhere}
+.discovery-subtitle{display:block;margin-top:4px;color:#a99bb9;font-size:11px;line-height:1.45;overflow-wrap:anywhere}
+.discovery-follow{flex:0 0 auto;min-height:34px;padding:7px 10px;border-radius:10px;font-size:11px}
+.discovery-section-title{margin:14px 2px 9px;color:#cdb8e9;font-size:13px;font-weight:700}
+.discovery-post{display:block;margin-bottom:9px;padding:12px;border:1px solid #382d49;border-radius:13px;background:#12101b}
+.discovery-post p{margin:0;color:#e9e2f2;font-size:13px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
+.discovery-post small{display:block;margin-top:8px;color:#9f91b0;font-size:11px}
+.discovery-empty{padding:22px 10px;text-align:center;color:#a99bb9;font-size:13px;line-height:1.5}
+@media(max-width:520px){.discovery-backdrop{padding:0;align-items:end}.discovery-panel{width:100%;max-height:94dvh;border-radius:20px 20px 0 0;border-bottom:0}.discovery-head{padding-top:max(16px,env(safe-area-inset-top))}}
+
 </style>
 <style>
 .privacy-option{display:flex;align-items:center;gap:11px;padding:11px 12px;margin:8px 0;border:1px solid #403653;border-radius:11px;background:#100e18;color:#eee5ff;font-size:13px}
@@ -2623,5 +2654,91 @@ start();
  }));
 })();
 </script>
+
+<div class="discovery-backdrop" id="discovery-backdrop" hidden>
+ <section class="discovery-panel" role="dialog" aria-modal="true" aria-labelledby="discovery-title">
+  <header class="discovery-head"><h2 id="discovery-title">Поиск FLOUSTREAM</h2><button type="button" class="discovery-close" id="discovery-close" aria-label="Закрыть">×</button></header>
+  <div id="discovery-search-view">
+   <form class="discovery-searchbar" id="discovery-search-form"><input id="discovery-query" type="search" placeholder="Люди, публикации, музыка, видео…" autocomplete="off" maxlength="100"><button class="primary" type="submit">Найти</button></form>
+   <nav class="discovery-tabs" id="discovery-tabs" aria-label="Категории поиска">
+    <button type="button" class="discovery-tab" data-category="all" aria-pressed="true">Всё</button>
+    <button type="button" class="discovery-tab" data-category="people" aria-pressed="false">Люди</button>
+    <button type="button" class="discovery-tab" data-category="posts" aria-pressed="false">Публикации</button>
+    <button type="button" class="discovery-tab" data-category="music" aria-pressed="false">Музыка</button>
+    <button type="button" class="discovery-tab" data-category="video" aria-pressed="false">Видео</button>
+   </nav>
+   <div class="discovery-results" id="discovery-results"><div class="discovery-empty">Введи запрос, чтобы найти людей и открытый контент FLOUSTREAM.</div></div>
+  </div>
+  <div id="discovery-recommendations-view" hidden><div class="discovery-results" id="discovery-recommendations-results"><div class="discovery-status">Подбираем рекомендации…</div></div></div>
+ </section>
+</div>
+
+
+<script>
+(()=> {
+ const $id=id=>document.getElementById(id);
+ const backdrop=$id("discovery-backdrop"),title=$id("discovery-title");
+ const searchView=$id("discovery-search-view"),recommendView=$id("discovery-recommendations-view");
+ const queryInput=$id("discovery-query"),results=$id("discovery-results");
+ const recommendationResults=$id("discovery-recommendations-results");
+ let category="all",busy=false,lastQuery="";
+ const safeText=value=>String(value??"").trim();
+ function status(host,message){host.replaceChildren();const node=document.createElement("div");node.className="discovery-status";node.textContent=message;host.append(node);}
+ function avatarNode(url,name){const box=document.createElement("div");box.className="discovery-avatar";if(url){const img=document.createElement("img");img.src=url;img.alt="";img.loading="lazy";img.onerror=()=>{box.textContent=(name[0]||"◉").toUpperCase();};box.append(img);}else box.textContent=(name[0]||"◉").toUpperCase();return box;}
+ function resultRow(host,{name,sub,avatar,action,buttonText,buttonLabel}){const row=document.createElement("article");row.className="discovery-result";row.append(avatarNode(avatar,name));const copy=document.createElement("div");copy.className="discovery-copy";const titleNode=document.createElement("strong");titleNode.className="discovery-title";titleNode.textContent=name;const subtitle=document.createElement("span");subtitle.className="discovery-subtitle";subtitle.textContent=sub||"";copy.append(titleNode,subtitle);row.append(copy);if(action){const button=document.createElement("button");button.type="button";button.className="discovery-follow";button.textContent=buttonText||"Открыть";button.setAttribute("aria-label",buttonLabel||buttonText||"Действие");button.addEventListener("click",action);row.append(button);}host.append(row);return row;}
+ function postCard(host,post,author){const card=document.createElement("article");card.className="discovery-post";const body=document.createElement("p");body.textContent=post.content||"Публикация с медиафайлом";const meta=document.createElement("small");const date=post.created_at?new Date(post.created_at).toLocaleString("ru-RU",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}):"";meta.textContent=(author||"Пользователь")+(date?" · "+date:"");card.append(body,meta);host.append(card);}
+ function openDiscovery(mode){if(!client||!user)return;$id("drawer-search-options").hidden=false;$id("drawer-search-toggle").setAttribute("aria-expanded","true");backdrop.hidden=false;const isRec=mode==="recommendations";searchView.hidden=isRec;recommendView.hidden=!isRec;title.textContent=isRec?"Рекомендации":"Поиск FLOUSTREAM";if(isRec)loadRecommendations();else{queryInput.focus();if(queryInput.value.trim())runSearch();}}
+ function closeDiscovery(){backdrop.hidden=true;}
+ $id("discovery-close").addEventListener("click",closeDiscovery);
+ backdrop.addEventListener("click",event=>{if(event.target===backdrop)closeDiscovery();});
+ document.addEventListener("keydown",event=>{if(event.key==="Escape"&&!backdrop.hidden)closeDiscovery();});
+ $id("discovery-search-form").addEventListener("submit",event=>{event.preventDefault();runSearch();});
+ $id("discovery-tabs").querySelectorAll("[data-category]").forEach(button=>button.addEventListener("click",()=>{category=button.dataset.category;$id("discovery-tabs").querySelectorAll("[data-category]").forEach(item=>item.setAttribute("aria-pressed",String(item===button)));if(queryInput.value.trim())runSearch();}));
+ $id("drawer-search-options").querySelectorAll("[data-drawer-search-action]").forEach(button=>button.addEventListener("click",()=>openDiscovery(button.dataset.drawerSearchAction)));
+ async function runSearch(){
+  const term=queryInput.value.trim();if(!term){status(results,"Введи слово или фразу для поиска.");return;}if(busy)return;busy=true;lastQuery=term;status(results,"Ищем…");
+  const pattern="%"+term.replace(/[\\%_]/g,"\\</body>")+"%";
+  try{
+   const tasks=[];
+   if(category==="all"||category==="people"){
+    tasks.push(client.from("profiles").select("id,username,display_name,bio,avatar_url").ilike("username",pattern).limit(12).then(r=>({type:"people",...r})));
+    tasks.push(client.from("profiles").select("id,username,display_name,bio,avatar_url").ilike("display_name",pattern).limit(12).then(r=>({type:"people",...r})));
+   }
+   if(category==="all"||category==="posts")tasks.push(client.from("posts").select("id,user_id,content,created_at").ilike("content",pattern).order("created_at",{ascending:false}).limit(20).then(r=>({type:"posts",...r})));
+   if(category==="all"||category==="music")tasks.push(client.from("music_tracks").select("id,owner_id,title,created_at").eq("visibility","public").ilike("title",pattern).order("created_at",{ascending:false}).limit(12).then(r=>({type:"music",...r})));
+   if(category==="all"||category==="video")tasks.push(client.from("video_album_videos").select("id,owner_id,file_name,created_at").ilike("file_name",pattern).order("created_at",{ascending:false}).limit(12).then(r=>({type:"video",...r})));
+   const settled=await Promise.all(tasks);const errors=settled.filter(r=>r.error);if(errors.length)throw errors[0].error;
+   const users=new Map();settled.filter(r=>r.type==="people").forEach(r=>(r.data||[]).forEach(p=>users.set(p.id,p)));
+   const ownerIds=[...new Set(settled.filter(r=>r.type!=="people").flatMap(r=>(r.data||[]).map(x=>x.user_id||x.owner_id)).filter(Boolean))];
+   if(ownerIds.length){const owners=await client.from("profiles").select("id,username,display_name,avatar_url").in("id",ownerIds);if(owners.error)throw owners.error;(owners.data||[]).forEach(p=>users.set(p.id,p));}
+   results.replaceChildren();let count=0;
+   const showPeople=category==="all"||category==="people";
+   if(showPeople){const people=[...users.values()].filter(p=>settled.filter(r=>r.type==="people").some(r=>(r.data||[]).some(x=>x.id===p.id)));if(people.length){const h=document.createElement("h3");h.className="discovery-section-title";h.textContent="Люди";results.append(h);people.forEach(p=>{const name=p.display_name||p.username||"Пользователь";resultRow(results,{name,sub:(p.username?"@"+p.username+" · ":"")+(p.bio||"Профиль FLOUSTREAM"),avatar:p.avatar_url,buttonText:"Профиль",action:()=>showProfilePreview(p)});count++;});}}
+   for(const type of ["posts","music","video"]){if(category!=="all"&&category!==type)continue;const group=settled.find(r=>r.type===type);if(!group?.data?.length)continue;const h=document.createElement("h3");h.className="discovery-section-title";h.textContent=type==="posts"?"Публикации":type==="music"?"Музыка":"Видео";results.append(h);group.data.forEach(item=>{const owner=users.get(item.user_id||item.owner_id);const author=owner?.display_name||owner?.username||"Пользователь";if(type==="posts"){postCard(results,item,author);}else{resultRow(results,{name:item.title||item.file_name||"Без названия",sub:(type==="music"?"Музыкальный трек":"Видео")+" · "+author,avatar:owner?.avatar_url});}count++;});}
+   if(!count)status(results,"Ничего не найдено. Попробуй другой запрос.");
+  }catch(error){status(results,"Не удалось выполнить поиск: "+error.message);}finally{busy=false;}
+ }
+ function showProfilePreview(profile){const name=profile.display_name||profile.username||"Пользователь";status(results,"");const card=document.createElement("article");card.className="discovery-result";card.append(avatarNode(profile.avatar_url,name));const copy=document.createElement("div");copy.className="discovery-copy";const h=document.createElement("strong");h.className="discovery-title";h.textContent=name;const p=document.createElement("span");p.className="discovery-subtitle";p.textContent=(profile.username?"@"+profile.username+" · ":"")+(profile.bio||"Профиль FLOUSTREAM");copy.append(h,p);card.append(copy);const back=document.createElement("button");back.type="button";back.className="discovery-follow";back.textContent="Назад";back.addEventListener("click",()=>{queryInput.value=lastQuery;runSearch();});card.append(back);results.prepend(card);}
+ async function loadRecommendations(){
+  if(!client||!user)return;status(recommendationResults,"Подбираем людей на основе открытой активности…");
+  try{
+   const [follows,posts]=await Promise.all([client.from("follows").select("following_id").eq("follower_id",user.id),client.from("posts").select("user_id,created_at").order("created_at",{ascending:false}).limit(100)]);
+   if(follows.error)throw follows.error;if(posts.error)throw posts.error;
+   const excluded=new Set([user.id,...(follows.data||[]).map(x=>x.following_id)]);
+   const scores=new Map();(posts.data||[]).forEach(post=>{if(!excluded.has(post.user_id))scores.set(post.user_id,(scores.get(post.user_id)||0)+1);});
+   let ids=[...scores.entries()].sort((a,b)=>b[1]-a[1]).slice(0,15).map(x=>x[0]);
+   if(!ids.length){const recent=await client.from("profiles").select("id").neq("id",user.id).order("created_at",{ascending:false}).limit(12);if(recent.error)throw recent.error;ids=(recent.data||[]).map(x=>x.id).filter(id=>!excluded.has(id));}
+   recommendationResults.replaceChildren();const heading=document.createElement("h3");heading.className="discovery-section-title";heading.textContent="Люди, за которыми может быть интересно следить";recommendationResults.append(heading);
+   if(!ids.length){const e=document.createElement("div");e.className="discovery-empty";e.textContent="Пока мало открытой активности для рекомендаций. Загляни сюда чуть позже.";recommendationResults.append(e);return;}
+   const profiles=await client.from("profiles").select("id,username,display_name,bio,avatar_url").in("id",ids);if(profiles.error)throw profiles.error;
+   const byId=new Map((profiles.data||[]).map(p=>[p.id,p]));
+   ids.forEach(id=>{const p=byId.get(id);if(!p)return;const name=p.display_name||p.username||"Пользователь";resultRow(recommendationResults,{name,sub:(p.username?"@"+p.username+" · ":"")+(p.bio||"Активный участник FLOUSTREAM"),avatar:p.avatar_url,buttonText:"Подписаться",action:async event=>{}});const row=recommendationResults.lastElementChild,button=row.querySelector("button");button.addEventListener("click",async()=>{button.disabled=true;try{const existing=await client.from("follows").select("id").eq("follower_id",user.id).eq("following_id",id).maybeSingle();if(existing.error)throw existing.error;if(!existing.data){const added=await client.from("follows").insert({follower_id:user.id,following_id:id});if(added.error)throw added.error;}button.textContent="Вы подписаны";}catch(error){button.textContent="Повторить";button.disabled=false;button.title=error.message;}});});
+   if(!recommendationResults.querySelector(".discovery-result")){const e=document.createElement("div");e.className="discovery-empty";e.textContent="Пока нет подходящих рекомендаций.";recommendationResults.append(e);}
+  }catch(error){status(recommendationResults,"Не удалось загрузить рекомендации: "+error.message);}
+ }
+ window.openFloustreamDiscovery=openDiscovery;
+})();
+</script>
+
 </body>
 </html>
