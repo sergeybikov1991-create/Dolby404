@@ -507,7 +507,9 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 /* FLOUSTREAM PULSE online status */
 .dolby-online-indicator{position:relative;display:inline-block;vertical-align:middle;width:8px;height:8px;flex:0 0 8px;margin-left:8px;border-radius:50%;background:#716b7b;box-shadow:0 0 0 1px #a69bb8;transition:background .2s ease,box-shadow .2s ease}
 .dolby-online-indicator.is-online{background:#69ffd1;box-shadow:0 0 0 1px #b7ffe9,0 0 8px #4effc5,0 0 15px #936bff;animation:dolbyPulseCore 1.8s ease-in-out infinite}
-.dolby-online-indicator[hidden],.dolby-online-last-seen[hidden]{display:none!important}\n.dolby-online-last-seen{display:inline-block;vertical-align:middle;margin-left:8px;color:#a99bbd;font-size:11px;font-weight:400;letter-spacing:0}\n.dolby-online-indicator.is-online::after{content:"";position:absolute;inset:-5px;border:1px solid #a66bff;border-radius:50%;opacity:0;animation:dolbyPulseRing 1.8s ease-out infinite}
+.dolby-online-indicator[hidden],.dolby-online-last-seen[hidden]{display:none!important}
+.dolby-online-last-seen{display:inline-block;vertical-align:middle;margin-left:8px;color:#a99bbd;font-size:11px;font-weight:400;letter-spacing:0}
+.dolby-online-indicator.is-online::after{content:"";position:absolute;inset:-5px;border:1px solid #a66bff;border-radius:50%;opacity:0;animation:dolbyPulseRing 1.8s ease-out infinite}
 @keyframes dolbyPulseCore{0%,100%{filter:brightness(.9)}50%{filter:brightness(1.45)}}
 @keyframes dolbyPulseRing{0%{transform:scale(.55);opacity:.75}85%,100%{transform:scale(1.8);opacity:0}}
 @media(prefers-reduced-motion:reduce){.dolby-online-indicator.is-online,.dolby-online-indicator.is-online::after{animation:none}.dolby-online-indicator.is-online::after{opacity:.35;transform:scale(1.2)}}
