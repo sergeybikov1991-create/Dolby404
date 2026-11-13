@@ -1113,7 +1113,7 @@ $("music-upload-button").addEventListener("click",async()=>{
  if(!file){$("music-status").textContent="Сначала выбери аудиофайл.";return;}
  if(!file.type.startsWith("audio/")){$("music-status").textContent="Нужен аудиофайл.";return;}
  if(file.size>100*1024*1024){$("music-status").textContent="Максимальный размер файла — 100 МБ.";return;}
- const title=(file.name||"").replace(/\\.[^.]+$/,"").trim()||"Аудиозапись";
+ const title=(file.name||"").replace(/\.[^.]+$/,"").trim()||"Аудиозапись";
  const visibility=$("music-track-visibility").value,bucket=visibility==="private"?"music-private":"music-public";
  const ext=(file.name.split(".").pop()||"audio").replace(/[^a-z0-9]/gi,"").toLowerCase()||"audio";
  const path=user.id+"/"+crypto.randomUUID()+"."+ext,button=$("music-upload-button");button.disabled=true;
