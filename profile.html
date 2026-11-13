@@ -519,8 +519,7 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 .video-album-backdrop[hidden],.private-video-backdrop[hidden],.video-album-viewer[hidden],.private-video-viewer[hidden]{display:none}
 .video-album-panel,.private-video-panel{width:min(100%,620px);max-height:92vh;overflow:auto;padding:20px;border:1px solid #76519d;border-radius:19px;background:linear-gradient(155deg,#1c1729,#0d0c15);box-shadow:0 0 38px #8d50e733}
 .video-album-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:2px;margin-top:12px}
-.video-album-item{position:relative;display:block;aspect-ratio:1;min-width:0;padding:0!important;border:0!important;border-radius:3px!important;overflow:hidden;background:#100e19;cursor:pointer}
-.video-album-item video{width:100%;height:100%;display:block;object-fit:cover;background:#09070f;pointer-events:none}
+.video-album-item{position:relative;display:block;aspect-ratio:1;min-width:0;padding:0!important;border:0!important;border-radius:3px!important;overflow:hidden;background:linear-gradient(145deg,#21172f,#0b0912);cursor:pointer}
 .video-album-playmark{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:#09070dbb;border:1px solid #ffffff77;color:white;font-size:17px;pointer-events:none}
 .video-album-empty{grid-column:1/-1;padding:24px 8px;text-align:center;color:#9589a6;font-size:13px}
 .video-album-upload{display:grid;gap:12px;margin-top:8px;padding:14px;border:1px solid #49375f;border-radius:14px;background:#120f1c}
@@ -540,7 +539,7 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 .video-viewer-thumbs::-webkit-scrollbar{display:none}
 .video-viewer-thumb{flex:0 0 62px;width:62px;height:62px;padding:0!important;border:2px solid #ffffff55!important;border-radius:8px!important;overflow:hidden;background:#171321;opacity:.78}
 .video-viewer-thumb.active{border-color:#d5aaff!important;opacity:1;box-shadow:0 0 0 2px #a66bff66}
-.video-viewer-thumb video{width:100%;height:100%;object-fit:cover;pointer-events:none}
+.video-viewer-thumb-mark{display:grid;place-items:center;width:100%;height:100%;color:#d9c4f5;font-size:15px;font-weight:700;background:linear-gradient(145deg,#2a1d3b,#100d18)}
 @media(max-width:700px){.video-album-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.video-album-viewer,.private-video-viewer{padding:10px 8px max(10px,env(safe-area-inset-bottom));gap:8px}.video-viewer-stage{gap:4px}.video-viewer-stage .video-viewer-nav{width:36px!important;min-width:36px!important;height:42px!important;min-height:42px!important}.video-viewer-stage video{width:calc(100% - 80px)}}
 @media(max-width:420px){.video-album-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 
@@ -1053,8 +1052,8 @@ async function loadVideoAlbum(){
   if(!videoAlbumItems.length){const empty=document.createElement("div");empty.className="album-empty";empty.textContent="Не удалось получить ссылки на видео. Попробуй обновить альбом.";grid.append(empty);return;}
   videoAlbumItems.forEach((item,index)=>{
    const tile=document.createElement("button");tile.type="button";tile.className="video-album-item";tile.setAttribute("aria-label","Открыть видео: "+(item.file_name||"видео"));
-   const preview=document.createElement("video");preview.muted=true;preview.playsInline=true;preview.preload="metadata";preview.src=item.url;preview.setAttribute("aria-hidden","true");
-   const play=document.createElement("span");play.className="video-album-play";play.textContent="▶";tile.append(preview,play);
+   const preview=document.createElement("span");preview.className="video-album-playmark";preview.textContent="▶";preview.setAttribute("aria-hidden","true");
+   tile.append(preview);
    tile.addEventListener("click",()=>showVideoAlbumItem(index,false,true));grid.append(tile);
   });
   videoAlbumMessage("video-album-status","");
@@ -1076,8 +1075,8 @@ async function loadPrivateVideoAlbum(){
   if(!privateVideoItems.length){const empty=document.createElement("div");empty.className="album-empty";empty.textContent="Не удалось получить ссылки на приватные видео.";grid.append(empty);return;}
   privateVideoItems.forEach((item,index)=>{
    const tile=document.createElement("button");tile.type="button";tile.className="video-album-item";tile.setAttribute("aria-label","Открыть приватное видео");
-   const preview=document.createElement("video");preview.muted=true;preview.playsInline=true;preview.preload="metadata";preview.src=item.url;preview.setAttribute("aria-hidden","true");
-   const play=document.createElement("span");play.className="video-album-play";play.textContent="▶";tile.append(preview,play);
+   const preview=document.createElement("span");preview.className="video-album-playmark";preview.textContent="▶";preview.setAttribute("aria-hidden","true");
+   tile.append(preview);
    tile.addEventListener("click",()=>showVideoAlbumItem(index,true,true));grid.append(tile);
   });
   videoAlbumMessage("private-video-status","");
@@ -1093,7 +1092,7 @@ function renderVideoThumbs(isPrivate){
  const host=$(isPrivate?"private-video-viewer-thumbs":"video-album-viewer-thumbs");host.replaceChildren();
  items.forEach((item,index)=>{
   const thumb=document.createElement("button");thumb.type="button";thumb.className="video-viewer-thumb"+(index===current?" active":"");thumb.setAttribute("aria-label","Видео "+(index+1));
-  const video=document.createElement("video");video.muted=true;video.playsInline=true;video.preload="metadata";video.src=item.url;thumb.append(video);
+  const mark=document.createElement("span");mark.className="video-viewer-thumb-mark";mark.textContent=String(index+1);thumb.append(mark);
   thumb.addEventListener("click",()=>showVideoAlbumItem(index,isPrivate));host.append(thumb);
  });
 }
