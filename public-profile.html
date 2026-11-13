@@ -187,6 +187,16 @@ body{background:radial-gradient(ellipse at 15% 0%,#281342 0,transparent 38%),#09
   flex:0 0 96px!important;
  }
 }
+
+/* FLOUSTREAM contact CTA — variant 3 */
+.contact-cta{display:flex;align-items:center;gap:13px;width:calc(100% - 44px);max-width:650px;min-height:62px;margin:0 22px 22px;padding:12px 16px;border:1px solid #9a69c7;border-radius:16px;background:linear-gradient(110deg,#7139c9 0%,#48216f 58%,#24152f 100%);color:#fff;text-decoration:none;box-shadow:0 8px 24px #54218a55,0 0 18px #a66bff22;transition:transform .16s ease,filter .16s ease,border-color .16s ease}
+.contact-cta:active{transform:scale(.99);filter:brightness(1.12)}
+.contact-cta-mark{width:36px;height:36px;flex:0 0 36px;display:grid;place-items:center;border:1px solid #ffffff55;border-radius:11px;background:#ffffff18;color:#fff}
+.contact-cta-copy{display:grid;gap:3px;min-width:0;flex:1}
+.contact-cta-title{font-size:14px;font-weight:800;letter-spacing:.01em}
+.contact-cta-subtitle{font-size:11px;color:#eadcff}
+.contact-cta-arrow{font-size:23px;line-height:1;color:#f5eaff}
+@media(max-width:600px){.contact-cta{width:calc(100% - 28px);margin:0 14px 18px;min-height:58px}}
 </style>
 </head>
 <body>
@@ -206,6 +216,11 @@ body{background:radial-gradient(ellipse at 15% 0%,#281342 0,transparent 38%),#09
  <div class="cover" id="cover"></div>
  <div class="identity"><div class="avatar" id="avatar">◉</div><div class="name"><h1 id="display-name">Загружаем профиль…</h1><p id="username"></p><p class="profile-presence" id="profile-presence" aria-live="polite"></p></div></div>
  <p class="bio" id="bio"></p>
+ <a class="contact-cta" id="contact-cta" href="#" hidden>
+  <span class="contact-cta-mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H5l-1.5 2v-5.2A7.5 7.5 0 1 1 20 11.5Z"/><path d="m14 8 4 0 0 4"/><path d="m18 8-5 5"/></svg></span>
+  <span class="contact-cta-copy"><span class="contact-cta-title">Открыть общение</span><span class="contact-cta-subtitle">Сообщения и звонки</span></span>
+  <span class="contact-cta-arrow" aria-hidden="true">↗</span>
+ </a>
 </section>
 <section class="feed-section"><h2 class="feed-title">Публикации</h2><div class="feed" id="feed"><div class="status" id="status">Загружаем публикации…</div></div></section>
 </main>
@@ -404,7 +419,9 @@ async function start(){
    if(recorded.error)console.warn("FLOUSTREAM visit recording:",recorded.error);
    loadProfileVisitHistory();
   }
-  $("display-name").textContent=target.display_name||target.username||"Пользователь";
+  const contact=$("contact-cta");
+  if(viewer&&viewer.id!==target.id){contact.href="messages.html?with="+encodeURIComponent(target.id);contact.hidden=false;}
+    $("display-name").textContent=target.display_name||target.username||"Пользователь";
   $("username").textContent=target.username?"@"+target.username:"";
   $("bio").textContent=target.bio||"";
   const avatar=safeUrl(target.avatar_url);if(avatar){$("avatar").replaceChildren();const img=document.createElement("img");img.src=avatar;img.alt="Аватар";$("avatar").append(img);$("avatar").classList.add("has-original");$("avatar").setAttribute("role","button");$("avatar").tabIndex=0;$("avatar").setAttribute("aria-label","Открыть оригинал фотографии профиля");}else{$("avatar").textContent=(target.display_name||target.username||"◉").slice(0,1).toUpperCase();$("avatar").classList.remove("has-original");$("avatar").removeAttribute("role");$("avatar").removeAttribute("tabindex");$("avatar").removeAttribute("aria-label");}
