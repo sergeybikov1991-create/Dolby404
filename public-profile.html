@@ -80,9 +80,8 @@ async function start(){
  try{
   await loadLibrary();client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
   const auth=await client.auth.getUser();if(auth.error)throw auth.error;viewer=auth.data.user;
-  if(!viewer){location.replace("portal.html");return;}
   const targetId=new URLSearchParams(location.search).get("id");if(!targetId){showError("Не указан профиль для просмотра.");return;}
-  if(targetId===viewer.id){location.replace("profile.html");return;}
+  if(viewer&&targetId===viewer.id){location.replace("profile.html");return;}
   const profileResult=await client.from("profiles").select("id,username,display_name,bio,avatar_url,cover_url").eq("id",targetId).maybeSingle();
   if(profileResult.error)throw profileResult.error;if(!profileResult.data){showError("Профиль не найден или недоступен.");return;}
   target=profileResult.data;
