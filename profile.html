@@ -267,12 +267,12 @@ textarea{min-height:90px;resize:vertical}
 .album-item small{display:none}
 @media(max-width:700px){.album-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:2px;margin-top:10px}}
 @media(max-width:420px){.album-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:2px}}
-.album-viewer-tools{position:absolute;left:50%;bottom:max(48px,calc(env(safe-area-inset-bottom) + 42px));transform:translateX(-50%);z-index:4;display:flex;gap:12px;align-items:center}
+.album-viewer-tools{position:absolute;top:14px;right:68px;left:auto;bottom:auto;transform:none;z-index:6;display:flex;gap:8px;align-items:center}
 .album-viewer-tools button{width:48px;height:48px;padding:0;border-radius:50%;font-size:23px;display:grid;place-items:center;background:#21172eea;border:1px solid #a66bff88;box-shadow:0 5px 22px #0009}
 .album-viewer-tools button.danger{border-color:#ff718b99;background:#401b2bea;color:#ffe2e8}
 #album-viewer-share{position:relative;isolation:isolate;overflow:visible;border:1px solid #d9b5ff;background:linear-gradient(145deg,#d7a8ff 0%,#9252e8 42%,#4a2a91 100%);color:#fff;box-shadow:0 0 0 1px #a66bff55,0 0 18px #a66bff99,0 7px 24px #000b;transition:transform .18s ease,box-shadow .18s ease}
 #album-viewer-share::before{content:"";position:absolute;inset:-5px;border-radius:50%;z-index:-1;background:radial-gradient(circle,#b77aff55 0%,transparent 70%);filter:blur(4px)}
-#album-viewer-share{min-width:68px;width:auto;padding:0 13px;border-radius:999px;font-size:12px;font-weight:900;letter-spacing:1.5px;text-shadow:0 1px 3px #3c176e99}
+#album-viewer-share{width:44px;min-width:44px;padding:0;border-radius:14px;font-size:12px;font-weight:900;letter-spacing:.3px;text-transform:none;text-shadow:0 1px 3px #3c176e99}
 #album-viewer-share:active{transform:scale(.92);box-shadow:0 0 0 2px #d9b5ff66,0 0 24px #b77affcc,0 5px 16px #000b}
 @media(hover:hover){#album-viewer-share:hover{transform:translateY(-2px);box-shadow:0 0 0 1px #e6cfff,0 0 25px #b77affcc,0 9px 26px #000b}}
 .album-viewer-tools button:active{transform:scale(.94)}
@@ -575,6 +575,33 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 
 .album-share-friends .album-empty{grid-column:1/-1}
 @media(max-width:600px){.album-viewer-nav{width:36px;height:46px;font-size:31px}.album-viewer-prev{left:5px}.album-viewer-next{right:5px}}
+
+/* Единый размер интерактивных кнопок сайта */
+button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
+ box-sizing:border-box!important;
+ width:auto;
+ min-width:44px!important;
+ height:44px!important;
+ min-height:44px!important;
+ padding-top:0!important;
+ padding-bottom:0!important;
+}
+.album-viewer-close,.album-viewer-nav,.album-viewer-tools button{
+ width:44px!important;
+ min-width:44px!important;
+ height:44px!important;
+ min-height:44px!important;
+ padding:0!important;
+ border-radius:14px!important;
+ display:grid;
+ place-items:center;
+ box-sizing:border-box!important;
+}
+.album-viewer-tools{top:14px!important;right:68px!important;left:auto!important;bottom:auto!important;gap:8px!important;z-index:6!important}
+.album-viewer-tools button{font-size:23px!important}
+#album-viewer-share{font-size:12px!important;font-weight:900!important;letter-spacing:.3px!important;text-transform:none!important}
+.album-viewer-nav{font-size:34px!important}
+.album-viewer-close{font-size:27px!important}
 </style></head>
 <body>
 <button type="button" class="drawer-menu-button" id="drawer-menu-button" aria-label="Открыть меню" aria-controls="side-drawer" aria-expanded="false"><span class="sound-signal" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span></button>
@@ -753,7 +780,7 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
  <img id="album-viewer-image" alt="Фотография в полном размере">
  <button type="button" class="album-viewer-nav album-viewer-next" id="album-viewer-next" aria-label="Следующее фото">›</button>
  <div class="album-viewer-tools" aria-label="Действия с фотографией">
-  <button type="button" id="album-viewer-share" aria-label="Поделиться фото" title="Отправить фото друзьям">FLOW</button>
+  <button type="button" id="album-viewer-share" aria-label="Поделиться фото" title="Отправить фото друзьям">flow</button>
   <button type="button" id="album-viewer-delete" class="danger" aria-label="Удалить фото" title="Удалить фото">⌫</button>
  </div>
  <div class="album-viewer-counter" id="album-viewer-counter"></div>
