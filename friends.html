@@ -38,7 +38,7 @@ button:disabled{opacity:.55;cursor:default}
 <script src="friend-notifications.js"></script>
 <script>
 const SUPABASE_URL="https://qhpobdktlbhdqsnajypr.supabase.co";
-const SUPABASE_KEY="sb_publishable_tzG1qVsbja8WYE_LBVN87Q_v0CahKN5";
+const SUPABASE_KEY="sb_publishable_tzG1qVsbjaW8YE_LBVN87Q_v0CahKN5";
 const $=id=>document.getElementById(id);let client,viewer,refreshing=false;
 function loadLibrary(){return new Promise((resolve,reject)=>{if(window.supabase?.createClient)return resolve();const s=document.createElement("script");s.src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";s.onload=()=>window.supabase?.createClient?resolve():reject(new Error("Supabase не загрузился"));s.onerror=()=>reject(new Error("Нет подключения к Supabase"));document.head.append(s);});}
 function notice(message,error){$("notice").textContent=message||"";$("notice").classList.toggle("error",!!error);}
