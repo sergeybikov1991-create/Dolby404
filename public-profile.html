@@ -199,6 +199,14 @@ body{background:radial-gradient(ellipse at 15% 0%,#281342 0,transparent 38%),#09
 @keyframes contactCtaShine{0%,18%{transform:translateX(-220%) rotate(24deg);opacity:0}28%{opacity:1}66%{transform:translateX(520%) rotate(24deg);opacity:.9}78%,100%{transform:translateX(520%) rotate(24deg);opacity:0}}
 @media(prefers-reduced-motion:reduce){.contact-cta{animation:none}.contact-cta::before{animation:none;opacity:.35;transform:translateX(90%) rotate(24deg)}}
 @media(max-width:600px){.contact-cta{width:calc(100% - 28px);margin:0 14px 18px;min-height:58px}}
+
+.profile-actions{display:flex;gap:10px;width:calc(100% - 44px);max-width:650px;margin:0 22px 12px}
+.profile-actions .contact-cta{width:auto;max-width:none;min-width:0;flex:1;margin:0;padding:12px 10px;min-height:58px;font-size:14px}
+.friend-cta{position:relative;isolation:isolate;display:flex;align-items:center;justify-content:center;gap:7px;flex:1;min-width:0;min-height:58px;padding:12px 10px;overflow:hidden;border:1px solid #9b79d1;border-radius:17px;background:linear-gradient(125deg,#282044,#3b2860 55%,#20294f);box-shadow:inset 0 1px 1px #ffffff30,0 7px 20px #3d236b55,0 0 18px #8d62d733;color:#f4eaff;font-size:14px;font-weight:850;cursor:pointer;transition:transform .18s ease,filter .18s ease}
+.friend-cta span:first-child{font-size:17px;color:#d9b9ff}
+.friend-cta:active{transform:scale(.985);filter:brightness(1.18)}.friend-cta:disabled{opacity:.65;cursor:default}
+.friend-action-status{min-height:16px;margin:-5px 22px 16px;text-align:center;color:#c7a4ed;font-size:11px}
+@media(max-width:440px){.profile-actions{gap:7px}.profile-actions .contact-cta,.friend-cta{font-size:12px;padding:10px 7px;min-height:54px}}
 </style>
 </head>
 <body>
@@ -209,7 +217,7 @@ body{background:radial-gradient(ellipse at 15% 0%,#281342 0,transparent 38%),#09
  <p class="side-drawer-caption">Навигация</p><nav class="side-drawer-links"><a class="side-drawer-link active" href="profile.html"><span class="side-drawer-icon">◉</span>Мой профиль</a></nav>
  <div class="nav-history"><p class="side-drawer-caption">Недавно посещали</p><div class="nav-profile-visits" id="nav-profile-visits"><span class="nav-history-empty">Пока пусто</span></div></div>
  <section class="drawer-search" aria-label="Поиск FLOUSTREAM"><button type="button" class="drawer-search-toggle" id="drawer-search-toggle" aria-expanded="false" aria-controls="drawer-search-options"><span aria-hidden="true">⌕</span> Поиск <span class="drawer-search-chevron" aria-hidden="true">⌄</span></button><div class="drawer-search-options" id="drawer-search-options" hidden><a class="drawer-search-option" href="profile.html"><span>⌕</span>Поиск</a><a class="drawer-search-option" href="profile.html"><span>✧</span>Рекомендации</a></div></section>
- <div class="side-drawer-divider"></div><p class="side-drawer-caption">Медиа и общение</p><nav class="side-drawer-links"><a class="side-drawer-link" href="profile.html"><span class="side-drawer-icon">♧</span>Друзья</a><a class="side-drawer-link" id="messages-nav-link" href="messages.html?v=20261113-2"><span class="side-drawer-icon">✉</span>Сообщения</a><a class="side-drawer-link" href="profile.html"><span class="side-drawer-icon">◎</span>Сообщества</a><a class="side-drawer-link" href="profile.html"><span class="side-drawer-icon">♫</span>Музыка</a><a class="side-drawer-link" href="profile.html"><span class="side-drawer-icon">▶</span>Видео</a><a class="side-drawer-link" href="profile.html"><span class="side-drawer-icon">▧</span>Фото</a><a class="side-drawer-link" href="profile.html"><span class="side-drawer-icon">☆</span>Закладки</a></nav>
+ <div class="side-drawer-divider"></div><p class="side-drawer-caption">Медиа и общение</p><nav class="side-drawer-links"><a class="side-drawer-link" id="friends-nav-link" href="friends.html?v=20261114-1"><span class="side-drawer-icon">♧</span>Друзья</a><a class="side-drawer-link" id="messages-nav-link" href="messages.html?v=20261113-2"><span class="side-drawer-icon">✉</span>Сообщения</a><a class="side-drawer-link" href="profile.html"><span class="side-drawer-icon">◎</span>Сообщества</a><a class="side-drawer-link" href="profile.html"><span class="side-drawer-icon">♫</span>Музыка</a><a class="side-drawer-link" href="profile.html"><span class="side-drawer-icon">▶</span>Видео</a><a class="side-drawer-link" href="profile.html"><span class="side-drawer-icon">▧</span>Фото</a><a class="side-drawer-link" href="profile.html"><span class="side-drawer-icon">☆</span>Закладки</a></nav>
  <div class="drawer-bottom"><button type="button" class="side-drawer-link drawer-settings-button" id="public-open-settings"><span class="side-drawer-icon">⚙</span>Настройки</button><button type="button" class="drawer-logout-button" id="drawer-logout">↪ Выйти</button><div class="side-drawer-foot">FLOUSTREAM · твоя цифровая территория</div></div></div>
 </aside>
 
@@ -218,7 +226,7 @@ body{background:radial-gradient(ellipse at 15% 0%,#281342 0,transparent 38%),#09
  <div class="cover" id="cover"></div>
  <div class="identity"><div class="avatar" id="avatar">◉</div><div class="name"><h1 id="display-name">Загружаем профиль…</h1><p id="username"></p><p class="profile-presence" id="profile-presence" aria-live="polite"></p></div></div>
  <p class="bio" id="bio"></p>
- <a class="contact-cta" id="contact-cta" href="#" hidden><span class="contact-cta-label">Связаться</span></a>
+ <div class="profile-actions" id="profile-actions" hidden><a class="contact-cta" id="contact-cta" href="messages.html"><span class="contact-cta-label">Связаться</span></a><button class="friend-cta" id="friend-cta" type="button"><span aria-hidden="true">♧＋</span><span id="friend-cta-label">В друзья</span></button></div><p class="friend-action-status" id="friend-action-status" aria-live="polite"></p>
 </section>
 <section class="feed-section"><h2 class="feed-title">Публикации</h2><div class="feed" id="feed"><div class="status" id="status">Загружаем публикации…</div></div></section>
 </main>
@@ -227,6 +235,7 @@ body{background:radial-gradient(ellipse at 15% 0%,#281342 0,transparent 38%),#09
  <img id="photo-lightbox-image" alt="Фото во весь экран">
 </div>
 <script src="message-notifications.js"></script>
+<script src="friend-notifications.js"></script>
 <script>
 const SUPABASE_URL="https://qhpobdktlbhdqsnajypr.supabase.co";
 const SUPABASE_KEY="sb_publishable_tzG1qVsbjaW8YE_LBVN87Q_v0CahKN5";
@@ -406,7 +415,7 @@ async function start(){
  try{
   await loadLibrary();client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
   const auth=await client.auth.getUser();if(auth.error)throw auth.error;viewer=auth.data.user;
-  if(viewer)window.initFloustreamMessageNotifications?.(client,viewer.id);
+  if(viewer){window.initFloustreamMessageNotifications?.(client,viewer.id);window.initFloustreamFriendNotifications?.(client,viewer.id);}
   const targetId=new URLSearchParams(location.search).get("id");if(!targetId){showError("Не указан профиль для просмотра.");return;}
   if(viewer&&targetId===viewer.id){location.replace("profile.html");return;}
   const profileResult=await client.from("profiles").select("id,username,display_name,bio,avatar_url,avatar_photo_id,cover_url,last_activity_at,time_zone").eq("id",targetId).maybeSingle();
@@ -419,8 +428,41 @@ async function start(){
    if(recorded.error)console.warn("FLOUSTREAM visit recording:",recorded.error);
    loadProfileVisitHistory();
   }
-  const contact=$("contact-cta");
-  if(viewer&&viewer.id!==target.id){contact.href="messages.html?with="+encodeURIComponent(target.id);contact.hidden=false;}
+  const contact=$("contact-cta"),actions=$("profile-actions"),friendButton=$("friend-cta"),friendLabel=$("friend-cta-label"),friendStatus=$("friend-action-status");
+  if(viewer&&viewer.id!==target.id){
+   contact.href="messages.html?with="+encodeURIComponent(target.id);actions.hidden=false;
+   const low=viewer.id<target.id?viewer.id:target.id,high=viewer.id<target.id?target.id:viewer.id;
+   async function refreshFriendState(){
+    const result=await client.from("friend_requests").select("id,requester_id,recipient_id,status").eq("user_low_id",low).eq("user_high_id",high).maybeSingle();
+    if(result.error)throw result.error;const row=result.data;
+    friendButton.disabled=false;friendButton.onclick=null;friendStatus.textContent="";
+    if(!row){friendLabel.textContent="В друзья";friendButton.onclick=sendFriendRequest;}
+    else if(row.status==="accepted"){friendLabel.textContent="Вы друзья";friendButton.disabled=true;}
+    else if(row.requester_id===viewer.id){friendLabel.textContent="Заявка отправлена";friendButton.onclick=cancelFriendRequest;}
+    else{friendLabel.textContent="Принять приглашение";friendButton.onclick=acceptFriendRequest;}
+   }
+   async function sendFriendRequest(){
+    friendButton.disabled=true;friendStatus.textContent="Отправляем приглашение…";
+    const result=await client.from("friend_requests").insert({requester_id:viewer.id,recipient_id:target.id,user_low_id:low,user_high_id:high});
+    if(result.error){friendStatus.textContent=result.error.code==="23505"?"Приглашение уже существует.":result.error.message;friendButton.disabled=false;await refreshFriendState();return;}
+    friendStatus.textContent="Приглашение отправлено.";await refreshFriendState();
+   }
+   async function cancelFriendRequest(){
+    friendButton.disabled=true;const current=await client.from("friend_requests").select("id").eq("user_low_id",low).eq("user_high_id",high).eq("requester_id",viewer.id).eq("status","pending").maybeSingle();
+    if(current.error||!current.data){friendStatus.textContent=current.error?.message||"Заявка уже обработана.";await refreshFriendState();return;}
+    const result=await client.from("friend_requests").delete().eq("id",current.data.id).eq("requester_id",viewer.id);
+    if(result.error){friendStatus.textContent=result.error.message;friendButton.disabled=false;return;}
+    friendStatus.textContent="Приглашение отменено.";await refreshFriendState();
+   }
+   async function acceptFriendRequest(){
+    friendButton.disabled=true;const current=await client.from("friend_requests").select("id").eq("user_low_id",low).eq("user_high_id",high).eq("recipient_id",viewer.id).eq("status","pending").maybeSingle();
+    if(current.error||!current.data){friendStatus.textContent=current.error?.message||"Заявка уже обработана.";await refreshFriendState();return;}
+    const result=await client.from("friend_requests").update({status:"accepted"}).eq("id",current.data.id).eq("recipient_id",viewer.id).eq("status","pending");
+    if(result.error){friendStatus.textContent=result.error.message;friendButton.disabled=false;return;}
+    friendStatus.textContent="Теперь вы друзья!";await refreshFriendState();
+   }
+   try{await refreshFriendState();}catch(error){friendStatus.textContent="Не удалось проверить статус дружбы: "+error.message;}
+  }
     $("display-name").textContent=target.display_name||target.username||"Пользователь";
   $("username").textContent=target.username?"@"+target.username:"";
   $("bio").textContent=target.bio||"";
