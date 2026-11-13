@@ -946,7 +946,7 @@ function playReactionFlight(emoji,source){
 reactionWrap.append(reactionToggle,reactionPanel);
  const like=document.createElement("button");like.type="button";like.className="post-social-button";like.textContent="♡ 0";
  const commentToggle=document.createElement("button");commentToggle.type="button";commentToggle.className="post-social-button";commentToggle.textContent="💬 0";
- const repost=document.createElement("button");repost.type="button";repost.className="post-social-button repost-flow";repost.setAttribute("aria-label","Сделать репост");repost.title="Репост Dolby404";repost.innerHTML='<span class="flow-label">FLOW</span><span class="flow-count">0</span>';
+ const repost=document.createElement("button");repost.type="button";repost.className="post-social-button repost-flow";repost.setAttribute("aria-label","Сделать репост");repost.title="Репост Floustream";repost.innerHTML='<span class="flow-label">FLOW</span><span class="flow-count">0</span>';
  const panel=document.createElement("section");panel.className="post-comments-panel";panel.hidden=true;
  const commentsHeader=document.createElement("div");commentsHeader.className="post-comments-header";
  const commentsTitle=document.createElement("span");commentsTitle.textContent="Комментарии";
@@ -975,7 +975,7 @@ reactionWrap.append(reactionToggle,reactionPanel);
   liked=!!ownLike.data;reposted=!!ownRepost.data;ownReaction=ownReactionResult.data||null;
   like.textContent=(liked?"♥ ":"♡ ")+(likes.count||0);like.classList.toggle("is-active",liked);
   commentToggle.textContent="💬 "+(comments.count||0);
-  repost.querySelector(".flow-count").textContent=String(reposts.count||0);repost.classList.toggle("is-active",reposted);repost.setAttribute("aria-label",reposted?"Отменить репост":"Сделать репост");repost.title=reposted?"Вы уже сделали репост — нажмите, чтобы отменить":"Репост Dolby404";
+  repost.querySelector(".flow-count").textContent=String(reposts.count||0);repost.classList.toggle("is-active",reposted);repost.setAttribute("aria-label",reposted?"Отменить репост":"Сделать репост");repost.title=reposted?"Вы уже сделали репост — нажмите, чтобы отменить":"Репост Floustream";
   const counts={};for(const row of reactions.data||[])counts[row.reaction_key]=(counts[row.reaction_key]||0)+1;
   let total=0;for(const key of Object.keys(counts))total+=counts[key];
   const selected=reactionOptions.find(item=>item.key===ownReaction?.reaction_key);
