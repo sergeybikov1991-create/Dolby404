@@ -938,12 +938,12 @@ async function loadPrivateAlbum(){
   const urls=new Map((signed.data||[]).filter(x=>x.signedUrl&&!x.error).map(x=>[x.path,x.signedUrl]));
   privateAlbumItems=rows.filter(x=>urls.has(x.object_path)).map(x=>({...x,url:urls.get(x.object_path)}));status.textContent="";
   if(!privateAlbumItems.length){status.textContent="Не удалось получить ссылки на приватные фотографии.";return;}
-  privateAlbumItems.forEach((item,i)=>{const tile=document.createElement("button");tile.type="button";tile.className="album-item";tile.setAttribute("aria-label","Открыть приватное фото");const img=document.createElement("img");img.src=item.url;img.alt="Приватная фотография";img.loading="lazy";tile.append(img);tile.addEventListener("click",()=>showPrivateAlbumPhoto(i));grid.append(tile);});
+  privateAlbumItems.forEach((item,i)=>{const tile=document.createElement("button");tile.type="button";tile.className="album-item";tile.setAttribute("aria-label","Открыть приватное фото");const img=document.createElement("img");img.alt="Приватная фотография";img.loading="lazy";tile.append(img);queueAlbumThumb(img,item,"private-albums",false);tile.addEventListener("click",()=>showPrivateAlbumPhoto(i));grid.append(tile);});
  }catch(e){privateAlbumItems=[];status.textContent="Не удалось загрузить приватный альбом: "+e.message;}
 }
 function renderPrivateAlbumThumbnails(){
  const host=$("private-album-thumbnails-track");if(!host)return;host.replaceChildren();
- privateAlbumItems.forEach((item,i)=>{const b=document.createElement("button");b.type="button";b.className="album-viewer-thumb"+(i===privateAlbumIndex?" active":"");b.setAttribute("aria-label","Перейти к приватному фото "+(i+1));const img=document.createElement("img");img.src=item.url;img.alt="";b.append(img);b.addEventListener("click",()=>{showPrivateAlbumPhoto(i);$("private-album-thumbnails").hidden=true;});host.append(b);});
+ privateAlbumItems.forEach((item,i)=>{const b=document.createElement("button");b.type="button";b.className="album-viewer-thumb"+(i===privateAlbumIndex?" active":"");b.setAttribute("aria-label","Перейти к приватному фото "+(i+1));const img=document.createElement("img");img.alt="";img.loading="lazy";b.append(img);queueAlbumThumb(img,item,"private-albums",false);b.addEventListener("click",()=>{showPrivateAlbumPhoto(i);$("private-album-thumbnails").hidden=true;});host.append(b);});
  const active=host.children[privateAlbumIndex];if(active)active.scrollIntoView({block:"nearest",inline:"center"});
 }
 function showPrivateAlbumPhoto(i){
@@ -1070,7 +1070,7 @@ $("album-share-send").addEventListener("click",async()=>{
 });
 function renderAlbumViewerThumbnails(){
  const host=$("album-viewer-thumbnails-track");if(!host)return;host.replaceChildren();
- albumViewerItems.forEach((item,i)=>{const b=document.createElement("button");b.type="button";b.className="album-viewer-thumb"+(i===albumViewerIndex?" active":"");b.setAttribute("aria-label","Перейти к фото "+(i+1));const img=document.createElement("img");img.src=item.thumbUrl||item.url;img.alt="";b.append(img);b.addEventListener("click",()=>{showAlbumViewerPhoto(i);$("album-viewer-thumbnails").hidden=true;});host.append(b);});
+ albumViewerItems.forEach((item,i)=>{const b=document.createElement("button");b.type="button";b.className="album-viewer-thumb"+(i===albumViewerIndex?" active":"");b.setAttribute("aria-label","Перейти к фото "+(i+1));const img=document.createElement("img");img.alt="";img.loading="lazy";b.append(img);queueAlbumThumb(img,item,"photo-albums",true);b.addEventListener("click",()=>{showAlbumViewerPhoto(i);$("album-viewer-thumbnails").hidden=true;});host.append(b);});
  const active=host.children[albumViewerIndex];if(active)active.scrollIntoView({block:"nearest",inline:"center"});
 }
 function showAlbumViewerPhoto(index){
@@ -1103,6 +1103,46 @@ $("album-viewer").addEventListener("pointerup",e=>{
 });
 $("album-viewer").addEventListener("pointercancel",()=>{albumSwipeStart=null;});
 document.addEventListener("keydown",e=>{if($("album-viewer").hidden)return;if(e.key==="Escape")closeAlbumViewer();else if(e.key==="ArrowLeft")showAlbumViewerPhoto(albumViewerIndex+1);else if(e.key==="ArrowRight")showAlbumViewerPhoto(albumViewerIndex-1);});
+
+// Миниатюры обычного альбома хранятся в Cache API браузера между посещениями.
+// Приватные миниатюры остаются только в памяти текущего сеанса.
+const albumThumbMemory=new Map();
+const albumThumbCacheName="floustream-album-thumbnails-v1";
+async function getAlbumThumbUrl(item,bucket,persist){
+ const key=user.id+"|"+bucket+"|"+item.object_path;
+ if(albumThumbMemory.has(key))return albumThumbMemory.get(key);
+ const cacheKey=new URL("/__floustream_thumb_cache__/"+encodeURIComponent(user.id)+"/"+encodeURIComponent(bucket)+"/"+encodeURIComponent(item.object_path),location.origin).href;
+ let cache=null;
+ try{
+  if(persist&&"caches" in window){
+   cache=await caches.open(albumThumbCacheName);
+   const cached=await cache.match(cacheKey);
+   if(cached){const cachedUrl=URL.createObjectURL(await cached.blob());albumThumbMemory.set(key,cachedUrl);return cachedUrl;}
+  }
+ }catch(_){}
+ const signed=await client.storage.from(bucket).createSignedUrl(item.object_path,3600,{transform:{width:180,height:180,resize:"cover",quality:55}});
+ if(signed.error||!signed.data?.signedUrl)throw signed.error||new Error("Не удалось создать миниатюру");
+ try{
+  const response=await fetch(signed.data.signedUrl);
+  if(!response.ok)throw new Error("Не удалось загрузить миниатюру");
+  const blob=await response.blob();
+  if(persist&&cache){try{await cache.put(cacheKey,new Response(blob,{headers:{"Content-Type":blob.type||"image/jpeg"}}));}catch(_){}}
+  const objectUrl=URL.createObjectURL(blob);albumThumbMemory.set(key,objectUrl);return objectUrl;
+ }catch(_){
+  albumThumbMemory.set(key,signed.data.signedUrl);return signed.data.signedUrl;
+ }
+}
+function queueAlbumThumb(img,item,bucket,persist){
+ const load=async()=>{
+  try{const src=await getAlbumThumbUrl(item,bucket,persist);if(img.isConnected)img.src=src;}
+  catch(_){if(img.isConnected)img.src=item.url;}
+ };
+ if("IntersectionObserver" in window){
+  if(!window.albumThumbObserver)window.albumThumbObserver=new IntersectionObserver(entries=>entries.forEach(entry=>{if(entry.isIntersecting){window.albumThumbObserver.unobserve(entry.target);entry.target._loadAlbumThumb?.();}}),{rootMargin:"300px"});
+  img._loadAlbumThumb=load;window.albumThumbObserver.observe(img);
+ }else load();
+}
+
 async function loadPhotoAlbum(){
  const grid=$("album-grid");grid.replaceChildren();
  const loading=document.createElement("div");loading.className="album-empty";loading.textContent="Загружаем фотографии…";grid.append(loading);
@@ -1121,21 +1161,11 @@ async function loadPhotoAlbum(){
   if(!albumViewerItems.length){const empty=document.createElement("div");empty.className="album-empty";empty.textContent="Не удалось получить ссылки на фотографии. Попробуй обновить альбом.";grid.append(empty);return;}
   albumViewerItems.forEach((item,index)=>{
    const tile=document.createElement("button");tile.type="button";tile.className="album-item";tile.setAttribute("aria-label","Открыть фотографию: "+(item.file_name||"фотография"));tile.style.padding="0";tile.style.width="100%";tile.style.cursor="zoom-in";
-   const img=document.createElement("img");img.src=item.thumbUrl;img.alt=item.file_name||"Фотография";img.loading="lazy";img.decoding="async";
-   tile.append(img);
+   const img=document.createElement("img");img.alt=item.file_name||"Фотография";img.loading="lazy";img.decoding="async";
+   tile.append(img);queueAlbumThumb(img,item,"photo-albums",true);
    tile.addEventListener("click",()=>{$("album-viewer").hidden=false;showAlbumViewerPhoto(index);});
    grid.append(tile);
   });
-  // Миниатюры оптимизируются в фоне; просмотр полного фото остаётся в оригинальном качестве.
-  Promise.all(albumViewerItems.map(async(item,index)=>{
-   try{
-    const thumb=await client.storage.from("photo-albums").createSignedUrl(item.object_path,3600,{transform:{width:180,height:180,resize:"cover",quality:55}});
-    if(thumb.error||!thumb.data?.signedUrl)return;
-    item.thumbUrl=thumb.data.signedUrl;
-    const image=grid.children[index]?.querySelector("img");
-    if(image&&image.isConnected)image.src=item.thumbUrl;
-   }catch(_){}
-  }));
  }catch(e){albumViewerItems=[];grid.replaceChildren();const error=document.createElement("div");error.className="album-empty";error.textContent="Не удалось загрузить фотоальбом: "+e.message;grid.append(error);}
 }
 $("album-close").addEventListener("click",()=>$("album-backdrop").hidden=true);
