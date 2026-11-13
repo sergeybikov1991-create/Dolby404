@@ -16,7 +16,7 @@ body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 20% 0%,#281
 .cover{height:170px;background:radial-gradient(ellipse at 72% 30%,#a34bff66 0,transparent 34%),linear-gradient(125deg,#090912,#21102f 55%,#111b35)}
 .identity{display:flex;align-items:end;gap:16px;margin:-46px 22px 0;position:relative}
 .avatar{width:100px;height:100px;flex:0 0 100px;display:grid;place-items:center;overflow:hidden;border:3px solid #171321;border-radius:50%;background:#352044;font-size:32px;font-weight:700;box-shadow:0 0 18px #a66bff55}
-.avatar img{width:100%;height:100%;object-fit:cover}
+.avatar img{width:100%;height:100%;object-fit:cover}.avatar.has-original{cursor:zoom-in}.avatar.has-original:focus-visible{outline:3px solid #c5a4ff;outline-offset:4px}
 .name{min-width:0;padding-bottom:7px}.name h1{margin:0 0 5px;font-size:clamp(21px,4vw,29px);overflow-wrap:anywhere}.name p{margin:0;color:#c59aff;font-size:13px}
 .bio{margin:16px 22px 22px;color:#c9c0d8;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
 .feed-section{margin-top:24px}.feed-title{margin:0 0 14px;font-size:19px}
@@ -177,6 +177,22 @@ function dateText(value){if(!value)return "";const d=new Date(value);return Numb
 function showError(message){$("feed").replaceChildren();const box=document.createElement("div");box.className="status error";box.textContent=message;$("feed").append(box);}
 function openPhotoViewer(src){const viewer=$("photo-lightbox"),image=$("photo-lightbox-image");if(!viewer||!image||!src)return;image.src=src;viewer.classList.add("is-open");viewer.setAttribute("aria-hidden","false");document.body.classList.add("lightbox-open");}
 function closePhotoViewer(){const viewer=$("photo-lightbox"),image=$("photo-lightbox-image");if(!viewer||!image)return;viewer.classList.remove("is-open");viewer.setAttribute("aria-hidden","true");image.removeAttribute("src");document.body.classList.remove("lightbox-open");}
+async function openAvatarOriginal(){
+ if(!target)return;
+ let src=safeUrl(target.avatar_url);
+ if(target.avatar_photo_id){
+  try{
+   const photo=await client.from("photo_album_photos").select("object_path").eq("id",target.avatar_photo_id).eq("owner_id",target.id).maybeSingle();
+   if(!photo.error&&photo.data){
+    const signed=await client.storage.from("photo-albums").createSignedUrl(photo.data.object_path,3600);
+    if(!signed.error&&signed.data?.signedUrl)src=signed.data.signedUrl;
+   }
+  }catch(error){console.warn("FLOUSTREAM avatar original:",error);}
+ }
+ if(src)openPhotoViewer(src);
+}
+$("avatar").addEventListener("click",()=>{if($("avatar").classList.contains("has-original"))openAvatarOriginal();});
+$("avatar").addEventListener("keydown",event=>{if((event.key==="Enter"||event.key===" ")&&$("avatar").classList.contains("has-original")){event.preventDefault();openAvatarOriginal();}});
 $("photo-lightbox-close").addEventListener("click",closePhotoViewer);
 $("photo-lightbox").addEventListener("click",event=>{if(event.target===$("photo-lightbox"))closePhotoViewer();});
 document.addEventListener("keydown",event=>{if(event.key==="Escape"&&$("photo-lightbox").classList.contains("is-open"))closePhotoViewer();});
@@ -302,7 +318,7 @@ async function start(){
   const auth=await client.auth.getUser();if(auth.error)throw auth.error;viewer=auth.data.user;
   const targetId=new URLSearchParams(location.search).get("id");if(!targetId){showError("Не указан профиль для просмотра.");return;}
   if(viewer&&targetId===viewer.id){location.replace("profile.html");return;}
-  const profileResult=await client.from("profiles").select("id,username,display_name,bio,avatar_url,cover_url").eq("id",targetId).maybeSingle();
+  const profileResult=await client.from("profiles").select("id,username,display_name,bio,avatar_url,avatar_photo_id,cover_url").eq("id",targetId).maybeSingle();
   if(profileResult.error)throw profileResult.error;if(!profileResult.data){showError("Профиль не найден или недоступен.");return;}
   target=profileResult.data;
   if(viewer){
@@ -313,7 +329,7 @@ async function start(){
   $("display-name").textContent=target.display_name||target.username||"Пользователь";
   $("username").textContent=target.username?"@"+target.username:"";
   $("bio").textContent=target.bio||"";
-  const avatar=safeUrl(target.avatar_url);if(avatar){$("avatar").replaceChildren();const img=document.createElement("img");img.src=avatar;img.alt="Аватар";$("avatar").append(img);}else $("avatar").textContent=(target.display_name||target.username||"◉").slice(0,1).toUpperCase();
+  const avatar=safeUrl(target.avatar_url);if(avatar){$("avatar").replaceChildren();const img=document.createElement("img");img.src=avatar;img.alt="Аватар";$("avatar").append(img);$("avatar").classList.add("has-original");$("avatar").setAttribute("role","button");$("avatar").tabIndex=0;$("avatar").setAttribute("aria-label","Открыть оригинал фотографии профиля");}else{$("avatar").textContent=(target.display_name||target.username||"◉").slice(0,1).toUpperCase();$("avatar").classList.remove("has-original");$("avatar").removeAttribute("role");$("avatar").removeAttribute("tabindex");$("avatar").removeAttribute("aria-label");}
   const cover=safeUrl(target.cover_url);if(cover)$("cover").style.backgroundImage="linear-gradient(#09091055,#09091055),url("+JSON.stringify(cover)+")";
   const [ownPosts,flows]=await Promise.all([
    client.from("posts").select("*").eq("user_id",targetId).order("created_at",{ascending:false}).limit(50),
