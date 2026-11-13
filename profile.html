@@ -761,7 +761,7 @@ async function loadMusicTracks(){
    const bucket=track.visibility==="private"?"music-private":"music-public";
    const signed=track.visibility==="private"?await client.storage.from(bucket).createSignedUrl(track.object_path,300):null;
    if(signed?.error)throw signed.error;
-   const url=track.visibility==="private"?signed.data.signedUrl:client.storage.from(bucket).getPublicUrl(track.object_path).data.publicUrl;
+   const publicSigned=track.visibility==="public"?await client.storage.from(bucket).createSignedUrl(track.object_path,300):null;if(publicSigned?.error)throw publicSigned.error;const url=track.visibility==="private"?signed.data.signedUrl:publicSigned.data.signedUrl;
    const card=document.createElement("article");card.className="music-track";
    const head=document.createElement("div");head.className="music-track-head";
    const title=document.createElement("strong");title.textContent=track.title;
@@ -826,7 +826,7 @@ async function loadPhotoAlbum(){
   for(const item of items){
    let url;
    if(item.private){const signed=await client.storage.from("private-albums").createSignedUrl(item.object_path,90);if(signed.error)continue;url=signed.data.signedUrl;}
-   else url=client.storage.from("photo-albums").getPublicUrl(item.object_path).data.publicUrl;
+   else {const signed=await client.storage.from("photo-albums").createSignedUrl(item.object_path,300);if(signed.error)continue;url=signed.data.signedUrl;}
    const tile=document.createElement("div");tile.className="album-item";
    const img=document.createElement("img");img.src=url;img.alt=item.file_name||"Фотография";img.loading="lazy";
    const tag=document.createElement("small");tag.textContent=item.private?"🔒 Приватное":"Видно всем";
