@@ -1024,6 +1024,163 @@ $("music-upload-button").addEventListener("click",async()=>{
 $("music-close").addEventListener("click",()=>$("music-backdrop").hidden=true);
 $("music-backdrop").addEventListener("click",e=>{if(e.target===$("music-backdrop"))$("music-backdrop").hidden=true;});
 
+
+let videoAlbumItems=[],videoAlbumIndex=0,privateVideoItems=[],privateVideoIndex=0;
+function videoAlbumMessage(id,message){const node=$(id);if(node)node.textContent=message||"";}
+function stopVideoPlayer(id){const player=$(id);if(player){player.pause();player.removeAttribute("src");player.load();}}
+async function openVideoAlbum(){
+ $("video-album-backdrop").hidden=false;
+ $("video-album-upload-panel").hidden=true;
+ $("video-album-viewer").hidden=true;
+ $("video-album-file").value="";
+ $("video-album-private").checked=false;
+ videoAlbumMessage("video-album-status","");
+ await loadVideoAlbum();
+}
+async function loadVideoAlbum(){
+ const grid=$("video-album-grid");grid.replaceChildren();
+ const loading=document.createElement("div");loading.className="album-empty";loading.textContent="Загружаем видео…";grid.append(loading);
+ try{
+  const result=await client.from("video_album_videos").select("id,object_path,file_name,mime_type,created_at").eq("owner_id",user.id).order("created_at",{ascending:false});
+  if(result.error)throw result.error;
+  const rows=result.data||[];
+  if(!rows.length){videoAlbumItems=[];grid.replaceChildren();const empty=document.createElement("div");empty.className="album-empty";empty.textContent="Здесь пока нет видео. Добавь первое!";grid.append(empty);return;}
+  const signed=await client.storage.from("video-albums").createSignedUrls(rows.map(item=>item.object_path),3600);
+  if(signed.error)throw signed.error;
+  const urls=new Map((signed.data||[]).filter(x=>x.signedUrl&&!x.error).map(x=>[x.path,x.signedUrl]));
+  videoAlbumItems=rows.filter(item=>urls.has(item.object_path)).map(item=>({...item,url:urls.get(item.object_path)}));
+  grid.replaceChildren();
+  if(!videoAlbumItems.length){const empty=document.createElement("div");empty.className="album-empty";empty.textContent="Не удалось получить ссылки на видео. Попробуй обновить альбом.";grid.append(empty);return;}
+  videoAlbumItems.forEach((item,index)=>{
+   const tile=document.createElement("button");tile.type="button";tile.className="video-album-item";tile.setAttribute("aria-label","Открыть видео: "+(item.file_name||"видео"));
+   const preview=document.createElement("video");preview.muted=true;preview.playsInline=true;preview.preload="metadata";preview.src=item.url;preview.setAttribute("aria-hidden","true");
+   const play=document.createElement("span");play.className="video-album-play";play.textContent="▶";tile.append(preview,play);
+   tile.addEventListener("click",()=>showVideoAlbumItem(index,false));grid.append(tile);
+  });
+  videoAlbumMessage("video-album-status","");
+ }catch(error){grid.replaceChildren();const empty=document.createElement("div");empty.className="album-empty";empty.textContent="Не удалось загрузить видео: "+error.message;grid.append(empty);}
+}
+async function loadPrivateVideoAlbum(){
+ const grid=$("private-video-grid");grid.replaceChildren();
+ const loading=document.createElement("div");loading.className="album-empty";loading.textContent="Загружаем приватные видео…";grid.append(loading);
+ try{
+  const result=await client.from("private_video_album_videos").select("id,object_path,file_name,mime_type,created_at").eq("owner_id",user.id).order("created_at",{ascending:false});
+  if(result.error)throw result.error;
+  const rows=result.data||[];
+  if(!rows.length){privateVideoItems=[];grid.replaceChildren();const empty=document.createElement("div");empty.className="album-empty";empty.textContent="В приватном видеоальбоме пока нет видео.";grid.append(empty);return;}
+  const signed=await client.storage.from("private-video-albums").createSignedUrls(rows.map(item=>item.object_path),3600);
+  if(signed.error)throw signed.error;
+  const urls=new Map((signed.data||[]).filter(x=>x.signedUrl&&!x.error).map(x=>[x.path,x.signedUrl]));
+  privateVideoItems=rows.filter(item=>urls.has(item.object_path)).map(item=>({...item,url:urls.get(item.object_path)}));
+  grid.replaceChildren();
+  if(!privateVideoItems.length){const empty=document.createElement("div");empty.className="album-empty";empty.textContent="Не удалось получить ссылки на приватные видео.";grid.append(empty);return;}
+  privateVideoItems.forEach((item,index)=>{
+   const tile=document.createElement("button");tile.type="button";tile.className="video-album-item";tile.setAttribute("aria-label","Открыть приватное видео");
+   const preview=document.createElement("video");preview.muted=true;preview.playsInline=true;preview.preload="metadata";preview.src=item.url;preview.setAttribute("aria-hidden","true");
+   const play=document.createElement("span");play.className="video-album-play";play.textContent="▶";tile.append(preview,play);
+   tile.addEventListener("click",()=>showVideoAlbumItem(index,true));grid.append(tile);
+  });
+  videoAlbumMessage("private-video-status","");
+ }catch(error){grid.replaceChildren();const empty=document.createElement("div");empty.className="album-empty";empty.textContent="Не удалось открыть приватный видеоальбом: "+error.message;grid.append(empty);}
+}
+async function openPrivateVideoAlbum(){
+ $("private-video-backdrop").hidden=false;
+ await loadPrivateVideoAlbum();
+}
+function renderVideoThumbs(isPrivate){
+ const items=isPrivate?privateVideoItems:videoAlbumItems;
+ const current=isPrivate?privateVideoIndex:videoAlbumIndex;
+ const host=$(isPrivate?"private-video-viewer-thumbs":"video-album-viewer-thumbs");host.replaceChildren();
+ items.forEach((item,index)=>{
+  const thumb=document.createElement("button");thumb.type="button";thumb.className="video-viewer-thumb"+(index===current?" active":"");thumb.setAttribute("aria-label","Видео "+(index+1));
+  const video=document.createElement("video");video.muted=true;video.playsInline=true;video.preload="metadata";video.src=item.url;thumb.append(video);
+  thumb.addEventListener("click",()=>showVideoAlbumItem(index,isPrivate));host.append(thumb);
+ });
+}
+function showVideoAlbumItem(index,isPrivate){
+ const items=isPrivate?privateVideoItems:videoAlbumItems;
+ if(!items.length)return;
+ const next=Math.max(0,Math.min(index,items.length-1));
+ if(isPrivate)privateVideoIndex=next;else videoAlbumIndex=next;
+ const item=items[next],player=$(isPrivate?"private-video-player":"video-album-player");
+ player.src=item.url;player.load();
+ $(isPrivate?"private-video-viewer-counter":"video-album-viewer-counter").textContent=(next+1)+" / "+items.length;
+ $(isPrivate?"private-video-viewer-prev":"video-album-viewer-prev").hidden=items.length<2;
+ $(isPrivate?"private-video-viewer-next":"video-album-viewer-next").hidden=items.length<2;
+ $(isPrivate?"private-video-viewer":"video-album-viewer").hidden=false;
+ renderVideoThumbs(isPrivate);
+}
+function closeVideoAlbumViewer(isPrivate){
+ const viewer=isPrivate?"private-video-viewer":"video-album-viewer";
+ const player=isPrivate?"private-video-player":"video-album-player";
+ $(viewer).hidden=true;stopVideoPlayer(player);
+}
+async function deleteCurrentVideo(isPrivate){
+ const items=isPrivate?privateVideoItems:videoAlbumItems;
+ const index=isPrivate?privateVideoIndex:videoAlbumIndex;
+ const item=items[index];if(!item)return;
+ if(!confirm("Удалить это видео без возможности восстановления?"))return;
+ const button=$(isPrivate?"private-video-viewer-delete":"video-album-viewer-delete");button.disabled=true;
+ const bucket=isPrivate?"private-video-albums":"video-albums";
+ const table=isPrivate?"private_video_album_videos":"video_album_videos";
+ try{
+  const removed=await client.storage.from(bucket).remove([item.object_path]);if(removed.error)throw removed.error;
+  const deleted=await client.from(table).delete().eq("id",item.id).eq("owner_id",user.id);if(deleted.error)throw deleted.error;
+  closeVideoAlbumViewer(isPrivate);
+  if(isPrivate)await loadPrivateVideoAlbum();else await loadVideoAlbum();
+ }catch(error){alert("Не удалось удалить видео: "+error.message);}
+ finally{button.disabled=false;}
+}
+$("video-album-close").addEventListener("click",()=>{$("video-album-backdrop").hidden=true;closeVideoAlbumViewer(false);});
+$("video-album-backdrop").addEventListener("click",e=>{if(e.target===$("video-album-backdrop"))$("video-album-backdrop").hidden=true;});
+$("video-album-add-open").addEventListener("click",()=>{$("video-album-upload-panel").hidden=!$("video-album-upload-panel").hidden;if(!$("video-album-upload-panel").hidden)$("video-album-file").focus();});
+$("video-album-add-cancel").addEventListener("click",()=>{$("video-album-upload-panel").hidden=true;$("video-album-file").value="";videoAlbumMessage("video-album-status","");});
+$("video-album-private").addEventListener("change",()=>{videoAlbumMessage("video-album-privacy-note",$("video-album-private").checked?"🔒 Видео сохранится в закрытом хранилище. Только твой аккаунт сможет его открыть.":"Обычные видео будут доступны в профиле согласно настройкам приватности. Если включить галочку, выбранные ролики попадут в секретный видеоальбом.");});
+$("video-album-upload-button").addEventListener("click",async()=>{
+ const files=Array.from($("video-album-file").files||[]);
+ if(!files.length){videoAlbumMessage("video-album-status","Сначала выбери одно или несколько видео.");return;}
+ const allowed=["video/mp4","video/webm","video/quicktime"];
+ const extAllowed=/\.(mp4|webm|mov)$/i;
+ const invalid=files.find(file=>!(allowed.includes(file.type)||(!file.type&&extAllowed.test(file.name))));
+ if(invalid){videoAlbumMessage("video-album-status","Файл «"+invalid.name+"» имеет неподдерживаемый формат. Подойдут MP4, WebM и MOV.");return;}
+ const tooLarge=files.find(file=>file.size>100*1024*1024);
+ if(tooLarge){videoAlbumMessage("video-album-status","Файл «"+tooLarge.name+"» больше 100 МБ.");return;}
+ const isPrivate=$("video-album-private").checked;
+ const bucket=isPrivate?"private-video-albums":"video-albums";
+ const table=isPrivate?"private_video_album_videos":"video_album_videos";
+ const button=$("video-album-upload-button");button.disabled=true;let count=0;const failures=[];
+ try{
+  for(let i=0;i<files.length;i++){
+   const file=files[i];videoAlbumMessage("video-album-status","Загружаем "+(i+1)+" из "+files.length+": "+file.name);
+   const ext=(file.name.split(".").pop()||"mp4").toLowerCase();
+   const path=user.id+"/"+Date.now()+"-"+(crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2))+"."+ext;
+   try{
+    const uploaded=await client.storage.from(bucket).upload(path,file,{contentType:file.type||"video/"+(ext==="mov"?"quicktime":ext),upsert:false});if(uploaded.error)throw uploaded.error;
+    const saved=await client.from(table).insert({owner_id:user.id,object_path:path,file_name:file.name,mime_type:file.type||null});
+    if(saved.error){await client.storage.from(bucket).remove([path]);throw saved.error;}
+    count++;
+   }catch(error){failures.push(file.name+": "+error.message);}
+  }
+  $("video-album-file").value="";$("video-album-upload-panel").hidden=true;
+  videoAlbumMessage("video-album-status",(count?"Загружено видео: "+count+". ":"")+(failures.length?"Ошибки: "+failures.join(" | "):"Готово!"));
+  if(isPrivate)await loadPrivateVideoAlbum();else await loadVideoAlbum();
+ }catch(error){videoAlbumMessage("video-album-status","Не удалось загрузить видео: "+error.message);}
+ finally{button.disabled=false;}
+});
+$("private-video-open").addEventListener("click",openPrivateVideoAlbum);
+$("private-video-close").addEventListener("click",()=>{$("private-video-backdrop").hidden=true;closeVideoAlbumViewer(true);});
+$("private-video-backdrop").addEventListener("click",e=>{if(e.target===$("private-video-backdrop"))$("private-video-backdrop").hidden=true;});
+$("video-album-viewer-close").addEventListener("click",()=>closeVideoAlbumViewer(false));
+$("private-video-viewer-close").addEventListener("click",()=>closeVideoAlbumViewer(true));
+$("video-album-viewer-prev").addEventListener("click",()=>showVideoAlbumItem(videoAlbumIndex-1,false));
+$("video-album-viewer-next").addEventListener("click",()=>showVideoAlbumItem(videoAlbumIndex+1,false));
+$("private-video-viewer-prev").addEventListener("click",()=>showVideoAlbumItem(privateVideoIndex-1,true));
+$("private-video-viewer-next").addEventListener("click",()=>showVideoAlbumItem(privateVideoIndex+1,true));
+$("video-album-viewer-delete").addEventListener("click",()=>deleteCurrentVideo(false));
+$("private-video-viewer-delete").addEventListener("click",()=>deleteCurrentVideo(true));
+$("video-album-viewer").addEventListener("click",e=>{if(e.target===$("video-album-viewer"))closeVideoAlbumViewer(false);});
+$("private-video-viewer").addEventListener("click",e=>{if(e.target===$("private-video-viewer"))closeVideoAlbumViewer(true);});
+
 async function openPhotoAlbum(){
  $("album-backdrop").hidden=false;
  $("album-file").value="";$("album-private").checked=false;$("album-status").textContent="";
