@@ -457,6 +457,15 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 .post-comment-note{margin-top:7px;color:#bda1ff;font-size:11px;overflow-wrap:anywhere}
 @media(max-width:380px){.post-social-actions{gap:6px}.post-social-button{padding:7px 10px;font-size:12px}.post-comment-form{grid-template-columns:1fr}.post-comment-form button{justify-self:end}}
 
+
+/* DOLBY404 PULSE online status */
+.dolby-online-indicator{position:relative;display:inline-block;vertical-align:middle;width:8px;height:8px;flex:0 0 8px;margin-left:8px;border-radius:50%;background:#716b7b;box-shadow:0 0 0 1px #a69bb8;transition:background .2s ease,box-shadow .2s ease}
+.dolby-online-indicator.is-online{background:#69ffd1;box-shadow:0 0 0 1px #b7ffe9,0 0 8px #4effc5,0 0 15px #936bff;animation:dolbyPulseCore 1.8s ease-in-out infinite}
+.dolby-online-indicator.is-online::after{content:"";position:absolute;inset:-5px;border:1px solid #a66bff;border-radius:50%;opacity:0;animation:dolbyPulseRing 1.8s ease-out infinite}
+@keyframes dolbyPulseCore{0%,100%{filter:brightness(.9)}50%{filter:brightness(1.45)}}
+@keyframes dolbyPulseRing{0%{transform:scale(.55);opacity:.75}85%,100%{transform:scale(1.8);opacity:0}}
+@media(prefers-reduced-motion:reduce){.dolby-online-indicator.is-online,.dolby-online-indicator.is-online::after{animation:none}.dolby-online-indicator.is-online::after{opacity:.35;transform:scale(1.2)}}
+
 </style>
 </head>
 <body>
@@ -617,7 +626,7 @@ function render(){
  const bioKey=firstKey(["bio","about","description"]);
  const avatarKey=firstKey(["avatar_url","avatar"]);
  const display=(nameKey&&profile[nameKey])||user.email||"Мой профиль";
- $("display-name").textContent=display;
+ $("display-name").textContent=display;appendDolbyOnlineIndicator($("display-name"),user.id);
  $("username").textContent=usernameKey&&profile[usernameKey]?"@"+profile[usernameKey]:"";
  $("bio").textContent=(bioKey&&profile[bioKey])||"Здесь скоро появится рассказ о тебе. Открой меню → Настройки → Профиль, чтобы заполнить страницу.";
  setAvatar(avatarKey&&profile[avatarKey]);
@@ -646,11 +655,54 @@ function openNavigationDestination(action,label,icon){
  else {const meta=navigationNames[action];const title=meta?(localStorage.getItem("dolby404-language")==="en"?meta[1]:meta[0]):(label||"Раздел");$("quick-status").textContent=(localStorage.getItem("dolby404-language")==="en"?"The section “":"Раздел «")+title+(localStorage.getItem("dolby404-language")==="en"?"” will be connected in a later stage.":"» подключим следующим этапом.");}
  recordNavigation(action,label,icon);
 }
+
+const dolbyOnlineUsers = new Set();
+let dolbyOnlineChannel = null;
+function refreshDolbyOnlineIndicators(){
+ document.querySelectorAll(".dolby-online-indicator[data-user-id]").forEach(dot=>{
+  const active=dolbyOnlineUsers.has(dot.dataset.userId);
+  dot.classList.toggle("is-online",active);
+  dot.title=active?"В сети":"Не в сети";
+  dot.setAttribute("aria-label",active?"В сети":"Не в сети");
+ });
+}
+function appendDolbyOnlineIndicator(element,userId){
+ if(!element||!userId)return;
+ element.querySelectorAll(":scope > .dolby-online-indicator").forEach(dot=>dot.remove());
+ const dot=document.createElement("span");
+ dot.className="dolby-online-indicator";
+ dot.dataset.userId=userId;
+ dot.setAttribute("role","img");
+ element.appendChild(dot);
+ refreshDolbyOnlineIndicators();
+}
+function startDolbyOnlinePresence(client,userId){
+ if(!client||!userId||dolbyOnlineChannel)return;
+ const channel=client.channel("dolby404:online");
+ channel.on("presence",{event:"sync"},()=>{
+  dolbyOnlineUsers.clear();
+  const state=channel.presenceState()||{};
+  Object.values(state).forEach(entries=>(entries||[]).forEach(entry=>{
+   if(entry?.userId)dolbyOnlineUsers.add(entry.userId);
+  }));
+  refreshDolbyOnlineIndicators();
+ });
+ dolbyOnlineChannel=channel;
+ channel.subscribe(async status=>{
+  if(status==="SUBSCRIBED"){
+   const tracked=await channel.track({userId,onlineAt:new Date().toISOString()});
+   if(tracked?.error)console.warn("DOLBY404 presence:",tracked.error);
+  }
+ });
+ window.addEventListener("pagehide",()=>{channel.untrack();},{once:true});
+}
+
 async function start(){
  try{
   await loadLibrary();client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
   const auth=await client.auth.getUser();if(auth.error)throw auth.error;user=auth.data.user;
   if(!user){location.replace("portal.html");return;}
+  startDolbyOnlinePresence(client,user.id);
   const result=await client.from("profiles").select("*").eq("id",user.id).maybeSingle();
   if(result.error)throw result.error;
   profile=result.data||{};columns=Object.keys(profile);
@@ -979,7 +1031,7 @@ reactionWrap.append(reactionToggle,reactionPanel);
   if(ids.length){const p=await client.from("profiles").select("id,username,display_name").in("id",ids);if(!p.error)for(const item of p.data||[])profiles[item.id]=item;}
   if(!result.data?.length){const empty=document.createElement("div");empty.className="post-comment-note";empty.textContent="Пока нет комментариев. Будь первым!";list.append(empty);return;}
   for(const item of result.data){
-   const row=document.createElement("article");row.className="post-comment";const author=document.createElement("strong");const p=profiles[item.user_id]||{};author.textContent=p.display_name||p.username||"Пользователь";
+   const row=document.createElement("article");row.className="post-comment";const author=document.createElement("strong");const p=profiles[item.user_id]||{};author.textContent=p.display_name||p.username||"Пользователь";appendDolbyOnlineIndicator(author,item.user_id);
    const body=document.createElement("div");body.textContent=item.content;const time=document.createElement("time");time.textContent=new Date(item.created_at).toLocaleString("ru-RU",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
    row.append(author,body,time);list.append(row);
   }
@@ -1003,7 +1055,7 @@ function renderPost(post,profiles){
   const head=document.createElement("div");head.className="post-head";
   const avatar=document.createElement("div");avatar.className="post-avatar";const avatarUrl=safeUrl(profile.avatar_url||profile.avatar);
   if(avatarUrl){const img=document.createElement("img");img.src=avatarUrl;img.alt="";img.loading="lazy";avatar.appendChild(img);}else avatar.textContent=(String(author).trim()[0]||"◉").toUpperCase();
-  const identity=document.createElement("div");const name=document.createElement("div");name.className="post-author";name.textContent=author;
+  const identity=document.createElement("div");const name=document.createElement("div");name.className="post-author";name.textContent=author;appendDolbyOnlineIndicator(name,post.user_id);
   const date=document.createElement("div");date.className="post-date";date.textContent=dateText(post.created_at);identity.append(name,date);head.append(avatar,identity);
   if(post.user_id===user.id){const tools=document.createElement("div");tools.className="post-owner-tools";const edit=document.createElement("button");edit.type="button";edit.className="post-edit-button";edit.textContent="✎";edit.addEventListener("click",()=>startEditPost(post,card));tools.append(edit);head.append(tools);}
   card.append(head);
