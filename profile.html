@@ -491,6 +491,18 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 .music-track audio{display:block;width:100%;height:38px}
 .music-track small{color:#a99bb9;font-size:11px}
 .music-track button{margin-top:9px;padding:7px 11px;border-radius:9px;font-size:12px}
+</style><style>
+.album-head-actions{display:flex;align-items:center;gap:10px}
+.album-add-trigger{width:42px;height:42px;display:grid;place-items:center;border:1px solid #9a69cb;border-radius:12px;background:linear-gradient(145deg,#6e3fa1,#39234f);color:#fff;font-size:29px;line-height:1;cursor:pointer;box-shadow:0 0 16px #9d5fe633}
+.album-upload[hidden]{display:none}
+.album-upload{margin-top:8px}
+.album-cancel-upload{min-height:40px;border:1px solid #59466f;border-radius:10px;background:#171321;color:#d9c9ec}
+.album-item{cursor:zoom-in}
+.album-item:focus-visible{outline:2px solid #c49aff;outline-offset:2px}
+.album-viewer{position:fixed;inset:0;z-index:180;background:#05030bf5;display:grid;place-items:center;padding:55px 14px 20px}
+.album-viewer[hidden]{display:none}
+.album-viewer img{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;box-shadow:0 12px 60px #000a}
+.album-viewer-close{position:absolute;top:14px;right:16px;width:42px;height:42px;border:1px solid #7a5b99;border-radius:50%;background:#21172e;color:#fff;font-size:27px;cursor:pointer}
 </style></head>
 <body>
 <button type="button" class="drawer-menu-button" id="drawer-menu-button" aria-label="Открыть меню" aria-controls="side-drawer" aria-expanded="false"><span class="sound-signal" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span></button>
@@ -644,17 +656,22 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 </div>
 <div class="album-backdrop" id="album-backdrop" hidden>
  <section class="album-panel" role="dialog" aria-modal="true" aria-labelledby="album-title">
-  <div class="album-head"><h2 id="album-title">Мой фотоальбом</h2><button type="button" class="settings-close" id="album-close" aria-label="Закрыть">×</button></div>
-  <div class="album-upload">
-   <strong style="color:#eee4ff">Добавить фотографию</strong>
-   <input id="album-file" type="file" accept="image/jpeg,image/png,image/webp">
+  <div class="album-head"><h2 id="album-title">Мой фотоальбом</h2><div class="album-head-actions"><button type="button" class="album-add-trigger" id="album-add-open" aria-label="Добавить фотографии" title="Добавить фотографии">+</button><button type="button" class="settings-close" id="album-close" aria-label="Закрыть">×</button></div></div>
+  <div class="album-upload" id="album-upload-panel" hidden>
+   <strong style="color:#eee4ff">Добавить фотографии</strong>
+   <input id="album-file" type="file" accept="image/jpeg,image/png,image/webp" multiple>
    <label><input id="album-private" type="checkbox"> <span>Приватный фотоальбом</span></label>
-   <p class="album-note" id="album-privacy-note">Обычная фотография будет доступна всем. Если включить галочку, фото попадёт в секретный альбом, который виден только тебе.</p>
-   <button type="button" class="primary" id="album-upload-button">Загрузить фото</button>
+   <p class="album-note" id="album-privacy-note">Обычные фотографии будут доступны всем. Если включить галочку, все выбранные фото попадут в секретный альбом, который виден только тебе.</p>
+   <button type="button" class="primary" id="album-upload-button">Загрузить выбранные фото</button>
+   <button type="button" class="album-cancel-upload" id="album-add-cancel">Отмена</button>
   </div>
   <div class="album-status" id="album-status" aria-live="polite"></div>
   <div class="album-grid" id="album-grid"></div>
  </section>
+</div>
+<div class="album-viewer" id="album-viewer" hidden>
+ <button type="button" class="album-viewer-close" id="album-viewer-close" aria-label="Закрыть просмотр">×</button>
+ <img id="album-viewer-image" alt="Фотография в полном размере">
 </div>
 <input id="avatar-file" type="file" accept="image/jpeg,image/png,image/webp" hidden>
 <input id="cover-file" type="file" accept="image/jpeg,image/png,image/webp" hidden>
@@ -808,9 +825,23 @@ $("music-backdrop").addEventListener("click",e=>{if(e.target===$("music-backdrop
 
 async function openPhotoAlbum(){
  $("album-backdrop").hidden=false;
- $("album-file").value="";$("album-private").checked=false;$("album-status").textContent=""; 
+ $("album-file").value="";$("album-private").checked=false;$("album-status").textContent="";
+ $("album-upload-panel").hidden=true;$("album-viewer").hidden=true;
  await loadPhotoAlbum();
 }
+$("album-add-open").addEventListener("click",()=>{
+ $("album-upload-panel").hidden=!$("album-upload-panel").hidden;
+ if(!$("album-upload-panel").hidden)$("album-file").focus();
+});
+$("album-add-cancel").addEventListener("click",()=>{
+ $("album-upload-panel").hidden=true;$("album-file").value="";$("album-status").textContent="";
+});
+function closeAlbumViewer(){
+ $("album-viewer").hidden=true;$("album-viewer-image").removeAttribute("src");
+}
+$("album-viewer-close").addEventListener("click",closeAlbumViewer);
+$("album-viewer").addEventListener("click",e=>{if(e.target===$("album-viewer"))closeAlbumViewer();});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("album-viewer").hidden)closeAlbumViewer();});
 async function loadPhotoAlbum(){
  const grid=$("album-grid");grid.replaceChildren();
  const empty=document.createElement("div");empty.className="album-empty";empty.textContent="Загружаем фотографии…";grid.append(empty);
@@ -827,10 +858,20 @@ async function loadPhotoAlbum(){
    let url;
    if(item.private){const signed=await client.storage.from("private-albums").createSignedUrl(item.object_path,90);if(signed.error)continue;url=signed.data.signedUrl;}
    else {const signed=await client.storage.from("photo-albums").createSignedUrl(item.object_path,300);if(signed.error)continue;url=signed.data.signedUrl;}
-   const tile=document.createElement("div");tile.className="album-item";
+   const tile=document.createElement("button");tile.type="button";tile.className="album-item";tile.setAttribute("aria-label","Открыть фотографию: "+(item.file_name||"фотография"));
+   tile.style.padding="0";tile.style.width="100%";tile.style.cursor="zoom-in";
    const img=document.createElement("img");img.src=url;img.alt=item.file_name||"Фотография";img.loading="lazy";
    const tag=document.createElement("small");tag.textContent=item.private?"🔒 Приватное":"Видно всем";
-   tile.append(img,tag);grid.append(tile);
+   tile.append(img,tag);
+   tile.addEventListener("click",async()=>{
+    const viewerBucket=item.private?"private-albums":"photo-albums";
+    const fresh=await client.storage.from(viewerBucket).createSignedUrl(item.object_path,300);
+    if(fresh.error){$("album-status").textContent="Не удалось открыть фотографию: "+fresh.error.message;return;}
+    $("album-viewer-image").src=fresh.data.signedUrl;
+    $("album-viewer-image").alt=item.file_name||"Фотография";
+    $("album-viewer").hidden=false;
+   });
+   grid.append(tile);
   }
  }catch(e){grid.replaceChildren();const error=document.createElement("div");error.className="album-empty";error.textContent="Не удалось загрузить фотоальбом: "+e.message;grid.append(error);}
 }
@@ -842,22 +883,37 @@ $("album-private").addEventListener("change",()=>{
  : "Обычная фотография будет доступна всем. Для полной секретности включи галочку.";
 });
 $("album-upload-button").addEventListener("click",async()=>{
- const file=$("album-file").files[0];if(!file){$("album-status").textContent="Сначала выбери фотографию.";return;}
- if(!["image/jpeg","image/png","image/webp"].includes(file.type)){$("album-status").textContent="Подойдут JPG, PNG или WebP.";return;}
- if(file.size>50*1024*1024){$("album-status").textContent="Файл больше 50 МБ.";return;}
- const isPrivate=$("album-private").checked,ext=file.type==="image/jpeg"?"jpg":file.type.split("/")[1];
- const path=user.id+"/"+Date.now()+"-"+crypto.randomUUID()+"."+ext;
+ const files=Array.from($("album-file").files||[]);
+ if(!files.length){$("album-status").textContent="Сначала выбери одну или несколько фотографий.";return;}
+ const invalid=files.find(file=>!["image/jpeg","image/png","image/webp"].includes(file.type));
+ if(invalid){$("album-status").textContent="Файл «"+invalid.name+"» имеет неподдерживаемый формат. Подойдут JPG, PNG и WebP.";return;}
+ const tooLarge=files.find(file=>file.size>50*1024*1024);
+ if(tooLarge){$("album-status").textContent="Файл «"+tooLarge.name+"» больше 50 МБ.";return;}
+ const isPrivate=$("album-private").checked;
  const bucket=isPrivate?"private-albums":"photo-albums";
  const table=isPrivate?"private_album_photos":"photo_album_photos";
- const button=$("album-upload-button");button.disabled=true;$("album-status").textContent="Загружаем фотографию…";
+ const button=$("album-upload-button");button.disabled=true;
+ let uploadedCount=0;const failures=[];
  try{
-  const uploaded=await client.storage.from(bucket).upload(path,file,{upsert:false,contentType:file.type});
-  if(uploaded.error)throw uploaded.error;
-  const saved=await client.from(table).insert({owner_id:user.id,object_path:path,file_name:file.name,mime_type:file.type});
-  if(saved.error){await client.storage.from(bucket).remove([path]);throw saved.error;}
-  $("album-file").value="";$("album-status").textContent=isPrivate?"Фото добавлено в секретный альбом 🔒":"Фото добавлено в альбом.";
+  for(let index=0;index<files.length;index++){
+   const file=files[index];
+   $("album-status").textContent="Загружаем "+(index+1)+" из "+files.length+": "+file.name;
+   const ext=file.type==="image/jpeg"?"jpg":file.type.split("/")[1];
+   const path=user.id+"/"+Date.now()+"-"+crypto.randomUUID()+"."+ext;
+   try{
+    const uploaded=await client.storage.from(bucket).upload(path,file,{upsert:false,contentType:file.type});
+    if(uploaded.error)throw uploaded.error;
+    const saved=await client.from(table).insert({owner_id:user.id,object_path:path,file_name:file.name,mime_type:file.type});
+    if(saved.error){await client.storage.from(bucket).remove([path]);throw saved.error;}
+    uploadedCount++;
+   }catch(error){failures.push(file.name+": "+error.message);}
+  }
+  $("album-file").value="";
+  $("album-status").textContent=(isPrivate?"🔒 ":"")+ "Добавлено фотографий: "+uploadedCount+" из "+files.length+(failures.length?". Не удалось загрузить: "+failures.length+".":"." );
+  if(failures.length)$("album-status").title=failures.join("\n");
   await loadPhotoAlbum();
- }catch(e){$("album-status").textContent="Не удалось загрузить фото: "+e.message;}
+  if(uploadedCount===files.length)$("album-upload-panel").hidden=true;
+ }catch(error){$("album-status").textContent="Ошибка загрузки: "+error.message;}
  finally{button.disabled=false;}
 });
 function openNavigationDestination(action,label,icon){
