@@ -1798,9 +1798,13 @@ async function persistDolbyActivity(){
  if(!client||!dolbyPresenceUserId||!dolbyLastActionAt)return;
  const timestamp=new Date(dolbyLastActionAt).toISOString();
  const zone=dolbyCurrentTimeZone();
- const saved=await client.from("profiles").update({last_activity_at:timestamp,time_zone:zone}).eq("id",dolbyPresenceUserId);
+ const saved=await client.from("profiles").update({last_activity_at:timestamp,time_zone:zone}).eq("id",dolbyPresenceUserId).or("last_activity_at.is.null,last_activity_at.lte."+timestamp).select("last_activity_at,time_zone").maybeSingle();
  if(saved.error){console.warn("FLOUSTREAM activity timestamp:",saved.error);return;}
- setDolbyLastSeen(dolbyPresenceUserId,timestamp,zone);
+ if(saved.data)setDolbyLastSeen(dolbyPresenceUserId,saved.data.last_activity_at,saved.data.time_zone);
+ else{
+  const latest=await client.from("profiles").select("last_activity_at,time_zone").eq("id",dolbyPresenceUserId).maybeSingle();
+  if(!latest.error&&latest.data)setDolbyLastSeen(dolbyPresenceUserId,latest.data.last_activity_at,latest.data.time_zone);
+ }
 }
 function scheduleDolbyActivityWrite(){
  if(dolbyActivityWriteTimer)return;
