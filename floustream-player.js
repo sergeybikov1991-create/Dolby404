@@ -95,7 +95,7 @@ async function start(i,show){
  catch(e){miniSub.textContent="Не удалось запустить трек: "+(e&&e.message?e.message:"нажми ▶ ещё раз");}
 }
 function playQueue(items,i){queue=(items||[]).filter(t=>t&&t.url);if(queue.length){shuffle=false;repeatMode=0;shuffleBtn.classList.remove("active");repeatBtn.classList.remove("active");start(Math.max(0,Math.min(i||0,queue.length-1)),true);}}
-function addToQueue(track){if(!track||!track.url)return false;queue.push(track);if(index<0)index=0;if(activePanel==="queue")renderQueue();paint();return queue.length;}
+function addToQueue(track){if(!track||!track.url)return false;queue.push(track);if(activePanel==="queue")renderQueue();return queue.length;}
 miniPlay.addEventListener("click",()=>{if(!current())return;if(audio.paused){if(ctx&&ctx.state==="suspended")ctx.resume();audio.play().then(paint).catch(()=>{});}else audio.pause();});miniExpand.addEventListener("click",open);mini.addEventListener("click",e=>{if([mini,miniCover,miniCopy,miniTitle,miniSub,miniProgress,miniFill].includes(e.target))open();});
 play.addEventListener("click",()=>{if(!current())return;if(audio.paused){if(ctx&&ctx.state==="suspended")ctx.resume();audio.play().then(paint).catch(()=>{});}else audio.pause();});
 prev.addEventListener("click",()=>audio.currentTime>3?audio.currentTime=0:start(index-1,false));next.addEventListener("click",()=>start(shuffle?Math.floor(Math.random()*queue.length):index+1,false));
