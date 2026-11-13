@@ -507,7 +507,7 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 /* FLOUSTREAM PULSE online status */
 .dolby-online-indicator{position:relative;display:inline-block;vertical-align:middle;width:8px;height:8px;flex:0 0 8px;margin-left:8px;border-radius:50%;background:#716b7b;box-shadow:0 0 0 1px #a69bb8;transition:background .2s ease,box-shadow .2s ease}
 .dolby-online-indicator.is-online{background:#69ffd1;box-shadow:0 0 0 1px #b7ffe9,0 0 8px #4effc5,0 0 15px #936bff;animation:dolbyPulseCore 1.8s ease-in-out infinite}
-.dolby-online-indicator.is-online::after{content:"";position:absolute;inset:-5px;border:1px solid #a66bff;border-radius:50%;opacity:0;animation:dolbyPulseRing 1.8s ease-out infinite}
+.dolby-online-indicator[hidden],.dolby-online-last-seen[hidden]{display:none!important}\n.dolby-online-last-seen{display:inline-block;vertical-align:middle;margin-left:8px;color:#a99bbd;font-size:11px;font-weight:400;letter-spacing:0}\n.dolby-online-indicator.is-online::after{content:"";position:absolute;inset:-5px;border:1px solid #a66bff;border-radius:50%;opacity:0;animation:dolbyPulseRing 1.8s ease-out infinite}
 @keyframes dolbyPulseCore{0%,100%{filter:brightness(.9)}50%{filter:brightness(1.45)}}
 @keyframes dolbyPulseRing{0%{transform:scale(.55);opacity:.75}85%,100%{transform:scale(1.8);opacity:0}}
 @media(prefers-reduced-motion:reduce){.dolby-online-indicator.is-online,.dolby-online-indicator.is-online::after{animation:none}.dolby-online-indicator.is-online::after{opacity:.35;transform:scale(1.2)}}
@@ -967,7 +967,7 @@ async function loadProfileVisitHistory(){
   if(visits.error)throw visits.error;
   const rows=visits.data||[];host.replaceChildren();if(!rows.length)return;
   const ids=rows.map(row=>row.visited_profile_id);
-  const profiles=await client.from("profiles").select("id,username,display_name,avatar_url").in("id",ids);
+  const profiles=await client.from("profiles").select("id,username,display_name,avatar_url,last_activity_at,time_zone").in("id",ids);
   if(profiles.error)throw profiles.error;
   const byId=new Map((profiles.data||[]).map(profile=>[profile.id,profile]));
   rows.forEach(row=>{
@@ -1406,7 +1406,7 @@ async function loadAlbumShareFriends(){
   if(mutual.error)throw mutual.error;
   const friendIds=(mutual.data||[]).map(x=>x.follower_id);
   if(!friendIds.length){host.innerHTML='<div class="album-empty">Пока нет взаимных друзей.</div>';return;}
-  const profiles=await client.from("profiles").select("id,username,display_name,avatar_url").in("id",friendIds);
+  const profiles=await client.from("profiles").select("id,username,display_name,avatar_url,last_activity_at,time_zone").in("id",friendIds);
   if(profiles.error)throw profiles.error;
   host.replaceChildren();
   profiles.data.forEach(friend=>{
@@ -1740,27 +1740,103 @@ function openNavigationDestination(action,label,icon){
 }
 
 const dolbyOnlineUsers = new Set();
+const dolbyLastSeenByUser = new Map();
+const dolbyTimeZoneByUser = new Map();
 let dolbyOnlineChannel = null;
+let dolbyPresenceUserId = null;
+let dolbyPresenceChannelReady = false;
+let dolbyPresenceActive = false;
+let dolbyLastActionAt = 0;
+let dolbyLastPointerAt = 0;
+let dolbyIdleTimer = null;
+let dolbyActivityWriteTimer = null;
+function dolbyCurrentTimeZone(){
+ try{return Intl.DateTimeFormat().resolvedOptions().timeZone||"UTC";}catch(_){return "UTC";}
+}
+function dolbyFormatLastSeen(userId){
+ const value=dolbyLastSeenByUser.get(userId);
+ if(!value)return "Время последнего визита пока неизвестно";
+ const zone=dolbyTimeZoneByUser.get(userId)||dolbyCurrentTimeZone();
+ try{return "Был(а) в сети: "+new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit",timeZone:zone}).format(new Date(value));}
+ catch(_){return "Был(а) в сети: "+new Date(value).toLocaleString("ru-RU");}
+}
+function setDolbyLastSeen(userId,value,zone){
+ if(value)dolbyLastSeenByUser.set(userId,value);
+ if(zone)dolbyTimeZoneByUser.set(userId,zone);
+ refreshDolbyOnlineIndicators();
+}
 function refreshDolbyOnlineIndicators(){
  document.querySelectorAll(".dolby-online-indicator[data-user-id]").forEach(dot=>{
   const active=dolbyOnlineUsers.has(dot.dataset.userId);
+  const label=dot.parentElement?.querySelector(":scope > .dolby-online-last-seen[data-user-id=\""+dot.dataset.userId+"\"]");
   dot.classList.toggle("is-online",active);
-  dot.title=active?"В сети":"Не в сети";
-  dot.setAttribute("aria-label",active?"В сети":"Не в сети");
+  dot.hidden=!active;
+  dot.title=active?"В сети":dolbyFormatLastSeen(dot.dataset.userId);
+  dot.setAttribute("aria-label",active?"В сети":dolbyFormatLastSeen(dot.dataset.userId));
+  if(label){label.hidden=active;label.textContent=active?"":dolbyFormatLastSeen(dot.dataset.userId);}
  });
 }
 function appendDolbyOnlineIndicator(element,userId){
  if(!element||!userId)return;
- element.querySelectorAll(":scope > .dolby-online-indicator").forEach(dot=>dot.remove());
+ element.querySelectorAll(":scope > .dolby-online-indicator,:scope > .dolby-online-last-seen").forEach(node=>node.remove());
  const dot=document.createElement("span");
  dot.className="dolby-online-indicator";
  dot.dataset.userId=userId;
  dot.setAttribute("role","img");
- element.appendChild(dot);
+ dot.hidden=true;
+ const label=document.createElement("span");
+ label.className="dolby-online-last-seen";
+ label.dataset.userId=userId;
+ label.hidden=false;
+ label.textContent=dolbyFormatLastSeen(userId);
+ element.append(dot,label);
  refreshDolbyOnlineIndicators();
+}
+async function persistDolbyActivity(){
+ if(!client||!dolbyPresenceUserId||!dolbyLastActionAt)return;
+ const timestamp=new Date(dolbyLastActionAt).toISOString();
+ const zone=dolbyCurrentTimeZone();
+ const saved=await client.from("profiles").update({last_activity_at:timestamp,time_zone:zone}).eq("id",dolbyPresenceUserId);
+ if(saved.error){console.warn("FLOUSTREAM activity timestamp:",saved.error);return;}
+ setDolbyLastSeen(dolbyPresenceUserId,timestamp,zone);
+}
+function scheduleDolbyActivityWrite(){
+ if(dolbyActivityWriteTimer)return;
+ dolbyActivityWriteTimer=setTimeout(async()=>{
+  dolbyActivityWriteTimer=null;
+  await persistDolbyActivity();
+ },4000);
+}
+async function trackDolbyPresence(){
+ if(!dolbyPresenceChannelReady||!dolbyOnlineChannel||dolbyPresenceActive)return;
+ dolbyPresenceActive=true;
+ dolbyOnlineUsers.add(dolbyPresenceUserId);
+ refreshDolbyOnlineIndicators();
+ const tracked=await dolbyOnlineChannel.track({userId:dolbyPresenceUserId,onlineAt:new Date().toISOString(),lastActivityAt:new Date(dolbyLastActionAt).toISOString()});
+ if(tracked?.error){dolbyPresenceActive=false;dolbyOnlineUsers.delete(dolbyPresenceUserId);refreshDolbyOnlineIndicators();console.warn("FLOUSTREAM presence:",tracked.error);}
+}
+function scheduleDolbyIdleTimeout(){
+ clearTimeout(dolbyIdleTimer);
+ dolbyIdleTimer=setTimeout(async()=>{
+  await persistDolbyActivity();
+  if(dolbyOnlineChannel&&dolbyPresenceActive)await dolbyOnlineChannel.untrack();
+  dolbyPresenceActive=false;
+  dolbyOnlineUsers.delete(dolbyPresenceUserId);
+  refreshDolbyOnlineIndicators();
+ },30*60*1000);
+}
+function recordDolbyActivity(){
+ if(!dolbyPresenceUserId)return;
+ dolbyLastActionAt=Date.now();
+ setDolbyLastSeen(dolbyPresenceUserId,new Date(dolbyLastActionAt).toISOString(),dolbyCurrentTimeZone());
+ scheduleDolbyIdleTimeout();
+ scheduleDolbyActivityWrite();
+ if(dolbyPresenceChannelReady&&!dolbyPresenceActive)trackDolbyPresence();
 }
 function startDolbyOnlinePresence(client,userId){
  if(!client||!userId||dolbyOnlineChannel)return;
+ dolbyPresenceUserId=userId;
+ dolbyLastActionAt=Date.now();
  const channel=client.channel("dolby404:online");
  channel.on("presence",{event:"sync"},()=>{
   dolbyOnlineUsers.clear();
@@ -1773,11 +1849,30 @@ function startDolbyOnlinePresence(client,userId){
  dolbyOnlineChannel=channel;
  channel.subscribe(async status=>{
   if(status==="SUBSCRIBED"){
-   const tracked=await channel.track({userId,onlineAt:new Date().toISOString()});
-   if(tracked?.error)console.warn("FLOUSTREAM presence:",tracked.error);
+   dolbyPresenceChannelReady=true;
+   await trackDolbyPresence();
+   scheduleDolbyIdleTimeout();
+   scheduleDolbyActivityWrite();
   }
  });
- window.addEventListener("pagehide",()=>{channel.untrack();},{once:true});
+ const activityEvents=["pointerdown","keydown","touchstart","wheel","scroll","input","change","click"];
+ activityEvents.forEach(type=>window.addEventListener(type,recordDolbyActivity,{passive:true,capture:true}));
+ window.addEventListener("pointermove",()=>{
+  const now=Date.now();
+  if(now-dolbyLastPointerAt<8000)return;
+  dolbyLastPointerAt=now;
+  recordDolbyActivity();
+ },{passive:true});
+ document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden")persistDolbyActivity();});
+ window.addEventListener("pagehide",()=>{
+  persistDolbyActivity();
+  if(dolbyOnlineChannel)dolbyOnlineChannel.untrack();
+  dolbyPresenceActive=false;
+  dolbyOnlineUsers.delete(userId);
+  refreshDolbyOnlineIndicators();
+ },{once:true});
+ window.addEventListener("pageshow",()=>recordDolbyActivity());
+ recordDolbyActivity();
 }
 
 async function ensureAvatarOriginalInAlbum(){
@@ -1817,7 +1912,7 @@ async function start(){
   loadProfileVisitHistory();
   const result=await client.from("profiles").select("*").eq("id",user.id).maybeSingle();
   if(result.error)throw result.error;
-  profile=result.data||{};columns=Object.keys(profile);
+  profile=result.data||{};columns=Object.keys(profile);if(profile.last_activity_at)setDolbyLastSeen(user.id,profile.last_activity_at,profile.time_zone);
   if(result.data&&!profile.avatar_photo_id){try{await ensureAvatarOriginalInAlbum();}catch(error){console.warn("FLOUSTREAM avatar original migration:",error);}}
   if(!columns.length){
     const probe=await client.from("profiles").select("*").limit(1);
@@ -2147,7 +2242,7 @@ reactionWrap.append(reactionToggle,reactionPanel);
   const result=await client.from("comments").select("id,user_id,content,created_at").eq("post_id",post.id).order("created_at",{ascending:true}).limit(100);
   if(result.error){loading.textContent="Не удалось загрузить комментарии: "+result.error.message;return;}
   list.replaceChildren();const ids=[...new Set((result.data||[]).map(x=>x.user_id).filter(Boolean))];let profiles={};
-  if(ids.length){const p=await client.from("profiles").select("id,username,display_name").in("id",ids);if(!p.error)for(const item of p.data||[])profiles[item.id]=item;}
+  if(ids.length){const p=await client.from("profiles").select("id,username,display_name,last_activity_at,time_zone").in("id",ids);if(!p.error)for(const item of p.data||[]){profiles[item.id]=item;setDolbyLastSeen(item.id,item.last_activity_at,item.time_zone);}}
   if(!result.data?.length){const empty=document.createElement("div");empty.className="post-comment-note";empty.textContent="Пока нет комментариев. Будь первым!";list.append(empty);return;}
   for(const item of result.data){
    const row=document.createElement("article");row.className="post-comment";const author=document.createElement("strong");const p=profiles[item.user_id]||{};author.textContent=p.display_name||p.username||"Пользователь";appendDolbyOnlineIndicator(author,item.user_id);
