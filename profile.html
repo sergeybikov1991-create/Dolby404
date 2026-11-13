@@ -1115,27 +1115,31 @@ const albumThumbMemory=new Map();
 const albumThumbCacheName="floustream-album-thumbnails-v1";
 async function getAlbumThumbUrl(item,bucket,persist){
  const key=user.id+"|"+bucket+"|"+item.object_path;
- if(albumThumbMemory.has(key))return albumThumbMemory.get(key);
+ const remembered=albumThumbMemory.get(key);
+ if(remembered){
+  if(typeof remembered==="string")return remembered;
+  if(remembered.expiresAt>Date.now())return remembered.url;
+  albumThumbMemory.delete(key);
+ }
  const cacheKey=new URL("/__floustream_thumb_cache__/"+encodeURIComponent(user.id)+"/"+encodeURIComponent(bucket)+"/"+encodeURIComponent(item.object_path),location.origin).href;
- let cache=null;
  try{
   if(persist&&"caches" in window){
-   cache=await caches.open(albumThumbCacheName);
+   const cache=await caches.open(albumThumbCacheName);
    const cached=await cache.match(cacheKey);
-   if(cached){const cachedUrl=URL.createObjectURL(await cached.blob());albumThumbMemory.set(key,cachedUrl);return cachedUrl;}
+   if(cached){
+    const cachedUrl=URL.createObjectURL(await cached.blob());
+    albumThumbMemory.set(key,cachedUrl);
+    return cachedUrl;
+   }
   }
  }catch(_){}
  const signed=await client.storage.from(bucket).createSignedUrl(item.object_path,3600,{transform:{width:180,height:180,resize:"cover",quality:55}});
  if(signed.error||!signed.data?.signedUrl)throw signed.error||new Error("Не удалось создать миниатюру");
- try{
-  const response=await fetch(signed.data.signedUrl);
-  if(!response.ok)throw new Error("Не удалось загрузить миниатюру");
-  const blob=await response.blob();
-  if(persist&&cache){try{await cache.put(cacheKey,new Response(blob,{headers:{"Content-Type":blob.type||"image/jpeg"}}));}catch(_){}}
-  const objectUrl=URL.createObjectURL(blob);albumThumbMemory.set(key,objectUrl);return objectUrl;
- }catch(_){
-  albumThumbMemory.set(key,signed.data.signedUrl);return signed.data.signedUrl;
- }
+ const url=signed.data.signedUrl;
+ // Показываем подписанный URL сразу: браузер сам загружает изображение одним запросом.
+ // Не делаем второй fetch/blob-запрос перед отображением.
+ albumThumbMemory.set(key,{url,expiresAt:Date.now()+50*60*1000});
+ return url;
 }
 function queueAlbumThumb(img,item,bucket,persist){
  const load=async()=>{
