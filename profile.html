@@ -483,6 +483,8 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 .repost-flow:hover{transform:translateY(-1px);border-color:#b48aff;background:linear-gradient(135deg,#342044,#1b1426);box-shadow:0 0 12px #a66bff26}
 .repost-flow.is-active{border-color:#c18aff;background:linear-gradient(135deg,#49265f,#21152f);color:#f3ddff;box-shadow:0 0 12px #a66bff38}
 .repost-flow.is-active .flow-count{color:#e6caff}
+.post-flow-attribution{display:flex;align-items:center;gap:7px;margin:0 0 11px;padding:8px 11px;border:1px solid #63477f;border-radius:10px;background:linear-gradient(100deg,#281936,#171321);color:#d9baff;font-size:11px;font-weight:700;letter-spacing:.02em}
+.post-flow-attribution::before{content:"↗";display:grid;place-items:center;width:19px;height:19px;border-radius:50%;background:#593477;color:#fff;font-size:13px}
 
 @media(prefers-reduced-motion:reduce){.repost-flow{transition:none}.repost-flow:hover{transform:none}}
 .post-comments-panel{margin-top:10px;padding:12px;border:1px solid #3c2d50;border-radius:13px;background:#0e0c16}
@@ -1847,7 +1849,7 @@ function postFileType(file){
 
 async function initProfileFeed(client){
  const list=$("feed-list"),loading=$("feed-loading"),empty=$("feed-empty"),errorBox=$("feed-error"),sentinel=$("feed-sentinel");
- const seen=new Set();let offset=0,busy=false,done=false,feedAuthorIds=null;
+ const seen=new Set();let offset=0,flowOffset=0,busy=false,done=false,postsDone=false,flowsDone=false,feedAuthorIds=null;
  const batchSize=10;
  function safeUrl(value){if(!value)return "";try{const u=new URL(value,location.href);return ["http:","https:"].includes(u.protocol)?u.href:"";}catch(_){return "";}}
  function dateText(value){if(!value)return "";const d=new Date(value);return Number.isNaN(d.getTime())?"":d.toLocaleString("ru-RU",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});}
@@ -2060,9 +2062,15 @@ reactionWrap.append(reactionToggle,reactionPanel);
   await refreshCounts();like.disabled=false;
  });
  repost.addEventListener("click",async()=>{
-  repost.disabled=true;note.textContent="";
-  const result=reposted?await client.from("reposts").delete().eq("post_id",post.id).eq("user_id",user.id):await client.from("reposts").insert({post_id:post.id,user_id:user.id});
-  if(result.error)note.textContent="Не удалось изменить репост: "+result.error.message;
+  repost.disabled=true;note.textContent="";const wasReposted=reposted;
+  const result=wasReposted?await client.from("reposts").delete().eq("post_id",post.id).eq("user_id",user.id):await client.from("reposts").insert({post_id:post.id,user_id:user.id});
+  if(result.error)note.textContent="Не удалось изменить FLOW: "+result.error.message;
+  else{
+   let attribution=card.querySelector(".post-flow-attribution");
+   if(!wasReposted){if(!attribution){attribution=document.createElement("div");attribution.className="post-flow-attribution";}const flowName=profile.display_name||profile.username||profile.name||"Пользователь";attribution.textContent="FLOW · "+flowName+" · "+dateText(new Date().toISOString());card.prepend(attribution);const feed=$("feed-list");if(feed&&card.parentElement===feed)feed.prepend(card);}
+   else if(attribution)attribution.remove();
+   note.textContent=wasReposted?"FLOW отменён.":"Публикация добавлена в твои публикации через FLOW.";
+  }
   await refreshCounts();repost.disabled=false;
  });
  async function loadComments(){
@@ -2091,7 +2099,7 @@ reactionWrap.append(reactionToggle,reactionPanel);
  });
  refreshCounts();
 }
-function renderPost(post,profiles){
+function renderPost(post,profiles,flowMeta=null){
   const profile=profiles[post.user_id]||{},author=profile.name||profile.display_name||profile.full_name||profile.username||"Пользователь";
   const card=document.createElement("article");card.className="post";
   const head=document.createElement("div");head.className="post-head";
@@ -2100,6 +2108,7 @@ function renderPost(post,profiles){
   const identity=document.createElement("div");const name=document.createElement("div");name.className="post-author";name.textContent=author;appendDolbyOnlineIndicator(name,post.user_id);
   const date=document.createElement("div");date.className="post-date";date.textContent=dateText(post.created_at);identity.append(name,date);head.append(avatar,identity);
   if(post.user_id===user.id){const tools=document.createElement("div");tools.className="post-owner-tools";const edit=document.createElement("button");edit.type="button";edit.className="post-edit-button";edit.textContent="✎";edit.addEventListener("click",()=>startEditPost(post,card));tools.append(edit);head.append(tools);}
+  if(flowMeta){const flowProfile=profiles[flowMeta.user_id]||{};const flowName=flowProfile.display_name||flowProfile.username||flowProfile.name||"Пользователь";const attribution=document.createElement("div");attribution.className="post-flow-attribution";attribution.textContent="FLOW · "+flowName+(flowMeta.created_at?" · "+dateText(flowMeta.created_at):"");card.append(attribution);}
   card.append(head);
   if(post.content){const content=document.createElement("div");content.className="post-content";renderFormattedText(content,post.content);card.append(content);}
   const mediaItems=Array.isArray(post.media)&&post.media.length?post.media:(post.image_url?[{type:"photo",url:post.image_url,name:"Фото"}]:[]);
@@ -2301,15 +2310,33 @@ function renderPost(post,profiles){
     if(followed.error)throw followed.error;
     feedAuthorIds=[...new Set([user.id,...(followed.data||[]).map(row=>row.following_id).filter(Boolean)])];
    }
-   const result=await client.from("posts").select("*").in("user_id",feedAuthorIds).order("created_at",{ascending:false}).order("id",{ascending:false}).range(offset,offset+batchSize-1);
-   if(result.error)throw result.error;
-   const posts=result.data||[];
-   if(!posts.length){done=true;if(!list.children.length)empty.hidden=false;loading.hidden=true;return;}
-   const ids=[...new Set(posts.map(p=>p.user_id).filter(Boolean))];let profiles={};
-   if(ids.length){const res=await client.from("profiles").select("*").in("id",ids);if(!res.error)for(const p of res.data||[])profiles[p.id]=p;}
-   let added=0;for(const post of posts){if(seen.has(post.id))continue;seen.add(post.id);list.appendChild(renderPost(post,profiles));added++;}
-   offset+=posts.length;if(posts.length<batchSize)done=true;
-   loading.hidden=done;
+   const [postResult,flowResult]=await Promise.all([
+    postsDone?Promise.resolve({data:[],error:null}):client.from("posts").select("*").in("user_id",feedAuthorIds).order("created_at",{ascending:false}).order("id",{ascending:false}).range(offset,offset+batchSize-1),
+    flowsDone?Promise.resolve({data:[],error:null}):client.from("reposts").select("id,user_id,post_id,created_at").eq("user_id",user.id).order("created_at",{ascending:false}).order("id",{ascending:false}).range(flowOffset,flowOffset+batchSize-1)
+   ]);
+   if(postResult.error)throw postResult.error;if(flowResult.error)throw flowResult.error;
+   const posts=postResult.data||[],flowRows=flowResult.data||[];
+   offset+=posts.length;flowOffset+=flowRows.length;
+   if(posts.length<batchSize)postsDone=true;if(flowRows.length<batchSize)flowsDone=true;
+   const flowIds=flowRows.map(row=>row.post_id).filter(Boolean);
+   const flowPostResult=flowIds.length?await client.from("posts").select("*").in("id",flowIds):{data:[],error:null};
+   if(flowPostResult.error)throw flowPostResult.error;
+   const flowByPostId=new Map(flowRows.map(row=>[String(row.post_id),row]));
+   const merged=new Map();
+   for(const post of posts)merged.set(String(post.id),{post,sortAt:post.created_at||"",flowMeta:null});
+   for(const post of flowPostResult.data||[]){
+    const flowMeta=flowByPostId.get(String(post.id));if(!flowMeta)continue;
+    const key=String(post.id),existing=merged.get(key);
+    if(!existing||new Date(flowMeta.created_at||0)>new Date(existing.sortAt||0))merged.set(key,{post,sortAt:flowMeta.created_at||post.created_at||"",flowMeta});
+   }
+   const entries=[...merged.values()].sort((a,b)=>new Date(b.sortAt||0)-new Date(a.sortAt||0));
+   if(!entries.length&&postsDone&&flowsDone){done=true;if(!list.children.length)empty.hidden=false;loading.hidden=true;return;}
+   const ids=[...new Set([...entries.map(x=>x.post.user_id),...entries.filter(x=>x.flowMeta).map(x=>x.flowMeta.user_id)].filter(Boolean))];let profiles={};
+   if(ids.length){const res=await client.from("profiles").select("*").in("id",ids);if(res.error)throw res.error;for(const p of res.data||[])profiles[p.id]=p;}
+   if(profile)profiles[user.id]=profile;
+   let added=0;
+   for(const entry of entries){const key=String(entry.post.id);if(seen.has(key))continue;seen.add(key);list.appendChild(renderPost(entry.post,profiles,entry.flowMeta));added++;}
+   done=postsDone&&flowsDone;loading.hidden=done;
    if(added===0&&!done){busy=false;await loadBatch();return;}
   }catch(e){errorBox.hidden=false;errorBox.textContent="Не удалось загрузить публикации: "+e.message;loading.hidden=true;done=true;}
   finally{busy=false;}
