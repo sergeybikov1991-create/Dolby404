@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DOLBY404 — Мой профиль</title>
+<title>FLOUSTREAM — Мой профиль</title>
 <style>
 *{box-sizing:border-box}
 :root{--bg:#090910;--panel:#141320;--line:#302b43;--purple:#a66bff;--muted:#a39db5;--text:#f7f4ff}
@@ -142,7 +142,7 @@ textarea{min-height:90px;resize:vertical}
 .card{border:1px solid #49345f;border-radius:22px;background:linear-gradient(145deg,#171321,#0e0d16);box-shadow:0 12px 45px #0007,0 0 28px #7d3fba12}
 .cover{height:210px;position:relative;overflow:hidden;background:radial-gradient(ellipse at 72% 30%,#a34bff66 0,transparent 34%),radial-gradient(ellipse at 22% 80%,#4626a966 0,transparent 42%),linear-gradient(125deg,#090912 5%,#21102f 48%,#111b35 100%)}
 .cover:before{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent 0 35%,#c16aff18 36%,transparent 39% 62%,#8a50ff20 63%,transparent 67%),repeating-linear-gradient(135deg,transparent 0 24px,#ffffff08 25px,transparent 26px 48px)}
-.cover:after{content:"DOLBY404";position:absolute;right:22px;bottom:16px;font-size:clamp(24px,6vw,44px);font-weight:900;letter-spacing:.18em;color:#ffffff12;text-shadow:0 0 25px #a45bff55;pointer-events:none}
+.cover:after{content:"FLOUSTREAM";position:absolute;right:22px;bottom:16px;font-size:clamp(24px,6vw,44px);font-weight:900;letter-spacing:.18em;color:#ffffff12;text-shadow:0 0 25px #a45bff55;pointer-events:none}
 .cover-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0}
 .cover-photo[hidden]{display:none}
  
@@ -193,7 +193,7 @@ textarea{min-height:90px;resize:vertical}
 .post-edit-status{font-size:12px;color:#c5a4ff;min-height:16px;overflow-wrap:anywhere}
 @media(max-width:380px){.post-edit-button{padding:6px 7px;font-size:11px}}
 
-/* DOLBY404 slide navigation */
+/* FLOUSTREAM slide navigation */
 .quick-nav{display:none!important}
 .drawer-menu-button{position:fixed;z-index:83;left:14px;top:15px;width:44px;height:44px;display:grid;place-items:center;padding:0;border:1px solid #704b91;border-radius:14px;background:linear-gradient(145deg,#21152ff2,#100d19f2);box-shadow:0 0 16px #8d50e733,inset 0 0 12px #9b5bd511;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);opacity:1;transform:scale(1);visibility:visible;transition:opacity .18s ease,transform .18s ease,visibility .18s}
 .drawer-menu-button.is-hidden{opacity:0;transform:scale(.78);visibility:hidden;pointer-events:none}
@@ -304,7 +304,7 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 @media(max-width:360px){.emoji-grid{grid-template-columns:repeat(8,minmax(0,1fr))}.emoji-item{font-size:18px}}
 
 
-/* DOLBY404 fullscreen composer */
+/* FLOUSTREAM fullscreen composer */
 .publish-editor.composer-fullscreen{position:fixed;inset:0;z-index:1200;display:flex;flex-direction:column;gap:10px;margin:0;padding:calc(16px + env(safe-area-inset-top)) 14px calc(12px + env(safe-area-inset-bottom));background:radial-gradient(ellipse at 20% 0%,#29133f 0,transparent 38%),#090910;overflow:auto;border:0;border-radius:0}
 .publish-editor.composer-fullscreen[hidden]{display:none}
 .composer-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex:0 0 auto}
@@ -348,7 +348,7 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 .publish-editor.composer-fullscreen #publish-status{flex:0 0 auto;max-height:36px;overflow:auto}
 @media(max-width:380px){.publish-editor.composer-fullscreen .emoji-grid{grid-template-columns:repeat(7,minmax(0,1fr))}.publish-editor.composer-fullscreen .emoji-item{font-size:18px}}
 
-/* DOLBY404 scheduled publishing queue */
+/* FLOUSTREAM scheduled publishing queue */
 .schedule-options{display:flex;flex-direction:column;gap:10px;margin:12px 0;padding:12px;border:1px solid #4c3764;border-radius:13px;background:#120f1c}
 .schedule-toggle{display:flex;align-items:center;gap:9px;color:#e8dcf7;font-size:13px}
 .schedule-toggle input{width:18px;height:18px;accent-color:#a66bff}
@@ -456,7 +456,7 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 @media(max-width:380px){.post-social-actions{gap:6px}.post-social-button{padding:7px 10px;font-size:12px}.post-comment-form{grid-template-columns:1fr}.post-comment-form button{justify-self:end}}
 
 
-/* DOLBY404 PULSE online status */
+/* FLOUSTREAM PULSE online status */
 .dolby-online-indicator{position:relative;display:inline-block;vertical-align:middle;width:8px;height:8px;flex:0 0 8px;margin-left:8px;border-radius:50%;background:#716b7b;box-shadow:0 0 0 1px #a69bb8;transition:background .2s ease,box-shadow .2s ease}
 .dolby-online-indicator.is-online{background:#69ffd1;box-shadow:0 0 0 1px #b7ffe9,0 0 8px #4effc5,0 0 15px #936bff;animation:dolbyPulseCore 1.8s ease-in-out infinite}
 .dolby-online-indicator.is-online::after{content:"";position:absolute;inset:-5px;border:1px solid #a66bff;border-radius:50%;opacity:0;animation:dolbyPulseRing 1.8s ease-out infinite}
@@ -470,8 +470,8 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 <button type="button" class="drawer-menu-button" id="drawer-menu-button" aria-label="Открыть меню" aria-controls="side-drawer" aria-expanded="false"><span class="sound-signal" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span></button>
 
 <div class="drawer-edge" id="drawer-edge" aria-hidden="true"></div><div class="drawer-backdrop" id="drawer-backdrop"></div>
-<aside class="side-drawer" id="side-drawer" aria-label="Навигация DOLBY404" aria-hidden="true">
- <div class="drawer-shell"><div class="side-drawer-head"><div class="side-drawer-logo">DOLBY404</div><button type="button" class="side-drawer-close" id="drawer-close" aria-label="Закрыть меню">×</button></div>
+<aside class="side-drawer" id="side-drawer" aria-label="Навигация FLOUSTREAM" aria-hidden="true">
+ <div class="drawer-shell"><div class="side-drawer-head"><div class="side-drawer-logo">FLOUSTREAM</div><button type="button" class="side-drawer-close" id="drawer-close" aria-label="Закрыть меню">×</button></div>
  <p class="side-drawer-caption">Навигация</p><nav class="side-drawer-links">
  <button class="side-drawer-link active" data-drawer-action="profile"><span class="side-drawer-icon">◉</span>Мой профиль</button></nav>
  <div class="nav-history" id="nav-history"><p class="side-drawer-caption" id="nav-history-title">Недавно посещали</p><div class="nav-history-items" id="nav-history-items"><span class="nav-history-empty">Пока пусто</span></div></div>
@@ -483,7 +483,7 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
  <button class="side-drawer-link" data-drawer-soon="Видео"><span class="side-drawer-icon">▶</span>Видео</button>
  <button class="side-drawer-link" data-drawer-soon="Фото"><span class="side-drawer-icon">▧</span>Фото</button>
  <button class="side-drawer-link" data-drawer-soon="Закладки"><span class="side-drawer-icon">☆</span>Закладки</button></nav>
- <div class="drawer-bottom"><button type="button" class="side-drawer-link drawer-settings-button" id="open-settings"><span class="side-drawer-icon">⚙</span>Настройки</button><button type="button" class="drawer-logout-button" id="drawer-logout">↪ Выйти</button><div class="side-drawer-foot">DOLBY404 · твоя цифровая территория</div></div></div>
+ <div class="drawer-bottom"><button type="button" class="side-drawer-link drawer-settings-button" id="open-settings"><span class="side-drawer-icon">⚙</span>Настройки</button><button type="button" class="drawer-logout-button" id="drawer-logout">↪ Выйти</button><div class="side-drawer-foot">FLOUSTREAM · твоя цифровая территория</div></div></div>
 </aside>
 
 <div class="settings-backdrop" id="settings-backdrop" hidden>
@@ -504,7 +504,7 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
   <label class="settings-label" for="new-password">Введите новый пароль</label><input id="new-password" type="password" autocomplete="new-password" minlength="8" placeholder="Не менее 8 символов">
   <label class="settings-label" for="confirm-password">Повторите новый пароль</label><input id="confirm-password" type="password" autocomplete="new-password" minlength="8" placeholder="Повторите пароль">
   <div class="settings-actions"><button type="button" class="primary" id="change-password">Изменить пароль</button></div>
-  <p class="settings-help">После смены пароля используй его при следующем входе в DOLBY404.</p>
+  <p class="settings-help">После смены пароля используй его при следующем входе в FLOUSTREAM.</p>
   <div class="settings-status" id="settings-status" aria-live="polite"></div>
  </section>
 </div>
@@ -536,7 +536,7 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 <div id="notice" class="empty" hidden></div>
 </div>
 </section>
-<nav class="quick-nav" aria-label="Разделы DOLBY404">
+<nav class="quick-nav" aria-label="Разделы FLOUSTREAM">
 <button type="button" data-soon="Фотографии">▧ Фото</button>
 <button type="button" data-soon="Видео">▶ Видео</button>
 <button type="button" data-soon="Музыка">♫ Музыка</button>
@@ -577,7 +577,7 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 <div class="feed" id="feed" aria-live="polite">
 <div id="feed-list"></div>
 <div class="feed-loading" id="feed-loading">Загружаем публикации…</div>
-<div class="feed-empty" id="feed-empty" hidden><strong>Пока публикаций нет</strong>Здесь появятся записи пользователей DOLBY404.</div>
+<div class="feed-empty" id="feed-empty" hidden><strong>Пока публикаций нет</strong>Здесь появятся записи пользователей FLOUSTREAM.</div>
 <div class="feed-error" id="feed-error" hidden></div>
 <div id="feed-sentinel" aria-hidden="true"></div>
 </div>
@@ -689,7 +689,7 @@ function startDolbyOnlinePresence(client,userId){
  channel.subscribe(async status=>{
   if(status==="SUBSCRIBED"){
    const tracked=await channel.track({userId,onlineAt:new Date().toISOString()});
-   if(tracked?.error)console.warn("DOLBY404 presence:",tracked.error);
+   if(tracked?.error)console.warn("FLOUSTREAM presence:",tracked.error);
   }
  });
  window.addEventListener("pagehide",()=>{channel.untrack();},{once:true});
@@ -741,10 +741,10 @@ function attachEmojiPicker(field){
   {icon:"🎧",name:"objects",items:"⌚ 📱 📲 💻 ⌨️ 🖥️ 🖨️ 🖱️ 🖲️ 💽 💾 💿 📀 🧮 🎥 📷 📸 📹 📼 🔍 🔎 💡 🔦 🕯️ 🪔 🧯 🛢️ 💸 💵 💴 💶 💷 💰 🪙 💳 🧾 💎 ⚖️ 🪜 🧰 🔧 🔨 ⚒️ 🛠️ ⛏️ 🔩 ⚙️ 🧲 🪛 🧪 🧫 🧬 🔬 🔭 📡 💊 🩹 🩺 🚪 🪞 🪟 🛏️ 🛋️ 🪑 🚽 🚿 🛁 🧴 🧷 🧹 🧺 🧻 🪣 🧼 🪥"},
   {icon:"⚡",name:"symbols",items:"✨ ⭐ 🌟 💫 ⚡ ☄️ 💥 🔥 🌈 ☀️ 🌙 ☁️ ❄️ 💧 💦 🫧 🎉 🎊 🎈 🎀 🪄 🧿 🔮 🪬 🕯️ 💯 💢 💨 💤 💬 🗯️ 💭 🗨️ 🖤 🩶 🤍 ❗ ❕ ❓ ❔ ⁉️ ‼️ ♻️ ⚠️ 🚫 ⛔ 🔞 ♠️ ♥️ ♦️ ♣️ 🃏 🎴 🔱 ⚜️ 🔰 ☢️ ☣️ 🆘 🆙 🆒 🆕 🆓 🆗 🆖 🆔 🔟 🔢 🔣 🔤 🔡 🔠"},
   {icon:"👾",name:"cyber",items:"👾 🤖 👽 🛸 💻 🖥️ 📟 📡 🔋 🪫 ⚙️ 🧬 🔬 🔭 💿 📀 💽 🕹️ 🎮 🧩 🌀 💠 🔷 🔹 🔶 🔸 🔺 🔻 🔲 🔳 ▪️ ◾ ◼️ ⬛ 🟪 🟣 🟦 🟩 🟨 🟥 🟧 ⬜ ⬜ 🔘 🔮 🪩 ✨ 💫 ⚡ 💥 🌐 🛰️ 🚀"},
-  {icon:"D",name:"DOLBY404",items:"◉_◉ ◉‿◉ ◉ᴗ◉ ◉益◉ ◉皿◉ ◉_• ◉‿• •_• x_x X_X O_O 0_0 >_< ^_^ T_T D404 404 ⟡ ⟢ ⟣ ◈ ◆ ◇ ▣ ▤ ▥ ⌁ ⌬ ⛭ ⛧ ⚡"}
+  {icon:"D",name:"FLOUSTREAM",items:"◉_◉ ◉‿◉ ◉ᴗ◉ ◉益◉ ◉皿◉ ◉_• ◉‿• •_• x_x X_X O_O 0_0 >_< ^_^ T_T D404 404 ⟡ ⟢ ⟣ ◈ ◆ ◇ ▣ ▤ ▥ ⌁ ⌬ ⛭ ⛧ ⚡"}
  ];
  const host=document.createElement("div");host.className="emoji-picker";
- const trigger=document.createElement("button");trigger.type="button";trigger.className="emoji-picker-trigger";trigger.textContent="☺";trigger.setAttribute("aria-label","Открыть смайлы DOLBY404");trigger.setAttribute("aria-expanded","false");
+ const trigger=document.createElement("button");trigger.type="button";trigger.className="emoji-picker-trigger";trigger.textContent="☺";trigger.setAttribute("aria-label","Открыть смайлы FLOUSTREAM");trigger.setAttribute("aria-expanded","false");
  const panel=document.createElement("div");panel.className="emoji-picker-panel";panel.hidden=true;
  const tabs=document.createElement("div");tabs.className="emoji-category-tabs";tabs.setAttribute("role","group");tabs.setAttribute("aria-label","Категории смайлов");
  const grid=document.createElement("div");grid.className="emoji-grid";
