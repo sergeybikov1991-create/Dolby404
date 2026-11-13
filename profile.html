@@ -1779,6 +1779,34 @@ function startDolbyOnlinePresence(client,userId){
  window.addEventListener("pagehide",()=>{channel.untrack();},{once:true});
 }
 
+async function ensureAvatarOriginalInAlbum(){
+ if(!profile?.avatar_url||profile.avatar_photo_id||!profile.avatar_url.includes("/storage/v1/object/public/avatars/"))return;
+ const response=await fetch(profile.avatar_url,{cache:"no-store"});
+ if(!response.ok)throw new Error("Не удалось получить исходный файл текущего аватара.");
+ const blob=await response.blob();
+ const mime=(blob.type||"").split(";")[0].toLowerCase();
+ if(!["image/jpeg","image/png","image/webp"].includes(mime))return;
+ if(blob.size>50*1024*1024)return;
+ const ext=mime==="image/jpeg"?"jpg":mime.split("/")[1];
+ const path=`${user.id}/avatar-original-migrated-${Date.now()}-${crypto.randomUUID()}.${ext}`;
+ let uploaded=false,photoId=null;
+ try{
+  const upload=await client.storage.from("photo-albums").upload(path,blob,{upsert:false,contentType:mime});
+  if(upload.error)throw upload.error;
+  uploaded=true;
+  const row=await client.from("photo_album_photos").insert({owner_id:user.id,object_path:path,file_name:"Оригинал фотографии профиля."+ext,mime_type:mime}).select("id").single();
+  if(row.error)throw row.error;
+  photoId=row.data.id;
+  const saved=await client.from("profiles").update({avatar_photo_id:photoId}).eq("id",user.id).select("*").single();
+  if(saved.error)throw saved.error;
+  profile=saved.data;columns=Object.keys(profile);
+ }catch(error){
+  if(photoId)await client.from("photo_album_photos").delete().eq("id",photoId).eq("owner_id",user.id);
+  if(uploaded)await client.storage.from("photo-albums").remove([path]);
+  throw error;
+ }
+}
+
 async function start(){
  try{
   await loadLibrary();client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
@@ -1789,6 +1817,7 @@ async function start(){
   const result=await client.from("profiles").select("*").eq("id",user.id).maybeSingle();
   if(result.error)throw result.error;
   profile=result.data||{};columns=Object.keys(profile);
+  if(result.data&&!profile.avatar_photo_id){try{await ensureAvatarOriginalInAlbum();}catch(error){console.warn("FLOUSTREAM avatar original migration:",error);}}
   if(!columns.length){
     const probe=await client.from("profiles").select("*").limit(1);
     if(probe.error)throw probe.error;
