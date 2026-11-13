@@ -1187,7 +1187,6 @@ async function uploadVideoResumable(bucket,path,file,onProgress){
    const match=previous.find(item=>item.metadata&&item.metadata.bucketName===bucket&&item.metadata.objectName&&item.metadata.objectName.startsWith(user.id+"/"));
    if(match){
     path=match.metadata.objectName;
-    upload.options.metadata.objectName=path;
     upload.resumeFromPreviousUpload(match);
    }
    upload.start();
