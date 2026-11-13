@@ -72,7 +72,7 @@ test("portal fits a mobile viewport without horizontal overflow", async ({ page 
 test("profile redirects signed-out visitors to the portal", async ({ page }) => {
   await mockSupabaseCdn(page);
   await page.goto("/profile.html");
-  await expect(page).toHaveURL(/\\/portal\\.html$/);
+  await expect(page).toHaveURL(/\/portal\.html$/);
   await expect(page.locator(".logo")).toHaveText("FLOUSTREAM");
 });
 
