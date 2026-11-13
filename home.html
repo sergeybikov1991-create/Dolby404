@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DOLBY404 — Главная</title>
+<title>FLOUSTREAM — Главная</title>
 <style>
 *{box-sizing:border-box}
 :root{--bg:#090910;--panel:#12121d;--line:#29283a;--purple:#a66bff;--muted:#9291a8;--text:#f7f4ff}
@@ -101,7 +101,7 @@ h1{font-size:clamp(25px,5vw,36px);margin:12px 0 8px}
 @media(max-width:380px){.post-social-actions{gap:6px}.post-social-button{padding:7px 10px;font-size:12px}.post-comment-form{grid-template-columns:1fr}.post-comment-form button{justify-self:end}}
 
 
-/* DOLBY404 PULSE online status */
+/* FLOUSTREAM PULSE online status */
 .dolby-online-indicator{position:relative;display:inline-block;vertical-align:middle;width:8px;height:8px;flex:0 0 8px;margin-left:8px;border-radius:50%;background:#716b7b;box-shadow:0 0 0 1px #a69bb8;transition:background .2s ease,box-shadow .2s ease}
 .dolby-online-indicator.is-online{background:#69ffd1;box-shadow:0 0 0 1px #b7ffe9,0 0 8px #4effc5,0 0 15px #936bff;animation:dolbyPulseCore 1.8s ease-in-out infinite}
 .dolby-online-indicator.is-online::after{content:"";position:absolute;inset:-5px;border:1px solid #a66bff;border-radius:50%;opacity:0;animation:dolbyPulseRing 1.8s ease-out infinite}
@@ -114,7 +114,7 @@ h1{font-size:clamp(25px,5vw,36px);margin:12px 0 8px}
 <body>
 <header class="topbar">
   <button class="menu-toggle" id="menu-toggle" type="button" aria-label="Открыть меню" aria-expanded="false">☰</button>
-  <div class="logo">DOLBY404</div>
+  <div class="logo">FLOUSTREAM</div>
   <div class="account"><span id="user-email">Проверяем аккаунт…</span><button class="logout" id="logout-button" hidden>Выйти</button></div>
 </header>
 <div class="drawer-backdrop" id="drawer-backdrop"></div>
@@ -131,7 +131,7 @@ h1{font-size:clamp(25px,5vw,36px);margin:12px 0 8px}
   <main class="main">
     <section class="welcome">
       <div class="eyebrow">ТВОЁ ЦИФРОВОЕ ПРОСТРАНСТВО</div>
-      <h1>Добро пожаловать в DOLBY404</h1>
+      <h1>Добро пожаловать в FLOUSTREAM</h1>
       <p>Здесь будут твои публикации, общение, музыка, фото, видео и сообщества. Мы постепенно превращаем каждый раздел в настоящую работающую функцию.</p>
       <div id="status"></div>
     </section>
@@ -146,14 +146,14 @@ h1{font-size:clamp(25px,5vw,36px);margin:12px 0 8px}
     <section class="feed" id="feed" aria-live="polite">
       <div id="feed-list"></div>
       <div class="feed-loading" id="feed-loading">Загружаем публикации…</div>
-      <div class="feed-empty" id="feed-empty" hidden><strong>Пока публикаций нет</strong>Здесь появятся записи пользователей DOLBY404.</div>
+      <div class="feed-empty" id="feed-empty" hidden><strong>Пока публикаций нет</strong>Здесь появятся записи пользователей FLOUSTREAM.</div>
       <div class="feed-error" id="feed-error" hidden></div>
       <div id="feed-sentinel" aria-hidden="true"></div>
       <button class="feed-more" id="feed-more" type="button" hidden>Показать ещё</button>
     </section>
   </main>
 </div>
-<div id="loading" style="max-width:560px;margin:18vh auto;padding:25px;text-align:center;color:#c9b7ee">Подключаем DOLBY404…</div>
+<div id="loading" style="max-width:560px;margin:18vh auto;padding:25px;text-align:center;color:#c9b7ee">Подключаем FLOUSTREAM…</div>
 <script>
 const SUPABASE_URL = "https://qhpobdktlbhdqsnajypr.supabase.co";
 const SUPABASE_KEY = "sb_publishable_tzG1qVsbjaW8YE_LBVN87Q_v0CahKN5";
@@ -206,7 +206,7 @@ function startDolbyOnlinePresence(client,userId){
  channel.subscribe(async status=>{
   if(status==="SUBSCRIBED"){
    const tracked=await channel.track({userId,onlineAt:new Date().toISOString()});
-   if(tracked?.error)console.warn("DOLBY404 presence:",tracked.error);
+   if(tracked?.error)console.warn("FLOUSTREAM presence:",tracked.error);
   }
  });
  window.addEventListener("pagehide",()=>{channel.untrack();},{once:true});
@@ -244,7 +244,7 @@ async function start(){
       });
     });
   }catch(error){
-    loading.textContent="Не удалось подключить DOLBY404: "+error.message;
+    loading.textContent="Не удалось подключить FLOUSTREAM: "+error.message;
   }
 }
 
