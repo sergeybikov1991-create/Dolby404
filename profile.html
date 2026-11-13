@@ -483,6 +483,7 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 .repost-flow:hover{transform:translateY(-1px);border-color:#b48aff;background:linear-gradient(135deg,#342044,#1b1426);box-shadow:0 0 12px #a66bff26}
 .repost-flow.is-active{border-color:#c18aff;background:linear-gradient(135deg,#49265f,#21152f);color:#f3ddff;box-shadow:0 0 12px #a66bff38}
 .repost-flow.is-active .flow-count{color:#e6caff}
+.post-author-label{margin-bottom:2px;color:#a99bbd;font-size:10px;letter-spacing:.04em;text-transform:uppercase}
 .post-flow-attribution{display:flex;align-items:center;gap:7px;margin:0 0 11px;padding:8px 11px;border:1px solid #63477f;border-radius:10px;background:linear-gradient(100deg,#281936,#171321);color:#d9baff;font-size:11px;font-weight:700;letter-spacing:.02em}
 .post-flow-attribution::before{content:"↗";display:grid;place-items:center;width:19px;height:19px;border-radius:50%;background:#593477;color:#fff;font-size:13px}
 
@@ -2106,6 +2107,7 @@ function renderPost(post,profiles,flowMeta=null){
   const avatar=document.createElement("div");avatar.className="post-avatar";const avatarUrl=safeUrl(profile.avatar_url||profile.avatar);
   if(avatarUrl){const img=document.createElement("img");img.src=avatarUrl;img.alt="";img.loading="lazy";avatar.appendChild(img);}else avatar.textContent=(String(author).trim()[0]||"◉").toUpperCase();
   const identity=document.createElement("div");const name=document.createElement("div");name.className="post-author";name.textContent=author;appendDolbyOnlineIndicator(name,post.user_id);
+  if(flowMeta){const authorLabel=document.createElement("div");authorLabel.className="post-author-label";authorLabel.textContent="Автор оригинала";identity.append(authorLabel);}
   const date=document.createElement("div");date.className="post-date";date.textContent=dateText(post.created_at);identity.append(name,date);head.append(avatar,identity);
   if(post.user_id===user.id){const tools=document.createElement("div");tools.className="post-owner-tools";const edit=document.createElement("button");edit.type="button";edit.className="post-edit-button";edit.textContent="✎";edit.addEventListener("click",()=>startEditPost(post,card));tools.append(edit);head.append(tools);}
   if(flowMeta){const flowProfile=profiles[flowMeta.user_id]||{};const flowName=flowProfile.display_name||flowProfile.username||flowProfile.name||"Пользователь";const attribution=document.createElement("div");attribution.className="post-flow-attribution";attribution.textContent="FLOW · "+flowName+(flowMeta.created_at?" · "+dateText(flowMeta.created_at):"");card.append(attribution);}
