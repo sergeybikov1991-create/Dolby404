@@ -75,17 +75,6 @@ a{color:#d8c5ff;text-decoration:none}
 .name h1{font-size:26px;margin:0 0 6px;overflow-wrap:anywhere}
 .name p{margin:0;color:var(--muted);font-size:13px;overflow-wrap:anywhere}
 .bio{color:#c9c2d7;line-height:1.6;margin:20px 0}
-.stats{display:flex;gap:24px;padding:15px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);color:var(--muted);font-size:13px}
-.stats strong{color:#fff;font-size:17px;display:block;margin-bottom:3px}
-.profile-stat{flex:1;min-width:0;padding:12px 8px;border:1px solid #342943;border-radius:13px;background:linear-gradient(145deg,#1b1627,#11101a);color:var(--muted);font-size:12px;text-align:center}
-.profile-stat strong{display:block;margin-bottom:4px;color:#fff;font-size:19px}
-.friends-panel{margin-top:14px;padding:16px;border:1px solid #342943;border-radius:15px;background:linear-gradient(145deg,#191625,#100f19)}
-.friends-panel h2{margin:0 0 12px;font-size:16px;color:#f0e5ff}
-.profile-friends{display:flex;gap:10px;flex-wrap:wrap}
-.profile-friend{display:flex;align-items:center;gap:9px;min-width:145px;padding:8px 10px;border:1px solid #382b4b;border-radius:12px;background:#100e18;color:#eee5ff;font-size:13px}
-.profile-friend-avatar{width:34px;height:34px;flex:0 0 34px;overflow:hidden;border-radius:50%;display:grid;place-items:center;background:#39234f;color:#f2e8ff;font-weight:700}
-.profile-friend-avatar img{width:100%;height:100%;object-fit:cover}
-.friends-empty{color:var(--muted);font-size:12px;padding:4px 0}
 .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
 button{cursor:pointer;border:1px solid #62458b;border-radius:24px;padding:11px 18px;background:#2a1b3d;color:#f1e7ff;font-size:14px}
 button.primary{background:linear-gradient(100deg,#6335a0,#39205f);border-color:#9b69d8}
@@ -156,13 +145,10 @@ textarea{min-height:90px;resize:vertical}
 .name h1{font-size:clamp(22px,4vw,30px);letter-spacing:.01em}
 .name p{color:#c59aff}
 .bio{margin:16px 0 18px;max-width:650px;color:#c9c0d8}
-.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:14px 0;border:0}
-.stats>div{padding:12px 10px;border:1px solid #342943;border-radius:13px;background:linear-gradient(145deg,#1b1627,#11101a);text-align:center}
-.stats strong{font-size:20px;color:#f4eaff}
 .profile .actions{margin-top:8px}
 .profile .actions button{border-radius:12px}
 #logout-button{background:#17131f;border-color:#393044;color:#bcb3ca}
-@media(max-width:600px){.wrap{margin:14px auto;padding:0 11px}.cover{height:158px}.profile{padding:0 15px 18px}.identity{gap:12px;margin-top:-43px}.avatar{width:96px;height:96px;font-size:32px}.name{padding-bottom:6px}.stats{gap:7px;padding:12px 0}.stats>div{padding:10px 4px;font-size:11px}.stats strong{font-size:18px}}
+@media(max-width:600px){.wrap{margin:14px auto;padding:0 11px}.cover{height:158px}.profile{padding:0 15px 18px}.identity{gap:12px;margin-top:-43px}.avatar{width:96px;height:96px;font-size:32px}.name{padding-bottom:6px}}
 
 .photo-likers{display:flex;align-items:center;justify-content:center;gap:9px;flex-wrap:wrap}
 .photo-liker-avatars{display:flex;align-items:center;padding-left:5px}
@@ -818,12 +804,6 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
 <div class="name"><h1 id="display-name">Загружаем профиль…</h1><p id="username"></p></div>
 </div>
 <p class="bio" id="bio">Подготавливаем твою страницу…</p>
-<div class="stats">
-<button type="button" class="profile-stat" id="open-followers"><strong id="followers-count">—</strong>Подписчики</button>
-<button type="button" class="profile-stat" id="open-following"><strong id="following-count">—</strong>Подписки</button>
-<button type="button" class="profile-stat" id="open-friends"><strong id="friends-count">—</strong>Друзья</button>
-</div>
-
 <div class="editor" id="editor" hidden>
 <h2>Настроить профиль</h2>
 <input id="name-input" maxlength="60" placeholder="Как тебя зовут?">
@@ -1976,7 +1956,6 @@ async function start(){
     columns=Object.keys(probe.data?.[0]||{});
   }
   render();
-  loadProfileFriends();
   recordNavigation("profile");
   initProfileFeed(client);
   if(!result.data){$("notice").hidden=false;$("notice").textContent="Профиль ещё не найден в таблице. Страница открыта, но для сохранения сначала нужно проверить структуру таблицы profiles.";}
@@ -2819,23 +2798,6 @@ $("submit-post").addEventListener("click",async()=>{
  finally{$("submit-post").disabled=false;}
 });
 
-async function loadProfileFriends(){
- try{
-  const result=await client.from("follows").select("*");
-  if(result.error)throw result.error;
-  const rows=result.data||[];
-  const keys=Object.keys(rows[0]||{});
-  const fromKey=keys.find(k=>["follower_id","user_id","from_user_id","subscriber_id"].includes(k));
-  const toKey=keys.find(k=>["following_id","followed_id","target_id","to_user_id"].includes(k));
-  if(!fromKey||!toKey){$("followers-count").textContent="0";$("following-count").textContent="0";$("friends-count").textContent="0";return;}
-  const outgoing=rows.filter(r=>r[fromKey]===user.id).map(r=>r[toKey]);
-  const incoming=rows.filter(r=>r[toKey]===user.id).map(r=>r[fromKey]);
-  const friendIds=[...new Set(outgoing.filter(id=>incoming.includes(id)&&id!==user.id))];
-  $("following-count").textContent=String(new Set(outgoing).size);
-  $("followers-count").textContent=String(new Set(incoming).size);
-  $("friends-count").textContent=String(friendIds.length);
- }catch(error){console.error("Не удалось загрузить статистику подписок:",error);}
-}
 function signOutFromDrawer(){client.auth.signOut().then(({error})=>{if(error){$("quick-status").textContent="Не удалось выйти: "+error.message;return;}location.replace("portal.html");});}
 $("drawer-logout").addEventListener("click",signOutFromDrawer);
 const settingsBackdrop=$("settings-backdrop");
