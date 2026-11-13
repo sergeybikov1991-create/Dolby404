@@ -148,7 +148,7 @@ textarea{min-height:90px;resize:vertical}
  
 .profile{padding:0 28px 24px}
 .identity{align-items:flex-end;gap:18px;margin-top:-56px}
-.avatar{width:124px;height:124px;border:3px solid transparent;border-radius:50%;background:linear-gradient(#15121f,#15121f) padding-box,linear-gradient(120deg,#594078,#a66bff,#593a80,#c18aff,#594078) border-box;background-size:100% 100%,300% 300%;animation:avatarFrameFlow 2.2s linear infinite;box-shadow:0 0 0 1px #a66bff44,0 0 13px #8d50e744;z-index:2;overflow:hidden;display:block;isolation:isolate}
+.avatar{width:124px;height:124px;position:relative;isolation:isolate;flex:0 0 124px;border:3px solid #b879e8;border-radius:50%;overflow:hidden;background:linear-gradient(135deg,#6336a3,#17152b);box-shadow:0 0 0 1px #e3c8ff66,0 0 7px #b879ff88,0 0 16px #9b55ff66;animation:avatarFrameGlow 3.4s ease-in-out infinite;z-index:2;display:block}
 .avatar img{position:absolute;inset:0;width:100%;height:100%;display:block;object-fit:cover;border-radius:50%;margin:0;z-index:0}
 @keyframes avatarFrameFlow{0%{background-position:0 0,0% 50%}100%{background-position:0 0,100% 50%}}
 @media(prefers-reduced-motion:reduce){.avatar{animation:none}}
@@ -595,7 +595,7 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 .discovery-empty{padding:22px 10px;text-align:center;color:#a99bb9;font-size:13px;line-height:1.5}
 @media(max-width:520px){.discovery-backdrop{padding:0;align-items:end}.discovery-panel{width:100%;max-height:94dvh;border-radius:20px 20px 0 0;border-bottom:0}.discovery-head{padding-top:max(16px,env(safe-area-inset-top))}}
 
-@keyframes avatarFrameGlow{0%,100%{box-shadow:0 0 0 1px #e3c8ff66,0 0 8px #a66bff99,0 0 18px #8d50e755}50%{box-shadow:0 0 0 2px #f0dcffcc,0 0 15px #c18aff,0 0 34px #9b55ffcc,0 0 48px #7b3fc955}}
+@keyframes avatarFrameGlow{0%,100%{box-shadow:0 0 0 1px #e3c8ff44,0 0 5px #a66bff66,0 0 12px #8d50e733}50%{box-shadow:0 0 0 1px #f0dcff88,0 0 9px #c18aff99,0 0 22px #9b55ff77,0 0 30px #7b3fc933}}}
 </style>
 <style>
 .privacy-option{display:flex;align-items:center;gap:11px;padding:11px 12px;margin:8px 0;border:1px solid #403653;border-radius:11px;background:#100e18;color:#eee5ff;font-size:13px}
