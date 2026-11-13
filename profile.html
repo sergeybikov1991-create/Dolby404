@@ -424,6 +424,16 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 @media(prefers-reduced-motion:reduce){.post-reaction-option .reaction-emoji{animation:none!important;transition:none!important}}
 .post-social-button{min-height:36px;padding:7px 13px;border:1px solid #49385e;border-radius:11px;background:#171321;color:#d9c9f0;font-size:13px}
 .post-social-button.is-active{border-color:#a66bff;background:#38204e;color:#fff;box-shadow:0 0 12px #9d5bff22}
+.post-social-button.repost-flow{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-width:76px;border-color:#4e3b68;background:linear-gradient(135deg,#21192d,#15111e);color:#d9c9f0;transition:border-color .22s,background .22s,box-shadow .22s,transform .22s}
+.repost-flow .flow-mark{width:19px;height:19px;overflow:visible;flex:none}
+.repost-flow .flow-mark path{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transition:stroke .22s,filter .22s}
+.repost-flow .flow-count{font-size:12px;font-variant-numeric:tabular-nums;line-height:1}
+.repost-flow:hover{transform:translateY(-1px);border-color:#b48aff;background:linear-gradient(135deg,#342044,#1b1426);box-shadow:0 0 15px #a66bff26}
+.repost-flow:hover .flow-mark path{filter:drop-shadow(0 0 4px #c79aff)}
+.repost-flow.is-active{border-color:#c18aff;background:linear-gradient(135deg,#49265f,#21152f);color:#f3ddff;box-shadow:0 0 15px #a66bff38}
+.repost-flow.is-active .flow-mark path{filter:drop-shadow(0 0 5px #c58cff)}
+.repost-flow:disabled{opacity:.6;cursor:wait}
+@media(prefers-reduced-motion:reduce){.repost-flow{transition:none}.repost-flow:hover{transform:none}}
 .post-comments-panel{margin-top:10px;padding:12px;border:1px solid #3c2d50;border-radius:13px;background:#0e0c16}
 .post-comments-panel[hidden]{display:none}
 .post-comments-list{display:flex;flex-direction:column;gap:8px;max-height:280px;overflow:auto}
@@ -842,7 +852,7 @@ async function attachPostActions(post,card){
  reactionWrap.append(reactionToggle,reactionPanel);
  const like=document.createElement("button");like.type="button";like.className="post-social-button";like.textContent="♡ 0";
  const commentToggle=document.createElement("button");commentToggle.type="button";commentToggle.className="post-social-button";commentToggle.textContent="💬 0";
- const repost=document.createElement("button");repost.type="button";repost.className="post-social-button";repost.textContent="↻ 0";
+ const repost=document.createElement("button");repost.type="button";repost.className="post-social-button repost-flow";repost.setAttribute("aria-label","Сделать репост");repost.title="Репост Dolby404";repost.innerHTML='<svg class="flow-mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.2h10.4a4.1 4.1 0 0 1 0 8.2H8.8"/><path d="m11.8 4.8 3.5 3.4-3.5 3.4"/><path d="m8.8 13-3.5 3.4 3.5 3.4"/></svg><span class="flow-count">0</span>';
  const panel=document.createElement("section");panel.className="post-comments-panel";panel.hidden=true;
  const list=document.createElement("div");list.className="post-comments-list";
  const form=document.createElement("form");form.className="post-comment-form";
@@ -865,7 +875,7 @@ async function attachPostActions(post,card){
   liked=!!ownLike.data;reposted=!!ownRepost.data;ownReaction=ownReactionResult.data||null;
   like.textContent=(liked?"♥ ":"♡ ")+(likes.count||0);like.classList.toggle("is-active",liked);
   commentToggle.textContent="💬 "+(comments.count||0);
-  repost.textContent=(reposted?"✓ ":"↻ ")+(reposts.count||0);repost.classList.toggle("is-active",reposted);
+  repost.querySelector(".flow-count").textContent=String(reposts.count||0);repost.classList.toggle("is-active",reposted);repost.setAttribute("aria-label",reposted?"Отменить репост":"Сделать репост");repost.title=reposted?"Вы уже сделали репост — нажмите, чтобы отменить":"Репост Dolby404";
   const counts={};for(const row of reactions.data||[])counts[row.reaction_key]=(counts[row.reaction_key]||0)+1;
   let total=0;for(const key of Object.keys(counts))total+=counts[key];
   const selected=reactionOptions.find(item=>item.key===ownReaction?.reaction_key);
