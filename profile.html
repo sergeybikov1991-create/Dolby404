@@ -251,6 +251,23 @@ textarea{min-height:90px;resize:vertical}
 .settings-actions button{flex:1;min-height:43px}
 .settings-divider{height:1px;margin:21px 0;background:#382d49}
 .settings-status{min-height:18px;margin:12px 0 0;color:#c5a4ff;font-size:12px;line-height:1.5}
+.album-backdrop{position:fixed;inset:0;z-index:125;background:#05030beF;backdrop-filter:blur(9px);display:grid;place-items:center;padding:14px}
+.album-backdrop[hidden]{display:none}
+.album-panel{width:min(100%,620px);max-height:92vh;overflow:auto;padding:20px;border:1px solid #76519d;border-radius:19px;background:linear-gradient(155deg,#1c1729,#0d0c15);box-shadow:0 0 38px #8d50e733}
+.album-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+.album-head h2{margin:0;color:#f2e9ff;font-size:20px}
+.album-upload{display:grid;gap:12px;padding:14px;border:1px solid #49375f;border-radius:14px;background:#120f1c}
+.album-upload label{display:flex;align-items:center;gap:10px;color:#eee4ff;font-size:14px}
+.album-upload input[type=checkbox]{width:19px;height:19px;accent-color:#a66bff}
+.album-upload input[type=file]{width:100%;color:#cbb9e6}
+.album-note{margin:0;color:#9e91af;font-size:12px;line-height:1.5}
+.album-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:16px}
+.album-item{position:relative;aspect-ratio:1;border:1px solid #49375f;border-radius:10px;overflow:hidden;background:#100e19}
+.album-item img{width:100%;height:100%;object-fit:cover;display:block}
+.album-item small{position:absolute;left:5px;bottom:5px;padding:3px 6px;border-radius:6px;background:#08060dcc;color:#fff;font-size:10px}
+.album-empty{padding:24px 8px;text-align:center;color:#9589a6;font-size:13px}
+.album-status{min-height:18px;margin-top:10px;color:#c5a4ff;font-size:12px}
+@media(max-width:420px){.album-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 body[data-theme="ocean"]{--purple:#54bfff}
 body[data-theme="ocean"] .cover{background:radial-gradient(ellipse at 70% 20%,#236caa 0,transparent 45%),linear-gradient(110deg,#102b42,#151b32 55%,#101c35)}
 body[data-theme="ocean"] .avatar{box-shadow:0 0 24px #249be777}
@@ -608,6 +625,20 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
   <div class="actions"><button type="button" id="close-likers">Закрыть</button></div>
  </div>
 </div>
+<div class="album-backdrop" id="album-backdrop" hidden>
+ <section class="album-panel" role="dialog" aria-modal="true" aria-labelledby="album-title">
+  <div class="album-head"><h2 id="album-title">Мой фотоальбом</h2><button type="button" class="settings-close" id="album-close" aria-label="Закрыть">×</button></div>
+  <div class="album-upload">
+   <strong style="color:#eee4ff">Добавить фотографию</strong>
+   <input id="album-file" type="file" accept="image/jpeg,image/png,image/webp">
+   <label><input id="album-private" type="checkbox"> <span>Приватный фотоальбом</span></label>
+   <p class="album-note" id="album-privacy-note">Обычная фотография будет доступна всем. Если включить галочку, фото попадёт в секретный альбом, который виден только тебе.</p>
+   <button type="button" class="primary" id="album-upload-button">Загрузить фото</button>
+  </div>
+  <div class="album-status" id="album-status" aria-live="polite"></div>
+  <div class="album-grid" id="album-grid"></div>
+ </section>
+</div>
 <input id="avatar-file" type="file" accept="image/jpeg,image/png,image/webp" hidden>
 <input id="cover-file" type="file" accept="image/jpeg,image/png,image/webp" hidden>
 <script>
@@ -646,10 +677,65 @@ function recordNavigation(action,label,icon){
  let entries=[];try{entries=JSON.parse(localStorage.getItem(navigationHistoryKey())||"[]");if(!Array.isArray(entries))entries=[];}catch(_){}
  entries=entries.filter(item=>item.action!==action);entries.unshift({action,label:label||"",icon:icon||""});localStorage.setItem(navigationHistoryKey(),JSON.stringify(entries.slice(0,2)));renderNavigationHistory();
 }
+async function openPhotoAlbum(){
+ $("album-backdrop").hidden=false;
+ $("album-file").value="";$("album-private").checked=false;$("album-status").textContent=""; 
+ await loadPhotoAlbum();
+}
+async function loadPhotoAlbum(){
+ const grid=$("album-grid");grid.replaceChildren();
+ const empty=document.createElement("div");empty.className="album-empty";empty.textContent="Загружаем фотографии…";grid.append(empty);
+ try{
+  const [regular,secret]=await Promise.all([
+   client.from("photo_album_photos").select("id,object_path,file_name,created_at").eq("owner_id",user.id).order("created_at",{ascending:false}),
+   client.from("private_album_photos").select("id,object_path,file_name,created_at").eq("owner_id",user.id).order("created_at",{ascending:false})
+  ]);
+  if(regular.error)throw regular.error;if(secret.error)throw secret.error;
+  const items=[...(regular.data||[]).map(x=>({...x,private:false})),...(secret.data||[]).map(x=>({...x,private:true}))].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+  grid.replaceChildren();
+  if(!items.length){const e=document.createElement("div");e.className="album-empty";e.textContent="Здесь пока нет фотографий. Добавь первую!";grid.append(e);return;}
+  for(const item of items){
+   let url;
+   if(item.private){const signed=await client.storage.from("private-albums").createSignedUrl(item.object_path,90);if(signed.error)continue;url=signed.data.signedUrl;}
+   else url=client.storage.from("photo-albums").getPublicUrl(item.object_path).data.publicUrl;
+   const tile=document.createElement("div");tile.className="album-item";
+   const img=document.createElement("img");img.src=url;img.alt=item.file_name||"Фотография";img.loading="lazy";
+   const tag=document.createElement("small");tag.textContent=item.private?"🔒 Приватное":"Видно всем";
+   tile.append(img,tag);grid.append(tile);
+  }
+ }catch(e){grid.replaceChildren();const error=document.createElement("div");error.className="album-empty";error.textContent="Не удалось загрузить фотоальбом: "+e.message;grid.append(error);}
+}
+$("album-close").addEventListener("click",()=>$("album-backdrop").hidden=true);
+$("album-backdrop").addEventListener("click",e=>{if(e.target===$("album-backdrop"))$("album-backdrop").hidden=true;});
+$("album-private").addEventListener("change",()=>{
+ $("album-privacy-note").textContent=$("album-private").checked
+ ? "🔒 Фото сохранится в закрытом хранилище. Только твой аккаунт сможет его открыть."
+ : "Обычная фотография будет доступна всем. Для полной секретности включи галочку.";
+});
+$("album-upload-button").addEventListener("click",async()=>{
+ const file=$("album-file").files[0];if(!file){$("album-status").textContent="Сначала выбери фотографию.";return;}
+ if(!["image/jpeg","image/png","image/webp"].includes(file.type)){$("album-status").textContent="Подойдут JPG, PNG или WebP.";return;}
+ if(file.size>50*1024*1024){$("album-status").textContent="Файл больше 50 МБ.";return;}
+ const isPrivate=$("album-private").checked,ext=file.type==="image/jpeg"?"jpg":file.type.split("/")[1];
+ const path=user.id+"/"+Date.now()+"-"+crypto.randomUUID()+"."+ext;
+ const bucket=isPrivate?"private-albums":"photo-albums";
+ const table=isPrivate?"private_album_photos":"photo_album_photos";
+ const button=$("album-upload-button");button.disabled=true;$("album-status").textContent="Загружаем фотографию…";
+ try{
+  const uploaded=await client.storage.from(bucket).upload(path,file,{upsert:false,contentType:file.type});
+  if(uploaded.error)throw uploaded.error;
+  const saved=await client.from(table).insert({owner_id:user.id,object_path:path,file_name:file.name,mime_type:file.type});
+  if(saved.error){await client.storage.from(bucket).remove([path]);throw saved.error;}
+  $("album-file").value="";$("album-status").textContent=isPrivate?"Фото добавлено в секретный альбом 🔒":"Фото добавлено в альбом.";
+  await loadPhotoAlbum();
+ }catch(e){$("album-status").textContent="Не удалось загрузить фото: "+e.message;}
+ finally{button.disabled=false;}
+});
 function openNavigationDestination(action,label,icon){
  if(action==="profile"){$("cover").scrollIntoView({behavior:"smooth"});}
  else if(action==="feed"){$("feed-section").scrollIntoView({behavior:"smooth"});}
  else if(action==="settings"){openSettingsPanel();}
+ else if(action==="photos"){openPhotoAlbum();}
  else {const meta=navigationNames[action];const title=meta?(localStorage.getItem("dolby404-language")==="en"?meta[1]:meta[0]):(label||"Раздел");$("quick-status").textContent=(localStorage.getItem("dolby404-language")==="en"?"The section “":"Раздел «")+title+(localStorage.getItem("dolby404-language")==="en"?"” will be connected in a later stage.":"» подключим следующим этапом.");}
  recordNavigation(action,label,icon);
 }
