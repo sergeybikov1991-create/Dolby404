@@ -203,8 +203,6 @@ function watchTargetPresence(){
   renderTargetPresence(false);
  };
  channel.on("presence",{event:"sync"},refresh);
- channel.on("presence",{event:"join"},refresh);
- channel.on("presence",{event:"leave"},refresh);
  channel.subscribe(status=>{if(status==="SUBSCRIBED")refresh();});
 }
 function openPhotoViewer(src){const viewer=$("photo-lightbox"),image=$("photo-lightbox-image");if(!viewer||!image||!src)return;image.src=src;viewer.classList.add("is-open");viewer.setAttribute("aria-hidden","false");document.body.classList.add("lightbox-open");}
