@@ -888,14 +888,18 @@ $("album-add-cancel").addEventListener("click",()=>{
 });
 let albumViewerItems=[],albumViewerIndex=0,albumTouchStartX=0,albumTouchStartY=0;
 function closeAlbumViewer(){$("album-viewer").hidden=true;$("album-viewer-image").removeAttribute("src");}
-let albumLongPressTimer=null,albumLongPressTriggered=false,albumSelectedFriend=null;
+let albumLongPressTimer=null,albumLongPressTriggered=false,albumSelectedFriend=null,albumPressX=0,albumPressY=0;
 function clearAlbumLongPress(){if(albumLongPressTimer){clearTimeout(albumLongPressTimer);albumLongPressTimer=null;}}
 $("album-viewer-image").addEventListener("pointerdown",e=>{
  if($("album-viewer").hidden)return;
- albumLongPressTriggered=false;clearAlbumLongPress();
+ albumLongPressTriggered=false;clearAlbumLongPress();albumPressX=e.clientX;albumPressY=e.clientY;
+ try{$("album-viewer-image").setPointerCapture(e.pointerId);}catch(_){}
  albumLongPressTimer=setTimeout(()=>{albumLongPressTriggered=true;$("album-photo-actions").hidden=false;},3000);
 });
-["pointerup","pointercancel","pointerleave","pointermove"].forEach(type=>$("album-viewer-image").addEventListener(type,clearAlbumLongPress));
+$("album-viewer-image").addEventListener("pointermove",e=>{
+ if(Math.abs(e.clientX-albumPressX)>14||Math.abs(e.clientY-albumPressY)>14)clearAlbumLongPress();
+});
+["pointerup","pointercancel"].forEach(type=>$("album-viewer-image").addEventListener(type,clearAlbumLongPress));
 $("album-viewer-image").addEventListener("contextmenu",e=>e.preventDefault());
 $("album-photo-actions-close").addEventListener("click",()=>{$("album-photo-actions").hidden=true;closeAlbumViewer();});
 $("album-photo-actions").addEventListener("click",e=>{if(e.target===$("album-photo-actions"))$("album-photo-actions").hidden=true;});
