@@ -482,7 +482,16 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 @media(prefers-reduced-motion:reduce){.dolby-online-indicator.is-online,.dolby-online-indicator.is-online::after{animation:none}.dolby-online-indicator.is-online::after{opacity:.35;transform:scale(1.2)}}
 
 </style>
-</head>
+<style>
+.privacy-option{display:flex;align-items:center;gap:11px;padding:11px 12px;margin:8px 0;border:1px solid #403653;border-radius:11px;background:#100e18;color:#eee5ff;font-size:13px}
+.privacy-option input{width:19px;height:19px;margin:0;accent-color:#a66bff;flex:0 0 auto}
+.music-track-list{display:grid;gap:12px;margin-top:16px}
+.music-track{padding:13px;border:1px solid #49375f;border-radius:13px;background:#100e18}
+.music-track-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:9px;color:#f2e9ff;font-size:14px}
+.music-track audio{display:block;width:100%;height:38px}
+.music-track small{color:#a99bb9;font-size:11px}
+.music-track button{margin-top:9px;padding:7px 11px;border-radius:9px;font-size:12px}
+</style></head>
 <body>
 <button type="button" class="drawer-menu-button" id="drawer-menu-button" aria-label="Открыть меню" aria-controls="side-drawer" aria-expanded="false"><span class="sound-signal" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span></button>
 
@@ -516,6 +525,14 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
   <label class="settings-label">Обложка профиля</label><div class="settings-actions"><button type="button" class="primary" id="settings-change-cover">✎ Изменить обложку</button></div>
   <div class="settings-actions"><button type="button" class="primary" id="save-preferences">Сохранить настройки</button></div>
   <p class="settings-help">Выбранный стиль и язык сохраняются на этом устройстве.</p>
+  <div class="settings-divider"></div>
+  <h3 style="margin:0 0 8px;color:#eee4ff;font-size:16px">Приватность</h3>
+  <p class="settings-help">Управляй тем, что видно другим пользователям. Секретный фотоальбом здесь не отображается и не управляется этими настройками.</p>
+  <label class="privacy-option"><input id="privacy-public-album" type="checkbox" checked> <span>Обычный фотоальбом — видно всем</span></label>
+  <label class="privacy-option"><input id="privacy-music-visible" type="checkbox" checked> <span>Моя музыка — видно всем</span></label>
+  <label class="privacy-option"><input id="privacy-comments-visible" type="checkbox" checked> <span>Комментарии — разрешены</span></label>
+  <label class="privacy-option"><input id="privacy-feed-visible" type="checkbox" checked> <span>Публикации в ленте профиля — видны всем</span></label>
+  <div class="settings-actions"><button type="button" class="primary" id="save-privacy-settings">Сохранить приватность</button></div>
   <div class="settings-divider"></div>
   <h3 style="margin:0;color:#eee4ff;font-size:16px">Безопасность</h3>
   <label class="settings-label" for="new-password">Введите новый пароль</label><input id="new-password" type="password" autocomplete="new-password" minlength="8" placeholder="Не менее 8 символов">
@@ -641,6 +658,24 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 </div>
 <input id="avatar-file" type="file" accept="image/jpeg,image/png,image/webp" hidden>
 <input id="cover-file" type="file" accept="image/jpeg,image/png,image/webp" hidden>
+<div class="album-backdrop" id="music-backdrop" hidden>
+ <section class="album-panel" role="dialog" aria-modal="true" aria-labelledby="music-title">
+  <div class="album-head"><h2 id="music-title">Моя музыка</h2><button type="button" class="settings-close" id="music-close" aria-label="Закрыть">×</button></div>
+  <div class="album-upload">
+   <strong style="color:#eee4ff">Добавить свой трек</strong>
+   <label for="music-track-title">Название композиции</label>
+   <input id="music-track-title" type="text" maxlength="160" placeholder="Название трека">
+   <label for="music-track-file">Аудиофайл</label>
+   <input id="music-track-file" type="file" accept="audio/*">
+   <label for="music-track-visibility">Кто сможет слушать</label>
+   <select id="music-track-visibility"><option value="public">Видно всем</option><option value="private">Только мне</option></select>
+   <button type="button" class="primary" id="music-upload-button">Добавить музыку</button>
+   <p class="album-note">По умолчанию новая музыка доступна всем. Закрытые треки хранятся отдельно и открываются только владельцу.</p>
+  </div>
+  <div class="album-status" id="music-status" aria-live="polite"></div>
+  <div class="music-track-list" id="music-track-list"></div>
+ </section>
+</div>
 <script>
 const SUPABASE_URL="https://qhpobdktlbhdqsnajypr.supabase.co";
 const SUPABASE_KEY="sb_publishable_tzG1qVsbjaW8YE_LBVN87Q_v0CahKN5";
@@ -677,6 +712,100 @@ function recordNavigation(action,label,icon){
  let entries=[];try{entries=JSON.parse(localStorage.getItem(navigationHistoryKey())||"[]");if(!Array.isArray(entries))entries=[];}catch(_){}
  entries=entries.filter(item=>item.action!==action);entries.unshift({action,label:label||"",icon:icon||""});localStorage.setItem(navigationHistoryKey(),JSON.stringify(entries.slice(0,2)));renderNavigationHistory();
 }
+
+async function loadPrivacySettings(){
+ const defaults={owner_id:user.id,public_album_visible:true,music_visible:true,comments_visible:true,feed_posts_visible:true};
+ const saved=await client.from("profile_privacy_settings").upsert(defaults,{onConflict:"owner_id",ignoreDuplicates:true});
+ if(saved.error)throw saved.error;
+ const result=await client.from("profile_privacy_settings").select("*").eq("owner_id",user.id).single();
+ if(result.error)throw result.error;
+ const row=result.data;
+ $("privacy-public-album").checked=row.public_album_visible;
+ $("privacy-music-visible").checked=row.music_visible;
+ $("privacy-comments-visible").checked=row.comments_visible;
+ $("privacy-feed-visible").checked=row.feed_posts_visible;
+}
+$("save-privacy-settings").addEventListener("click",async()=>{
+ const button=$("save-privacy-settings");button.disabled=true;
+ $("settings-status").textContent="Сохраняем настройки приватности…";
+ try{
+  const result=await client.from("profile_privacy_settings").upsert({
+   owner_id:user.id,
+   public_album_visible:$("privacy-public-album").checked,
+   music_visible:$("privacy-music-visible").checked,
+   comments_visible:$("privacy-comments-visible").checked,
+   feed_posts_visible:$("privacy-feed-visible").checked,
+   updated_at:new Date().toISOString()
+  },{onConflict:"owner_id"});
+  if(result.error)throw result.error;
+  $("settings-status").textContent="Настройки приватности сохранены.";
+ }catch(error){$("settings-status").textContent="Не удалось сохранить приватность: "+error.message;}
+ finally{button.disabled=false;}
+});
+async function openMusicSection(){
+ $("music-backdrop").hidden=false;
+ $("music-status").textContent="";
+ $("music-track-title").value="";
+ $("music-track-file").value="";
+ await loadMusicTracks();
+}
+async function loadMusicTracks(){
+ const host=$("music-track-list");host.replaceChildren();
+ const empty=document.createElement("div");empty.className="album-empty";empty.textContent="Загружаем музыку…";host.append(empty);
+ try{
+  const result=await client.from("music_tracks").select("id,owner_id,title,object_path,visibility,created_at").eq("owner_id",user.id).order("created_at",{ascending:false});
+  if(result.error)throw result.error;
+  host.replaceChildren();
+  if(!result.data?.length){const e=document.createElement("div");e.className="album-empty";e.textContent="Здесь пока нет треков. Добавь свою музыку!";host.append(e);return;}
+  for(const track of result.data){
+   const bucket=track.visibility==="private"?"music-private":"music-public";
+   const signed=track.visibility==="private"?await client.storage.from(bucket).createSignedUrl(track.object_path,300):null;
+   if(signed?.error)throw signed.error;
+   const url=track.visibility==="private"?signed.data.signedUrl:client.storage.from(bucket).getPublicUrl(track.object_path).data.publicUrl;
+   const card=document.createElement("article");card.className="music-track";
+   const head=document.createElement("div");head.className="music-track-head";
+   const title=document.createElement("strong");title.textContent=track.title;
+   const visibility=document.createElement("small");visibility.textContent=track.visibility==="private"?"🔒 Только мне":"Видно всем";
+   head.append(title,visibility);
+   const audio=document.createElement("audio");audio.controls=true;audio.preload="none";audio.src=url;
+   const remove=document.createElement("button");remove.type="button";remove.textContent="Удалить";
+   remove.addEventListener("click",()=>deleteMusicTrack(track,bucket,card));
+   card.append(head,audio,remove);host.append(card);
+  }
+ }catch(error){host.replaceChildren();const e=document.createElement("div");e.className="album-empty";e.textContent="Не удалось загрузить музыку: "+error.message;host.append(e);}
+}
+async function deleteMusicTrack(track,bucket,card){
+ if(!confirm("Удалить этот трек?"))return;
+ try{
+  const removed=await client.storage.from(bucket).remove([track.object_path]);if(removed.error)throw removed.error;
+  const row=await client.from("music_tracks").delete().eq("id",track.id).eq("owner_id",user.id);if(row.error)throw row.error;
+  card.remove();
+  if(!$("music-track-list").children.length)await loadMusicTracks();
+ }catch(error){$("music-status").textContent="Не удалось удалить трек: "+error.message;}
+}
+$("music-upload-button").addEventListener("click",async()=>{
+ const file=$("music-track-file").files[0],title=$("music-track-title").value.trim();
+ if(!file){$("music-status").textContent="Сначала выбери аудиофайл.";return;}
+ if(!file.type.startsWith("audio/")){$("music-status").textContent="Нужен аудиофайл.";return;}
+ if(file.size>100*1024*1024){$("music-status").textContent="Максимальный размер файла — 100 МБ.";return;}
+ if(!title){$("music-status").textContent="Укажи название трека.";return;}
+ const visibility=$("music-track-visibility").value,bucket=visibility==="private"?"music-private":"music-public";
+ const ext=(file.name.split(".").pop()||"audio").replace(/[^a-z0-9]/gi,"").toLowerCase()||"audio";
+ const path=user.id+"/"+crypto.randomUUID()+"."+ext,button=$("music-upload-button");button.disabled=true;
+ $("music-status").textContent="Загружаем трек…";
+ try{
+  const uploaded=await client.storage.from(bucket).upload(path,file,{upsert:false,contentType:file.type});if(uploaded.error)throw uploaded.error;
+  const saved=await client.from("music_tracks").insert({owner_id:user.id,title,object_path:path,visibility});
+  if(saved.error){await client.storage.from(bucket).remove([path]);throw saved.error;}
+  $("music-track-title").value="";$("music-track-file").value="";
+  $("music-status").textContent="Трек добавлен.";
+  await loadMusicTracks();
+ }catch(error){$("music-status").textContent="Не удалось добавить трек: "+error.message;}
+ finally{button.disabled=false;}
+});
+$("music-close").addEventListener("click",()=>$("music-backdrop").hidden=true);
+$("music-backdrop").addEventListener("click",e=>{if(e.target===$("music-backdrop"))$("music-backdrop").hidden=true;});
+
 async function openPhotoAlbum(){
  $("album-backdrop").hidden=false;
  $("album-file").value="";$("album-private").checked=false;$("album-status").textContent=""; 
@@ -736,6 +865,7 @@ function openNavigationDestination(action,label,icon){
  else if(action==="feed"){$("feed-section").scrollIntoView({behavior:"smooth"});}
  else if(action==="settings"){openSettingsPanel();}
  else if(action==="photos"){openPhotoAlbum();}
+ else if(action==="music"){openMusicSection();}
  else {const meta=navigationNames[action];const title=meta?(localStorage.getItem("dolby404-language")==="en"?meta[1]:meta[0]):(label||"Раздел");$("quick-status").textContent=(localStorage.getItem("dolby404-language")==="en"?"The section “":"Раздел «")+title+(localStorage.getItem("dolby404-language")==="en"?"” will be connected in a later stage.":"» подключим следующим этапом.");}
  recordNavigation(action,label,icon);
 }
@@ -1611,7 +1741,7 @@ function signOutFromDrawer(){client.auth.signOut().then(({error})=>{if(error){$(
 $("drawer-logout").addEventListener("click",signOutFromDrawer);
 const settingsBackdrop=$("settings-backdrop");
 function closeSettings(){settingsBackdrop.hidden=true;}
-function openSettingsPanel(){$("settings-language").value=localStorage.getItem("dolby404-language")||"ru";$("settings-theme").value=localStorage.getItem("dolby404-theme")||"cyber";$("settings-status").textContent="";settingsBackdrop.hidden=false;}
+async function openSettingsPanel(){$("settings-language").value=localStorage.getItem("dolby404-language")||"ru";$("settings-theme").value=localStorage.getItem("dolby404-theme")||"cyber";$("settings-status").textContent="";settingsBackdrop.hidden=false;try{await loadPrivacySettings();}catch(error){$("settings-status").textContent="Не удалось загрузить приватность: "+error.message;}}
 $("open-settings").addEventListener("click",()=>{$("drawer-close").click();openNavigationDestination("settings");});
 $("settings-close").addEventListener("click",closeSettings);
 settingsBackdrop.addEventListener("click",e=>{if(e.target===settingsBackdrop)closeSettings();});
