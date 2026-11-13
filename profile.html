@@ -502,6 +502,17 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 .album-item small{display:none!important}
 @media(max-width:700px){.album-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:2px!important}}
 @media(max-width:420px){.album-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:2px!important}}
+
+/* Compact compose control beside the feed heading */
+.feed-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 14px;padding:0 4px}
+.feed-heading .feed-title{margin:0;padding:0}
+.publish-box{margin:0;padding:0;border:0;border-radius:0;background:transparent}
+.publish-box>button{display:none}
+.publish-editor{margin:0 0 16px}
+.feed-compose-trigger{display:grid!important;place-items:center;width:36px!important;min-width:36px!important;height:36px!important;min-height:36px!important;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;color:#c59aff!important;font-size:25px!important;font-weight:400!important;line-height:1!important;box-shadow:none!important}
+.feed-compose-trigger:hover,.feed-compose-trigger:focus-visible{color:#fff!important;background:transparent!important;outline:0; text-shadow:0 0 12px #a66bff99}
+@media(max-width:700px){.feed-heading{padding:0 12px}.feed-heading .feed-title{padding:0}.publish-box{padding:0}}
+
 </style>
 <style>
 .privacy-option{display:flex;align-items:center;gap:11px;padding:11px 12px;margin:8px 0;border:1px solid #403653;border-radius:11px;background:#100e18;color:#eee5ff;font-size:13px}
@@ -694,8 +705,11 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
 </nav>
 <div class="quick-status" id="quick-status" aria-live="polite"></div>
 <section class="feed-section">
+<div class="feed-heading">
+<h2 class="feed-title">Лента публикаций</h2>
+<button type="button" id="open-publish" class="feed-compose-trigger" aria-label="Создать публикацию" title="Создать публикацию">✎</button>
+</div>
 <div class="publish-box">
-<button type="button" class="primary" id="open-publish">＋ Опубликовать</button>
 <div class="publish-editor" id="publish-editor" hidden>
 <div class="composer-top"><button type="button" class="composer-back" id="composer-back" aria-label="Свернуть редактор">←</button><strong>Новая публикация</strong><span class="composer-top-spacer"></span></div>
 <label for="post-text">Текст публикации</label>
@@ -722,7 +736,6 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
 <div class="scheduled-queue-head"><h2>Отложенные публикации</h2><span id="scheduled-queue-count"></span></div>
 <div id="scheduled-queue-list"></div>
 </section>
-<h2 class="feed-title">Лента публикаций</h2>
 <div class="feed" id="feed" aria-live="polite">
 <div id="feed-list"></div>
 <div class="feed-loading" id="feed-loading">Загружаем публикации…</div>
