@@ -261,7 +261,17 @@ textarea{min-height:90px;resize:vertical}
 .album-upload input[type=checkbox]{width:19px;height:19px;accent-color:#a66bff}
 .album-upload input[type=file]{width:100%;color:#cbb9e6}
 .album-note{margin:0;color:#9e91af;font-size:12px;line-height:1.5}
-.album-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:16px}
+.album-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:2px;margin-top:12px}
+.album-item{aspect-ratio:1;border:0!important;border-radius:3px!important;min-width:0}
+.album-item img{width:100%;height:100%;object-fit:cover}
+.album-item small{display:none}
+@media(max-width:700px){.album-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:2px;margin-top:10px}}
+@media(max-width:420px){.album-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:2px}}
+.album-viewer-tools{position:absolute;left:50%;bottom:max(48px,calc(env(safe-area-inset-bottom) + 42px));transform:translateX(-50%);z-index:4;display:flex;gap:12px;align-items:center}
+.album-viewer-tools button{width:48px;height:48px;padding:0;border-radius:50%;font-size:23px;display:grid;place-items:center;background:#21172eea;border:1px solid #a66bff88;box-shadow:0 5px 22px #0009}
+.album-viewer-tools button.danger{border-color:#ff718b99;background:#401b2bea;color:#ffe2e8}
+.album-viewer-tools button:active{transform:scale(.94)}
+.album-viewer-counter{bottom:max(14px,env(safe-area-inset-bottom))!important}
 .album-item{position:relative;aspect-ratio:1;border:1px solid #49375f;border-radius:10px;overflow:hidden;background:#100e19}
 .album-item img{width:100%;height:100%;object-fit:cover;display:block}
 .album-item small{position:absolute;left:5px;bottom:5px;padding:3px 6px;border-radius:6px;background:#08060dcc;color:#fff;font-size:10px}
@@ -699,6 +709,10 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
  <button type="button" class="album-viewer-nav album-viewer-prev" id="album-viewer-prev" aria-label="Предыдущее фото">‹</button>
  <img id="album-viewer-image" alt="Фотография в полном размере">
  <button type="button" class="album-viewer-nav album-viewer-next" id="album-viewer-next" aria-label="Следующее фото">›</button>
+ <div class="album-viewer-tools" aria-label="Действия с фотографией">
+  <button type="button" id="album-viewer-share" aria-label="Поделиться фото" title="Поделиться">↗</button>
+  <button type="button" id="album-viewer-delete" class="danger" aria-label="Удалить фото" title="Удалить фото">⌫</button>
+ </div>
  <div class="album-viewer-counter" id="album-viewer-counter"></div>
 </div>
 <div class="album-photo-actions" id="album-photo-actions" hidden>
@@ -986,39 +1000,60 @@ function showAlbumViewerPhoto(index){
  $("album-viewer-counter").textContent=(albumViewerIndex+1)+" / "+albumViewerItems.length;
  $("album-viewer-prev").hidden=albumViewerItems.length<2;$("album-viewer-next").hidden=albumViewerItems.length<2;
 }
+$("album-viewer-delete").addEventListener("click",()=>$("album-photo-delete").click());
+$("album-viewer-share").addEventListener("click",()=>$("album-photo-share").click());
 $("album-viewer-close").addEventListener("click",closeAlbumViewer);
 $("album-viewer-prev").addEventListener("click",()=>showAlbumViewerPhoto(albumViewerIndex-1));
 $("album-viewer-next").addEventListener("click",()=>showAlbumViewerPhoto(albumViewerIndex+1));
 $("album-viewer").addEventListener("click",e=>{if(e.target===$("album-viewer"))closeAlbumViewer();});
-$("album-viewer").addEventListener("touchstart",e=>{if(e.touches.length!==1)return;albumTouchStartX=e.touches[0].clientX;albumTouchStartY=e.touches[0].clientY;},{passive:true});
-$("album-viewer").addEventListener("touchend",e=>{
- if(e.changedTouches.length!==1||$("album-viewer").hidden)return;
- const dx=e.changedTouches[0].clientX-albumTouchStartX,dy=e.changedTouches[0].clientY-albumTouchStartY;
- if(Math.abs(dx)<45||Math.abs(dx)<Math.abs(dy)*1.2)return;
+let albumSwipeStart=null;
+$("album-viewer").addEventListener("pointerdown",e=>{
+ if($("album-viewer").hidden||e.target.closest("button"))return;
+ if(e.pointerType==="mouse"&&e.button!==0)return;
+ albumSwipeStart={id:e.pointerId,x:e.clientX,y:e.clientY};
+ try{$("album-viewer").setPointerCapture(e.pointerId);}catch(_){}
+});
+$("album-viewer").addEventListener("pointerup",e=>{
+ if(!albumSwipeStart||albumSwipeStart.id!==e.pointerId)return;
+ const dx=e.clientX-albumSwipeStart.x,dy=e.clientY-albumSwipeStart.y;albumSwipeStart=null;
+ if(Math.abs(dx)<48||Math.abs(dx)<Math.abs(dy)*1.25)return;
  showAlbumViewerPhoto(dx<0?albumViewerIndex+1:albumViewerIndex-1);
-},{passive:true});
+});
+$("album-viewer").addEventListener("pointercancel",()=>{albumSwipeStart=null;});
 document.addEventListener("keydown",e=>{if($("album-viewer").hidden)return;if(e.key==="Escape")closeAlbumViewer();else if(e.key==="ArrowLeft")showAlbumViewerPhoto(albumViewerIndex+1);else if(e.key==="ArrowRight")showAlbumViewerPhoto(albumViewerIndex-1);});
 async function loadPhotoAlbum(){
  const grid=$("album-grid");grid.replaceChildren();
  const loading=document.createElement("div");loading.className="album-empty";loading.textContent="Загружаем фотографии…";grid.append(loading);
  try{
-  // Обычный альбом загружает только обычные фото. Секретные записи здесь не запрашиваются.
+  // Обычный альбом изолирован: секретные фото здесь никогда не запрашиваются.
   const result=await client.from("photo_album_photos").select("id,object_path,file_name,mime_type,created_at").eq("owner_id",user.id).order("created_at",{ascending:false});
   if(result.error)throw result.error;
-  albumViewerItems=[];
-  for(const item of result.data||[]){
-   const signed=await client.storage.from("photo-albums").createSignedUrl(item.object_path,3600);
-   if(signed.error)continue;
-   albumViewerItems.push({...item,url:signed.data.signedUrl});
-  }
+  const rows=result.data||[];
+  if(!rows.length){albumViewerItems=[];grid.replaceChildren();const empty=document.createElement("div");empty.className="album-empty";empty.textContent="Здесь пока нет фотографий. Добавь первую!";grid.append(empty);return;}
+  // Один пакетный запрос вместо последовательного запроса URL для каждого файла.
+  const signed=await client.storage.from("photo-albums").createSignedUrls(rows.map(item=>item.object_path),3600);
+  if(signed.error)throw signed.error;
+  const byPath=new Map((signed.data||[]).filter(x=>x.signedUrl&&!x.error).map(x=>[x.path,x.signedUrl]));
+  albumViewerItems=rows.filter(item=>byPath.has(item.object_path)).map(item=>({...item,url:byPath.get(item.object_path),thumbUrl:byPath.get(item.object_path)}));
   grid.replaceChildren();
-  if(!albumViewerItems.length){const empty=document.createElement("div");empty.className="album-empty";empty.textContent="Здесь пока нет фотографий. Добавь первую!";grid.append(empty);return;}
+  if(!albumViewerItems.length){const empty=document.createElement("div");empty.className="album-empty";empty.textContent="Не удалось получить ссылки на фотографии. Попробуй обновить альбом.";grid.append(empty);return;}
   albumViewerItems.forEach((item,index)=>{
    const tile=document.createElement("button");tile.type="button";tile.className="album-item";tile.setAttribute("aria-label","Открыть фотографию: "+(item.file_name||"фотография"));tile.style.padding="0";tile.style.width="100%";tile.style.cursor="zoom-in";
-   const img=document.createElement("img");img.src=item.url;img.alt=item.file_name||"Фотография";img.loading="lazy";
-   const tag=document.createElement("small");tag.textContent="Видно всем";tile.append(img,tag);
-   tile.addEventListener("click",()=>{$("album-viewer").hidden=false;showAlbumViewerPhoto(index);});grid.append(tile);
+   const img=document.createElement("img");img.src=item.thumbUrl;img.alt=item.file_name||"Фотография";img.loading="lazy";img.decoding="async";
+   tile.append(img);
+   tile.addEventListener("click",()=>{$("album-viewer").hidden=false;showAlbumViewerPhoto(index);});
+   grid.append(tile);
   });
+  // Миниатюры оптимизируются в фоне; просмотр полного фото остаётся в оригинальном качестве.
+  Promise.all(albumViewerItems.map(async(item,index)=>{
+   try{
+    const thumb=await client.storage.from("photo-albums").createSignedUrl(item.object_path,3600,{transform:{width:180,height:180,resize:"cover",quality:55}});
+    if(thumb.error||!thumb.data?.signedUrl)return;
+    item.thumbUrl=thumb.data.signedUrl;
+    const image=grid.children[index]?.querySelector("img");
+    if(image&&image.isConnected)image.src=item.thumbUrl;
+   }catch(_){}
+  }));
  }catch(e){albumViewerItems=[];grid.replaceChildren();const error=document.createElement("div");error.className="album-empty";error.textContent="Не удалось загрузить фотоальбом: "+e.message;grid.append(error);}
 }
 $("album-close").addEventListener("click",()=>$("album-backdrop").hidden=true);
