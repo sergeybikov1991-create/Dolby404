@@ -385,6 +385,22 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 #feed-list{display:flex;flex-direction:column;gap:16px}
 #feed-list>.post{margin:0 auto}
 
+
+.post-social-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px;padding-top:11px;border-top:1px solid #342943}
+.post-social-button{min-height:36px;padding:7px 13px;border:1px solid #49385e;border-radius:11px;background:#171321;color:#d9c9f0;font-size:13px}
+.post-social-button.is-active{border-color:#a66bff;background:#38204e;color:#fff;box-shadow:0 0 12px #9d5bff22}
+.post-comments-panel{margin-top:10px;padding:12px;border:1px solid #3c2d50;border-radius:13px;background:#0e0c16}
+.post-comments-panel[hidden]{display:none}
+.post-comments-list{display:flex;flex-direction:column;gap:8px;max-height:280px;overflow:auto}
+.post-comment{padding:9px 10px;border:1px solid #302640;border-radius:10px;background:#171321;color:#e9e1f5;font-size:13px;overflow-wrap:anywhere}
+.post-comment strong{display:block;margin-bottom:5px;color:#d7baff}
+.post-comment time{display:block;margin-top:5px;color:#8f879d;font-size:10px}
+.post-comment-form{display:grid;grid-template-columns:1fr auto;align-items:end;gap:8px;margin-top:10px}
+.post-comment-form textarea{min-height:40px;max-height:110px;margin:0;padding:10px;border:1px solid #403653;border-radius:10px;background:#090811;color:#fff;font:inherit;resize:vertical}
+.post-comment-form button{padding:9px 12px;border-radius:10px;font-size:12px}
+.post-comment-note{margin-top:7px;color:#bda1ff;font-size:11px;overflow-wrap:anywhere}
+@media(max-width:380px){.post-social-actions{gap:6px}.post-social-button{padding:7px 10px;font-size:12px}.post-comment-form{grid-template-columns:1fr}.post-comment-form button{justify-self:end}}
+
 </style>
 </head>
 <body>
@@ -775,6 +791,7 @@ function renderPost(post,profiles){
   if(mediaItems.length){const mediaBox=document.createElement("div");mediaBox.className="post-media";let firstPhoto=null,firstAudio=null;for(const item of mediaItems){const url=safeUrl(item.url);if(!url)continue;let node;if(item.type==="photo"){node=document.createElement("img");node.alt="Фото публикации";node.loading="lazy";node.decoding="async";if(!firstPhoto)firstPhoto=node;}else if(item.type==="music"){node=document.createElement("audio");node.controls=true;if(!firstAudio)firstAudio=node;}else{node=document.createElement("video");node.controls=true;node.playsInline=true;node.preload="metadata";}if(node.tagName==="IMG")node.crossOrigin="anonymous";node.src=url;
     if(node.tagName==="IMG")node.addEventListener("click",()=>openPostPhotoView(url));
     mediaBox.appendChild(node);}if(firstAudio)makeMiniAudio(firstAudio,firstPhoto);if(mediaBox.children.length)card.append(mediaBox);}
+  attachPostActions(post,card);
   return card;
  }
  function startEditPost(post,card){
