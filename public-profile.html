@@ -142,20 +142,28 @@ body{background:radial-gradient(ellipse at 15% 0%,#281342 0,transparent 38%),#09
 @media(max-width:600px){.wrap{margin:14px auto;padding:0 11px}.cover{height:158px}.profile{padding:0 15px 18px}.identity{gap:12px;margin:-43px 14px 0}.avatar{width:96px;height:96px;flex-basis:96px}.name{padding-bottom:6px}.bio{margin:14px}.post{border-radius:0;border-left:0;border-right:0}.feed{gap:0}.post+.post{border-top:0}}
 @keyframes avatarFrameGlow{0%,100%{box-shadow:0 0 0 1px #e3c8ff44,0 0 5px #a66bff66,0 0 12px #8d50e733}50%{box-shadow:0 0 0 1px #f0dcff88,0 0 9px #c18aff99,0 0 22px #9b55ff77,0 0 30px #7b3fc933}}}
 
-/* Dolby404: единый круглый шаблон аватара для всех профилей */
+/* Dolby404: единая геометрия и оформление аватара на обеих страницах */
 .avatar{
- box-sizing:border-box;
- width:124px;
- height:124px;
- min-width:124px;
- flex:0 0 124px;
+ box-sizing:border-box!important;
+ width:124px!important;
+ height:124px!important;
+ min-width:124px!important;
+ min-height:124px!important;
+ flex:0 0 124px!important;
  aspect-ratio:1/1;
- border-radius:50%;
+ border:3px solid #b879e8;
+ border-radius:50%!important;
  overflow:hidden;
  position:relative;
  isolation:isolate;
+ display:block;
+ background:linear-gradient(135deg,#6336a3,#17152b);
+ box-shadow:0 0 0 1px #e3c8ff66,0 0 7px #b879ff88,0 0 16px #9b55ff66;
+ animation:avatarFrameGlow 3.4s ease-in-out infinite;
+ z-index:2;
 }
 .avatar img{
+ box-sizing:border-box;
  position:absolute;
  inset:0;
  display:block;
@@ -164,16 +172,19 @@ body{background:radial-gradient(ellipse at 15% 0%,#281342 0,transparent 38%),#09
  min-width:100%;
  min-height:100%;
  max-width:none;
+ max-height:none;
  object-fit:cover;
  object-position:center;
- border-radius:50%;
+ border-radius:50%!important;
+ margin:0;
 }
 @media(max-width:600px){
  .avatar{
-  width:96px;
-  height:96px;
-  min-width:96px;
-  flex:0 0 96px;
+  width:96px!important;
+  height:96px!important;
+  min-width:96px!important;
+  min-height:96px!important;
+  flex:0 0 96px!important;
  }
 }
 </style>
