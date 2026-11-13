@@ -22,6 +22,7 @@ body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 20% 0%,#281
 .feed-section{margin-top:24px}.feed-title{margin:0 0 14px;font-size:19px}
 .feed{display:flex;flex-direction:column;gap:12px}
 .post{padding:16px;overflow:hidden;border:1px solid var(--line);border-radius:16px;background:linear-gradient(145deg,#191625,#101019)}
+.post-author-label{margin-bottom:2px;color:#a99bbd;font-size:10px;letter-spacing:.04em;text-transform:uppercase}
 .flow-banner{display:flex;align-items:center;gap:8px;margin:0 0 12px;padding:8px 11px;border:1px solid #63477f;border-radius:10px;background:linear-gradient(100deg,#281936,#171321);color:#d9baff;font-size:11px;font-weight:700}
 .flow-banner:before{content:"↗";display:grid;place-items:center;width:19px;height:19px;border-radius:50%;background:#593477;color:#fff;font-size:13px}
 .post-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
@@ -64,7 +65,7 @@ async function renderPost(post,authors,flowMeta){
  const card=document.createElement("article");card.className="post";
  if(flowMeta){const banner=document.createElement("div");banner.className="flow-banner";banner.textContent="FLOW · "+(target.display_name||target.username||"Пользователь")+(flowMeta.created_at?" · "+dateText(flowMeta.created_at):"");card.append(banner);}
  const head=document.createElement("div");head.className="post-head";head.append(avatarNode(author.avatar_url,authorName));
- const identity=document.createElement("div"),name=document.createElement("div"),date=document.createElement("div");name.className="post-author";name.textContent=authorName;date.className="post-date";date.textContent=dateText(post.created_at);identity.append(name,date);head.append(identity);card.append(head);
+ const identity=document.createElement("div"),name=document.createElement("div"),date=document.createElement("div");if(flowMeta){const authorLabel=document.createElement("div");authorLabel.className="post-author-label";authorLabel.textContent="Автор оригинала";identity.append(authorLabel);}name.className="post-author";name.textContent=authorName;date.className="post-date";date.textContent=dateText(post.created_at);identity.append(name,date);head.append(identity);card.append(head);
  if(post.content){const body=document.createElement("div");body.className="post-content";body.textContent=post.content;card.append(body);}
  const media=Array.isArray(post.media)&&post.media.length?post.media:(post.image_url?[{type:"photo",url:post.image_url}]:[]);
  if(media.length){const box=document.createElement("div");box.className="post-media";for(const item of media){const url=safeUrl(item.url);if(!url)continue;let node;if(item.type==="photo"){node=document.createElement("img");node.alt="Фото публикации";node.loading="lazy";}else if(item.type==="music"){node=document.createElement("audio");node.controls=true;}else{node=document.createElement("video");node.controls=true;node.playsInline=true;node.preload="metadata";}node.src=url;box.append(node);}if(box.children.length)card.append(box);}
