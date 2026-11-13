@@ -1271,12 +1271,14 @@ async function showPrivateAlbumPhoto(i){
  const index=(i+privateAlbumItems.length)%privateAlbumItems.length,item=privateAlbumItems[index],request=++privateAlbumDisplayRequest;
  privateAlbumPendingIndex=index;
  $("private-album-prev").hidden=privateAlbumItems.length<2;$("private-album-next").hidden=privateAlbumItems.length<2;$("private-album-viewer").hidden=false;
- try{await preloadAlbumImage(item.url);}catch(_){}
+ let url=item.url;try{url=await getAlbumDisplayUrl(item,"private-albums");}catch(_){}
+ if(request!==privateAlbumDisplayRequest)return;
+ try{await preloadAlbumImage(url);}catch(_){url=item.url;try{await preloadAlbumImage(url);}catch(__){}}
  if(request!==privateAlbumDisplayRequest)return;
  privateAlbumIndex=index;privateAlbumPendingIndex=null;
- const image=$("private-album-image");image.src=item.url;image.alt=item.file_name||"Приватная фотография";
+ const image=$("private-album-image");image.src=url;image.alt=item.file_name||"Приватная фотография";
  $("private-album-counter").textContent=(index+1)+" / "+privateAlbumItems.length;
- renderPrivateAlbumThumbnails();preloadAlbumNeighbors(privateAlbumItems,index);
+ renderPrivateAlbumThumbnails();preloadAlbumNeighbors(privateAlbumItems,index,"private-albums");
 }
 function stepPrivateAlbumPhoto(delta){
  const base=privateAlbumPendingIndex===null?privateAlbumIndex:privateAlbumPendingIndex;
@@ -1375,12 +1377,14 @@ async function showAlbumViewerPhoto(index){
  const currentIndex=(index+albumViewerItems.length)%albumViewerItems.length,item=albumViewerItems[currentIndex],request=++albumDisplayRequest;
  albumViewerPendingIndex=currentIndex;
  $("album-viewer-prev").hidden=albumViewerItems.length<2;$("album-viewer-next").hidden=albumViewerItems.length<2;
- try{await preloadAlbumImage(item.url);}catch(_){}
+ let url=item.url;try{url=await getAlbumDisplayUrl(item,"photo-albums");}catch(_){}
+ if(request!==albumDisplayRequest)return;
+ try{await preloadAlbumImage(url);}catch(_){url=item.url;try{await preloadAlbumImage(url);}catch(__){}}
  if(request!==albumDisplayRequest)return;
  albumViewerIndex=currentIndex;albumViewerPendingIndex=null;
- const image=$("album-viewer-image");image.src=item.url;image.alt=item.file_name||"Фотография";
+ const image=$("album-viewer-image");image.src=url;image.alt=item.file_name||"Фотография";
  $("album-viewer-counter").textContent=(currentIndex+1)+" / "+albumViewerItems.length;
- renderAlbumViewerThumbnails();preloadAlbumNeighbors(albumViewerItems,currentIndex);
+ renderAlbumViewerThumbnails();preloadAlbumNeighbors(albumViewerItems,currentIndex,"photo-albums");
 }
 function stepAlbumViewerPhoto(delta){
  const base=albumViewerPendingIndex===null?albumViewerIndex:albumViewerPendingIndex;
@@ -1453,9 +1457,17 @@ function preloadAlbumImage(url){
  });
  albumImagePreloadCache.set(url,promise);return promise;
 }
-function preloadAlbumNeighbors(items,index){
+async function getAlbumDisplayUrl(item,bucket){
+ const key=user.id+"|"+bucket+"|"+item.object_path;
+ if(albumDisplayUrlMemory.has(key))return albumDisplayUrlMemory.get(key);
+ const signed=await client.storage.from(bucket).createSignedUrl(item.object_path,3600,{transform:{width:1600,height:1600,resize:"contain",quality:82}});
+ if(signed.error||!signed.data?.signedUrl)throw signed.error||new Error("Не удалось подготовить фотографию");
+ albumDisplayUrlMemory.set(key,signed.data.signedUrl);return signed.data.signedUrl;
+}
+function preloadAlbumNeighbors(items,index,bucket){
  [index-1,index+1].forEach(n=>{
-  const item=items[(n+items.length)%items.length];if(item)preloadAlbumImage(item.url).catch(()=>{});
+  const item=items[(n+items.length)%items.length];if(!item)return;
+  getAlbumDisplayUrl(item,bucket).then(preloadAlbumImage).catch(()=>{});
  });
 }
 const albumThumbCacheName="floustream-album-thumbnails-v1";
