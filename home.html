@@ -100,6 +100,15 @@ h1{font-size:clamp(25px,5vw,36px);margin:12px 0 8px}
 .post-comment-note{margin-top:7px;color:#bda1ff;font-size:11px;overflow-wrap:anywhere}
 @media(max-width:380px){.post-social-actions{gap:6px}.post-social-button{padding:7px 10px;font-size:12px}.post-comment-form{grid-template-columns:1fr}.post-comment-form button{justify-self:end}}
 
+
+/* DOLBY404 PULSE online status */
+.dolby-online-indicator{position:relative;display:inline-block;vertical-align:middle;width:8px;height:8px;flex:0 0 8px;margin-left:8px;border-radius:50%;background:#716b7b;box-shadow:0 0 0 1px #a69bb8;transition:background .2s ease,box-shadow .2s ease}
+.dolby-online-indicator.is-online{background:#69ffd1;box-shadow:0 0 0 1px #b7ffe9,0 0 8px #4effc5,0 0 15px #936bff;animation:dolbyPulseCore 1.8s ease-in-out infinite}
+.dolby-online-indicator.is-online::after{content:"";position:absolute;inset:-5px;border:1px solid #a66bff;border-radius:50%;opacity:0;animation:dolbyPulseRing 1.8s ease-out infinite}
+@keyframes dolbyPulseCore{0%,100%{filter:brightness(.9)}50%{filter:brightness(1.45)}}
+@keyframes dolbyPulseRing{0%{transform:scale(.55);opacity:.75}85%,100%{transform:scale(1.8);opacity:0}}
+@media(prefers-reduced-motion:reduce){.dolby-online-indicator.is-online,.dolby-online-indicator.is-online::after{animation:none}.dolby-online-indicator.is-online::after{opacity:.35;transform:scale(1.2)}}
+
 </style>
 </head>
 <body>
@@ -161,6 +170,48 @@ function loadSupabase(){
     document.head.appendChild(script);
   });
 }
+
+const dolbyOnlineUsers = new Set();
+let dolbyOnlineChannel = null;
+function refreshDolbyOnlineIndicators(){
+ document.querySelectorAll(".dolby-online-indicator[data-user-id]").forEach(dot=>{
+  const active=dolbyOnlineUsers.has(dot.dataset.userId);
+  dot.classList.toggle("is-online",active);
+  dot.title=active?"В сети":"Не в сети";
+  dot.setAttribute("aria-label",active?"В сети":"Не в сети");
+ });
+}
+function appendDolbyOnlineIndicator(element,userId){
+ if(!element||!userId)return;
+ element.querySelectorAll(":scope > .dolby-online-indicator").forEach(dot=>dot.remove());
+ const dot=document.createElement("span");
+ dot.className="dolby-online-indicator";
+ dot.dataset.userId=userId;
+ dot.setAttribute("role","img");
+ element.appendChild(dot);
+ refreshDolbyOnlineIndicators();
+}
+function startDolbyOnlinePresence(client,userId){
+ if(!client||!userId||dolbyOnlineChannel)return;
+ const channel=client.channel("dolby404:online");
+ channel.on("presence",{event:"sync"},()=>{
+  dolbyOnlineUsers.clear();
+  const state=channel.presenceState()||{};
+  Object.values(state).forEach(entries=>(entries||[]).forEach(entry=>{
+   if(entry?.userId)dolbyOnlineUsers.add(entry.userId);
+  }));
+  refreshDolbyOnlineIndicators();
+ });
+ dolbyOnlineChannel=channel;
+ channel.subscribe(async status=>{
+  if(status==="SUBSCRIBED"){
+   const tracked=await channel.track({userId,onlineAt:new Date().toISOString()});
+   if(tracked?.error)console.warn("DOLBY404 presence:",tracked.error);
+  }
+ });
+ window.addEventListener("pagehide",()=>{channel.untrack();},{once:true});
+}
+
 async function start(){
   try{
     await loadSupabase();
@@ -177,6 +228,7 @@ async function start(){
     loading.hidden=true;
     app.hidden=false;
     status.textContent="Аккаунт подключён. Ты вошёл в систему.";
+    startDolbyOnlinePresence(client,user.id);
     initFeed(client);
     document.getElementById("logout-button").addEventListener("click",async()=>{
       const button=document.getElementById("logout-button");
@@ -286,7 +338,7 @@ async function initFeed(client){
    if(!result.data?.length){const empty=document.createElement("div");empty.className="post-comment-note";empty.textContent="Пока нет комментариев. Будь первым!";list.append(empty);return;}
    for(const item of result.data){
     const row=document.createElement("article");row.className="post-comment";
-    const author=document.createElement("strong");const p=profiles[item.user_id]||{};author.textContent=p.display_name||p.username||"Пользователь";
+    const author=document.createElement("strong");const p=profiles[item.user_id]||{};author.textContent=p.display_name||p.username||"Пользователь";appendDolbyOnlineIndicator(author,item.user_id);
     const body=document.createElement("div");body.textContent=item.content;
     const time=document.createElement("time");time.textContent=new Date(item.created_at).toLocaleString("ru-RU",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
     row.append(author,body,time);list.append(row);
@@ -313,7 +365,7 @@ async function initFeed(client){
     if(avatar){const image=document.createElement("img");image.src=avatar;image.alt="";image.loading="lazy";avatarBox.appendChild(image);}
     else avatarBox.textContent=(String(author).trim()[0]||"◉").toUpperCase();
     const identity=document.createElement("div");identity.style.minWidth="0";
-    const authorEl=document.createElement("div");authorEl.className="post-author";authorEl.textContent=author;
+    const authorEl=document.createElement("div");authorEl.className="post-author";authorEl.textContent=author;appendDolbyOnlineIndicator(authorEl,post.user_id);
     const dateEl=document.createElement("div");dateEl.className="post-date";dateEl.textContent=formatDate(post.created_at);
     identity.append(authorEl,dateEl);head.append(avatarBox,identity);card.appendChild(head);
     if(post.content){const content=document.createElement("div");content.className="post-content";content.textContent=post.content;card.appendChild(content);}
