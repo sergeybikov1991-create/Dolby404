@@ -224,6 +224,7 @@ textarea{min-height:90px;resize:vertical}
 .nav-history{margin:13px 4px 2px;padding:11px 9px 10px;border:1px solid #342541;border-radius:13px;background:#110e19aa}
 .nav-history .side-drawer-caption{margin:0 0 8px 2px}
 .nav-history-items{display:grid;gap:6px}
+.nav-profile-visits{display:grid;gap:6px;margin:0 0 7px}.nav-profile-visit{display:flex;align-items:center;gap:9px;min-height:42px;padding:6px 8px;border:1px solid #352744;border-radius:9px;background:#1b1525;color:#e8dcf8;text-decoration:none;overflow:hidden}.nav-profile-visit:active{background:#352044}.nav-profile-visit-avatar{width:29px;height:29px;flex:0 0 29px;border-radius:50%;object-fit:cover;background:#30213e}.nav-profile-visit-copy{display:grid;min-width:0;gap:2px}.nav-profile-visit-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:650}.nav-profile-visit-time{color:#9586a8;font-size:10px}
 .nav-history-item{display:flex;align-items:center;gap:9px;width:100%;min-height:37px;padding:7px 8px;border:1px solid #352744;border-radius:9px;background:#1b1525;color:#d9c8f2;text-align:left;font-size:12px;overflow:hidden}
 .nav-history-item:active{background:#352044}
 .nav-history-item .side-drawer-icon{width:19px;font-size:15px}
@@ -703,7 +704,7 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
  <div class="drawer-shell"><div class="side-drawer-head"><div class="side-drawer-logo">FLOUSTREAM</div><button type="button" class="side-drawer-close" id="drawer-close" aria-label="Закрыть меню">×</button></div>
  <p class="side-drawer-caption">Навигация</p><nav class="side-drawer-links">
  <button class="side-drawer-link active" data-drawer-action="profile"><span class="side-drawer-icon">◉</span>Мой профиль</button></nav>
- <div class="nav-history" id="nav-history"><p class="side-drawer-caption" id="nav-history-title">Недавно посещали</p><div class="nav-history-items" id="nav-history-items"><span class="nav-history-empty">Пока пусто</span></div></div>
+ <div class="nav-history" id="nav-history"><p class="side-drawer-caption" id="nav-history-title">Недавно посещали</p><div class="nav-profile-visits" id="nav-profile-visits"></div><div class="nav-history-items" id="nav-history-items"><span class="nav-history-empty">Пока пусто</span></div></div>
  
   <section class="drawer-search" aria-label="Поиск FLOUSTREAM">
    <button type="button" class="drawer-search-toggle" id="drawer-search-toggle" aria-expanded="false" aria-controls="drawer-search-options"><span aria-hidden="true">⌕</span> Поиск <span class="drawer-search-chevron" aria-hidden="true">⌄</span></button>
@@ -958,6 +959,29 @@ function render(){
 
 }
 const navigationNames={profile:["Мой профиль","My profile","◉"],feed:["Лента публикаций","Posts feed","▤"],settings:["Настройки","Settings","⚙"],friends:["Друзья","Friends","♧"],messages:["Сообщения","Messages","✉"],communities:["Сообщества","Communities","◎"],music:["Музыка","Music","♫"],video:["Видео","Videos","▶"],photos:["Фото","Photos","▧"],bookmarks:["Закладки","Bookmarks","☆"]};
+async function loadProfileVisitHistory(){
+ const host=$("nav-profile-visits");if(!host||!client||!user)return;
+ try{
+  const visits=await client.from("profile_visits").select("visited_profile_id,last_visited_at").eq("visitor_id",user.id).order("last_visited_at",{ascending:false}).limit(5);
+  if(visits.error)throw visits.error;
+  const rows=visits.data||[];host.replaceChildren();if(!rows.length)return;
+  const ids=rows.map(row=>row.visited_profile_id);
+  const profiles=await client.from("profiles").select("id,username,display_name,avatar_url").in("id",ids);
+  if(profiles.error)throw profiles.error;
+  const byId=new Map((profiles.data||[]).map(profile=>[profile.id,profile]));
+  rows.forEach(row=>{
+   const profile=byId.get(row.visited_profile_id);if(!profile)return;
+   const name=profile.display_name||profile.username||"Пользователь";
+   const link=document.createElement("a");link.className="nav-profile-visit";link.href="public-profile.html?id="+encodeURIComponent(profile.id);
+   if(profile.avatar_url){const avatar=document.createElement("img");avatar.className="nav-profile-visit-avatar";avatar.src=profile.avatar_url;avatar.alt="";avatar.loading="lazy";link.append(avatar);}
+   else{const avatar=document.createElement("span");avatar.className="nav-profile-visit-avatar";avatar.style.display="grid";avatar.style.placeItems="center";avatar.textContent=name.slice(0,1).toUpperCase();link.append(avatar);}
+   const copy=document.createElement("span");copy.className="nav-profile-visit-copy";
+   const title=document.createElement("span");title.className="nav-profile-visit-name";title.textContent=name;
+   const time=document.createElement("span");time.className="nav-profile-visit-time";time.textContent=row.last_visited_at?new Date(row.last_visited_at).toLocaleString("ru-RU",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}):"";
+   copy.append(title,time);link.append(copy);host.append(link);
+  });
+ }catch(error){console.warn("FLOUSTREAM visit history:",error);}
+}
 function navigationHistoryKey(){return "dolby404-nav-history-"+(user?.id||"guest");}
 function renderNavigationHistory(){
  const host=$("nav-history-items");if(!host)return;host.replaceChildren();
@@ -1749,6 +1773,7 @@ async function start(){
   const auth=await client.auth.getUser();if(auth.error)throw auth.error;user=auth.data.user;
   if(!user){location.replace("portal.html");return;}
   startDolbyOnlinePresence(client,user.id);
+  loadProfileVisitHistory();
   const result=await client.from("profiles").select("*").eq("id",user.id).maybeSingle();
   if(result.error)throw result.error;
   profile=result.data||{};columns=Object.keys(profile);
