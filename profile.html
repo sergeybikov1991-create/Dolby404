@@ -982,11 +982,12 @@ async function loadProfileVisitHistory(){
   });
  }catch(error){console.warn("FLOUSTREAM visit history:",error);}
 }
+window.addEventListener("pageshow",()=>{if(user&&client)loadProfileVisitHistory();});
 function navigationHistoryKey(){return "dolby404-nav-history-"+(user?.id||"guest");}
 function renderNavigationHistory(){
  const host=$("nav-history-items");if(!host)return;host.replaceChildren();
  let entries=[];try{entries=JSON.parse(localStorage.getItem(navigationHistoryKey())||"[]");if(!Array.isArray(entries))entries=[];}catch(_){}
- if(!entries.length){const empty=document.createElement("span");empty.className="nav-history-empty";empty.textContent=localStorage.getItem("dolby404-language")==="en"?"No recent places yet":"Пока пусто";host.append(empty);return;}
+ if(!entries.length){if(!$("nav-profile-visits")?.children.length){const empty=document.createElement("span");empty.className="nav-history-empty";empty.textContent=localStorage.getItem("dolby404-language")==="en"?"No recent places yet":"Пока пусто";host.append(empty);}return;}
  entries.slice(0,2).forEach(entry=>{const meta=navigationNames[entry.action]||[entry.label||"Раздел",entry.label||"Section",entry.icon||"•"];const b=document.createElement("button");b.type="button";b.className="nav-history-item";b.dataset.historyAction=entry.action;const icon=document.createElement("span");icon.className="side-drawer-icon";icon.textContent=meta[2];const label=document.createElement("span");label.textContent=localStorage.getItem("dolby404-language")==="en"?meta[1]:meta[0];b.append(icon,label);host.append(b);});
 }
 function recordNavigation(action,label,icon){
