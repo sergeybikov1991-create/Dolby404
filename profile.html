@@ -433,15 +433,13 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 @media(prefers-reduced-motion:reduce){.post-reaction-option .reaction-emoji{animation:none!important;transition:none!important}}
 .post-social-button{min-height:36px;padding:7px 13px;border:1px solid #49385e;border-radius:11px;background:#171321;color:#d9c9f0;font-size:13px}
 .post-social-button.is-active{border-color:#a66bff;background:#38204e;color:#fff;box-shadow:0 0 12px #9d5bff22}
-.post-social-button.repost-flow{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-width:76px;border-color:#4e3b68;background:linear-gradient(135deg,#21192d,#15111e);color:#d9c9f0;transition:border-color .22s,background .22s,box-shadow .22s,transform .22s}
-.repost-flow .flow-mark{width:19px;height:19px;overflow:visible;flex:none}
-.repost-flow .flow-mark path{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transition:stroke .22s,filter .22s}
-.repost-flow .flow-count{font-size:12px;font-variant-numeric:tabular-nums;line-height:1}
-.repost-flow:hover{transform:translateY(-1px);border-color:#b48aff;background:linear-gradient(135deg,#342044,#1b1426);box-shadow:0 0 15px #a66bff26}
-.repost-flow:hover .flow-mark path{filter:drop-shadow(0 0 4px #c79aff)}
-.repost-flow.is-active{border-color:#c18aff;background:linear-gradient(135deg,#49265f,#21152f);color:#f3ddff;box-shadow:0 0 15px #a66bff38}
-.repost-flow.is-active .flow-mark path{filter:drop-shadow(0 0 5px #c58cff)}
-.repost-flow:disabled{opacity:.6;cursor:wait}
+.post-social-button.repost-flow{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-width:0;padding:6px 10px;border:1px solid #59436f;border-radius:999px;background:linear-gradient(135deg,#21192d,#15111e);color:#d9c9f0;transition:border-color .22s,background .22s,box-shadow .22s,transform .22s}
+.repost-flow .flow-label{font-size:10px;font-weight:800;letter-spacing:1.15px;line-height:1;text-transform:uppercase}
+.repost-flow .flow-count{font-size:10px;font-variant-numeric:tabular-nums;line-height:1;color:#a99bbd}
+.repost-flow:hover{transform:translateY(-1px);border-color:#b48aff;background:linear-gradient(135deg,#342044,#1b1426);box-shadow:0 0 12px #a66bff26}
+.repost-flow.is-active{border-color:#c18aff;background:linear-gradient(135deg,#49265f,#21152f);color:#f3ddff;box-shadow:0 0 12px #a66bff38}
+.repost-flow.is-active .flow-count{color:#e6caff}
+
 @media(prefers-reduced-motion:reduce){.repost-flow{transition:none}.repost-flow:hover{transform:none}}
 .post-comments-panel{margin-top:10px;padding:12px;border:1px solid #3c2d50;border-radius:13px;background:#0e0c16}
 .post-comments-panel[hidden]{display:none}
@@ -948,7 +946,7 @@ function playReactionFlight(emoji,source){
 reactionWrap.append(reactionToggle,reactionPanel);
  const like=document.createElement("button");like.type="button";like.className="post-social-button";like.textContent="♡ 0";
  const commentToggle=document.createElement("button");commentToggle.type="button";commentToggle.className="post-social-button";commentToggle.textContent="💬 0";
- const repost=document.createElement("button");repost.type="button";repost.className="post-social-button repost-flow";repost.setAttribute("aria-label","Сделать репост");repost.title="Репост Dolby404";repost.innerHTML='<svg class="flow-mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.2h10.4a4.1 4.1 0 0 1 0 8.2H8.8"/><path d="m11.8 4.8 3.5 3.4-3.5 3.4"/><path d="m8.8 13-3.5 3.4 3.5 3.4"/></svg><span class="flow-count">0</span>';
+ const repost=document.createElement("button");repost.type="button";repost.className="post-social-button repost-flow";repost.setAttribute("aria-label","Сделать репост");repost.title="Репост Dolby404";repost.innerHTML='<span class="flow-label">FLOW</span><span class="flow-count">0</span>';
  const panel=document.createElement("section");panel.className="post-comments-panel";panel.hidden=true;
  const commentsHeader=document.createElement("div");commentsHeader.className="post-comments-header";
  const commentsTitle=document.createElement("span");commentsTitle.textContent="Комментарии";
