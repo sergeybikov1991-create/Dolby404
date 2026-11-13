@@ -1265,10 +1265,20 @@ function renderPrivateAlbumThumbnails(){
  privateAlbumItems.forEach((item,i)=>{const b=document.createElement("button");b.type="button";b.className="album-viewer-thumb"+(i===privateAlbumIndex?" active":"");b.setAttribute("aria-label","Перейти к приватному фото "+(i+1));const img=document.createElement("img");img.alt="";img.loading="lazy";b.append(img);queueAlbumThumb(img,item,"private-albums",false);b.addEventListener("click",()=>{showPrivateAlbumPhoto(i);$("private-album-thumbnails").hidden=true;});host.append(b);});
  const active=host.children[privateAlbumIndex];if(active)active.scrollIntoView({block:"nearest",inline:"center"});
 }
-function showPrivateAlbumPhoto(i){
- if(!privateAlbumItems.length)return;privateAlbumIndex=(i+privateAlbumItems.length)%privateAlbumItems.length;
- $("private-album-image").src=privateAlbumItems[privateAlbumIndex].url;$("private-album-counter").textContent=(privateAlbumIndex+1)+" / "+privateAlbumItems.length;
- $("private-album-prev").hidden=privateAlbumItems.length<2;$("private-album-next").hidden=privateAlbumItems.length<2;$("private-album-viewer").hidden=false;renderPrivateAlbumThumbnails();
+let privateAlbumDisplayRequest=0;
+async function showPrivateAlbumPhoto(i){
+ if(!privateAlbumItems.length)return;
+ privateAlbumIndex=(i+privateAlbumItems.length)%privateAlbumItems.length;
+ const index=privateAlbumIndex,item=privateAlbumItems[index],request=++privateAlbumDisplayRequest;
+ const image=$("private-album-image");
+ $("private-album-prev").hidden=privateAlbumItems.length<2;$("private-album-next").hidden=privateAlbumItems.length<2;$("private-album-viewer").hidden=false;
+ let url=item.url;try{url=await getAlbumDisplayUrl(item,"private-albums");}catch(_){}
+ if(request!==privateAlbumDisplayRequest)return;
+ try{await preloadAlbumImage(url);}catch(_){if(url!==item.url){url=item.url;try{await preloadAlbumImage(url);}catch(__){}}}
+ if(request!==privateAlbumDisplayRequest)return;
+ image.src=url;image.alt=item.file_name||"Приватная фотография";
+ $("private-album-counter").textContent=(index+1)+" / "+privateAlbumItems.length;
+ renderPrivateAlbumThumbnails();preloadAlbumNeighbors(privateAlbumItems,index,"private-albums");
 }
 function closePrivateAlbumViewer(){$("private-album-viewer").hidden=true;$("private-album-image").removeAttribute("src");}
 $("album-private-open").addEventListener("click",openPrivateAlbum);
@@ -1356,13 +1366,20 @@ function renderAlbumViewerThumbnails(){
  albumViewerItems.forEach((item,i)=>{const b=document.createElement("button");b.type="button";b.className="album-viewer-thumb"+(i===albumViewerIndex?" active":"");b.setAttribute("aria-label","Перейти к фото "+(i+1));const img=document.createElement("img");img.alt="";img.loading="lazy";b.append(img);queueAlbumThumb(img,item,"photo-albums",true);b.addEventListener("click",()=>{showAlbumViewerPhoto(i);$("album-viewer-thumbnails").hidden=true;});host.append(b);});
  const active=host.children[albumViewerIndex];if(active)active.scrollIntoView({block:"nearest",inline:"center"});
 }
-function showAlbumViewerPhoto(index){
+let albumDisplayRequest=0;
+async function showAlbumViewerPhoto(index){
  if(!albumViewerItems.length)return;
  albumViewerIndex=(index+albumViewerItems.length)%albumViewerItems.length;
- const item=albumViewerItems[albumViewerIndex];
- $("album-viewer-image").src=item.url;$("album-viewer-image").alt=item.file_name||"Фотография";
- $("album-viewer-counter").textContent=(albumViewerIndex+1)+" / "+albumViewerItems.length;
- $("album-viewer-prev").hidden=albumViewerItems.length<2;$("album-viewer-next").hidden=albumViewerItems.length<2;renderAlbumViewerThumbnails();
+ const currentIndex=albumViewerIndex,item=albumViewerItems[currentIndex],request=++albumDisplayRequest;
+ const image=$("album-viewer-image");
+ $("album-viewer-prev").hidden=albumViewerItems.length<2;$("album-viewer-next").hidden=albumViewerItems.length<2;
+ let url=item.url;try{url=await getAlbumDisplayUrl(item,"photo-albums");}catch(_){}
+ if(request!==albumDisplayRequest)return;
+ try{await preloadAlbumImage(url);}catch(_){if(url!==item.url){url=item.url;try{await preloadAlbumImage(url);}catch(__){}}}
+ if(request!==albumDisplayRequest)return;
+ image.src=url;image.alt=item.file_name||"Фотография";
+ $("album-viewer-counter").textContent=(currentIndex+1)+" / "+albumViewerItems.length;
+ renderAlbumViewerThumbnails();preloadAlbumNeighbors(albumViewerItems,currentIndex,"photo-albums");
 }
 let albumSelectedFriend=null;
 $("album-viewer-delete").addEventListener("click",async()=>{
@@ -1411,6 +1428,35 @@ document.addEventListener("keydown",e=>{if($("album-viewer").hidden)return;if(e.
 // Миниатюры обычного альбома хранятся в Cache API браузера между посещениями.
 // Приватные миниатюры остаются только в памяти текущего сеанса.
 const albumThumbMemory=new Map();
+const albumDisplayUrlMemory=new Map();
+let albumThumbQueue=[],albumThumbActive=0;
+function runAlbumThumbQueue(){
+ while(albumThumbActive<4&&albumThumbQueue.length){
+  const task=albumThumbQueue.shift();albumThumbActive++;
+  Promise.resolve().then(task).finally(()=>{albumThumbActive--;runAlbumThumbQueue();});
+ }
+}
+function preloadAlbumImage(url){
+ return new Promise((resolve,reject)=>{
+  const probe=new Image();probe.decoding="async";
+  probe.onload=async()=>{try{if(probe.decode)await probe.decode();resolve();}catch(_){resolve();}};
+  probe.onerror=()=>reject(new Error("Не удалось загрузить фотографию"));
+  probe.src=url;if(probe.complete&&probe.naturalWidth)resolve();
+ });
+}
+async function getAlbumDisplayUrl(item,bucket){
+ const key=user.id+"|"+bucket+"|display|"+item.object_path;
+ if(albumDisplayUrlMemory.has(key))return albumDisplayUrlMemory.get(key);
+ const signed=await client.storage.from(bucket).createSignedUrl(item.object_path,3600,{transform:{width:1600,height:1600,resize:"contain",quality:82}});
+ if(signed.error||!signed.data?.signedUrl)throw signed.error||new Error("Не удалось подготовить фотографию");
+ albumDisplayUrlMemory.set(key,signed.data.signedUrl);return signed.data.signedUrl;
+}
+function preloadAlbumNeighbors(items,index,bucket){
+ [index-1,index+1].forEach(n=>{
+  const item=items[(n+items.length)%items.length];if(!item)return;
+  getAlbumDisplayUrl(item,bucket).then(preloadAlbumImage).catch(()=>{});
+ });
+}
 const albumThumbCacheName="floustream-album-thumbnails-v1";
 async function getAlbumThumbUrl(item,bucket,persist){
  const key=user.id+"|"+bucket+"|"+item.object_path;
@@ -1441,12 +1487,16 @@ async function getAlbumThumbUrl(item,bucket,persist){
  return url;
 }
 function queueAlbumThumb(img,item,bucket,persist){
- const load=async()=>{
-  try{const src=await getAlbumThumbUrl(item,bucket,persist);if(img.isConnected)img.src=src;}
-  catch(_){if(img.isConnected)img.src=item.url;}
+ const load=()=>{
+  albumThumbQueue.push(async()=>{
+   if(!img.isConnected)return;
+   try{const src=await getAlbumThumbUrl(item,bucket,persist);if(img.isConnected)img.src=src;}
+   catch(_){if(img.isConnected)img.src=item.url;}
+  });
+  runAlbumThumbQueue();
  };
  if("IntersectionObserver" in window){
-  if(!window.albumThumbObserver)window.albumThumbObserver=new IntersectionObserver(entries=>entries.forEach(entry=>{if(entry.isIntersecting){window.albumThumbObserver.unobserve(entry.target);entry.target._loadAlbumThumb?.();}}),{rootMargin:"300px"});
+  if(!window.albumThumbObserver)window.albumThumbObserver=new IntersectionObserver(entries=>entries.forEach(entry=>{if(entry.isIntersecting){window.albumThumbObserver.unobserve(entry.target);entry.target._loadAlbumThumb?.();}}),{rootMargin:"180px"});
   img._loadAlbumThumb=load;window.albumThumbObserver.observe(img);
  }else load();
 }
