@@ -387,6 +387,17 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 
 
 .post-social-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px;padding-top:11px;border-top:1px solid #342943}
+.post-reaction-wrap{position:relative;display:inline-flex}
+.post-reaction-picker{position:absolute;left:0;bottom:calc(100% + 9px);z-index:15;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:5px;width:min(306px,calc(100vw - 58px));padding:9px;border:1px solid #7952a0;border-radius:15px;background:rgba(18,14,28,.97);box-shadow:0 12px 36px #000b,0 0 22px #9b5bff22;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.post-reaction-picker[hidden]{display:none}
+.post-reaction-option{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:0;min-height:49px;padding:5px 2px;border:1px solid #3c304d;border-radius:10px;background:#171321;color:#f5eaff}
+.post-reaction-option .reaction-emoji{font-size:21px;line-height:1.15;filter:drop-shadow(0 0 5px #a66bff55);transition:transform .2s,filter .2s}
+.post-reaction-option .reaction-count{font-size:10px;color:#b9a8cc;font-variant-numeric:tabular-nums}
+.post-reaction-option:hover .reaction-emoji{transform:translateY(-3px) scale(1.16);filter:drop-shadow(0 0 8px #d8aaff)}
+.post-reaction-option.is-active{border-color:#c18aff;background:linear-gradient(145deg,#42245d,#21162f);box-shadow:0 0 13px #a66bff44}
+.post-reaction-option.is-active .reaction-emoji{animation:reactionPop .42s cubic-bezier(.2,.8,.2,1)}
+@keyframes reactionPop{0%{transform:scale(.55) rotate(-14deg)}65%{transform:scale(1.28) rotate(7deg)}100%{transform:scale(1) rotate(0)}}
+@media(prefers-reduced-motion:reduce){.post-reaction-option .reaction-emoji,.post-reaction-option.is-active .reaction-emoji{animation:none;transition:none}}
 .post-social-button{min-height:36px;padding:7px 13px;border:1px solid #49385e;border-radius:11px;background:#171321;color:#d9c9f0;font-size:13px}
 .post-social-button.is-active{border-color:#a66bff;background:#38204e;color:#fff;box-shadow:0 0 12px #9d5bff22}
 .post-comments-panel{margin-top:10px;padding:12px;border:1px solid #3c2d50;border-radius:13px;background:#0e0c16}
@@ -779,6 +790,32 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape")closePostPhotoView()
 
 async function attachPostActions(post,card){
  const bar=document.createElement("div");bar.className="post-social-actions";
+ const reactionWrap=document.createElement("div");reactionWrap.className="post-reaction-wrap";
+ const reactionToggle=document.createElement("button");reactionToggle.type="button";reactionToggle.className="post-social-button";reactionToggle.textContent="＋ 0";reactionToggle.setAttribute("aria-label","Выбрать реакцию");reactionToggle.setAttribute("aria-expanded","false");
+ const reactionPanel=document.createElement("div");reactionPanel.className="post-reaction-picker";reactionPanel.hidden=true;
+ const reactionNote=document.createElement("div");reactionNote.className="post-comment-note";reactionNote.setAttribute("aria-live","polite");
+ const reactionOptions=[
+  {key:"fire",emoji:"🔥",name:"Огонь"},
+  {key:"love",emoji:"❤️",name:"Любовь"},
+  {key:"lol",emoji:"😂",name:"Смешно"},
+  {key:"cool",emoji:"😎",name:"Круто"},
+  {key:"mind",emoji:"🤯",name:"Взрыв"},
+  {key:"sad",emoji:"😢",name:"Грустно"},
+  {key:"rock",emoji:"🤘",name:"Рок"},
+  {key:"respect",emoji:"👏",name:"Респект"},
+  {key:"wow",emoji:"⚡",name:"Вау"},
+  {key:"dark",emoji:"🖤",name:"Dark"},
+  {key:"eyes",emoji:"👀",name:"Смотрю"},
+  {key:"diamond",emoji:"💎",name:"Бриллиант"}
+ ];
+ const optionButtons={};
+ for(const item of reactionOptions){
+  const option=document.createElement("button");option.type="button";option.className="post-reaction-option";option.dataset.reaction=item.key;option.setAttribute("aria-label",item.name);option.title=item.name;
+  const emoji=document.createElement("span");emoji.className="reaction-emoji";emoji.textContent=item.emoji;
+  const count=document.createElement("span");count.className="reaction-count";count.textContent="0";
+  option.append(emoji,count);reactionPanel.append(option);optionButtons[item.key]={button:option,count};
+ }
+ reactionWrap.append(reactionToggle,reactionPanel);
  const like=document.createElement("button");like.type="button";like.className="post-social-button";like.textContent="♡ 0";
  const commentToggle=document.createElement("button");commentToggle.type="button";commentToggle.className="post-social-button";commentToggle.textContent="💬 0";
  const repost=document.createElement("button");repost.type="button";repost.className="post-social-button";repost.textContent="↻ 0";
@@ -788,21 +825,52 @@ async function attachPostActions(post,card){
  const input=document.createElement("textarea");input.maxLength=2000;input.rows=2;input.placeholder="Написать комментарий…";
  const send=document.createElement("button");send.type="submit";send.className="primary";send.textContent="Отправить";
  const note=document.createElement("div");note.className="post-comment-note";
- form.append(input,send);panel.append(list,form,note);bar.append(like,commentToggle,repost);card.append(bar,panel);
- let liked=false,reposted=false;
+ form.append(input,send);panel.append(list,form,note);bar.append(reactionWrap,like,commentToggle,repost);card.append(bar,reactionNote,panel);
+ let liked=false,reposted=false,ownReaction=null;
  async function refreshCounts(){
-  const [likes,ownLike,comments,reposts,ownRepost]=await Promise.all([
+  const [likes,ownLike,comments,reposts,ownRepost,reactions,ownReactionResult]=await Promise.all([
    client.from("likes").select("id",{count:"exact",head:true}).eq("post_id",post.id),
    client.from("likes").select("id").eq("post_id",post.id).eq("user_id",user.id).maybeSingle(),
    client.from("comments").select("id",{count:"exact",head:true}).eq("post_id",post.id),
    client.from("reposts").select("id",{count:"exact",head:true}).eq("post_id",post.id),
-   client.from("reposts").select("id").eq("post_id",post.id).eq("user_id",user.id).maybeSingle()
+   client.from("reposts").select("id").eq("post_id",post.id).eq("user_id",user.id).maybeSingle(),
+   client.from("post_reactions").select("reaction_key").eq("post_id",post.id),
+   client.from("post_reactions").select("id,reaction_key").eq("post_id",post.id).eq("user_id",user.id).maybeSingle()
   ]);
-  if(likes.error||comments.error||reposts.error){note.textContent="Не удалось загрузить счётчики взаимодействий.";return;}
-  liked=!!ownLike.data;reposted=!!ownRepost.data;
+  if(likes.error||comments.error||reposts.error||reactions.error||ownReactionResult.error){reactionNote.textContent="Не удалось загрузить взаимодействия публикации.";return;}
+  liked=!!ownLike.data;reposted=!!ownRepost.data;ownReaction=ownReactionResult.data||null;
   like.textContent=(liked?"♥ ":"♡ ")+(likes.count||0);like.classList.toggle("is-active",liked);
   commentToggle.textContent="💬 "+(comments.count||0);
   repost.textContent=(reposted?"✓ ":"↻ ")+(reposts.count||0);repost.classList.toggle("is-active",reposted);
+  const counts={};for(const row of reactions.data||[])counts[row.reaction_key]=(counts[row.reaction_key]||0)+1;
+  let total=0;for(const key of Object.keys(counts))total+=counts[key];
+  const selected=reactionOptions.find(item=>item.key===ownReaction?.reaction_key);
+  reactionToggle.textContent=(selected?selected.emoji:"＋")+" "+total;
+  reactionToggle.classList.toggle("is-active",!!selected);
+  reactionToggle.setAttribute("aria-label",selected?"Твоя реакция: "+selected.name+". Изменить реакцию":"Выбрать реакцию");
+  for(const item of reactionOptions){
+   const option=optionButtons[item.key];option.count.textContent=String(counts[item.key]||0);option.button.classList.toggle("is-active",ownReaction?.reaction_key===item.key);
+   option.button.setAttribute("aria-pressed",String(ownReaction?.reaction_key===item.key));
+  }
+ }
+ reactionToggle.addEventListener("click",()=>{reactionPanel.hidden=!reactionPanel.hidden;reactionToggle.setAttribute("aria-expanded",String(!reactionPanel.hidden));});
+ for(const item of reactionOptions){
+  optionButtons[item.key].button.addEventListener("click",async()=>{
+   for(const option of Object.values(optionButtons))option.button.disabled=true;
+   reactionNote.textContent="";
+   let result;
+   if(ownReaction?.reaction_key===item.key){
+    result=await client.from("post_reactions").delete().eq("post_id",post.id).eq("user_id",user.id);
+   }else if(ownReaction){
+    result=await client.from("post_reactions").update({reaction_key:item.key,updated_at:new Date().toISOString()}).eq("post_id",post.id).eq("user_id",user.id);
+   }else{
+    result=await client.from("post_reactions").insert({post_id:post.id,user_id:user.id,reaction_key:item.key});
+   }
+   if(result.error)reactionNote.textContent="Не удалось изменить реакцию: "+result.error.message;
+   else{reactionPanel.hidden=true;reactionToggle.setAttribute("aria-expanded","false");}
+   await refreshCounts();
+   for(const option of Object.values(optionButtons))option.button.disabled=false;
+  });
  }
  like.addEventListener("click",async()=>{
   like.disabled=true;note.textContent="";
@@ -838,7 +906,6 @@ async function attachPostActions(post,card){
  });
  refreshCounts();
 }
-
 function renderPost(post,profiles){
   const profile=profiles[post.user_id]||{},author=profile.name||profile.display_name||profile.full_name||profile.username||"Пользователь";
   const card=document.createElement("article");card.className="post";
