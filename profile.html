@@ -1847,7 +1847,7 @@ function postFileType(file){
 
 async function initProfileFeed(client){
  const list=$("feed-list"),loading=$("feed-loading"),empty=$("feed-empty"),errorBox=$("feed-error"),sentinel=$("feed-sentinel");
- const seen=new Set();let offset=0,busy=false,done=false;
+ const seen=new Set();let offset=0,busy=false,done=false,feedAuthorIds=null;
  const batchSize=10;
  function safeUrl(value){if(!value)return "";try{const u=new URL(value,location.href);return ["http:","https:"].includes(u.protocol)?u.href:"";}catch(_){return "";}}
  function dateText(value){if(!value)return "";const d=new Date(value);return Number.isNaN(d.getTime())?"":d.toLocaleString("ru-RU",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});}
@@ -2296,7 +2296,12 @@ function renderPost(post,profiles){
  async function loadBatch(){
   if(busy||done)return;busy=true;loading.hidden=false;
   try{
-   const result=await client.from("posts").select("*").order("created_at",{ascending:false}).order("id",{ascending:false}).range(offset,offset+batchSize-1);
+   if(!feedAuthorIds){
+    const followed=await client.from("follows").select("following_id").eq("follower_id",user.id);
+    if(followed.error)throw followed.error;
+    feedAuthorIds=[...new Set([user.id,...(followed.data||[]).map(row=>row.following_id).filter(Boolean)])];
+   }
+   const result=await client.from("posts").select("*").in("user_id",feedAuthorIds).order("created_at",{ascending:false}).order("id",{ascending:false}).range(offset,offset+batchSize-1);
    if(result.error)throw result.error;
    const posts=result.data||[];
    if(!posts.length){done=true;if(!list.children.length)empty.hidden=false;loading.hidden=true;return;}
