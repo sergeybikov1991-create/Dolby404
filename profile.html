@@ -985,7 +985,7 @@ async function loadPhotoAlbum(){
  const loading=document.createElement("div");loading.className="album-empty";loading.textContent="Загружаем фотографии…";grid.append(loading);
  try{
   // Обычный альбом загружает только обычные фото. Секретные записи здесь не запрашиваются.
-  const result=await client.from("photo_album_photos").select("id,object_path,file_name,created_at").eq("owner_id",user.id).order("created_at",{ascending:false});
+  const result=await client.from("photo_album_photos").select("id,object_path,file_name,mime_type,created_at").eq("owner_id",user.id).order("created_at",{ascending:false});
   if(result.error)throw result.error;
   albumViewerItems=[];
   for(const item of result.data||[]){
