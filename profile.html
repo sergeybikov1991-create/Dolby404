@@ -776,6 +776,69 @@ $("post-photo-viewer").addEventListener("pointerup",e=>{
 $("post-photo-viewer").addEventListener("pointercancel",()=>{postPhotoSwipeStart=null;});
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closePostPhotoView();});
 
+
+async function attachPostActions(post,card){
+ const bar=document.createElement("div");bar.className="post-social-actions";
+ const like=document.createElement("button");like.type="button";like.className="post-social-button";like.textContent="♡ 0";
+ const commentToggle=document.createElement("button");commentToggle.type="button";commentToggle.className="post-social-button";commentToggle.textContent="💬 0";
+ const repost=document.createElement("button");repost.type="button";repost.className="post-social-button";repost.textContent="↻ 0";
+ const panel=document.createElement("section");panel.className="post-comments-panel";panel.hidden=true;
+ const list=document.createElement("div");list.className="post-comments-list";
+ const form=document.createElement("form");form.className="post-comment-form";
+ const input=document.createElement("textarea");input.maxLength=2000;input.rows=2;input.placeholder="Написать комментарий…";
+ const send=document.createElement("button");send.type="submit";send.className="primary";send.textContent="Отправить";
+ const note=document.createElement("div");note.className="post-comment-note";
+ form.append(input,send);panel.append(list,form,note);bar.append(like,commentToggle,repost);card.append(bar,panel);
+ let liked=false,reposted=false;
+ async function refreshCounts(){
+  const [likes,ownLike,comments,reposts,ownRepost]=await Promise.all([
+   client.from("likes").select("id",{count:"exact",head:true}).eq("post_id",post.id),
+   client.from("likes").select("id").eq("post_id",post.id).eq("user_id",user.id).maybeSingle(),
+   client.from("comments").select("id",{count:"exact",head:true}).eq("post_id",post.id),
+   client.from("reposts").select("id",{count:"exact",head:true}).eq("post_id",post.id),
+   client.from("reposts").select("id").eq("post_id",post.id).eq("user_id",user.id).maybeSingle()
+  ]);
+  if(likes.error||comments.error||reposts.error){note.textContent="Не удалось загрузить счётчики взаимодействий.";return;}
+  liked=!!ownLike.data;reposted=!!ownRepost.data;
+  like.textContent=(liked?"♥ ":"♡ ")+(likes.count||0);like.classList.toggle("is-active",liked);
+  commentToggle.textContent="💬 "+(comments.count||0);
+  repost.textContent=(reposted?"✓ ":"↻ ")+(reposts.count||0);repost.classList.toggle("is-active",reposted);
+ }
+ like.addEventListener("click",async()=>{
+  like.disabled=true;note.textContent="";
+  const result=liked?await client.from("likes").delete().eq("post_id",post.id).eq("user_id",user.id):await client.from("likes").insert({post_id:post.id,user_id:user.id});
+  if(result.error)note.textContent="Не удалось изменить лайк: "+result.error.message;
+  await refreshCounts();like.disabled=false;
+ });
+ repost.addEventListener("click",async()=>{
+  repost.disabled=true;note.textContent="";
+  const result=reposted?await client.from("reposts").delete().eq("post_id",post.id).eq("user_id",user.id):await client.from("reposts").insert({post_id:post.id,user_id:user.id});
+  if(result.error)note.textContent="Не удалось изменить репост: "+result.error.message;
+  await refreshCounts();repost.disabled=false;
+ });
+ async function loadComments(){
+  list.replaceChildren();const loading=document.createElement("div");loading.className="post-comment-note";loading.textContent="Загружаем комментарии…";list.append(loading);
+  const result=await client.from("comments").select("id,user_id,content,created_at").eq("post_id",post.id).order("created_at",{ascending:true}).limit(100);
+  if(result.error){loading.textContent="Не удалось загрузить комментарии: "+result.error.message;return;}
+  list.replaceChildren();const ids=[...new Set((result.data||[]).map(x=>x.user_id).filter(Boolean))];let profiles={};
+  if(ids.length){const p=await client.from("profiles").select("id,username,display_name").in("id",ids);if(!p.error)for(const item of p.data||[])profiles[item.id]=item;}
+  if(!result.data?.length){const empty=document.createElement("div");empty.className="post-comment-note";empty.textContent="Пока нет комментариев. Будь первым!";list.append(empty);return;}
+  for(const item of result.data){
+   const row=document.createElement("article");row.className="post-comment";const author=document.createElement("strong");const p=profiles[item.user_id]||{};author.textContent=p.display_name||p.username||"Пользователь";
+   const body=document.createElement("div");body.textContent=item.content;const time=document.createElement("time");time.textContent=new Date(item.created_at).toLocaleString("ru-RU",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
+   row.append(author,body,time);list.append(row);
+  }
+ }
+ commentToggle.addEventListener("click",async()=>{panel.hidden=!panel.hidden;if(!panel.hidden){await loadComments();input.focus();}});
+ form.addEventListener("submit",async event=>{
+  event.preventDefault();const content=input.value.trim();if(!content)return;
+  send.disabled=true;note.textContent="Отправляем…";const result=await client.from("comments").insert({post_id:post.id,user_id:user.id,content});
+  if(result.error){note.textContent="Не удалось отправить комментарий: "+result.error.message;send.disabled=false;return;}
+  input.value="";note.textContent="Комментарий добавлен.";await loadComments();await refreshCounts();send.disabled=false;
+ });
+ refreshCounts();
+}
+
 function renderPost(post,profiles){
   const profile=profiles[post.user_id]||{},author=profile.name||profile.display_name||profile.full_name||profile.username||"Пользователь";
   const card=document.createElement("article");card.className="post";
