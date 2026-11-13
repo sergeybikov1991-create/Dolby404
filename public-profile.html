@@ -141,6 +141,41 @@ body{background:radial-gradient(ellipse at 15% 0%,#281342 0,transparent 38%),#09
 .post-media img,.post-media video{max-height:520px;object-fit:contain}
 @media(max-width:600px){.wrap{margin:14px auto;padding:0 11px}.cover{height:158px}.profile{padding:0 15px 18px}.identity{gap:12px;margin:-43px 14px 0}.avatar{width:96px;height:96px;flex-basis:96px}.name{padding-bottom:6px}.bio{margin:14px}.post{border-radius:0;border-left:0;border-right:0}.feed{gap:0}.post+.post{border-top:0}}
 @keyframes avatarFrameGlow{0%,100%{box-shadow:0 0 0 1px #e3c8ff44,0 0 5px #a66bff66,0 0 12px #8d50e733}50%{box-shadow:0 0 0 1px #f0dcff88,0 0 9px #c18aff99,0 0 22px #9b55ff77,0 0 30px #7b3fc933}}}
+
+/* Dolby404: единый круглый шаблон аватара для всех профилей */
+.avatar{
+ box-sizing:border-box;
+ width:124px;
+ height:124px;
+ min-width:124px;
+ flex:0 0 124px;
+ aspect-ratio:1/1;
+ border-radius:50%;
+ overflow:hidden;
+ position:relative;
+ isolation:isolate;
+}
+.avatar img{
+ position:absolute;
+ inset:0;
+ display:block;
+ width:100%;
+ height:100%;
+ min-width:100%;
+ min-height:100%;
+ max-width:none;
+ object-fit:cover;
+ object-position:center;
+ border-radius:50%;
+}
+@media(max-width:600px){
+ .avatar{
+  width:96px;
+  height:96px;
+  min-width:96px;
+  flex:0 0 96px;
+ }
+}
 </style>
 </head>
 <body>
