@@ -764,7 +764,7 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
   </section>
  <div class="side-drawer-divider"></div><p class="side-drawer-caption">Медиа и общение</p><nav class="side-drawer-links">
  <button class="side-drawer-link" data-drawer-soon="Друзья"><span class="side-drawer-icon">♧</span>Друзья</button>
- <button class="side-drawer-link" data-drawer-soon="Сообщения"><span class="side-drawer-icon">✉</span>Сообщения</button>
+ <a class="side-drawer-link" id="messages-nav-link" href="messages.html"><span class="side-drawer-icon">✉</span>Сообщения</a>
  <button class="side-drawer-link" data-drawer-soon="Сообщества"><span class="side-drawer-icon">◎</span>Сообщества</button>
  <button class="side-drawer-link" data-drawer-soon="Музыка"><span class="side-drawer-icon">♫</span>Музыка</button>
  <button class="side-drawer-link" data-drawer-soon="Видео"><span class="side-drawer-icon">▶</span>Видео</button>
@@ -983,6 +983,7 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
   <div class="music-track-list" id="music-track-list"></div>
  </section>
 </div>
+<script src="message-notifications.js"></script>
 <script>
 const SUPABASE_URL="https://qhpobdktlbhdqsnajypr.supabase.co";
 const SUPABASE_KEY="sb_publishable_tzG1qVsbjaW8YE_LBVN87Q_v0CahKN5";
@@ -1960,6 +1961,7 @@ async function start(){
   await loadLibrary();client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
   const auth=await client.auth.getUser();if(auth.error)throw auth.error;user=auth.data.user;
   if(!user){location.replace("portal.html");return;}
+  window.initFloustreamMessageNotifications?.(client,user.id);
   startDolbyOnlinePresence(client,user.id);
   loadProfileVisitHistory();
   const result=await client.from("profiles").select("*").eq("id",user.id).maybeSingle();
