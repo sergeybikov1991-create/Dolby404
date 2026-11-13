@@ -576,6 +576,11 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 .discovery-title:hover,.discovery-subtitle:hover{color:#d4aaff;text-decoration:underline;text-underline-offset:3px}
 .discovery-subtitle{display:block;margin-top:4px;color:#a99bb9;font-size:11px;line-height:1.45;overflow-wrap:anywhere;text-decoration:none;cursor:pointer}
 .discovery-follow{flex:0 0 auto;min-height:34px;padding:7px 10px;border-radius:10px;font-size:11px}
+.discovery-music-result{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.discovery-music-result>.discovery-title{flex:1;min-width:0}
+.discovery-music-actions{display:flex;flex:0 0 auto;gap:7px;align-items:center}
+.discovery-music-actions button{min-height:32px;padding:6px 9px;font-size:11px}
+@media(max-width:380px){.discovery-music-result{align-items:flex-start;flex-direction:column}.discovery-music-actions{width:100%}.discovery-music-actions button{flex:1}}
 .discovery-section-title{margin:14px 2px 9px;color:#cdb8e9;font-size:13px;font-weight:700}
 .discovery-post{display:block;margin-bottom:9px;padding:12px;border:1px solid #382d49;border-radius:13px;background:#12101b}
 .discovery-post p{margin:0;color:#e9e2f2;font-size:13px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
@@ -976,7 +981,7 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
   </section>
  </section>
 </div>
-<script src="floustream-player.js?v=20261114-9"></script>
+<script src="floustream-player.js?v=20261114-10"></script>
 <script src="message-notifications.js"></script>
 <script src="friend-notifications.js"></script>
 <script>
@@ -2956,16 +2961,16 @@ start();
     tasks.push(client.from("profiles").select("id,username,display_name,bio,avatar_url").ilike("display_name",pattern).limit(12).then(r=>({type:"people",...r})));
    }
    if(category==="all"||category==="posts")tasks.push(client.from("posts").select("id,user_id,content,created_at").ilike("content",pattern).order("created_at",{ascending:false}).limit(20).then(r=>({type:"posts",...r})));
-   if(category==="all"||category==="music")tasks.push(client.from("music_tracks").select("id,owner_id,title,created_at").eq("visibility","public").ilike("title",pattern).order("created_at",{ascending:false}).limit(12).then(r=>({type:"music",...r})));
+   if(category==="all"||category==="music")tasks.push(client.from("music_tracks").select("id,owner_id,title,object_path,created_at").eq("visibility","public").ilike("title",pattern).order("created_at",{ascending:false}).limit(12).then(r=>({type:"music",...r})));
    if(category==="all"||category==="video")tasks.push(client.from("video_album_videos").select("id,owner_id,file_name,created_at").ilike("file_name",pattern).order("created_at",{ascending:false}).limit(12).then(r=>({type:"video",...r})));
    const settled=await Promise.all(tasks);const errors=settled.filter(r=>r.error);if(errors.length)throw errors[0].error;
    const users=new Map();settled.filter(r=>r.type==="people").forEach(r=>(r.data||[]).forEach(p=>users.set(p.id,p)));
-   const ownerIds=[...new Set(settled.filter(r=>r.type!=="people").flatMap(r=>(r.data||[]).map(x=>x.user_id||x.owner_id)).filter(Boolean))];
+   const ownerIds=[...new Set(settled.filter(r=>r.type==="posts"||r.type==="video").flatMap(r=>(r.data||[]).map(x=>x.user_id||x.owner_id)).filter(Boolean))];
    if(ownerIds.length){const owners=await client.from("profiles").select("id,username,display_name,avatar_url").in("id",ownerIds);if(owners.error)throw owners.error;(owners.data||[]).forEach(p=>users.set(p.id,p));}
    results.replaceChildren();let count=0;
    const showPeople=category==="all"||category==="people";
    if(showPeople){const people=[...users.values()].filter(p=>settled.filter(r=>r.type==="people").some(r=>(r.data||[]).some(x=>x.id===p.id)));if(people.length){const h=document.createElement("h3");h.className="discovery-section-title";h.textContent="Люди";results.append(h);people.forEach(p=>{const name=p.display_name||p.username||"Пользователь";resultRow(results,{name,sub:(p.username?"@"+p.username+" · ":"")+(p.bio||"Профиль FLOUSTREAM"),avatar:p.avatar_url,href:"public-profile.html?id="+encodeURIComponent(p.id)});count++;});}}
-   for(const type of ["posts","music","video"]){if(category!=="all"&&category!==type)continue;const group=settled.find(r=>r.type===type);if(!group?.data?.length)continue;const h=document.createElement("h3");h.className="discovery-section-title";h.textContent=type==="posts"?"Публикации":type==="music"?"Музыка":"Видео";results.append(h);group.data.forEach(item=>{const owner=users.get(item.user_id||item.owner_id);const author=owner?.display_name||owner?.username||"Пользователь";if(type==="posts"){postCard(results,item,author);}else{resultRow(results,{name:item.title||item.file_name||"Без названия",sub:(type==="music"?"Музыкальный трек":"Видео")+" · "+author,avatar:owner?.avatar_url});}count++;});}
+   for(const type of ["posts","music","video"]){if(category!=="all"&&category!==type)continue;const group=settled.find(r=>r.type===type);if(!group?.data?.length)continue;const h=document.createElement("h3");h.className="discovery-section-title";h.textContent=type==="posts"?"Публикации":type==="music"?"Музыка":"Видео";results.append(h);for(const item of group.data){if(type==="posts"){const owner=users.get(item.user_id||item.owner_id);const author=owner?.display_name||owner?.username||"Пользователь";postCard(results,item,author);}else if(type==="music"){const card=document.createElement("article");card.className="discovery-result discovery-music-result";const name=document.createElement("strong");name.className="discovery-title";name.textContent=item.title||"Без названия";card.append(name);const controls=document.createElement("div");controls.className="discovery-music-actions";const playButton=document.createElement("button");playButton.type="button";playButton.className="discovery-follow";playButton.textContent="▶ ПЛЕЙ";playButton.addEventListener("click",async()=>{playButton.disabled=true;try{if(!window.FloustreamPlayer)throw new Error("Плеер пока недоступен");const signed=await client.storage.from("music-public").createSignedUrl(item.object_path,3600);if(signed.error)throw signed.error;window.FloustreamPlayer.playQueue([{id:item.id,title:item.title||"Без названия",url:signed.data.signedUrl,visibility:"public"}],0);}catch(error){playButton.textContent="Ошибка";playButton.title=error.message;}finally{playButton.disabled=false;}});const addButton=document.createElement("button");addButton.type="button";addButton.className="discovery-follow";addButton.textContent="＋ Добавить";addButton.addEventListener("click",async()=>{addButton.disabled=true;try{const signed=await client.storage.from("music-public").createSignedUrl(item.object_path,3600);if(signed.error)throw signed.error;if(!window.FloustreamPlayer?.addToQueue)throw new Error("Функция плейлиста пока недоступна");window.FloustreamPlayer.addToQueue({id:item.id,title:item.title||"Без названия",url:signed.data.signedUrl,visibility:"public"});addButton.textContent="✓ Добавлено";}catch(error){addButton.textContent="Ошибка";addButton.title=error.message;}finally{addButton.disabled=false;}});controls.append(playButton,addButton);card.append(controls);results.append(card);}else{const owner=users.get(item.user_id||item.owner_id);const author=owner?.display_name||owner?.username||"Пользователь";resultRow(results,{name:item.title||item.file_name||"Без названия",sub:"Видео · "+author,avatar:owner?.avatar_url});}count++;}}
    if(!count)status(results,"Ничего не найдено. Попробуй другой запрос.");
   }catch(error){status(results,"Не удалось выполнить поиск: "+error.message);}finally{busy=false;}
  }
