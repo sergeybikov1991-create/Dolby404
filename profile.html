@@ -508,7 +508,19 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 .music-track small{color:#a99bb9;font-size:11px}
 .music-track button{margin-top:9px;padding:7px 11px;border-radius:9px;font-size:12px}
 </style><style>
-.album-head-actions{display:flex;align-items:center;gap:10px}
+.album-head-actions{display:flex;align-items:center;justify-content:center;gap:10px}
+ .album-head-centered{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:8px}
+ .album-head-centered h2{grid-column:1;min-width:0}
+ .album-head-centered .album-head-actions{grid-column:2;grid-row:1}
+ .album-head-centered .album-head-close{grid-column:3;grid-row:1;justify-self:end}
+ .album-viewer-thumbnails{position:absolute;left:0;right:0;bottom:0;z-index:8;padding:22px 10px calc(18px + env(safe-area-inset-bottom));background:linear-gradient(180deg,transparent 0%,#080610ef 28%)}
+ .album-viewer-thumbnails[hidden]{display:none}
+ .album-viewer-thumbnails-track{display:flex;gap:7px;overflow-x:auto;overscroll-behavior-x:contain;padding:8px 2px;scrollbar-width:none}
+ .album-viewer-thumbnails-track::-webkit-scrollbar{display:none}
+ .album-viewer-thumb{flex:0 0 62px;width:62px;height:62px;padding:0;border:2px solid #ffffff55;border-radius:8px;overflow:hidden;background:#171321;opacity:.78}
+ .album-viewer-thumb.active{border-color:#d5aaff;opacity:1;box-shadow:0 0 0 2px #a66bff66}
+ .album-viewer-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+ .album-viewer,.private-album-viewer{touch-action:none}
 .album-add-trigger{width:42px;height:42px;display:grid;place-items:center;border:1px solid #9a69cb;border-radius:12px;background:linear-gradient(145deg,#6e3fa1,#39234f);color:#fff;font-size:29px;line-height:1;cursor:pointer;box-shadow:0 0 16px #9d5fe633}
  .album-private-open{width:42px;height:42px;display:grid;place-items:center;border:1px solid #b18bda;border-radius:12px;background:linear-gradient(145deg,#342344,#1b1528);color:#f4e7ff;font-size:19px;cursor:pointer}
  .private-album-backdrop{position:fixed;inset:0;z-index:150;background:#05030bf2;backdrop-filter:blur(12px);display:grid;place-items:center;padding:14px}
@@ -705,7 +717,7 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
 </div>
 <div class="album-backdrop" id="album-backdrop" hidden>
  <section class="album-panel" role="dialog" aria-modal="true" aria-labelledby="album-title">
-  <div class="album-head"><h2 id="album-title">Мой фотоальбом</h2><div class="album-head-actions"><button type="button" class="album-private-open" id="album-private-open" aria-label="Открыть приватный фотоальбом" title="Приватный фотоальбом">🔒</button><button type="button" class="album-add-trigger" id="album-add-open" aria-label="Добавить фотографии" title="Добавить фотографии">+</button><button type="button" class="settings-close" id="album-close" aria-label="Закрыть">×</button></div></div>
+  <div class="album-head album-head-centered"><h2 id="album-title">Мой фотоальбом</h2><div class="album-head-actions"><button type="button" class="album-private-open" id="album-private-open" aria-label="Открыть приватный фотоальбом" title="Приватный фотоальбом">🔒</button><button type="button" class="album-add-trigger" id="album-add-open" aria-label="Добавить фотографии" title="Добавить фотографии">+</button></div><button type="button" class="settings-close album-head-close" id="album-close" aria-label="Закрыть">×</button></div>
   <div class="album-upload" id="album-upload-panel" hidden>
    <strong style="color:#eee4ff">Добавить фотографии</strong>
    <input id="album-file" type="file" accept="image/jpeg,image/png,image/webp" multiple>
@@ -719,7 +731,7 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
  </section>
 </div>
 <div class="private-album-backdrop" id="private-album-backdrop" hidden><section class="private-album-panel" role="dialog" aria-modal="true" aria-labelledby="private-album-title"><div class="album-head"><h2 id="private-album-title">🔒 Приватный фотоальбом</h2><button type="button" class="settings-close" id="private-album-close" aria-label="Закрыть приватный альбом">×</button></div><p class="private-album-note">Только ты можешь просматривать эти фотографии. Альбом не отображается в настройках приватности и обычном профиле.</p><div class="album-status" id="private-album-status" aria-live="polite"></div><div class="album-grid" id="private-album-grid"></div></section></div>
-<div class="private-album-viewer" id="private-album-viewer" hidden><button type="button" class="album-viewer-close" id="private-album-viewer-close" aria-label="Закрыть просмотр">×</button><button type="button" class="album-viewer-nav album-viewer-prev" id="private-album-prev" aria-label="Предыдущее фото">‹</button><img id="private-album-image" alt="Приватная фотография" draggable="false"><button type="button" class="album-viewer-nav album-viewer-next" id="private-album-next" aria-label="Следующее фото">›</button><div class="album-viewer-tools"><button type="button" id="private-album-delete" class="danger" aria-label="Удалить приватное фото" title="Удалить фото">⌫</button></div><div class="album-viewer-counter" id="private-album-counter"></div></div>
+<div class="private-album-viewer" id="private-album-viewer" hidden><button type="button" class="album-viewer-close" id="private-album-viewer-close" aria-label="Закрыть просмотр">×</button><button type="button" class="album-viewer-nav album-viewer-prev" id="private-album-prev" aria-label="Предыдущее фото">‹</button><img id="private-album-image" alt="Приватная фотография" draggable="false"><button type="button" class="album-viewer-nav album-viewer-next" id="private-album-next" aria-label="Следующее фото">›</button><div class="album-viewer-tools"><button type="button" id="private-album-delete" class="danger" aria-label="Удалить приватное фото" title="Удалить фото">⌫</button></div><div class="album-viewer-counter" id="private-album-counter"></div><div class="album-viewer-thumbnails" id="private-album-thumbnails" hidden><div class="album-viewer-thumbnails-track" id="private-album-thumbnails-track"></div></div></div>
 <div class="album-viewer" id="album-viewer" hidden>
  <button type="button" class="album-viewer-close" id="album-viewer-close" aria-label="Закрыть просмотр">×</button>
  <button type="button" class="album-viewer-nav album-viewer-prev" id="album-viewer-prev" aria-label="Предыдущее фото">‹</button>
@@ -730,6 +742,7 @@ body[data-theme="mono"] .cover{background:radial-gradient(ellipse at 70% 20%,#66
   <button type="button" id="album-viewer-delete" class="danger" aria-label="Удалить фото" title="Удалить фото">⌫</button>
  </div>
  <div class="album-viewer-counter" id="album-viewer-counter"></div>
+ <div class="album-viewer-thumbnails" id="album-viewer-thumbnails" hidden><div class="album-viewer-thumbnails-track" id="album-viewer-thumbnails-track"></div></div>
 </div>
 <div class="album-photo-actions" id="album-photo-actions" hidden>
  <div class="album-photo-actions-panel" role="dialog" aria-modal="true" aria-label="Действия с фотографией">
@@ -926,10 +939,15 @@ async function loadPrivateAlbum(){
   privateAlbumItems.forEach((item,i)=>{const tile=document.createElement("button");tile.type="button";tile.className="album-item";tile.setAttribute("aria-label","Открыть приватное фото");const img=document.createElement("img");img.src=item.url;img.alt="Приватная фотография";img.loading="lazy";tile.append(img);tile.addEventListener("click",()=>showPrivateAlbumPhoto(i));grid.append(tile);});
  }catch(e){privateAlbumItems=[];status.textContent="Не удалось загрузить приватный альбом: "+e.message;}
 }
+function renderPrivateAlbumThumbnails(){
+ const host=$("private-album-thumbnails-track");if(!host)return;host.replaceChildren();
+ privateAlbumItems.forEach((item,i)=>{const b=document.createElement("button");b.type="button";b.className="album-viewer-thumb"+(i===privateAlbumIndex?" active":"");b.setAttribute("aria-label","Перейти к приватному фото "+(i+1));const img=document.createElement("img");img.src=item.url;img.alt="";b.append(img);b.addEventListener("click",()=>{showPrivateAlbumPhoto(i);$("private-album-thumbnails").hidden=true;});host.append(b);});
+ const active=host.children[privateAlbumIndex];if(active)active.scrollIntoView({block:"nearest",inline:"center"});
+}
 function showPrivateAlbumPhoto(i){
  if(!privateAlbumItems.length)return;privateAlbumIndex=(i+privateAlbumItems.length)%privateAlbumItems.length;
  $("private-album-image").src=privateAlbumItems[privateAlbumIndex].url;$("private-album-counter").textContent=(privateAlbumIndex+1)+" / "+privateAlbumItems.length;
- $("private-album-prev").hidden=privateAlbumItems.length<2;$("private-album-next").hidden=privateAlbumItems.length<2;$("private-album-viewer").hidden=false;
+ $("private-album-prev").hidden=privateAlbumItems.length<2;$("private-album-next").hidden=privateAlbumItems.length<2;$("private-album-viewer").hidden=false;renderPrivateAlbumThumbnails();
 }
 function closePrivateAlbumViewer(){$("private-album-viewer").hidden=true;$("private-album-image").removeAttribute("src");}
 $("album-private-open").addEventListener("click",openPrivateAlbum);
@@ -947,7 +965,7 @@ $("private-album-delete").addEventListener("click",async()=>{
 });
 let privateSwipe=null;
 $("private-album-viewer").addEventListener("pointerdown",e=>{if(e.target.closest("button")||(e.pointerType==="mouse"&&e.button!==0))return;privateSwipe={id:e.pointerId,x:e.clientX,y:e.clientY};try{$("private-album-viewer").setPointerCapture(e.pointerId);}catch(_){}});
-$("private-album-viewer").addEventListener("pointerup",e=>{if(!privateSwipe||privateSwipe.id!==e.pointerId)return;const dx=e.clientX-privateSwipe.x,dy=e.clientY-privateSwipe.y;privateSwipe=null;if(Math.abs(dx)>=48&&Math.abs(dx)>=Math.abs(dy)*1.25)showPrivateAlbumPhoto(dx<0?privateAlbumIndex+1:privateAlbumIndex-1);});
+$("private-album-viewer").addEventListener("pointerup",e=>{if(!privateSwipe||privateSwipe.id!==e.pointerId)return;const dx=e.clientX-privateSwipe.x,dy=e.clientY-privateSwipe.y;privateSwipe=null;if(Math.abs(dy)>=55&&Math.abs(dy)>Math.abs(dx)*1.2){if(dy<0){renderPrivateAlbumThumbnails();$("private-album-thumbnails").hidden=false;}else $("private-album-thumbnails").hidden=true;return;}if(Math.abs(dx)>=48&&Math.abs(dx)>=Math.abs(dy)*1.25){$("private-album-thumbnails").hidden=true;showPrivateAlbumPhoto(dx<0?privateAlbumIndex+1:privateAlbumIndex-1);}});
 $("private-album-viewer").addEventListener("pointercancel",()=>{privateSwipe=null;});
 $("album-add-open").addEventListener("click",()=>{
  $("album-upload-panel").hidden=!$("album-upload-panel").hidden;
@@ -1048,13 +1066,18 @@ $("album-share-send").addEventListener("click",async()=>{
   $("album-share-status").textContent="Не удалось отправить фото: "+error.message;button.disabled=false;
  }
 });
+function renderAlbumViewerThumbnails(){
+ const host=$("album-viewer-thumbnails-track");if(!host)return;host.replaceChildren();
+ albumViewerItems.forEach((item,i)=>{const b=document.createElement("button");b.type="button";b.className="album-viewer-thumb"+(i===albumViewerIndex?" active":"");b.setAttribute("aria-label","Перейти к фото "+(i+1));const img=document.createElement("img");img.src=item.thumbUrl||item.url;img.alt="";b.append(img);b.addEventListener("click",()=>{showAlbumViewerPhoto(i);$("album-viewer-thumbnails").hidden=true;});host.append(b);});
+ const active=host.children[albumViewerIndex];if(active)active.scrollIntoView({block:"nearest",inline:"center"});
+}
 function showAlbumViewerPhoto(index){
  if(!albumViewerItems.length)return;
  albumViewerIndex=(index+albumViewerItems.length)%albumViewerItems.length;
  const item=albumViewerItems[albumViewerIndex];
  $("album-viewer-image").src=item.url;$("album-viewer-image").alt=item.file_name||"Фотография";
  $("album-viewer-counter").textContent=(albumViewerIndex+1)+" / "+albumViewerItems.length;
- $("album-viewer-prev").hidden=albumViewerItems.length<2;$("album-viewer-next").hidden=albumViewerItems.length<2;
+ $("album-viewer-prev").hidden=albumViewerItems.length<2;$("album-viewer-next").hidden=albumViewerItems.length<2;renderAlbumViewerThumbnails();
 }
 $("album-viewer-delete").addEventListener("click",()=>$("album-photo-delete").click());
 $("album-viewer-share").addEventListener("click",()=>$("album-photo-share").click());
@@ -1072,8 +1095,9 @@ $("album-viewer").addEventListener("pointerdown",e=>{
 $("album-viewer").addEventListener("pointerup",e=>{
  if(!albumSwipeStart||albumSwipeStart.id!==e.pointerId)return;
  const dx=e.clientX-albumSwipeStart.x,dy=e.clientY-albumSwipeStart.y;albumSwipeStart=null;
+ if(Math.abs(dy)>=55&&Math.abs(dy)>Math.abs(dx)*1.2){if(dy<0){renderAlbumViewerThumbnails();$("album-viewer-thumbnails").hidden=false;}else $("album-viewer-thumbnails").hidden=true;return;}
  if(Math.abs(dx)<48||Math.abs(dx)<Math.abs(dy)*1.25)return;
- showAlbumViewerPhoto(dx<0?albumViewerIndex+1:albumViewerIndex-1);
+ $("album-viewer-thumbnails").hidden=true;showAlbumViewerPhoto(dx<0?albumViewerIndex+1:albumViewerIndex-1);
 });
 $("album-viewer").addEventListener("pointercancel",()=>{albumSwipeStart=null;});
 document.addEventListener("keydown",e=>{if($("album-viewer").hidden)return;if(e.key==="Escape")closeAlbumViewer();else if(e.key==="ArrowLeft")showAlbumViewerPhoto(albumViewerIndex+1);else if(e.key==="ArrowRight")showAlbumViewerPhoto(albumViewerIndex-1);});
