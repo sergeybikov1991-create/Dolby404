@@ -4,7 +4,7 @@
 
     <application
         android:allowBackup="false"
-        android:label="Dolby404 Messenger"
+        android:label="FLOUSTREAM Messenger"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.NoActionBar">
         <activity
