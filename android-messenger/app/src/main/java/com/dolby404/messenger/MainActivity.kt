@@ -48,7 +48,8 @@ private val dolbyClient = createSupabaseClient(
     supabaseUrl = BuildConfig.SUPABASE_URL,
     supabaseKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY
 ) {
-    install(Postgrest)\n    install(Auth) {
+    install(Postgrest)
+    install(Auth) {
         scheme = "dolby404"
         host = "auth-callback"
     }
