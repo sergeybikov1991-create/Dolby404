@@ -42,6 +42,7 @@ import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.storage.Storage
+import io.github.jan.supabase.storage.storage
 import io.ktor.http.ContentType
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -189,9 +190,11 @@ private suspend fun markIncomingMessagesRead(userId: String, peerId: String) {
     floustreamClient.from("direct_messages").update({
         set("read_at", java.time.Instant.now().toString())
     }) {
-        eq("sender_id", peerId)
-        eq("recipient_id", userId)
-        exact("read_at", null)
+        filter {
+            eq("sender_id", peerId)
+            eq("recipient_id", userId)
+            exact("read_at", null)
+        }
     }
 }
 
