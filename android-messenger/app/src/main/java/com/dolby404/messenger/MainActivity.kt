@@ -45,7 +45,7 @@ private val Violet = Color(0xFF9A65FF)
 private val Muted = Color(0xFF91A2BF)
 private val White = Color(0xFFF4F7FF)
 
-private val dolbyClient = createSupabaseClient(
+private val floustreamClient = createSupabaseClient(
     supabaseUrl = BuildConfig.SUPABASE_URL,
     supabaseKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY
 ) {
@@ -59,7 +59,7 @@ private val dolbyClient = createSupabaseClient(
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        dolbyClient.handleDeeplinks(intent)
+        floustreamClient.handleDeeplinks(intent)
         setContent {
             MaterialTheme(
                 colorScheme = darkColorScheme(
@@ -76,7 +76,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
-        dolbyClient.handleDeeplinks(intent)
+        floustreamClient.handleDeeplinks(intent)
     }
 }
 
@@ -113,24 +113,24 @@ private data class NewDirectMessage(
     @SerialName("content") val content: String
 )
 
-private suspend fun findDolbyUsers(query: String): List<ProfileDto> {
+private suspend fun findFloustreamUsers(query: String): List<ProfileDto> {
     val term = query.trim().removePrefix("@")
     if (term.length < 2) return emptyList()
-    return dolbyClient.from("profiles").select {
+    return floustreamClient.from("profiles").select {
         filter { ilike("username", "%$term%") }
     }.decodeList<ProfileDto>().filter {
-        it.id != dolbyClient.auth.currentUserOrNull()?.id
+        it.id != floustreamClient.auth.currentUserOrNull()?.id
     }.take(30)
 }
 
 private suspend fun loadDirectMessages(userId: String, peerId: String): List<DirectMessageDto> {
-    val sent = dolbyClient.from("direct_messages").select {
+    val sent = floustreamClient.from("direct_messages").select {
         filter {
             eq("sender_id", userId)
             eq("recipient_id", peerId)
         }
     }.decodeList<DirectMessageDto>()
-    val received = dolbyClient.from("direct_messages").select {
+    val received = floustreamClient.from("direct_messages").select {
         filter {
             eq("sender_id", peerId)
             eq("recipient_id", userId)
@@ -140,16 +140,16 @@ private suspend fun loadDirectMessages(userId: String, peerId: String): List<Dir
 }
 
 private suspend fun sendDirectMessage(userId: String, peerId: String, content: String) {
-    dolbyClient.from("direct_messages").insert(
+    floustreamClient.from("direct_messages").insert(
         NewDirectMessage(senderId = userId, recipientId = peerId, content = content)
     )
 }
 
 private suspend fun loadInboxThreads(userId: String): List<ChatThread> {
-    val sent = dolbyClient.from("direct_messages").select {
+    val sent = floustreamClient.from("direct_messages").select {
         filter { eq("sender_id", userId) }
     }.decodeList<DirectMessageDto>()
-    val received = dolbyClient.from("direct_messages").select {
+    val received = floustreamClient.from("direct_messages").select {
         filter { eq("recipient_id", userId) }
     }.decodeList<DirectMessageDto>()
 
@@ -163,7 +163,7 @@ private suspend fun loadInboxThreads(userId: String): List<ChatThread> {
     }.distinct()
 
     return peerIds.mapNotNull { peerId ->
-        val profile = dolbyClient.from("profiles").select {
+        val profile = floustreamClient.from("profiles").select {
             filter { eq("id", peerId) }
         }.decodeList<ProfileDto>().firstOrNull() ?: return@mapNotNull null
 
@@ -188,13 +188,13 @@ private fun MessengerApp() {
     var signedIn by remember { mutableStateOf(false) }
     var authReady by remember { mutableStateOf(false) }
     var isRegistering by remember { mutableStateOf(false) }
-    var message by remember { mutableStateOf("Войди с тем же аккаунтом, что используешь на сайте Dolby404.") }
+    var message by remember { mutableStateOf("Войди с тем же аккаунтом, что используешь на сайте FLOUSTREAM.") }
     val scope = rememberCoroutineScope()
 
     // Restore the saved Supabase session before deciding which screen to show.
     // Closing the app or removing it from Recents must not sign the user out.
     LaunchedEffect(Unit) {
-        dolbyClient.auth.sessionStatus.collect { status ->
+        floustreamClient.auth.sessionStatus.collect { status ->
             when (status) {
                 is SessionStatus.Authenticated -> {
                     signedIn = true
@@ -209,7 +209,7 @@ private fun MessengerApp() {
                 }
                 is SessionStatus.RefreshFailure -> {
                     authReady = true
-                    signedIn = dolbyClient.auth.currentSessionOrNull() != null
+                    signedIn = floustreamClient.auth.currentSessionOrNull() != null
                 }
             }
         }
@@ -223,21 +223,21 @@ private fun MessengerApp() {
         }
         scope.launch {
             busy = true
-            message = if (isRegistering) "Создаём аккаунт Dolby404..." else "Подключаемся к Dolby404..."
+            message = if (isRegistering) "Создаём аккаунт FLOUSTREAM..." else "Подключаемся к FLOUSTREAM..."
             try {
                 if (isRegistering) {
-                    dolbyClient.auth.signUpWith(Email) {
+                    floustreamClient.auth.signUpWith(Email) {
                         this.email = email.trim()
                         this.password = password
                     }
-                    if (dolbyClient.auth.currentSessionOrNull() != null) {
+                    if (floustreamClient.auth.currentSessionOrNull() != null) {
                         signedIn = true
                         message = "Регистрация успешна!"
                     } else {
                         message = "Аккаунт создан! Проверь почту и подтверди email. После подтверждения войди здесь с теми же данными, что и на сайте."
                     }
                 } else {
-                    dolbyClient.auth.signInWith(Email) {
+                    floustreamClient.auth.signInWith(Email) {
                         this.email = email.trim()
                         this.password = password
                     }
@@ -262,7 +262,7 @@ private fun MessengerApp() {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 CircularProgressIndicator(color = Blue)
                 Spacer(Modifier.height(14.dp))
-                Text("Восстанавливаем сессию Dolby404…", color = White, fontSize = 14.sp)
+                Text("Восстанавливаем сессию FLOUSTREAM…", color = White, fontSize = 14.sp)
             }
         } else if (signedIn) {
             MessengerHome(
@@ -270,7 +270,7 @@ private fun MessengerApp() {
                     scope.launch {
                         busy = true
                         try {
-                            dolbyClient.auth.signOut()
+                            floustreamClient.auth.signOut()
                             signedIn = false
                             message = "Ты вышел из аккаунта."
                         } catch (e: Exception) {
@@ -290,7 +290,7 @@ private fun MessengerApp() {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    Text("DOLBY404", fontSize = 30.sp, fontWeight = FontWeight.Black, color = White)
+                    Text("FLOUSTREAM", fontSize = 30.sp, fontWeight = FontWeight.Black, color = White)
                     Text("MESSENGER", fontSize = 13.sp, letterSpacing = 5.sp, color = Color(0xFF9FCBFF))
                     Spacer(Modifier.height(12.dp))
                     Text(
@@ -327,7 +327,7 @@ private fun MessengerApp() {
                     TextButton(
                         onClick = {
                             isRegistering = !isRegistering
-                            message = if (isRegistering) "Войди с существующим аккаунтом Dolby404." else "Создай аккаунт. Он будет работать и на сайте, и в приложении."
+                            message = if (isRegistering) "Войди с существующим аккаунтом FLOUSTREAM." else "Создай аккаунт. Он будет работать и на сайте, и в приложении."
                         },
                         enabled = !busy
                     ) {
@@ -348,7 +348,7 @@ private fun MessengerApp() {
 private fun MessengerHome(onSignOut: () -> Unit) {
     var tab by remember { mutableStateOf("Чаты") }
     var selectedProfile by remember { mutableStateOf<ProfileDto?>(null) }
-    val currentUserId = dolbyClient.auth.currentUserOrNull()?.id.orEmpty()
+    val currentUserId = floustreamClient.auth.currentUserOrNull()?.id.orEmpty()
     var searchOpen by remember { mutableStateOf(false) }
     var search by remember { mutableStateOf("") }
     var showNewChat by remember { mutableStateOf(false) }
@@ -370,7 +370,7 @@ private fun MessengerHome(onSignOut: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(Modifier.weight(1f)) {
-                        Text("DOLBY404", fontSize = 23.sp, fontWeight = FontWeight.Black, color = White, letterSpacing = 1.sp)
+                        Text("FLOUSTREAM", fontSize = 23.sp, fontWeight = FontWeight.Black, color = White, letterSpacing = 1.sp)
                         Text("MESSENGER", fontSize = 10.sp, color = Color(0xFF9FCBFF), letterSpacing = 4.sp)
                     }
                     HeaderAction("⌕") { searchOpen = !searchOpen }
@@ -451,7 +451,7 @@ private fun MessengerHome(onSignOut: () -> Unit) {
         AlertDialog(
             onDismissRequest = { infoMessage = "" },
             containerColor = Panel,
-            title = { Text("Dolby404", color = White) },
+            title = { Text("FLOUSTREAM", color = White) },
             text = { Text(infoMessage, color = Muted) },
             confirmButton = { TextButton(onClick = { infoMessage = "" }) { Text("Понятно") } }
         )
@@ -507,7 +507,7 @@ private fun ChatsScreen(
         ) {
             Column(Modifier.weight(1f)) {
                 Text("Твои переписки", color = White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                Text("Настоящие сообщения Dolby404", color = Muted, fontSize = 12.sp)
+                Text("Настоящие сообщения FLOUSTREAM", color = Muted, fontSize = 12.sp)
             }
             Surface(color = PanelSoft, shape = RoundedCornerShape(20.dp)) {
                 Text("● синхронизация", Modifier.padding(horizontal = 12.dp, vertical = 7.dp), color = Color(0xFF69DDA8), fontSize = 10.sp)
@@ -605,12 +605,12 @@ private fun ContactsScreen(onStart: (ProfileDto) -> Unit) {
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<ProfileDto>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
-    var status by remember { mutableStateOf("Ищи собеседников по их @username из Dolby404.") }
+    var status by remember { mutableStateOf("Ищи собеседников по их @username из FLOUSTREAM.") }
     val scope = rememberCoroutineScope()
 
     Column(Modifier.fillMaxSize().padding(20.dp)) {
         Text("Контакты", color = White, fontSize = 23.sp, fontWeight = FontWeight.Bold)
-        Text("Находи людей в Dolby404", color = Muted, fontSize = 12.sp)
+        Text("Находи людей в FLOUSTREAM", color = Muted, fontSize = 12.sp)
         Spacer(Modifier.height(18.dp))
         OutlinedTextField(
             value = query, onValueChange = { query = it },
@@ -625,7 +625,7 @@ private fun ContactsScreen(onStart: (ProfileDto) -> Unit) {
                     loading = true
                     status = "Ищем пользователей…"
                     try {
-                        results = findDolbyUsers(query)
+                        results = findFloustreamUsers(query)
                         status = if (results.isEmpty()) "Никого не нашли. Проверь @username и попробуй ещё раз." else "Найдено: ${results.size}"
                     } catch (e: Exception) {
                         status = "Поиск временно недоступен: ${e.message ?: "ошибка"}"
@@ -652,7 +652,7 @@ private fun ContactsScreen(onStart: (ProfileDto) -> Unit) {
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         Text(person.displayName ?: person.username ?: "Пользователь", color = White, fontWeight = FontWeight.SemiBold)
-                        Text(person.username?.let { "@$it" } ?: "Пользователь Dolby404", color = Muted, fontSize = 12.sp)
+                        Text(person.username?.let { "@$it" } ?: "Пользователь FLOUSTREAM", color = Muted, fontSize = 12.sp)
                     }
                     Text("Написать ›", color = Color(0xFF9FCBFF), fontSize = 12.sp)
                 }
@@ -675,18 +675,18 @@ private fun SettingsScreen(onSignOut: () -> Unit, onInfo: (String) -> Unit) {
                 Avatar("D", true)
                 Spacer(Modifier.width(14.dp))
                 Column {
-                    Text("Dolby404 аккаунт", color = White, fontWeight = FontWeight.Bold)
+                    Text("FLOUSTREAM аккаунт", color = White, fontWeight = FontWeight.Bold)
                     Text("Единый аккаунт сайта и приложения", color = Muted, fontSize = 11.sp)
                 }
             }
         }
         Spacer(Modifier.height(18.dp))
-        SettingsRow("☷", "Профиль", "Имя, фото и статус") { onInfo("Настройки профиля подключим к твоему аккаунту Dolby404.") }
+        SettingsRow("☷", "Профиль", "Имя, фото и статус") { onInfo("Настройки профиля подключим к твоему аккаунту FLOUSTREAM.") }
         SettingsRow("🔔", "Уведомления", "Звуки и оповещения") { onInfo("Здесь будут настройки уведомлений и звуков.") }
-        SettingsRow("◈", "Приватность", "Кто может с тобой связаться") { onInfo("Настройки приватности подключим к общей системе Dolby404.") }
+        SettingsRow("◈", "Приватность", "Кто может с тобой связаться") { onInfo("Настройки приватности подключим к общей системе FLOUSTREAM.") }
         SettingsRow("⟳", "Синхронизация с сайтом", "Чаты и медиа между сайтом и приложением") { onInfo("Чаты используют общую таблицу direct_messages Supabase. Остальные настройки синхронизации добавим по мере подключения функций.") }
-        SettingsRow("⬆", "Обновления приложения", "Обязательные обновления · отключить нельзя") { onInfo("Dolby404 автоматически проверяет обновления. Если выйдет новая версия, приложение попросит установить её перед продолжением работы. Отключить обязательные обновления нельзя.") }
-        SettingsRow("◐", "О приложении", "Dolby404 Messenger · 0.2.2") { onInfo("Dolby404 Messenger, версия 0.2.2.") }
+        SettingsRow("⬆", "Обновления приложения", "Обязательные обновления · отключить нельзя") { onInfo("FLOUSTREAM автоматически проверяет обновления. Если выйдет новая версия, приложение попросит установить её перед продолжением работы. Отключить обязательные обновления нельзя.") }
+        SettingsRow("◐", "О приложении", "FLOUSTREAM Messenger · 0.2.2") { onInfo("FLOUSTREAM Messenger, версия 0.2.2.") }
         Spacer(Modifier.height(18.dp))
         Surface(
             modifier = Modifier.fillMaxWidth().clickable { confirmSignOut = true },
@@ -712,8 +712,8 @@ private fun SettingsScreen(onSignOut: () -> Unit, onInfo: (String) -> Unit) {
         AlertDialog(
             onDismissRequest = { confirmSignOut = false },
             containerColor = Panel,
-            title = { Text("Выйти из Dolby404?", color = White) },
-            text = { Text("Сессия на этом устройстве завершится. При следующем входе используй тот же аккаунт сайта Dolby404.", color = Muted) },
+            title = { Text("Выйти из FLOUSTREAM?", color = White) },
+            text = { Text("Сессия на этом устройстве завершится. При следующем входе используй тот же аккаунт сайта FLOUSTREAM.", color = Muted) },
             confirmButton = {
                 TextButton(onClick = { confirmSignOut = false; onSignOut() }) {
                     Text("Выйти", color = Color(0xFFFF9AAA))
@@ -806,7 +806,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
                 Text(peer.displayName ?: peer.username ?: "Пользователь", color = White, fontWeight = FontWeight.Bold, maxLines = 1)
-                Text(peer.username?.let { "@$it" } ?: "Dolby404", color = Muted, fontSize = 10.sp)
+                Text(peer.username?.let { "@$it" } ?: "FLOUSTREAM", color = Muted, fontSize = 10.sp)
             }
         }
         if (errorText.isNotBlank()) {
@@ -900,7 +900,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
 private fun ConversationScreen(name: String, onBack: () -> Unit, onInfo: () -> Unit) {
     val messages = remember(name) {
         mutableStateListOf(
-            ChatMessage("Привет! Это тестовый экран переписки Dolby404.", false, "12:40"),
+            ChatMessage("Привет! Это тестовый экран переписки FLOUSTREAM.", false, "12:40"),
             ChatMessage("Здесь появятся настоящие сообщения после подключения чатов.", true, "12:41")
         )
     }
@@ -916,7 +916,7 @@ private fun ConversationScreen(name: String, onBack: () -> Unit, onInfo: () -> U
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
                 Text(name, color = White, fontWeight = FontWeight.Bold, maxLines = 1)
-                Text("Dolby404 Messenger", color = Muted, fontSize = 10.sp)
+                Text("FLOUSTREAM Messenger", color = Muted, fontSize = 10.sp)
             }
             HeaderAction("☎") { onInfo() }
             HeaderAction("▣") { onInfo() }
