@@ -149,6 +149,12 @@ input::placeholder {
     color: #b9d9ff;
 }
 
+select {
+    width: 100%; padding: 15px; border: 1px solid #63baff;
+    border-radius: 30px; background: rgba(5, 8, 23, 0.9);
+    color: white; font-size: 16px; outline: none;
+}
+
 button {
     padding: 16px 25px;
     border: 1px solid #63baff;
@@ -336,6 +342,11 @@ const message = document.getElementById("auth-message");
 const registerButton = document.getElementById("register-button");
 const loginButton = document.getElementById("login-button");
 const restoreButton = document.getElementById("restore-button");
+const countrySelect = document.getElementById("country-code");
+const languageSelect = document.getElementById("preferred-language");
+countrySelect.addEventListener("change", () => {
+    languageSelect.value = ["RU", "BY", "KZ", "KG"].includes(countrySelect.value) ? "ru" : "en";
+});
 
 function showError(prefix, error) {
     console.error(prefix, error);
@@ -397,8 +408,10 @@ async function initializeSupabase() {
         loginButton.disabled = false;
         restoreButton.disabled = false;
 
-        message.textContent =
-            "Система готова. Можно продолжать.";
+        const params = new URLSearchParams(window.location.search);
+        message.textContent = params.has("deletion_requested")
+            ? "Аккаунт деактивирован. В течение 30 дней можно восстановить прежний аккаунт через кнопку «Восстановить аккаунт»."
+            : "Система готова. Можно продолжать.";
 
     } catch (error) {
         showError("Ошибка подключения: ", error);
