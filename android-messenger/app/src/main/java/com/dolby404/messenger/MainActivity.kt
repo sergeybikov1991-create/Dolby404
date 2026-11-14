@@ -69,7 +69,7 @@ class MainActivity : ComponentActivity() {
                     onBackground = White,
                     onSurface = White
                 )
-            ) { MessengerApp() }
+            ) { androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) { MessengerApp(); AppUpdatePrompt() } }
         }
     }
 
