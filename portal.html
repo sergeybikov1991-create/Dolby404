@@ -265,6 +265,10 @@ button:disabled {
             Войти
         </button>
 
+        <button id="restore-button" type="button" disabled>
+            Восстановить аккаунт
+        </button>
+
         <p id="auth-message">Подключаем систему...</p>
     </div>
 
@@ -315,6 +319,7 @@ function startRegistrationCooldown(seconds, template) {
 const message = document.getElementById("auth-message");
 const registerButton = document.getElementById("register-button");
 const loginButton = document.getElementById("login-button");
+const restoreButton = document.getElementById("restore-button");
 
 function showError(prefix, error) {
     console.error(prefix, error);
@@ -374,6 +379,7 @@ async function initializeSupabase() {
 
         registerButton.disabled = false;
         loginButton.disabled = false;
+        restoreButton.disabled = false;
 
         message.textContent =
             "Система готова. Можно продолжать.";
@@ -517,8 +523,32 @@ async function loginUser() {
     }
 }
 
+async function restoreAccount() {
+    const email = document.getElementById("email").value.trim();
+    if (!email) {
+        message.textContent = "Введи email, привязанный к прежнему аккаунту.";
+        return;
+    }
+    restoreButton.disabled = true;
+    message.textContent = "Если аккаунт с этим адресом ожидает удаления, мы отправим письмо для восстановления.";
+    try {
+        const redirectTo = new URL("profile.html?restore=1", window.location.href).href;
+        const { error } = await supabaseClient.auth.signInWithOtp({
+            email,
+            options: { shouldCreateUser: false, emailRedirectTo: redirectTo }
+        });
+        if (error) throw error;
+        message.textContent = "Если адрес зарегистрирован, письмо отправлено. Открой ссылку на этом устройстве, чтобы восстановить прежний аккаунт.";
+    } catch (error) {
+        showError("Не удалось отправить письмо: ", error);
+    } finally {
+        restoreButton.disabled = false;
+    }
+}
+
 registerButton.addEventListener("click", registerUser);
 loginButton.addEventListener("click", loginUser);
+restoreButton.addEventListener("click", restoreAccount);
 
 initializeSupabase();
 
