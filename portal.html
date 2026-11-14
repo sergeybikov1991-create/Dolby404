@@ -477,7 +477,9 @@ async function registerUser() {
                         last_name: lastName,
                         country_code: countryCode,
                         preferred_language: preferredLanguage,
-                        display_name: firstName + " " + lastName
+                        display_name: firstName + " " + lastName,
+                        registration_risk: risk.risk,
+                        registration_risk_reason: risk.reason
                     }
                 }
             });
