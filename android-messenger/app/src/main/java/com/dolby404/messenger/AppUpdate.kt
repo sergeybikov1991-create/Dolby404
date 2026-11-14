@@ -9,11 +9,11 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -57,6 +57,12 @@ private suspend fun findAvailableUpdate(): AvailableUpdate? = withContext(Dispat
             }
         }
         if (apkUrl.isNullOrBlank()) return@withContext null
+        val parsedApkUrl = URL(apkUrl)
+        if (parsedApkUrl.protocol != "https" ||
+            parsedApkUrl.host != "github.com" ||
+            !parsedApkUrl.path.startsWith("/sergeybikov1991-create/Dolby404/releases/download/") ||
+            !parsedApkUrl.path.endsWith("/Dolby404-Messenger.apk")
+        ) return@withContext null
         AvailableUpdate(tag, apkUrl, json.optString("body").take(500))
     } finally {
         connection.disconnect()
@@ -111,14 +117,19 @@ fun AppUpdatePrompt() {
     var progress by remember { mutableFloatStateOf(0f) }
     var error by remember { mutableStateOf<String?>(null) }
 
+    // Check immediately and retry periodically while the app is open.
+    // A temporary network failure must not lock users out while offline.
     LaunchedEffect(Unit) {
-        try { update = findAvailableUpdate() } catch (_: Exception) { }
+        while (update == null) {
+            try { update = findAvailableUpdate() } catch (_: Exception) { }
+            if (update == null) delay(15 * 60 * 1000L)
+        }
     }
 
     val available = update
     if (available != null) {
         AlertDialog(
-            onDismissRequest = { if (!downloading) update = null },
+            onDismissRequest = { /* Mandatory update: cannot be dismissed. */ },
             title = { Text("Доступно обновление Dolby404") },
             text = {
                 Column {
