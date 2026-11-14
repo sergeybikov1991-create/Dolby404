@@ -1,11 +1,17 @@
 package com.dolby404.messenger
 
 import android.os.Bundle
+import android.content.Intent
+import android.provider.OpenableColumns
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -16,6 +22,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Brush
@@ -34,6 +41,9 @@ import io.github.jan.supabase.auth.handleDeeplinks
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.storage.Storage
+import io.github.jan.supabase.storage.storage
+import io.ktor.http.ContentType
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.buildJsonObject
@@ -46,6 +56,9 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import java.util.UUID
+import kotlin.time.Duration.Companion.minutes
+import coil.compose.AsyncImage
 
 private val Night = Color(0xFF080D1B)
 private val Panel = Color(0xFF111A2D)
@@ -60,6 +73,7 @@ private val floustreamClient = createSupabaseClient(
     supabaseKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY
 ) {
     install(Postgrest)
+    install(Storage)
     install(Auth) {
         scheme = "dolby404"
         host = "auth-callback"
@@ -112,6 +126,8 @@ private data class ProfileDto(
     @SerialName("username") val username: String? = null,
     @SerialName("display_name") val displayName: String? = null,
     @SerialName("avatar_url") val avatarUrl: String? = null,
+    @SerialName("first_name") val firstName: String? = null,
+    @SerialName("last_name") val lastName: String? = null,
     @kotlinx.serialization.Transient val isDeleted: Boolean = false
 )
 
@@ -122,7 +138,10 @@ private data class DirectMessageDto(
     @SerialName("recipient_id") val recipientId: String,
     @SerialName("content") val content: String,
     @SerialName("created_at") val createdAt: String,
-    @SerialName("read_at") val readAt: String? = null
+    @SerialName("read_at") val readAt: String? = null,
+    @SerialName("attachment_path") val attachmentPath: String? = null,
+    @SerialName("attachment_name") val attachmentName: String? = null,
+    @SerialName("attachment_mime") val attachmentMime: String? = null
 )
 
 private data class ChatThread(
@@ -135,7 +154,10 @@ private data class ChatThread(
 private data class NewDirectMessage(
     @SerialName("sender_id") val senderId: String,
     @SerialName("recipient_id") val recipientId: String,
-    @SerialName("content") val content: String
+    @SerialName("content") val content: String,
+    @SerialName("attachment_path") val attachmentPath: String? = null,
+    @SerialName("attachment_name") val attachmentName: String? = null,
+    @SerialName("attachment_mime") val attachmentMime: String? = null
 )
 
 private suspend fun findFloustreamUsers(query: String): List<ProfileDto> {
@@ -162,6 +184,34 @@ private suspend fun loadDirectMessages(userId: String, peerId: String): List<Dir
         }
     }.decodeList<DirectMessageDto>()
     return (sent + received).sortedBy { it.createdAt }.takeLast(200)
+}
+
+private suspend fun markIncomingMessagesRead(userId: String, peerId: String) = withContext(Dispatchers.IO) {
+    val token = floustreamClient.auth.currentSessionOrNull()?.accessToken ?: return@withContext
+    val connection = URL("${BuildConfig.SUPABASE_URL}/rest/v1/direct_messages?sender_id=eq.$peerId&recipient_id=eq.$userId&read_at=is.null").openConnection() as HttpURLConnection
+    try {
+        connection.requestMethod = "PATCH"
+        connection.connectTimeout = 10000
+        connection.readTimeout = 10000
+        connection.doOutput = true
+        connection.setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+        connection.setRequestProperty("Authorization", "Bearer $token")
+        connection.setRequestProperty("Content-Type", "application/json")
+        connection.setRequestProperty("Prefer", "return=minimal")
+        val body = JSONObject().put("read_at", java.time.Instant.now().toString()).toString()
+        connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+        if (connection.responseCode !in 200..299) throw IllegalStateException("Не удалось отметить сообщения прочитанными.")
+    } finally { connection.disconnect() }
+}
+
+private suspend fun loadCurrentProfile(userId: String): ProfileDto? = floustreamClient.from("profiles").select {
+    filter { eq("id", userId) }
+}.decodeList<ProfileDto>().firstOrNull()
+
+private suspend fun sendDirectAttachment(userId: String, peerId: String, path: String, name: String, mime: String) {
+    floustreamClient.from("direct_messages").insert(
+        NewDirectMessage(senderId = userId, recipientId = peerId, content = name, attachmentPath = path, attachmentName = name, attachmentMime = mime)
+    )
 }
 
 private suspend fun sendDirectMessage(userId: String, peerId: String, content: String) {
@@ -580,6 +630,7 @@ private fun MessengerHome(onSignOut: () -> Unit, onDeleteAccount: () -> Unit) {
                     )
                 }
 
+                Box(Modifier.weight(1f).fillMaxWidth()) {
                 when (tab) {
                     "Чаты" -> ChatsScreen(
                         currentUserId = currentUserId,
@@ -588,7 +639,9 @@ private fun MessengerHome(onSignOut: () -> Unit, onDeleteAccount: () -> Unit) {
                     )
                     "Звонки" -> CallsScreen(onInfo = { infoMessage = it })
                     "Контакты" -> ContactsScreen(onStart = { selectedProfile = it; tab = "Чаты" })
-                    else -> SettingsScreen(onSignOut = onSignOut, onDeleteAccount = onDeleteAccount, onInfo = { infoMessage = it })
+                    else -> SettingsScreen(currentUserId = currentUserId, onBack = { tab = "Чаты" }, onSignOut = onSignOut, onDeleteAccount = onDeleteAccount, onInfo = { infoMessage = it })
+                }
+
                 }
 
                 NavigationBar(containerColor = Panel, contentColor = White) {
@@ -731,7 +784,7 @@ private fun ChatsScreen(
                     Modifier.fillMaxWidth().clickable { onOpen(peer) }.padding(horizontal = 16.dp, vertical = 11.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Avatar((title.firstOrNull()?.toString() ?: "D").uppercase())
+                    Avatar((title.firstOrNull()?.toString() ?: "D").uppercase(), avatarUrl = peer.avatarUrl)
                     Spacer(Modifier.width(13.dp))
                     Column(Modifier.weight(1f)) {
                         Text(title, color = White, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -754,7 +807,7 @@ private fun ChatsScreen(
 }
 
 @Composable
-private fun Avatar(initials: String, online: Boolean = false) {
+private fun Avatar(initials: String, online: Boolean = false, avatarUrl: String? = null) {
     Box {
         Surface(
             modifier = Modifier.size(54.dp),
@@ -762,7 +815,11 @@ private fun Avatar(initials: String, online: Boolean = false) {
             color = Brush.linearGradient(listOf(Color(0xFF326DCE), Color(0xFF7B45BD))).let { PanelSoft }
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Text(initials, color = White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                if (!avatarUrl.isNullOrBlank()) {
+                    AsyncImage(model = avatarUrl, contentDescription = "Фото профиля", modifier = Modifier.fillMaxSize().clip(CircleShape))
+                } else {
+                    Text(initials, color = White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                }
             }
         }
         if (online) {
@@ -837,7 +894,7 @@ private fun ContactsScreen(onStart: (ProfileDto) -> Unit) {
                     Modifier.fillMaxWidth().clickable { onStart(person) }.padding(vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Avatar((person.displayName ?: person.username ?: "D").take(1).uppercase())
+                    Avatar((person.displayName ?: person.username ?: "D").take(1).uppercase(), avatarUrl = person.avatarUrl)
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         Text(person.displayName ?: person.username ?: "Пользователь", color = White, fontWeight = FontWeight.SemiBold)
@@ -852,21 +909,33 @@ private fun ContactsScreen(onStart: (ProfileDto) -> Unit) {
 }
 
 @Composable
-private fun SettingsScreen(onSignOut: () -> Unit, onDeleteAccount: () -> Unit, onInfo: (String) -> Unit) {
+private fun SettingsScreen(currentUserId: String, onBack: () -> Unit, onSignOut: () -> Unit, onDeleteAccount: () -> Unit, onInfo: (String) -> Unit) {
     var confirmSignOut by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var profile by remember(currentUserId) { mutableStateOf<ProfileDto?>(null) }
+    LaunchedEffect(currentUserId) {
+        while (true) {
+            try { profile = loadCurrentProfile(currentUserId) } catch (_: Exception) { }
+            delay(30000)
+        }
+    }
 
-    Column(Modifier.fillMaxSize().padding(20.dp)) {
-        Text("Настройки", color = White, fontSize = 23.sp, fontWeight = FontWeight.Bold)
-        Text("Твой аккаунт и приложение", color = Muted, fontSize = 12.sp)
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("‹", Modifier.clickable { onBack() }.padding(end = 14.dp), color = White, fontSize = 30.sp)
+            Column {
+                Text("Настройки", color = White, fontSize = 23.sp, fontWeight = FontWeight.Bold)
+                Text("Твой аккаунт и приложение", color = Muted, fontSize = 12.sp)
+            }
+        }
         Spacer(Modifier.height(20.dp))
         Surface(color = Panel, shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
             Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Avatar("D", true)
+                Avatar((profile?.displayName ?: listOfNotNull(profile?.firstName, profile?.lastName).joinToString(" ").ifBlank { profile?.username ?: "F" }).take(1).uppercase(), true, profile?.avatarUrl)
                 Spacer(Modifier.width(14.dp))
                 Column {
-                    Text("FLOUSTREAM аккаунт", color = White, fontWeight = FontWeight.Bold)
-                    Text("Единый аккаунт сайта и приложения", color = Muted, fontSize = 11.sp)
+                    Text(profile?.displayName?.takeIf { it.isNotBlank() } ?: listOfNotNull(profile?.firstName, profile?.lastName).joinToString(" ").ifBlank { profile?.username ?: "FLOUSTREAM аккаунт" }, color = White, fontWeight = FontWeight.Bold)
+                    Text(profile?.username?.let { "@$it" } ?: "Единый аккаунт сайта и приложения", color = Muted, fontSize = 11.sp)
                 }
             }
         }
@@ -877,7 +946,7 @@ private fun SettingsScreen(onSignOut: () -> Unit, onDeleteAccount: () -> Unit, o
         SettingsRow("⟳", "Синхронизация с сайтом", "Чаты и медиа между сайтом и приложением") { onInfo("Чаты используют общую таблицу direct_messages Supabase. Остальные настройки синхронизации добавим по мере подключения функций.") }
         SettingsRow("⬆", "Обновления приложения", "Обязательные обновления · отключить нельзя") { onInfo("FLOUSTREAM автоматически проверяет обновления. Если выйдет новая версия, приложение попросит установить её перед продолжением работы. Отключить обязательные обновления нельзя.") }
         SettingsRow("⌫", "Удалить учётную запись", "Подтверждение email · 30 дней на восстановление") { confirmDelete = true }
-        SettingsRow("◐", "О приложении", "FLOUSTREAM Messenger · 0.3.0") { onInfo("FLOUSTREAM Messenger, версия 0.3.0.") }
+        SettingsRow("◐", "О приложении", "FLOUSTREAM Messenger · 0.3.1") { onInfo("FLOUSTREAM Messenger, версия 0.3.1.") }
         Spacer(Modifier.height(18.dp))
         Surface(
             modifier = Modifier.fillMaxWidth().clickable { confirmSignOut = true },
@@ -974,6 +1043,7 @@ private fun ActionTile(icon: String, label: String, modifier: Modifier = Modifie
 
 @Composable
 private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBack: () -> Unit) {
+    val context = LocalContext.current
     val messages = remember(peer.id) { mutableStateListOf<DirectMessageDto>() }
     var draft by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(true) }
@@ -983,6 +1053,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
 
     suspend fun refresh() {
         try {
+            markIncomingMessagesRead(currentUserId, peer.id)
             val latest = loadDirectMessages(currentUserId, peer.id)
             messages.clear()
             messages.addAll(latest)
@@ -990,6 +1061,31 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
         } catch (e: Exception) {
             errorText = e.message ?: "Не удалось загрузить переписку."
         } finally { loading = false }
+    }
+
+    var uploadingAttachment by remember { mutableStateOf(false) }
+    val attachmentPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null && !uploadingAttachment) scope.launch {
+            uploadingAttachment = true
+            try {
+                val resolver = context.contentResolver
+                val mime = resolver.getType(uri) ?: "application/octet-stream"
+                val name = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) cursor.getString(0) else null
+                } ?: "attachment"
+                val bytes = withContext(Dispatchers.IO) {
+                    resolver.openInputStream(uri)?.use { it.readBytes() } ?: error("Не удалось прочитать файл.")
+                }
+                if (bytes.size > 50 * 1024 * 1024) error("Размер файла превышает 50 МБ.")
+                val safeName = name.substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"), "_").take(100).ifBlank { "attachment" }
+                val path = "$currentUserId/${UUID.randomUUID()}_$safeName"
+                withContext(Dispatchers.IO) { floustreamClient.storage.from("message-media").upload(path, bytes) { contentType = ContentType.parse(mime) } }
+                sendDirectAttachment(currentUserId, peer.id, path, name, mime)
+                refresh()
+            } catch (e: Exception) {
+                errorText = e.message ?: "Не удалось отправить файл."
+            } finally { uploadingAttachment = false }
+        }
     }
 
     LaunchedEffect(peer.id) {
@@ -1006,7 +1102,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("‹", Modifier.clickable { onBack() }.padding(horizontal = 10.dp), color = White, fontSize = 32.sp)
-            Avatar((peer.displayName ?: peer.username ?: "D").take(1).uppercase())
+            Avatar((peer.displayName ?: peer.username ?: "D").take(1).uppercase(), avatarUrl = peer.avatarUrl)
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
                 Text(peer.displayName ?: peer.username ?: "Пользователь", color = White, fontWeight = FontWeight.Bold, maxLines = 1)
@@ -1038,7 +1134,16 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                         modifier = Modifier.widthIn(max = 290.dp)
                     ) {
                         Column(Modifier.padding(horizontal = 13.dp, vertical = 9.dp)) {
-                            Text(msg.content, color = White, fontSize = 14.sp)
+                            if (!msg.attachmentPath.isNullOrBlank()) {
+                                Text("📎 ${msg.attachmentName ?: "Файл"}", Modifier.clickable {
+                                    scope.launch {
+                                        try {
+                                            val signedUrl = floustreamClient.storage.from("message-media").createSignedUrl(msg.attachmentPath, 30.minutes)
+                                            context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(signedUrl)))
+                                        } catch (e: Exception) { errorText = e.message ?: "Не удалось открыть файл." }
+                                    }
+                                }, color = Color(0xFFBBD7FF), fontSize = 14.sp)
+                            } else Text(msg.content, color = White, fontSize = 14.sp)
                             Text(
                                 msg.createdAt.substringAfter("T").take(5),
                                 Modifier.align(Alignment.End),
@@ -1053,6 +1158,12 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             Modifier.fillMaxWidth().background(Panel).padding(horizontal = 8.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            Surface(modifier = Modifier.size(42.dp).clickable { attachmentPicker.launch(arrayOf("*/*")) }, color = PanelSoft, shape = CircleShape) {
+                Box(contentAlignment = Alignment.Center) {
+                    if (uploadingAttachment) CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Blue)
+                    else Text("+", color = White, fontSize = 25.sp)
+                }
+            }
             OutlinedTextField(
                 value = draft, onValueChange = { draft = it },
                 modifier = Modifier.weight(1f).padding(horizontal = 7.dp),
