@@ -1,4 +1,4 @@
-name: Dolby404 browser tests
+name: FLOUSTREAM browser tests
 
 on:
   push:
