@@ -2,6 +2,8 @@ package com.dolby404.messenger
 
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -136,16 +138,27 @@ fun AppUpdatePrompt() {
                         val existing = downloadedApk
                         if (existing != null && existing.exists()) {
                             try {
-                                val uri: Uri = FileProvider.getUriForFile(
-                                    context,
-                                    "${context.packageName}.fileprovider",
-                                    existing
-                                )
-                                val intent = Intent(Intent.ACTION_VIEW).apply {
-                                    setDataAndType(uri, "application/vnd.android.package-archive")
-                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+                                    !context.packageManager.canRequestPackageInstalls()
+                                ) {
+                                    val settingsIntent = Intent(
+                                        Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                                        Uri.parse("package:${context.packageName}")
+                                    )
+                                    context.startActivity(settingsIntent)
+                                    error = "Разреши установку приложений для Dolby404, вернись сюда и нажми «Обновить» ещё раз."
+                                } else {
+                                    val uri: Uri = FileProvider.getUriForFile(
+                                        context,
+                                        "${context.packageName}.fileprovider",
+                                        existing
+                                    )
+                                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                                        setDataAndType(uri, "application/vnd.android.package-archive")
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    }
+                                    context.startActivity(intent)
                                 }
-                                context.startActivity(intent)
                             } catch (e: Exception) {
                                 error = e.message ?: "Не удалось открыть установщик Android."
                             }
