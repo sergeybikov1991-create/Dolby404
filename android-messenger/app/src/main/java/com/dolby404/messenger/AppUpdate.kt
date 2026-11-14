@@ -72,8 +72,16 @@ private suspend fun fetchUpdatePolicy(): UpdatePolicy = withContext(Dispatchers.
         UpdatePolicy(
             minimumSupportedVersion = json.optString("minimum_supported_version", "0.0.0"),
             type = if (type in setOf("normal", "important", "critical")) type else "normal",
-            maxPostponements = if (type == "critical") 0 else json.optInt("max_postponements", defaultMax).coerceIn(0, 3),
-            postponeHours = if (type == "critical") 0 else json.optInt("postpone_hours", defaultHours).coerceIn(1, 72)
+            maxPostponements = when (type) {
+                "critical" -> 0
+                "important" -> 1
+                else -> json.optInt("max_postponements", defaultMax).coerceIn(0, 3)
+            },
+            postponeHours = when (type) {
+                "critical" -> 0
+                "important" -> 6
+                else -> json.optInt("postpone_hours", defaultHours).coerceIn(1, 72)
+            }
         )
     } finally {
         connection.disconnect()
@@ -121,7 +129,7 @@ private suspend fun findAvailableUpdate(context: android.content.Context): Avail
         val postponeUntil = preferences.getLong(untilKey, 0L)
         val now = System.currentTimeMillis()
 
-        if (!belowMinimum && now < postponeUntil) return@withContext null
+        if (!belowMinimum && policy.type != "critical" && now < postponeUntil) return@withContext null
         val canPostpone = !belowMinimum && policy.type != "critical" && used < policy.maxPostponements
         AvailableUpdate(tag, apkUrl, json.optString("body").take(500), canPostpone, policy.postponeHours)
     } finally {
