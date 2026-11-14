@@ -118,7 +118,12 @@ private suspend fun findDolbyUsers(query: String): List<ProfileDto> {
     val term = query.trim().removePrefix("@")
     if (term.length < 2) return emptyList()
     return dolbyClient.from("profiles").select {
-        filter { ilike("username", "%$term%") }
+        filter {
+            or {
+                ilike("username", "%$term%")
+                ilike("display_name", "%$term%")
+            }
+        }
     }.decodeList<ProfileDto>().filter {
         it.id != dolbyClient.auth.currentUserOrNull()?.id
     }.take(30)
@@ -467,7 +472,7 @@ private fun ContactsScreen(onStart: (ProfileDto) -> Unit) {
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<ProfileDto>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
-    var status by remember { mutableStateOf("Ищи собеседников по их @username из Dolby404.") }
+    var status by remember { mutableStateOf("Ищи по имени или @username из Dolby404.") }
     val scope = rememberCoroutineScope()
 
     Column(Modifier.fillMaxSize().padding(20.dp)) {
@@ -477,7 +482,7 @@ private fun ContactsScreen(onStart: (ProfileDto) -> Unit) {
         OutlinedTextField(
             value = query, onValueChange = { query = it },
             modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("Поиск по @username", color = Muted) },
+            placeholder = { Text("Поиск по имени или @username", color = Muted) },
             singleLine = true, shape = RoundedCornerShape(16.dp)
         )
         Spacer(Modifier.height(10.dp))
