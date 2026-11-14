@@ -685,7 +685,8 @@ private fun SettingsScreen(onSignOut: () -> Unit, onInfo: (String) -> Unit) {
         SettingsRow("🔔", "Уведомления", "Звуки и оповещения") { onInfo("Здесь будут настройки уведомлений и звуков.") }
         SettingsRow("◈", "Приватность", "Кто может с тобой связаться") { onInfo("Настройки приватности подключим к общей системе Dolby404.") }
         SettingsRow("⟳", "Синхронизация с сайтом", "Чаты и медиа между сайтом и приложением") { onInfo("Чаты используют общую таблицу direct_messages Supabase. Остальные настройки синхронизации добавим по мере подключения функций.") }
-        SettingsRow("◐", "О приложении", "Dolby404 Messenger · 0.2.1") { onInfo("Dolby404 Messenger, версия 0.2.1.") }
+        SettingsRow("⬆", "Обновления приложения", "Обязательные обновления · отключить нельзя") { onInfo("Dolby404 автоматически проверяет обновления. Если выйдет новая версия, приложение попросит установить её перед продолжением работы. Отключить обязательные обновления нельзя.") }
+        SettingsRow("◐", "О приложении", "Dolby404 Messenger · 0.2.2") { onInfo("Dolby404 Messenger, версия 0.2.2.") }
         Spacer(Modifier.height(18.dp))
         Surface(
             modifier = Modifier.fillMaxWidth().clickable { confirmSignOut = true },
