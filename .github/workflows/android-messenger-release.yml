@@ -8,6 +8,8 @@ on:
         required: true
         default: "v0.3.1"
   push:
+    branches:
+      - "release/floustream-0.3.1"
     tags:
       - "v*"
 
@@ -85,12 +87,12 @@ jobs:
           retention-days: 30
 
       - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/release/floustream-0.3.1'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || (startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.3.1') }}
           target_commitish: ${{ github.sha }}
-          name: FLOUSTREAM Messenger ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+          name: FLOUSTREAM Messenger ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || (startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.3.1') }}
           files: |
             FLOUSTREAM-Messenger.apk
             FLOUSTREAM-Messenger.apk.sha256
