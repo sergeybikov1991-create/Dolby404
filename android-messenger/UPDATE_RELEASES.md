@@ -1,11 +1,18 @@
 # Dolby404 Messenger updates
 
-- Every installed build must keep the application ID `com.dolby404.messenger`.
-- Every public update must be signed with the same private Android keystore.
-- Increase both `versionCode` and `versionName` before publishing a new release.
-- Push a tag such as `v0.2.0` to build a signed release and publish `Dolby404-Messenger.apk` as a GitHub Release asset.
-- The app checks the latest public GitHub Release and downloads that APK from inside the app.
-- Never commit the keystore or its passwords to this repository.
-- Required GitHub Actions secrets: `DOLBY404_KEYSTORE_BASE64`, `DOLBY404_KEYSTORE_PASSWORD`, `DOLBY404_KEY_ALIAS`, and `DOLBY404_KEY_PASSWORD`.
+- Android package ID: `com.dolby404.messenger`.
+- The app checks the latest public GitHub Release when it opens.
+- A newer release is downloaded inside the app and passed to Android's package installer.
+- Android requires the user to approve installation; silent installation is not available to an ordinary app.
+- Keep the same private signing keystore for every future release. Losing it prevents updates over the installed app.
+- Increase `versionCode` and `versionName` before each subsequent release.
+- Start the signed release workflow from GitHub Actions or push a version tag such as `v0.2.0`.
+- The workflow validates the keystore, builds and verifies the signed APK, and publishes `Dolby404-Messenger.apk` plus a ZIP.
 
-Android still requires the user to approve installation through its system package installer. The app can attempt to reopen after the package-replaced broadcast, but Android may block automatic background launches on some devices.
+Required GitHub Actions secrets:
+- `DOLBY404_KEYSTORE_BASE64`
+- `DOLBY404_KEYSTORE_PASSWORD`
+- `DOLBY404_KEY_ALIAS`
+- `DOLBY404_KEY_PASSWORD`
+
+Never commit the keystore, Base64 key, or passwords to this repository. The workflow removes the temporary keystore from its runner after the job.
