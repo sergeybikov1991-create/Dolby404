@@ -1,0 +1,6 @@
+{
+  "minimum_supported_version": "0.2.0",
+  "update_type": "normal",
+  "max_postponements": 3,
+  "postpone_hours": 24
+}
