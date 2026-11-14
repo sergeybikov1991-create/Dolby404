@@ -36,11 +36,15 @@ jobs:
       - name: Build signed release APK
         working-directory: android-messenger
         env:
-          DOLBY404_KEYSTORE_PATH: release-key.jks
+          DOLBY404_KEYSTORE_PATH: ../release-key.jks
           DOLBY404_KEYSTORE_PASSWORD: ${{ secrets.DOLBY404_KEYSTORE_PASSWORD }}
           DOLBY404_KEY_ALIAS: ${{ secrets.DOLBY404_KEY_ALIAS }}
           DOLBY404_KEY_PASSWORD: ${{ secrets.DOLBY404_KEY_PASSWORD }}
-        run: gradle --no-daemon :app:assembleRelease
+        run: |
+          test -n "$DOLBY404_KEYSTORE_PASSWORD" || (echo "Missing GitHub secret DOLBY404_KEYSTORE_PASSWORD" && exit 1)
+          test -n "$DOLBY404_KEY_ALIAS" || (echo "Missing GitHub secret DOLBY404_KEY_ALIAS" && exit 1)
+          test -n "$DOLBY404_KEY_PASSWORD" || (echo "Missing GitHub secret DOLBY404_KEY_PASSWORD" && exit 1)
+          gradle --no-daemon :app:assembleRelease
       - name: Prepare release APK
         run: cp android-messenger/app/build/outputs/apk/release/app-release.apk Dolby404-Messenger.apk
       - name: Publish update
@@ -48,3 +52,6 @@ jobs:
         with:
           files: Dolby404-Messenger.apk
           generate_release_notes: true
+      - name: Remove signing key from runner
+        if: always()
+        run: rm -f android-messenger/release-key.jks
