@@ -825,7 +825,9 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
 <p class="bio" id="bio">Подготавливаем твою страницу…</p>
 <div class="editor" id="editor" hidden>
 <h2>Настроить профиль</h2>
-<input id="name-input" maxlength="60" placeholder="Как тебя зовут?">
+<input id="first-name-input" maxlength="60" autocomplete="given-name" placeholder="Имя">
+<input id="last-name-input" maxlength="60" autocomplete="family-name" placeholder="Фамилия">
+<input id="name-input" maxlength="60" placeholder="Отображаемое имя">
 <input id="username-input" maxlength="30" placeholder="Например, flou_user">
 <textarea id="bio-input" maxlength="300" placeholder="Расскажи немного о себе…"></textarea>
 <p class="hint">Чтобы изменить фотографию, просто нажми на круглый аватар.</p>
@@ -1008,6 +1010,8 @@ function render(){
  $("bio").textContent=(bioKey&&profile[bioKey])||"Здесь скоро появится рассказ о тебе. Открой меню → Настройки → Профиль, чтобы заполнить страницу.";
  setAvatar(avatarKey&&profile[avatarKey]);
  const coverKey=firstKey(["cover_url","banner_url","cover"]);const coverUrl=coverKey&&profile[coverKey];const coverImage=$("cover-photo");if(coverUrl){coverImage.src=coverUrl;coverImage.hidden=false;}else{coverImage.removeAttribute("src");coverImage.hidden=true;}
+ $("first-name-input").value=profile.first_name||"";
+ $("last-name-input").value=profile.last_name||"";
  $("name-input").value=((nameKey&&profile[nameKey])==="Новый пользователь")?"":((nameKey&&profile[nameKey])||"");
  $("username-input").value=(usernameKey&&profile[usernameKey]&&!/^user_[a-f0-9]{12,}$/i.test(profile[usernameKey]))?profile[usernameKey]:"";
  $("bio-input").value=(bioKey&&profile[bioKey])||"";
@@ -2771,6 +2775,8 @@ $("save-button").addEventListener("click",async()=>{
  const usernameKey=firstKey(["username","handle","nickname"]);
  const bioKey=firstKey(["bio","about","description"]);
  const patch={};
+ if(columns.includes("first_name"))patch.first_name=$("first-name-input").value.trim();
+ if(columns.includes("last_name"))patch.last_name=$("last-name-input").value.trim();
  if(nameKey)patch[nameKey]=$("name-input").value.trim();
  if(usernameKey)patch[usernameKey]=$("username-input").value.trim().replace(/^@/,"");
  if(bioKey)patch[bioKey]=$("bio-input").value.trim();
