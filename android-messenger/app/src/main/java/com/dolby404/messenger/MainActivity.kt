@@ -206,6 +206,28 @@ private suspend fun loadInboxThreads(userId: String): List<ChatThread> {
     }.sortedByDescending { it.lastMessage.createdAt }
 }
 
+private suspend fun checkRegistrationRisk(email: String): Pair<String, String> = withContext(Dispatchers.IO) {
+    val connection = URL("${BuildConfig.SUPABASE_URL}/functions/v1/registration-risk")
+        .openConnection() as HttpURLConnection
+    try {
+        connection.requestMethod = "POST"
+        connection.connectTimeout = 8000
+        connection.readTimeout = 8000
+        connection.doOutput = true
+        connection.setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+        connection.setRequestProperty("Content-Type", "application/json")
+        connection.outputStream.use {
+            it.write(JSONObject().put("email", email).toString().toByteArray(Charsets.UTF_8))
+        }
+        val stream = if (connection.responseCode in 200..299) connection.inputStream else connection.errorStream
+        val result = JSONObject(stream?.bufferedReader()?.use { it.readText() }.orEmpty())
+        if (connection.responseCode !in 200..299 || !result.optBoolean("allowed", false)) {
+            throw IllegalStateException("Временные почтовые адреса не поддерживаются. Используй постоянный email.")
+        }
+        Pair(result.optString("risk", "review"), result.optString("reason", "risk_check_unavailable"))
+    } finally { connection.disconnect() }
+}
+
 private suspend fun sendAccountEmailLink(email: String, action: String) = withContext(Dispatchers.IO) {
     val redirect = "dolby404://auth-callback?" + if (action == "request_delete") "confirm_delete=1" else "restore=1"
     val encodedRedirect = URLEncoder.encode(redirect, "UTF-8")
@@ -329,6 +351,7 @@ private fun MessengerApp(pendingLifecycleAction: String?, onLifecycleHandled: ()
             message = if (isRegistering) "Создаём аккаунт FLOUSTREAM..." else "Подключаемся к FLOUSTREAM..."
             try {
                 if (isRegistering) {
+                    val (registrationRisk, registrationRiskReason) = checkRegistrationRisk(email.trim())
                     val normalizedCountry = countryCode.trim().uppercase()
                     val defaultLanguage = if (normalizedCountry in setOf("RU", "BY", "KZ", "KG")) "ru" else "en"
                     floustreamClient.auth.signUpWith(Email) {
@@ -340,6 +363,8 @@ private fun MessengerApp(pendingLifecycleAction: String?, onLifecycleHandled: ()
                             put("country_code", normalizedCountry)
                             put("preferred_language", defaultLanguage)
                             put("display_name", firstName.trim() + " " + lastName.trim())
+                            put("registration_risk", registrationRisk)
+                            put("registration_risk_reason", registrationRiskReason)
                         }
                     }
                     if (floustreamClient.auth.currentSessionOrNull() != null) {
