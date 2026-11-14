@@ -91,10 +91,10 @@ function renderInbox(rows,profiles){
  const profileMap=new Map((profiles||[]).map(p=>[p.id,p]));const threads=new Map();
  for(const row of rows){const other=row.sender_id===viewer.id?row.recipient_id:row.sender_id;if(!threads.has(other))threads.set(other,{last:row,unread:0});if(row.recipient_id===viewer.id&&row.sender_id===other&&!row.read_at)threads.get(other).unread++;}
  for(const [id,thread] of threads){
-  const person=profileMap.get(id)||{};const link=document.createElement("a");link.className="inbox-item";link.href="messages.html?v=20261113-2&with="+encodeURIComponent(id);
+  const deletedAccount=!profileMap.has(id);const person=profileMap.get(id)||{};const link=document.createElement("a");link.className="inbox-item";link.href="messages.html?v=20261115-1&with="+encodeURIComponent(id);
   const avatar=document.createElement("div");avatar.className="inbox-avatar";const avatarUrl=safeUrl(person.avatar_url);
   if(avatarUrl){const img=document.createElement("img");img.src=avatarUrl;img.alt="";avatar.append(img);}else avatar.textContent=((person.display_name||person.username||"◉").trim()[0]||"◉").toUpperCase();
-  const copy=document.createElement("div");copy.className="inbox-copy";const name=document.createElement("div");name.className="inbox-name";name.textContent=person.display_name||person.username||"Пользователь";
+  const copy=document.createElement("div");copy.className="inbox-copy";const name=document.createElement("div");name.className="inbox-name";name.textContent=deletedAccount?"Удалённый аккаунт":(person.display_name||person.username||"Пользователь");
   const preview=document.createElement("div");preview.className="inbox-preview";preview.textContent=(thread.last.sender_id===viewer.id?"Вы: ":"")+(thread.last.content||"");
   const meta=document.createElement("div");meta.className="inbox-meta";const time=document.createElement("div");time.className="inbox-time";time.textContent=timeText(thread.last.created_at);
   const unread=document.createElement("span");unread.className="inbox-unread";unread.hidden=!thread.unread;unread.textContent=thread.unread>99?"99+":String(thread.unread);
@@ -117,19 +117,26 @@ async function start(){
   if(!peerId){$("peer-name").textContent="Сообщения";$("peer-handle").textContent="Все диалоги";$("peer-avatar").textContent="✉";$("composer").hidden=true;await loadInbox();client.channel("floustream-inbox-"+viewer.id).on("postgres_changes",{event:"INSERT",schema:"public",table:"direct_messages"},()=>loadInbox()).on("postgres_changes",{event:"UPDATE",schema:"public",table:"direct_messages",filter:"recipient_id=eq."+viewer.id},()=>loadInbox()).subscribe();setInterval(()=>{if(!document.hidden)loadInbox();},5000);return;}
   if(peerId===viewer.id){showNotice("Открой профиль другого пользователя, чтобы начать переписку.",true);$("composer").hidden=true;return;}
   const profile=await client.from("profiles").select("id,username,display_name,avatar_url").eq("id",peerId).maybeSingle();
-  if(profile.error)throw profile.error;if(!profile.data)throw new Error("Пользователь не найден.");
-  const p=profile.data;$("peer-name").textContent=p.display_name||p.username||"Пользователь";$("peer-handle").textContent=p.username?"@"+p.username:"";
+  if(profile.error)throw profile.error;
+  const deletedAccount=!profile.data;
+  const p=profile.data||{};
+  $("peer-name").textContent=deletedAccount?"Удалённый аккаунт":(p.display_name||p.username||"Пользователь");
+  $("peer-handle").textContent=deletedAccount?"История переписки сохранена":(p.username?"@"+p.username:"");
   const avatar=safeUrl(p.avatar_url);if(avatar){const img=document.createElement("img");img.src=avatar;img.alt="";$("peer-avatar").replaceChildren(img);}else $("peer-avatar").textContent=($("peer-name").textContent.trim()[0]||"◉").toUpperCase();
-  $("back").href="public-profile.html?id="+encodeURIComponent(peerId);
+  $("back").href=deletedAccount?"messages.html":"public-profile.html?id="+encodeURIComponent(peerId);
+  $("composer").hidden=deletedAccount;
+  if(deletedAccount)showNotice("Этот аккаунт удалён. История переписки сохранена; отправлять новые сообщения нельзя.");
   await loadMessages();
-  $("composer").addEventListener("submit",async event=>{
-   event.preventDefault();const input=$("message-input"),content=input.value.trim();if(!content)return;
-   const button=$("send");button.disabled=true;showNotice("Отправляем…");
-   const result=await client.from("direct_messages").insert({sender_id:viewer.id,recipient_id:peerId,content});
-   if(result.error){showNotice("Не удалось отправить: "+result.error.message,true);button.disabled=false;return;}
-   input.value="";showNotice("Сообщение отправлено.");await loadMessages();button.disabled=false;input.focus();
-  });
-  $("message-input").addEventListener("keydown",event=>{if(event.key==="Enter"&&!event.shiftKey){event.preventDefault();$("composer").requestSubmit();}});
+  if(!deletedAccount){
+   $("composer").addEventListener("submit",async event=>{
+    event.preventDefault();const input=$("message-input"),content=input.value.trim();if(!content)return;
+    const button=$("send");button.disabled=true;showNotice("Отправляем…");
+    const result=await client.from("direct_messages").insert({sender_id:viewer.id,recipient_id:peerId,content});
+    if(result.error){showNotice("Не удалось отправить: "+result.error.message,true);button.disabled=false;return;}
+    input.value="";showNotice("Сообщение отправлено.");await loadMessages();button.disabled=false;input.focus();
+   });
+   $("message-input").addEventListener("keydown",event=>{if(event.key==="Enter"&&!event.shiftKey){event.preventDefault();$("composer").requestSubmit();}});
+  }
   setInterval(()=>{if(!document.hidden)loadMessages(true);},5000);
  }catch(error){$("peer-name").textContent="Не удалось открыть переписку";showNotice(error.message,true);$("messages").replaceChildren();}
 }
