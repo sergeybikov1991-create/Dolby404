@@ -459,7 +459,16 @@ async function registerUser() {
 
     try {
         registerButton.disabled = true;
-        message.textContent = "Регистрируем...";
+        message.textContent = "Проверяем домен email…";
+        const riskResponse = await fetch(SUPABASE_URL + "/functions/v1/registration-risk", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "apikey": SUPABASE_KEY },
+            body: JSON.stringify({ email })
+        });
+        if (!riskResponse.ok) throw new Error("Не удалось проверить адрес email.");
+        const risk = await riskResponse.json();
+        if (!risk.allowed) throw new Error("Временные почтовые адреса не поддерживаются. Используй постоянный email.");
+        message.textContent = "Регистрируем…";
 
         const redirectUrl = new URL(
             "profile.html",
