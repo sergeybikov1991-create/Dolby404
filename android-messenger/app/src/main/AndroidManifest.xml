@@ -21,6 +21,14 @@
                 <data android:scheme="dolby404" android:host="auth-callback" />
             </intent-filter>
         </activity>
+        <receiver
+            android:name=".AppUpdateReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
