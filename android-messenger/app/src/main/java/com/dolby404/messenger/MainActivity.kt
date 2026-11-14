@@ -29,6 +29,11 @@ import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.handleDeeplinks
 import io.github.jan.supabase.auth.providers.builtin.Email
+import io.github.jan.supabase.postgrest.Postgrest
+import io.github.jan.supabase.postgrest.from
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private val Night = Color(0xFF080D1B)
@@ -43,7 +48,7 @@ private val dolbyClient = createSupabaseClient(
     supabaseUrl = BuildConfig.SUPABASE_URL,
     supabaseKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY
 ) {
-    install(Auth) {
+    install(Postgrest)\n    install(Auth) {
         scheme = "dolby404"
         host = "auth-callback"
     }
@@ -83,6 +88,62 @@ private data class DemoChat(
 )
 
 private data class ChatMessage(val text: String, val mine: Boolean, val time: String)
+
+@Serializable
+private data class ProfileDto(
+    @SerialName("id") val id: String,
+    @SerialName("username") val username: String? = null,
+    @SerialName("display_name") val displayName: String? = null,
+    @SerialName("avatar_url") val avatarUrl: String? = null
+)
+
+@Serializable
+private data class DirectMessageDto(
+    @SerialName("id") val id: String,
+    @SerialName("sender_id") val senderId: String,
+    @SerialName("recipient_id") val recipientId: String,
+    @SerialName("content") val content: String,
+    @SerialName("created_at") val createdAt: String
+)
+
+@Serializable
+private data class NewDirectMessage(
+    @SerialName("sender_id") val senderId: String,
+    @SerialName("recipient_id") val recipientId: String,
+    @SerialName("content") val content: String
+)
+
+private suspend fun findDolbyUsers(query: String): List<ProfileDto> {
+    val term = query.trim().removePrefix("@")
+    if (term.length < 2) return emptyList()
+    return dolbyClient.from("profiles").select {
+        filter { ilike("username", "%$term%") }
+    }.decodeList<ProfileDto>().filter {
+        it.id != dolbyClient.auth.currentUserOrNull()?.id
+    }.take(30)
+}
+
+private suspend fun loadDirectMessages(userId: String, peerId: String): List<DirectMessageDto> {
+    val sent = dolbyClient.from("direct_messages").select {
+        filter {
+            eq("sender_id", userId)
+            eq("recipient_id", peerId)
+        }
+    }.decodeList<DirectMessageDto>()
+    val received = dolbyClient.from("direct_messages").select {
+        filter {
+            eq("sender_id", peerId)
+            eq("recipient_id", userId)
+        }
+    }.decodeList<DirectMessageDto>()
+    return (sent + received).sortedBy { it.createdAt }.takeLast(200)
+}
+
+private suspend fun sendDirectMessage(userId: String, peerId: String, content: String) {
+    dolbyClient.from("direct_messages").insert(
+        NewDirectMessage(senderId = userId, recipientId = peerId, content = content)
+    )
+}
 
 @Composable
 private fun MessengerApp() {
@@ -195,6 +256,8 @@ private fun MessengerApp() {
 private fun MessengerHome(onSignOut: () -> Unit) {
     var tab by remember { mutableStateOf("Чаты") }
     var selectedChat by remember { mutableStateOf<String?>(null) }
+    var selectedProfile by remember { mutableStateOf<ProfileDto?>(null) }
+    val currentUserId = dolbyClient.auth.currentUserOrNull()?.id.orEmpty()
     var searchOpen by remember { mutableStateOf(false) }
     var search by remember { mutableStateOf("") }
     var showNewChat by remember { mutableStateOf(false) }
@@ -210,11 +273,17 @@ private fun MessengerHome(onSignOut: () -> Unit) {
 
     Surface(Modifier.fillMaxSize(), color = Night) {
         Column(Modifier.fillMaxSize()) {
-            if (selectedChat != null) {
+            if (selectedProfile != null) {
+                RealConversationScreen(
+                    peer = selectedProfile!!,
+                    currentUserId = currentUserId,
+                    onBack = { selectedProfile = null }
+                )
+            } else if (selectedChat != null) {
                 ConversationScreen(
                     name = selectedChat!!,
                     onBack = { selectedChat = null },
-                    onInfo = { infoMessage = "Информация о чате появится после подключения переписок." }
+                    onInfo = { infoMessage = "Это демонстрационный диалог. Для настоящей переписки выбери пользователя во вкладке «Контакты»." }
                 )
             } else {
                 Row(
@@ -246,7 +315,7 @@ private fun MessengerHome(onSignOut: () -> Unit) {
                         it.name.contains(search, true) || it.preview.contains(search, true)
                     }, onOpen = { selectedChat = it })
                     "Звонки" -> CallsScreen(onInfo = { infoMessage = it })
-                    "Контакты" -> ContactsScreen(onStart = { selectedChat = it })
+                    "Контакты" -> ContactsScreen(onStart = { selectedProfile = it; selectedChat = null; tab = "Чаты" })
                     else -> SettingsScreen(onSignOut = onSignOut, onInfo = { infoMessage = it })
                 }
 
@@ -254,7 +323,7 @@ private fun MessengerHome(onSignOut: () -> Unit) {
                     listOf("Чаты" to "▤", "Звонки" to "◉", "Контакты" to "♙", "Настройки" to "⚙").forEach { item ->
                         NavigationBarItem(
                             selected = tab == item.first,
-                            onClick = { tab = item.first; selectedChat = null },
+                            onClick = { tab = item.first; selectedChat = null; selectedProfile = null },
                             icon = { Text(item.second, fontSize = 20.sp) },
                             label = { Text(item.first, fontSize = 10.sp) },
                             colors = NavigationBarItemDefaults.colors(
@@ -393,26 +462,64 @@ private fun CallsScreen(onInfo: (String) -> Unit) {
 }
 
 @Composable
-private fun ContactsScreen(onStart: (String) -> Unit) {
+private fun ContactsScreen(onStart: (ProfileDto) -> Unit) {
+    var query by remember { mutableStateOf("") }
+    var results by remember { mutableStateOf<List<ProfileDto>>(emptyList()) }
+    var loading by remember { mutableStateOf(false) }
+    var status by remember { mutableStateOf("Ищи собеседников по их @username из Dolby404.") }
+    val scope = rememberCoroutineScope()
+
     Column(Modifier.fillMaxSize().padding(20.dp)) {
         Text("Контакты", color = White, fontSize = 23.sp, fontWeight = FontWeight.Bold)
         Text("Находи людей в Dolby404", color = Muted, fontSize = 12.sp)
         Spacer(Modifier.height(18.dp))
         OutlinedTextField(
-            value = "", onValueChange = {},
+            value = query, onValueChange = { query = it },
             modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("Поиск по имени или @username", color = Muted) },
-            enabled = false, singleLine = true, shape = RoundedCornerShape(16.dp)
+            placeholder = { Text("Поиск по @username", color = Muted) },
+            singleLine = true, shape = RoundedCornerShape(16.dp)
         )
-        Spacer(Modifier.height(18.dp))
-        EmptyPanel("♙", "Пока здесь пусто", "Поиск пользователей подключим к общей базе аккаунтов Dolby404.")
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(10.dp))
         Button(
-            onClick = { onStart("Новый диалог") },
+            onClick = {
+                scope.launch {
+                    loading = true
+                    status = "Ищем пользователей…"
+                    try {
+                        results = findDolbyUsers(query)
+                        status = if (results.isEmpty()) "Никого не нашли. Проверь @username и попробуй ещё раз." else "Найдено: ${results.size}"
+                    } catch (e: Exception) {
+                        status = "Поиск временно недоступен: ${e.message ?: "ошибка"}"
+                    } finally { loading = false }
+                }
+            },
+            enabled = !loading && query.trim().removePrefix("@").length >= 2,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = PanelSoft),
+            colors = ButtonDefaults.buttonColors(containerColor = Blue),
             shape = RoundedCornerShape(14.dp)
-        ) { Text("Открыть тестовый диалог", color = White) }
+        ) {
+            if (loading) CircularProgressIndicator(modifier = Modifier.size(18.dp), color = White)
+            else Text("НАЙТИ ПОЛЬЗОВАТЕЛЯ", color = White)
+        }
+        Spacer(Modifier.height(10.dp))
+        Text(status, color = Muted, fontSize = 12.sp)
+        LazyColumn(contentPadding = PaddingValues(bottom = 20.dp)) {
+            items(results) { person ->
+                Row(
+                    Modifier.fillMaxWidth().clickable { onStart(person) }.padding(vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Avatar((person.displayName ?: person.username ?: "D").take(1).uppercase())
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(person.displayName ?: person.username ?: "Пользователь", color = White, fontWeight = FontWeight.SemiBold)
+                        Text(person.username?.let { "@$it" } ?: "Пользователь Dolby404", color = Muted, fontSize = 12.sp)
+                    }
+                    Text("Написать ›", color = Color(0xFF9FCBFF), fontSize = 12.sp)
+                }
+                HorizontalDivider(color = Color(0xFF1B2941))
+            }
+        }
     }
 }
 
@@ -483,6 +590,134 @@ private fun ActionTile(icon: String, label: String, modifier: Modifier = Modifie
         Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(icon, color = Color(0xFF9FCBFF), fontSize = 25.sp)
             Text(label, color = White, fontSize = 12.sp)
+        }
+    }
+}
+
+@Composable
+private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBack: () -> Unit) {
+    val messages = remember(peer.id) { mutableStateListOf<DirectMessageDto>() }
+    var draft by remember { mutableStateOf("") }
+    var loading by remember { mutableStateOf(true) }
+    var sending by remember { mutableStateOf(false) }
+    var errorText by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
+
+    suspend fun refresh() {
+        try {
+            val latest = loadDirectMessages(currentUserId, peer.id)
+            messages.clear()
+            messages.addAll(latest)
+            errorText = ""
+        } catch (e: Exception) {
+            errorText = e.message ?: "Не удалось загрузить переписку."
+        } finally { loading = false }
+    }
+
+    LaunchedEffect(peer.id) {
+        refresh()
+        while (true) {
+            delay(5000)
+            refresh()
+        }
+    }
+
+    Column(Modifier.fillMaxSize().background(Night)) {
+        Row(
+            Modifier.fillMaxWidth().background(Panel).padding(horizontal = 8.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("‹", Modifier.clickable { onBack() }.padding(horizontal = 10.dp), color = White, fontSize = 32.sp)
+            Avatar((peer.displayName ?: peer.username ?: "D").take(1).uppercase())
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(peer.displayName ?: peer.username ?: "Пользователь", color = White, fontWeight = FontWeight.Bold, maxLines = 1)
+                Text(peer.username?.let { "@$it" } ?: "Dolby404", color = Muted, fontSize = 10.sp)
+            }
+        }
+        if (errorText.isNotBlank()) {
+            Text(errorText, Modifier.fillMaxWidth().padding(10.dp), color = Color(0xFFFF9AA8), fontSize = 11.sp)
+        }
+        LazyColumn(
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            contentPadding = PaddingValues(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            if (loading && messages.isEmpty()) {
+                item { Text("Загружаем переписку…", color = Muted) }
+            } else if (messages.isEmpty()) {
+                item { Text("Это начало вашей переписки. Отправь первое сообщение!", Modifier.fillMaxWidth().padding(20.dp), color = Muted, fontSize = 13.sp) }
+            }
+            items(messages) { msg ->
+                val mine = msg.senderId == currentUserId
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
+                    Surface(
+                        color = if (mine) Color(0xFF254D91) else PanelSoft,
+                        shape = RoundedCornerShape(17.dp),
+                        modifier = Modifier.widthIn(max = 290.dp)
+                    ) {
+                        Column(Modifier.padding(horizontal = 13.dp, vertical = 9.dp)) {
+                            Text(msg.content, color = White, fontSize = 14.sp)
+                            Text(
+                                msg.createdAt.substringAfter("T").take(5),
+                                Modifier.align(Alignment.End),
+                                color = Color(0xFFB4C7E5), fontSize = 9.sp
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        Row(
+            Modifier.fillMaxWidth().background(Panel).padding(horizontal = 8.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedTextField(
+                value = draft, onValueChange = { draft = it },
+                modifier = Modifier.weight(1f).padding(horizontal = 7.dp),
+                placeholder = { Text("Сообщение", color = Muted) },
+                shape = RoundedCornerShape(24.dp),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                keyboardActions = KeyboardActions(onSend = {
+                    val text = draft.trim()
+                    if (text.isNotEmpty() && !sending) {
+                        scope.launch {
+                            sending = true
+                            try {
+                                sendDirectMessage(currentUserId, peer.id, text)
+                                draft = ""
+                                refresh()
+                            } catch (e: Exception) {
+                                errorText = e.message ?: "Не удалось отправить сообщение."
+                            } finally { sending = false }
+                        }
+                    }
+                })
+            )
+            Surface(
+                modifier = Modifier.size(44.dp).clickable {
+                    val text = draft.trim()
+                    if (text.isNotEmpty() && !sending) {
+                        scope.launch {
+                            sending = true
+                            try {
+                                sendDirectMessage(currentUserId, peer.id, text)
+                                draft = ""
+                                refresh()
+                            } catch (e: Exception) {
+                                errorText = e.message ?: "Не удалось отправить сообщение."
+                            } finally { sending = false }
+                        }
+                    }
+                },
+                color = Blue, shape = CircleShape
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    if (sending) CircularProgressIndicator(modifier = Modifier.size(18.dp), color = White)
+                    else Text("➤", color = White, fontSize = 20.sp)
+                }
+            }
         }
     }
 }
