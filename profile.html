@@ -806,6 +806,10 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
   <label class="settings-label" for="confirm-password">Повторите новый пароль</label><input id="confirm-password" type="password" autocomplete="new-password" minlength="8" placeholder="Повторите пароль">
   <div class="settings-actions"><button type="button" class="primary" id="change-password">Изменить пароль</button></div>
   <p class="settings-help">После смены пароля используй его при следующем входе в FLOUSTREAM.</p>
+  <div class="settings-divider"></div>
+  <h3 style="margin:0;color:#ffb7c6;font-size:16px">Удаление учётной записи</h3>
+  <p class="settings-help">После подтверждения по email аккаунт будет деактивирован. В течение 30 дней можно восстановить именно прежний аккаунт. После этого личные данные и файлы будут удалены. Текст переписок останется у собеседников, имя будет заменено на «Удалённый аккаунт».</p>
+  <div class="settings-actions"><button type="button" class="primary" id="delete-account-button" style="background:#512033;border-color:#a84b68">Удалить учётную запись</button></div>
   <div class="settings-status" id="settings-status" aria-live="polite"></div>
  </section>
 </div>
@@ -1981,6 +1985,19 @@ async function start(){
   await loadLibrary();client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
   const auth=await client.auth.getUser();if(auth.error)throw auth.error;user=auth.data.user;
   if(!user){location.replace("portal.html");return;}
+  const lifecycleParams=new URLSearchParams(location.search);
+  const lifecycleAction=lifecycleParams.has("confirm_delete")?"request_delete":(lifecycleParams.has("restore")?"restore":null);
+  if(lifecycleAction){
+   const lifecycle=await client.functions.invoke("account-lifecycle",{body:{action:lifecycleAction}});
+   if(lifecycle.error)throw lifecycle.error;
+   if(lifecycleAction==="request_delete"){
+    await client.auth.signOut();
+    location.replace("portal.html?deletion_requested=1");
+    return;
+   }
+   history.replaceState({},document.title,location.pathname);
+   alert("Прежний аккаунт восстановлен. Добро пожаловать обратно в FLOUSTREAM!");
+  }
   window.initFloustreamMessageNotifications?.(client,user.id);
   window.initFloustreamFriendNotifications?.(client,user.id);
   startDolbyOnlinePresence(client,user.id);
@@ -2873,6 +2890,20 @@ $("save-preferences").addEventListener("click",()=>{
  localStorage.setItem("dolby404-language",language);localStorage.setItem("dolby404-theme",theme);applyTheme(theme);
  applyLanguage(language);
  $("settings-status").textContent=language==="en"?"Preferences saved on this device.":"Настройки сохранены на этом устройстве.";
+});
+$("delete-account-button").addEventListener("click",async()=>{
+ if(!user?.email){$("settings-status").textContent="Не удалось определить email аккаунта.";return;}
+ const confirmed=confirm("Удалить учётную запись? После подтверждения по email доступ будет отключён. В течение 30 дней ты сможешь восстановить прежний аккаунт. По истечении срока личные данные и файлы будут удалены, а текст переписок останется у собеседников.");
+ if(!confirmed)return;
+ const button=$("delete-account-button");button.disabled=true;
+ $("settings-status").textContent="Отправляем письмо для подтверждения…";
+ try{
+  const redirectTo=new URL("profile.html?confirm_delete=1",location.href).href;
+  const result=await client.auth.signInWithOtp({email:user.email,options:{shouldCreateUser:false,emailRedirectTo:redirectTo}});
+  if(result.error)throw result.error;
+  $("settings-status").textContent="Письмо отправлено. Открой ссылку из письма на этом устройстве. Только после этого аккаунт будет деактивирован на 30 дней.";
+ }catch(error){$("settings-status").textContent="Не удалось отправить письмо: "+error.message;}
+ finally{button.disabled=false;}
 });
 $("change-password").addEventListener("click",async()=>{
  const password=$("new-password").value,confirm=$("confirm-password").value;
