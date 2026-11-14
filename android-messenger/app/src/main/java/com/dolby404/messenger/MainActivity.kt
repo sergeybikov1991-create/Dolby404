@@ -34,6 +34,8 @@ import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.from
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -186,6 +188,9 @@ private suspend fun loadInboxThreads(userId: String): List<ChatThread> {
 private fun MessengerApp() {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var firstName by remember { mutableStateOf("") }
+    var lastName by remember { mutableStateOf("") }
+    var countryCode by remember { mutableStateOf("DE") }
     var busy by remember { mutableStateOf(false) }
     var signedIn by remember { mutableStateOf(false) }
     var authReady by remember { mutableStateOf(false) }
@@ -223,14 +228,27 @@ private fun MessengerApp() {
             message = "Пароль должен содержать минимум 8 символов."
             return
         }
+        if (isRegistering && (firstName.isBlank() || lastName.isBlank() || countryCode.trim().length != 2)) {
+            message = "Укажи имя, фамилию и двухбуквенный код страны (например DE или RU)."
+            return
+        }
         scope.launch {
             busy = true
             message = if (isRegistering) "Создаём аккаунт FLOUSTREAM..." else "Подключаемся к FLOUSTREAM..."
             try {
                 if (isRegistering) {
+                    val normalizedCountry = countryCode.trim().uppercase()
+                    val defaultLanguage = if (normalizedCountry in setOf("RU", "BY", "KZ", "KG")) "ru" else "en"
                     floustreamClient.auth.signUpWith(Email) {
                         this.email = email.trim()
                         this.password = password
+                        data = buildJsonObject {
+                            put("first_name", firstName.trim())
+                            put("last_name", lastName.trim())
+                            put("country_code", normalizedCountry)
+                            put("preferred_language", defaultLanguage)
+                            put("display_name", firstName.trim() + " " + lastName.trim())
+                        }
                     }
                     if (floustreamClient.auth.currentSessionOrNull() != null) {
                         signedIn = true
@@ -305,6 +323,24 @@ private fun MessengerApp() {
                         modifier = Modifier.fillMaxWidth(), label = { Text("Email") }, singleLine = true,
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
                     )
+                    Spacer(Modifier.height(12.dp))
+                    if (isRegistering) {
+                        Spacer(Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = firstName, onValueChange = { firstName = it },
+                            modifier = Modifier.fillMaxWidth(), label = { Text("Имя") }, singleLine = true
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        OutlinedTextField(
+                            value = lastName, onValueChange = { lastName = it },
+                            modifier = Modifier.fillMaxWidth(), label = { Text("Фамилия") }, singleLine = true
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        OutlinedTextField(
+                            value = countryCode, onValueChange = { countryCode = it.take(2).uppercase() },
+                            modifier = Modifier.fillMaxWidth(), label = { Text("Код страны (DE, RU, US)") }, singleLine = true
+                        )
+                    }
                     Spacer(Modifier.height(12.dp))
                     OutlinedTextField(
                         value = password, onValueChange = { password = it },
@@ -688,7 +724,7 @@ private fun SettingsScreen(onSignOut: () -> Unit, onInfo: (String) -> Unit) {
         SettingsRow("◈", "Приватность", "Кто может с тобой связаться") { onInfo("Настройки приватности подключим к общей системе FLOUSTREAM.") }
         SettingsRow("⟳", "Синхронизация с сайтом", "Чаты и медиа между сайтом и приложением") { onInfo("Чаты используют общую таблицу direct_messages Supabase. Остальные настройки синхронизации добавим по мере подключения функций.") }
         SettingsRow("⬆", "Обновления приложения", "Обязательные обновления · отключить нельзя") { onInfo("FLOUSTREAM автоматически проверяет обновления. Если выйдет новая версия, приложение попросит установить её перед продолжением работы. Отключить обязательные обновления нельзя.") }
-        SettingsRow("◐", "О приложении", "FLOUSTREAM Messenger · 0.2.2") { onInfo("FLOUSTREAM Messenger, версия 0.2.2.") }
+        SettingsRow("◐", "О приложении", "FLOUSTREAM Messenger · 0.3.0") { onInfo("FLOUSTREAM Messenger, версия 0.3.0.") }
         Spacer(Modifier.height(18.dp))
         Surface(
             modifier = Modifier.fillMaxWidth().clickable { confirmSignOut = true },
