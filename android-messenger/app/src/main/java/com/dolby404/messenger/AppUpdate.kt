@@ -189,9 +189,6 @@ fun AppUpdatePrompt() {
                     }
                 ) { Text(if (downloadedApk != null) "Обновить" else "Скачать обновление") }
             },
-            dismissButton = {
-                TextButton(onClick = { update = null }, enabled = !downloading) { Text("Позже") }
-            }
         )
     }
 }
