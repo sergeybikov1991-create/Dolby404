@@ -80,15 +80,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private data class DemoChat(
-    val name: String,
-    val preview: String,
-    val time: String,
-    val initials: String,
-    val unread: Int = 0,
-    val online: Boolean = false
-)
-
 private data class ChatMessage(val text: String, val mine: Boolean, val time: String)
 
 @Serializable
@@ -105,7 +96,14 @@ private data class DirectMessageDto(
     @SerialName("sender_id") val senderId: String,
     @SerialName("recipient_id") val recipientId: String,
     @SerialName("content") val content: String,
-    @SerialName("created_at") val createdAt: String
+    @SerialName("created_at") val createdAt: String,
+    @SerialName("read_at") val readAt: String? = null
+)
+
+private data class ChatThread(
+    val peer: ProfileDto,
+    val lastMessage: DirectMessageDto,
+    val unread: Int
 )
 
 @Serializable
@@ -145,6 +143,41 @@ private suspend fun sendDirectMessage(userId: String, peerId: String, content: S
     dolbyClient.from("direct_messages").insert(
         NewDirectMessage(senderId = userId, recipientId = peerId, content = content)
     )
+}
+
+private suspend fun loadInboxThreads(userId: String): List<ChatThread> {
+    val sent = dolbyClient.from("direct_messages").select {
+        filter { eq("sender_id", userId) }
+    }.decodeList<DirectMessageDto>()
+    val received = dolbyClient.from("direct_messages").select {
+        filter { eq("recipient_id", userId) }
+    }.decodeList<DirectMessageDto>()
+
+    val rows = (sent + received)
+        .distinctBy { it.id }
+        .sortedByDescending { it.createdAt }
+        .take(500)
+
+    val peerIds = rows.map {
+        if (it.senderId == userId) it.recipientId else it.senderId
+    }.distinct()
+
+    return peerIds.mapNotNull { peerId ->
+        val profile = dolbyClient.from("profiles").select {
+            filter { eq("id", peerId) }
+        }.decodeList<ProfileDto>().firstOrNull() ?: return@mapNotNull null
+
+        val conversation = rows.filter {
+            (it.senderId == userId && it.recipientId == peerId) ||
+                (it.senderId == peerId && it.recipientId == userId)
+        }.sortedBy { it.createdAt }
+
+        val latest = conversation.lastOrNull() ?: return@mapNotNull null
+        val unread = conversation.count {
+            it.senderId == peerId && it.recipientId == userId && it.readAt == null
+        }
+        ChatThread(profile, latest, unread)
+    }.sortedByDescending { it.lastMessage.createdAt }
 }
 
 @Composable
@@ -314,21 +347,12 @@ private fun MessengerApp() {
 @Composable
 private fun MessengerHome(onSignOut: () -> Unit) {
     var tab by remember { mutableStateOf("Чаты") }
-    var selectedChat by remember { mutableStateOf<String?>(null) }
     var selectedProfile by remember { mutableStateOf<ProfileDto?>(null) }
     val currentUserId = dolbyClient.auth.currentUserOrNull()?.id.orEmpty()
     var searchOpen by remember { mutableStateOf(false) }
     var search by remember { mutableStateOf("") }
     var showNewChat by remember { mutableStateOf(false) }
     var infoMessage by remember { mutableStateOf("") }
-
-    val chats = remember {
-        listOf(
-            DemoChat("Команда Dolby404", "Добро пожаловать в Messenger!", "12:42", "D", 2, true),
-            DemoChat("Тестовый диалог", "Здесь появятся ваши сообщения", "Вчера", "T", 0, false),
-            DemoChat("Избранное", "Личные заметки и файлы", "Пн", "★", 0, false)
-        )
-    }
 
     Surface(Modifier.fillMaxSize(), color = Night) {
         Column(Modifier.fillMaxSize()) {
@@ -337,12 +361,6 @@ private fun MessengerHome(onSignOut: () -> Unit) {
                     peer = selectedProfile!!,
                     currentUserId = currentUserId,
                     onBack = { selectedProfile = null }
-                )
-            } else if (selectedChat != null) {
-                ConversationScreen(
-                    name = selectedChat!!,
-                    onBack = { selectedChat = null },
-                    onInfo = { infoMessage = "Это демонстрационный диалог. Для настоящей переписки выбери пользователя во вкладке «Контакты»." }
                 )
             } else {
                 Row(
@@ -356,7 +374,11 @@ private fun MessengerHome(onSignOut: () -> Unit) {
                         Text("MESSENGER", fontSize = 10.sp, color = Color(0xFF9FCBFF), letterSpacing = 4.sp)
                     }
                     HeaderAction("⌕") { searchOpen = !searchOpen }
-                    HeaderAction("⋮") { infoMessage = "Меню приложения: настройки, помощь и информация." }
+                    HeaderAction("⚙") {
+                        tab = "Настройки"
+                        selectedProfile = null
+                        searchOpen = false
+                    }
                 }
 
                 if (searchOpen) {
@@ -370,11 +392,13 @@ private fun MessengerHome(onSignOut: () -> Unit) {
                 }
 
                 when (tab) {
-                    "Чаты" -> ChatsScreen(chats.filter {
-                        it.name.contains(search, true) || it.preview.contains(search, true)
-                    }, onOpen = { selectedChat = it })
+                    "Чаты" -> ChatsScreen(
+                        currentUserId = currentUserId,
+                        searchQuery = search,
+                        onOpen = { selectedProfile = it }
+                    )
                     "Звонки" -> CallsScreen(onInfo = { infoMessage = it })
-                    "Контакты" -> ContactsScreen(onStart = { selectedProfile = it; selectedChat = null; tab = "Чаты" })
+                    "Контакты" -> ContactsScreen(onStart = { selectedProfile = it; tab = "Чаты" })
                     else -> SettingsScreen(onSignOut = onSignOut, onInfo = { infoMessage = it })
                 }
 
@@ -382,7 +406,7 @@ private fun MessengerHome(onSignOut: () -> Unit) {
                     listOf("Чаты" to "▤", "Звонки" to "◉", "Контакты" to "♙", "Настройки" to "⚙").forEach { item ->
                         NavigationBarItem(
                             selected = tab == item.first,
-                            onClick = { tab = item.first; selectedChat = null; selectedProfile = null },
+                            onClick = { tab = item.first; selectedProfile = null },
                             icon = { Text(item.second, fontSize = 20.sp) },
                             label = { Text(item.first, fontSize = 10.sp) },
                             colors = NavigationBarItemDefaults.colors(
@@ -445,35 +469,91 @@ private fun HeaderAction(symbol: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ChatsScreen(chats: List<DemoChat>, onOpen: (String) -> Unit) {
+private fun ChatsScreen(
+    currentUserId: String,
+    searchQuery: String,
+    onOpen: (ProfileDto) -> Unit
+) {
+    val threads = remember(currentUserId) { mutableStateListOf<ChatThread>() }
+    var loading by remember(currentUserId) { mutableStateOf(true) }
+    var error by remember(currentUserId) { mutableStateOf("") }
+
+    LaunchedEffect(currentUserId) {
+        while (true) {
+            try {
+                val latest = loadInboxThreads(currentUserId)
+                threads.clear()
+                threads.addAll(latest)
+                error = ""
+            } catch (e: Exception) {
+                error = e.message ?: "Не удалось загрузить список чатов."
+            } finally {
+                loading = false
+            }
+            delay(5000)
+        }
+    }
+
+    val filtered = threads.filter { thread ->
+        val name = thread.peer.displayName ?: thread.peer.username ?: ""
+        val preview = thread.lastMessage.content
+        name.contains(searchQuery, true) || preview.contains(searchQuery, true)
+    }
+
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Column(Modifier.weight(1f)) {
                 Text("Твои переписки", color = White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                Text("Общайся без границ", color = Muted, fontSize = 12.sp)
+                Text("Настоящие сообщения Dolby404", color = Muted, fontSize = 12.sp)
             }
             Surface(color = PanelSoft, shape = RoundedCornerShape(20.dp)) {
-                Text("● онлайн", Modifier.padding(horizontal = 12.dp, vertical = 7.dp), color = Color(0xFF69DDA8), fontSize = 11.sp)
+                Text("● синхронизация", Modifier.padding(horizontal = 12.dp, vertical = 7.dp), color = Color(0xFF69DDA8), fontSize = 10.sp)
             }
         }
+        if (error.isNotBlank()) {
+            Text(error, Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 6.dp), color = Color(0xFFFF9AA8), fontSize = 11.sp)
+        }
         LazyColumn(contentPadding = PaddingValues(bottom = 110.dp)) {
-            items(chats) { chat ->
+            if (loading && threads.isEmpty()) {
+                item {
+                    Row(Modifier.fillMaxWidth().padding(24.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(color = Blue, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Text("Загружаем чаты…", color = Muted, fontSize = 13.sp)
+                    }
+                }
+            } else if (filtered.isEmpty()) {
+                item {
+                    EmptyPanel(
+                        "✉",
+                        if (searchQuery.isBlank()) "Пока нет переписок" else "Ничего не найдено",
+                        if (searchQuery.isBlank()) "Найди человека во вкладке «Контакты» и отправь ему первое сообщение. Диалог появится здесь." else "Попробуй изменить поисковый запрос."
+                    )
+                }
+            }
+            items(filtered, key = { it.peer.id }) { thread ->
+                val peer = thread.peer
+                val title = peer.displayName ?: peer.username ?: "Пользователь"
+                val preview = (if (thread.lastMessage.senderId == currentUserId) "Вы: " else "") + thread.lastMessage.content
                 Row(
-                    Modifier.fillMaxWidth().clickable { onOpen(chat.name) }.padding(horizontal = 16.dp, vertical = 10.dp),
+                    Modifier.fillMaxWidth().clickable { onOpen(peer) }.padding(horizontal = 16.dp, vertical = 11.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Avatar(chat.initials, chat.online)
+                    Avatar((title.firstOrNull()?.toString() ?: "D").uppercase())
                     Spacer(Modifier.width(13.dp))
                     Column(Modifier.weight(1f)) {
-                        Text(chat.name, color = White, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-                        Text(chat.preview, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(title, color = White, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(preview, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     Column(horizontalAlignment = Alignment.End) {
-                        Text(chat.time, color = Muted, fontSize = 10.sp)
-                        if (chat.unread > 0) {
+                        Text(thread.lastMessage.createdAt.substringAfter("T").take(5), color = Muted, fontSize = 10.sp)
+                        if (thread.unread > 0) {
                             Spacer(Modifier.height(5.dp))
                             Surface(color = Blue, shape = CircleShape) {
-                                Text(chat.unread.toString(), Modifier.padding(horizontal = 7.dp, vertical = 2.dp), color = White, fontSize = 10.sp)
+                                Text(thread.unread.toString(), Modifier.padding(horizontal = 7.dp, vertical = 2.dp), color = White, fontSize = 10.sp)
                             }
                         }
                     }
@@ -584,6 +664,8 @@ private fun ContactsScreen(onStart: (ProfileDto) -> Unit) {
 
 @Composable
 private fun SettingsScreen(onSignOut: () -> Unit, onInfo: (String) -> Unit) {
+    var confirmSignOut by remember { mutableStateOf(false) }
+
     Column(Modifier.fillMaxSize().padding(20.dp)) {
         Text("Настройки", color = White, fontSize = 23.sp, fontWeight = FontWeight.Bold)
         Text("Твой аккаунт и приложение", color = Muted, fontSize = 12.sp)
@@ -602,12 +684,44 @@ private fun SettingsScreen(onSignOut: () -> Unit, onInfo: (String) -> Unit) {
         SettingsRow("☷", "Профиль", "Имя, фото и статус") { onInfo("Настройки профиля подключим к твоему аккаунту Dolby404.") }
         SettingsRow("🔔", "Уведомления", "Звуки и оповещения") { onInfo("Здесь будут настройки уведомлений и звуков.") }
         SettingsRow("◈", "Приватность", "Кто может с тобой связаться") { onInfo("Настройки приватности подключим к общей системе Dolby404.") }
-        SettingsRow("⟳", "Синхронизация с сайтом", "Чаты и медиа между сайтом и приложением") { onInfo("Переключатель синхронизации появится после настройки общей модели чатов на сервере. Сейчас ничего не синхронизируется.") }
-        SettingsRow("◐", "О приложении", "Dolby404 Messenger · 0.2.0") { onInfo("Dolby404 Messenger, версия 0.2.0.") }
-        Spacer(Modifier.height(16.dp))
-        OutlinedButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
-            Text("Выйти из аккаунта", color = Color(0xFFFF8B9A))
+        SettingsRow("⟳", "Синхронизация с сайтом", "Чаты и медиа между сайтом и приложением") { onInfo("Чаты используют общую таблицу direct_messages Supabase. Остальные настройки синхронизации добавим по мере подключения функций.") }
+        SettingsRow("◐", "О приложении", "Dolby404 Messenger · 0.2.1") { onInfo("Dolby404 Messenger, версия 0.2.1.") }
+        Spacer(Modifier.height(18.dp))
+        Surface(
+            modifier = Modifier.fillMaxWidth().clickable { confirmSignOut = true },
+            color = Color(0xFF2A1724),
+            shape = RoundedCornerShape(18.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF6B3047))
+        ) {
+            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Surface(color = Color(0xFF51263A), shape = RoundedCornerShape(12.dp), modifier = Modifier.size(44.dp)) {
+                    Box(contentAlignment = Alignment.Center) { Text("↪", color = Color(0xFFFF9AAA), fontSize = 23.sp) }
+                }
+                Spacer(Modifier.width(13.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Выйти из аккаунта", color = Color(0xFFFF9AAA), fontWeight = FontWeight.Bold)
+                    Text("Завершить текущий сеанс на этом устройстве", color = Muted, fontSize = 10.sp)
+                }
+                Text("›", color = Color(0xFFFF9AAA), fontSize = 25.sp)
+            }
         }
+    }
+
+    if (confirmSignOut) {
+        AlertDialog(
+            onDismissRequest = { confirmSignOut = false },
+            containerColor = Panel,
+            title = { Text("Выйти из Dolby404?", color = White) },
+            text = { Text("Сессия на этом устройстве завершится. При следующем входе используй тот же аккаунт сайта Dolby404.", color = Muted) },
+            confirmButton = {
+                TextButton(onClick = { confirmSignOut = false; onSignOut() }) {
+                    Text("Выйти", color = Color(0xFFFF9AAA))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmSignOut = false }) { Text("Отмена", color = White) }
+            }
+        )
     }
 }
 
