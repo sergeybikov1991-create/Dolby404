@@ -6,7 +6,7 @@ on:
       release_tag:
         description: "Release version tag"
         required: true
-        default: "v0.3.1"
+        default: "v0.3.2"
   push:
     branches:
       - "release/floustream-0.3.1"
