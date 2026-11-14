@@ -1,4 +1,4 @@
-name: Build and publish Dolby404 Messenger
+name: Build and publish FLOUSTREAM Messenger
 
 on:
   workflow_dispatch:
@@ -71,20 +71,20 @@ jobs:
           APK="android-messenger/app/build/outputs/apk/release/app-release.apk"
           test -s "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
-          cp "$APK" Dolby404-Messenger.apk
-          sha256sum Dolby404-Messenger.apk > Dolby404-Messenger.apk.sha256
+          cp "$APK" FLOUSTREAM-Messenger.apk
+          sha256sum FLOUSTREAM-Messenger.apk > FLOUSTREAM-Messenger.apk.sha256
 
       - name: Package APK
-        run: zip -j Dolby404-Messenger.zip Dolby404-Messenger.apk Dolby404-Messenger.apk.sha256
+        run: zip -j FLOUSTREAM-Messenger.zip FLOUSTREAM-Messenger.apk FLOUSTREAM-Messenger.apk.sha256
 
       - name: Upload install package
         uses: actions/upload-artifact@v4
         with:
-          name: Dolby404-Messenger-release
+          name: FLOUSTREAM-Messenger-release
           path: |
-            Dolby404-Messenger.apk
-            Dolby404-Messenger.zip
-            Dolby404-Messenger.apk.sha256
+            FLOUSTREAM-Messenger.apk
+            FLOUSTREAM-Messenger.zip
+            FLOUSTREAM-Messenger.apk.sha256
           if-no-files-found: error
           retention-days: 30
 
@@ -94,11 +94,11 @@ jobs:
         with:
           tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
           target_commitish: ${{ github.sha }}
-          name: Dolby404 Messenger ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+          name: FLOUSTREAM Messenger ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
           files: |
-            Dolby404-Messenger.apk
-            Dolby404-Messenger.zip
-            Dolby404-Messenger.apk.sha256
+            FLOUSTREAM-Messenger.apk
+            FLOUSTREAM-Messenger.zip
+            FLOUSTREAM-Messenger.apk.sha256
           generate_release_notes: true
           make_latest: true
 
