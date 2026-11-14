@@ -186,16 +186,22 @@ private suspend fun loadDirectMessages(userId: String, peerId: String): List<Dir
     return (sent + received).sortedBy { it.createdAt }.takeLast(200)
 }
 
-private suspend fun markIncomingMessagesRead(userId: String, peerId: String) {
-    floustreamClient.from("direct_messages").update({
-        set("read_at", java.time.Instant.now().toString())
-    }) {
-        filter {
-            eq("sender_id", peerId)
-            eq("recipient_id", userId)
-            exact("read_at", null)
-        }
-    }
+private suspend fun markIncomingMessagesRead(userId: String, peerId: String) = withContext(Dispatchers.IO) {
+    val token = floustreamClient.auth.currentSessionOrNull()?.accessToken ?: return@withContext
+    val connection = URL("${BuildConfig.SUPABASE_URL}/rest/v1/direct_messages?sender_id=eq.$peerId&recipient_id=eq.$userId&read_at=is.null").openConnection() as HttpURLConnection
+    try {
+        connection.requestMethod = "PATCH"
+        connection.connectTimeout = 10000
+        connection.readTimeout = 10000
+        connection.doOutput = true
+        connection.setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+        connection.setRequestProperty("Authorization", "Bearer $token")
+        connection.setRequestProperty("Content-Type", "application/json")
+        connection.setRequestProperty("Prefer", "return=minimal")
+        val body = JSONObject().put("read_at", java.time.Instant.now().toString()).toString()
+        connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+        if (connection.responseCode !in 200..299) throw IllegalStateException("Не удалось отметить сообщения прочитанными.")
+    } finally { connection.disconnect() }
 }
 
 private suspend fun loadCurrentProfile(userId: String): ProfileDto? = floustreamClient.from("profiles").select {
