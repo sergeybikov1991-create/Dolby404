@@ -1,4 +1,4 @@
-# Dolby404 Messenger updates
+# FLOUSTREAM Messenger updates
 
 - Android package ID: `com.dolby404.messenger`.
 - The app checks the latest public GitHub Release when it opens.
@@ -7,7 +7,7 @@
 - Keep the same private signing keystore for every future release. Losing it prevents updates over the installed app.
 - Increase `versionCode` and `versionName` before each subsequent release.
 - Start the signed release workflow from GitHub Actions or push a version tag such as `v0.2.0`.
-- The workflow validates the keystore, builds and verifies the signed APK, and publishes `Dolby404-Messenger.apk` plus a ZIP.
+- The workflow validates the keystore, builds and verifies the signed APK, and publishes `FLOUSTREAM-Messenger.apk` plus a ZIP.
 
 Required GitHub Actions secrets:
 - `DOLBY404_KEYSTORE_BASE64`
