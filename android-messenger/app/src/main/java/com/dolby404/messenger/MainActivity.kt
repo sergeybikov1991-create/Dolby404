@@ -545,7 +545,7 @@ private fun SettingsScreen(onSignOut: () -> Unit, onInfo: (String) -> Unit) {
         SettingsRow("🔔", "Уведомления", "Звуки и оповещения") { onInfo("Здесь будут настройки уведомлений и звуков.") }
         SettingsRow("◈", "Приватность", "Кто может с тобой связаться") { onInfo("Настройки приватности подключим к общей системе Dolby404.") }
         SettingsRow("⟳", "Синхронизация с сайтом", "Чаты и медиа между сайтом и приложением") { onInfo("Переключатель синхронизации появится после настройки общей модели чатов на сервере. Сейчас ничего не синхронизируется.") }
-        SettingsRow("◐", "О приложении", "Dolby404 Messenger · 0.1.0") { onInfo("Первая тестовая версия Dolby404 Messenger.") }
+        SettingsRow("◐", "О приложении", "Dolby404 Messenger · 0.2.0") { onInfo("Dolby404 Messenger, версия 0.2.0.") }
         Spacer(Modifier.height(16.dp))
         OutlinedButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
             Text("Выйти из аккаунта", color = Color(0xFFFF8B9A))
