@@ -20,6 +20,25 @@ android {
         buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"sb_publishable_tzG1qVsbjaW8YE_LBVN87Q_v0CahKN5\"")
     }
 
+    signingConfigs {
+        create("release") {
+            val storePath = System.getenv("DOLBY404_KEYSTORE_PATH")
+            if (!storePath.isNullOrBlank()) {
+                storeFile = file(storePath)
+                storePassword = System.getenv("DOLBY404_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("DOLBY404_KEY_ALIAS")
+                keyPassword = System.getenv("DOLBY404_KEY_PASSWORD")
+            }
+        }
+    }
+
+    buildTypes {
+        getByName("release") {
+            isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
+        }
+    }
+
     buildFeatures {
         compose = true
         buildConfig = true
