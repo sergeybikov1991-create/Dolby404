@@ -87,7 +87,8 @@ private data class ProfileDto(
     @SerialName("id") val id: String,
     @SerialName("username") val username: String? = null,
     @SerialName("display_name") val displayName: String? = null,
-    @SerialName("avatar_url") val avatarUrl: String? = null
+    @SerialName("avatar_url") val avatarUrl: String? = null,
+    @kotlinx.serialization.Transient val isDeleted: Boolean = false
 )
 
 @Serializable
@@ -119,7 +120,7 @@ private suspend fun findFloustreamUsers(query: String): List<ProfileDto> {
     return floustreamClient.from("profiles").select {
         filter { ilike("username", "%$term%") }
     }.decodeList<ProfileDto>().filter {
-        it.id != floustreamClient.auth.currentUserOrNull()?.id
+        it.id != floustreamClient.auth.currentUserOrNull()?.id && !it.isDeleted
     }.take(30)
 }
 
@@ -165,7 +166,8 @@ private suspend fun loadInboxThreads(userId: String): List<ChatThread> {
     return peerIds.mapNotNull { peerId ->
         val profile = floustreamClient.from("profiles").select {
             filter { eq("id", peerId) }
-        }.decodeList<ProfileDto>().firstOrNull() ?: return@mapNotNull null
+        }.decodeList<ProfileDto>().firstOrNull()
+            ?: ProfileDto(id = peerId, displayName = "Удалённый аккаунт", isDeleted = true)
 
         val conversation = rows.filter {
             (it.senderId == userId && it.recipientId == peerId) ||
@@ -806,8 +808,11 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
                 Text(peer.displayName ?: peer.username ?: "Пользователь", color = White, fontWeight = FontWeight.Bold, maxLines = 1)
-                Text(peer.username?.let { "@$it" } ?: "FLOUSTREAM", color = Muted, fontSize = 10.sp)
+                Text(if (peer.isDeleted) "История переписки сохранена" else peer.username?.let { "@$it" } ?: "FLOUSTREAM", color = Muted, fontSize = 10.sp)
             }
+        }
+        if (peer.isDeleted) {
+            Text("Этот аккаунт удалён. История сообщений сохранена, отправка новых сообщений недоступна.", Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp), color = Muted, fontSize = 12.sp)
         }
         if (errorText.isNotBlank()) {
             Text(errorText, Modifier.fillMaxWidth().padding(10.dp), color = Color(0xFFFF9AA8), fontSize = 11.sp)
@@ -842,7 +847,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 }
             }
         }
-        Row(
+        if (!peer.isDeleted) Row(
             Modifier.fillMaxWidth().background(Panel).padding(horizontal = 8.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
