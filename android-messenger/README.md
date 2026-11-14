@@ -1,11 +1,11 @@
-# Dolby404 Messenger — Android
+# FLOUSTREAM Messenger — Android
 
-Native Android client for the existing Dolby404 Supabase project.
+Native Android client for the existing FLOUSTREAM Supabase project.
 
 ## Current development stage
 
 - Native Kotlin + Jetpack Compose application shell.
-- Sign-in with the same email and password used on the Dolby404 website.
+- Sign-in with the same email and password used on the FLOUSTREAM website.
 - Uses the existing Supabase project and its publishable key.
 - Debug APK is built by GitHub Actions; no Google Play publication is required.
 
@@ -14,9 +14,9 @@ The chat UI, message synchronization, chat media library, website media picker, 
 ## Build and install a test APK
 
 1. Open the repository's **Actions** tab.
-2. Select **Build Dolby404 Messenger APK**.
+2. Select **Build FLOUSTREAM Messenger APK**.
 3. Open the latest successful run.
-4. In **Artifacts**, download **Dolby404-Messenger-debug**.
+4. In **Artifacts**, download **FLOUSTREAM-Messenger-debug**.
 5. Extract the ZIP and open `app-debug.apk` on the Android phone.
 6. If Android asks, allow installation from the browser or file manager used to open the APK.
 
