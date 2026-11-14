@@ -42,6 +42,7 @@ import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.storage.Storage
+import io.ktor.http.ContentType
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.buildJsonObject
@@ -1069,7 +1070,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 if (bytes.size > 50 * 1024 * 1024) error("Размер файла превышает 50 МБ.")
                 val safeName = name.substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"), "_").take(100).ifBlank { "attachment" }
                 val path = "$currentUserId/${UUID.randomUUID()}_$safeName"
-                withContext(Dispatchers.IO) { floustreamClient.storage.from("message-media").upload(path, bytes) }
+                withContext(Dispatchers.IO) { floustreamClient.storage.from("message-media").upload(path, bytes) { contentType = ContentType.parse(mime) } }
                 sendDirectAttachment(currentUserId, peer.id, path, name, mime)
                 refresh()
             } catch (e: Exception) {
