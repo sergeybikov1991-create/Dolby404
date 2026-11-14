@@ -55,7 +55,7 @@ private suspend fun fetchUpdatePolicy(): UpdatePolicy = withContext(Dispatchers.
     try {
         connection.connectTimeout = 8000
         connection.readTimeout = 8000
-        connection.setRequestProperty("User-Agent", "Dolby404-Messenger")
+        connection.setRequestProperty("User-Agent", "FLOUSTREAM-Messenger")
         if (connection.responseCode != 200) error("Update policy unavailable")
         val json = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
         val type = json.optString("update_type", "normal").lowercase()
@@ -95,7 +95,7 @@ private suspend fun findAvailableUpdate(context: android.content.Context): Avail
         connection.connectTimeout = 8000
         connection.readTimeout = 8000
         connection.setRequestProperty("Accept", "application/vnd.github+json")
-        connection.setRequestProperty("User-Agent", "Dolby404-Messenger")
+        connection.setRequestProperty("User-Agent", "FLOUSTREAM-Messenger")
         if (connection.responseCode != 200) return@withContext null
         val json = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
         val tag = json.optString("tag_name").removePrefix("v")
@@ -104,7 +104,7 @@ private suspend fun findAvailableUpdate(context: android.content.Context): Avail
         var apkUrl: String? = null
         for (i in 0 until assets.length()) {
             val asset = assets.getJSONObject(i)
-            if (asset.optString("name") == "Dolby404-Messenger.apk") {
+            if (asset.optString("name") == "FLOUSTREAM-Messenger.apk") {
                 apkUrl = asset.optString("browser_download_url")
                 break
             }
@@ -114,7 +114,7 @@ private suspend fun findAvailableUpdate(context: android.content.Context): Avail
         if (parsedApkUrl.protocol != "https" ||
             parsedApkUrl.host != "github.com" ||
             !parsedApkUrl.path.startsWith("/sergeybikov1991-create/Dolby404/releases/download/") ||
-            !parsedApkUrl.path.endsWith("/Dolby404-Messenger.apk")
+            !parsedApkUrl.path.endsWith("/FLOUSTREAM-Messenger.apk")
         ) return@withContext null
 
         // If the policy cannot be reached, fail open: never lock a user out offline.
@@ -146,12 +146,12 @@ private suspend fun downloadUpdate(
     try {
         connection.connectTimeout = 15000
         connection.readTimeout = 30000
-        connection.setRequestProperty("User-Agent", "Dolby404-Messenger")
+        connection.setRequestProperty("User-Agent", "FLOUSTREAM-Messenger")
         connection.connect()
         if (connection.responseCode !in 200..299) error("Не удалось скачать APK")
         val total = connection.contentLengthLong
         val directory = File(contextCache, "updates").apply { mkdirs() }
-        val apk = File(directory, "Dolby404-Messenger.apk")
+        val apk = File(directory, "FLOUSTREAM-Messenger.apk")
         connection.inputStream.use { input ->
             FileOutputStream(apk).use { output ->
                 val buffer = ByteArray(8192)
@@ -199,7 +199,7 @@ fun AppUpdatePrompt() {
     if (available != null) {
         AlertDialog(
             onDismissRequest = { /* The postpone button is the only permitted deferral. */ },
-            title = { Text("Доступно обновление Dolby404") },
+            title = { Text("Доступно обновление FLOUSTREAM") },
             text = {
                 Column {
                     Text("Новая версия: ${available.versionName}")
@@ -231,7 +231,7 @@ fun AppUpdatePrompt() {
                                         Uri.parse("package:${context.packageName}")
                                     )
                                     context.startActivity(settingsIntent)
-                                    error = "Разреши установку приложений для Dolby404, вернись сюда и нажми «Обновить» ещё раз."
+                                    error = "Разреши установку приложений для FLOUSTREAM, вернись сюда и нажми «Обновить» ещё раз."
                                 } else {
                                     val uri: Uri = FileProvider.getUriForFile(
                                         context,
