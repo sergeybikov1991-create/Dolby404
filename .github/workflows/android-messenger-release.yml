@@ -56,7 +56,7 @@ jobs:
       - name: Build signed release APK
         working-directory: android-messenger
         env:
-          DOLBY404_KEYSTORE_PATH: keystore/release.jks
+          DOLBY404_KEYSTORE_PATH: ../keystore/release.jks
           DOLBY404_KEYSTORE_PASSWORD: ${{ secrets.DOLBY404_KEYSTORE_PASSWORD }}
           DOLBY404_KEY_ALIAS: ${{ secrets.DOLBY404_KEY_ALIAS }}
           DOLBY404_KEY_PASSWORD: ${{ secrets.DOLBY404_KEY_PASSWORD }}
