@@ -1040,6 +1040,19 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     var sending by remember { mutableStateOf(false) }
     var errorText by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
+
+    suspend fun refresh() {
+        try {
+            markIncomingMessagesRead(currentUserId, peer.id)
+            val latest = loadDirectMessages(currentUserId, peer.id)
+            messages.clear()
+            messages.addAll(latest)
+            errorText = ""
+        } catch (e: Exception) {
+            errorText = e.message ?: "Не удалось загрузить переписку."
+        } finally { loading = false }
+    }
+
     var uploadingAttachment by remember { mutableStateOf(false) }
     val attachmentPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null && !uploadingAttachment) scope.launch {
@@ -1063,18 +1076,6 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 errorText = e.message ?: "Не удалось отправить файл."
             } finally { uploadingAttachment = false }
         }
-    }
-
-    suspend fun refresh() {
-        try {
-            markIncomingMessagesRead(currentUserId, peer.id)
-            val latest = loadDirectMessages(currentUserId, peer.id)
-            messages.clear()
-            messages.addAll(latest)
-            errorText = ""
-        } catch (e: Exception) {
-            errorText = e.message ?: "Не удалось загрузить переписку."
-        } finally { loading = false }
     }
 
     LaunchedEffect(peer.id) {
