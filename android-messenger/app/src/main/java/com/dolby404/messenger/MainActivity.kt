@@ -33,6 +33,14 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.media3.common.MediaItem
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.auth
@@ -1042,6 +1050,77 @@ private fun ActionTile(icon: String, label: String, modifier: Modifier = Modifie
 }
 
 @Composable
+private fun MessageAttachment(message: DirectMessageDto) {
+    val context = LocalContext.current
+    val path = message.attachmentPath ?: return
+    val mime = message.attachmentMime.orEmpty().lowercase()
+    var signedUrl by remember(path) { mutableStateOf<String?>(null) }
+    var loadError by remember(path) { mutableStateOf(false) }
+
+    LaunchedEffect(path) {
+        try {
+            signedUrl = floustreamClient.storage.from("message-media").createSignedUrl(path, 30.minutes)
+        } catch (_: Exception) {
+            loadError = true
+        }
+    }
+
+    val url = signedUrl
+    when {
+        url == null && !loadError -> CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Blue)
+        loadError -> Text("Не удалось загрузить вложение", color = Muted, fontSize = 12.sp)
+        mime.startsWith("image/") -> AsyncImage(
+            model = url,
+            contentDescription = message.attachmentName ?: "Изображение",
+            modifier = Modifier.fillMaxWidth().heightIn(max = 240.dp).clip(RoundedCornerShape(12.dp)),
+            contentScale = ContentScale.Crop
+        )
+        mime.startsWith("video/") || mime.startsWith("audio/") -> {
+            val player = remember(url) {
+                ExoPlayer.Builder(context).build().apply {
+                    setMediaItem(MediaItem.fromUri(url!!))
+                    prepare()
+                }
+            }
+            DisposableEffect(player) {
+                onDispose { player.release() }
+            }
+            AndroidView(
+                factory = { viewContext ->
+                    PlayerView(viewContext).apply {
+                        this.player = player
+                        useController = true
+                    }
+                },
+                update = { it.player = player },
+                modifier = Modifier.fillMaxWidth().height(if (mime.startsWith("video/")) 190.dp else 76.dp)
+            )
+        }
+        else -> Row(
+            Modifier.fillMaxWidth().clickable {
+                try {
+                    val intent = Intent(Intent.ACTION_VIEW).setDataAndType(
+                        android.net.Uri.parse(url),
+                        mime.ifBlank { "*/*" }
+                    ).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    context.startActivity(Intent.createChooser(intent, "Открыть файл"))
+                } catch (_: Exception) {
+                    Toast.makeText(context, "Не найдено приложение для этого файла", Toast.LENGTH_SHORT).show()
+                }
+            }.padding(vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("📄", fontSize = 25.sp)
+            Spacer(Modifier.width(9.dp))
+            Column(Modifier.weight(1f)) {
+                Text(message.attachmentName ?: "Файл", color = White, fontSize = 13.sp, maxLines = 2)
+                Text("Нажми, чтобы открыть", color = Muted, fontSize = 10.sp)
+            }
+        }
+    }
+}
+
+@Composable
 private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBack: () -> Unit) {
     val context = LocalContext.current
     val messages = remember(peer.id) { mutableStateListOf<DirectMessageDto>() }
@@ -1050,16 +1129,33 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     var sending by remember { mutableStateOf(false) }
     var errorText by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var isResumed by remember { mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) }
 
-    suspend fun refresh() {
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> {
+                    errorText = ""
+                    isResumed = true
+                }
+                Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP -> isResumed = false
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    suspend fun refresh(silent: Boolean = false) {
         try {
-            markIncomingMessagesRead(currentUserId, peer.id)
+            try { markIncomingMessagesRead(currentUserId, peer.id) } catch (_: Exception) { }
             val latest = loadDirectMessages(currentUserId, peer.id)
             messages.clear()
             messages.addAll(latest)
-            errorText = ""
+            if (!silent) errorText = ""
         } catch (e: Exception) {
-            errorText = e.message ?: "Не удалось загрузить переписку."
+            if (!silent) errorText = e.message ?: "Не удалось загрузить переписку."
         } finally { loading = false }
     }
 
@@ -1088,11 +1184,13 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
         }
     }
 
-    LaunchedEffect(peer.id) {
-        refresh()
-        while (true) {
-            delay(5000)
+    LaunchedEffect(peer.id, isResumed) {
+        if (isResumed) {
             refresh()
+            while (isResumed) {
+                delay(5000)
+                if (isResumed) refresh(silent = true)
+            }
         }
     }
 
@@ -1135,14 +1233,10 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                     ) {
                         Column(Modifier.padding(horizontal = 13.dp, vertical = 9.dp)) {
                             if (!msg.attachmentPath.isNullOrBlank()) {
-                                Text("📎 ${msg.attachmentName ?: "Файл"}", Modifier.clickable {
-                                    scope.launch {
-                                        try {
-                                            val signedUrl = floustreamClient.storage.from("message-media").createSignedUrl(msg.attachmentPath, 30.minutes)
-                                            context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(signedUrl)))
-                                        } catch (e: Exception) { errorText = e.message ?: "Не удалось открыть файл." }
-                                    }
-                                }, color = Color(0xFFBBD7FF), fontSize = 14.sp)
+                                MessageAttachment(msg)
+                                if (!msg.content.isNullOrBlank() && msg.content != msg.attachmentName) {
+                                    Text(msg.content, color = White, fontSize = 13.sp)
+                                }
                             } else Text(msg.content, color = White, fontSize = 14.sp)
                             Text(
                                 msg.createdAt.substringAfter("T").take(5),
