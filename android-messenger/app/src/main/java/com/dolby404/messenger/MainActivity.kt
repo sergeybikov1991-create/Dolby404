@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.sp
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.auth.status.SessionStatus
 import io.github.jan.supabase.auth.handleDeeplinks
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.postgrest.Postgrest
@@ -152,8 +153,71 @@ private fun MessengerApp() {
     var password by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var signedIn by remember { mutableStateOf(false) }
+    var authReady by remember { mutableStateOf(false) }
+    var isRegistering by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("Войди с тем же аккаунтом, что используешь на сайте Dolby404.") }
     val scope = rememberCoroutineScope()
+
+    // Restore the saved Supabase session before deciding which screen to show.
+    // Closing the app or removing it from Recents must not sign the user out.
+    LaunchedEffect(Unit) {
+        dolbyClient.auth.sessionStatus.collect { status ->
+            when (status) {
+                is SessionStatus.Authenticated -> {
+                    signedIn = true
+                    authReady = true
+                }
+                is SessionStatus.NotAuthenticated -> {
+                    signedIn = false
+                    authReady = true
+                }
+                SessionStatus.Initializing -> {
+                    authReady = false
+                }
+                is SessionStatus.RefreshFailure -> {
+                    authReady = true
+                    signedIn = dolbyClient.auth.currentSessionOrNull() != null
+                }
+            }
+        }
+    }
+
+    fun submitAuth() {
+        if (busy || email.isBlank() || password.isBlank()) return
+        if (isRegistering && password.length < 8) {
+            message = "Пароль должен содержать минимум 8 символов."
+            return
+        }
+        scope.launch {
+            busy = true
+            message = if (isRegistering) "Создаём аккаунт Dolby404..." else "Подключаемся к Dolby404..."
+            try {
+                if (isRegistering) {
+                    dolbyClient.auth.signUpWith(Email) {
+                        this.email = email.trim()
+                        this.password = password
+                    }
+                    if (dolbyClient.auth.currentSessionOrNull() != null) {
+                        signedIn = true
+                        message = "Регистрация успешна!"
+                    } else {
+                        message = "Аккаунт создан! Проверь почту и подтверди email. После подтверждения войди здесь с теми же данными, что и на сайте."
+                    }
+                } else {
+                    dolbyClient.auth.signInWith(Email) {
+                        this.email = email.trim()
+                        this.password = password
+                    }
+                    signedIn = true
+                    message = "Авторизация успешна."
+                }
+            } catch (e: Exception) {
+                message = e.message ?: if (isRegistering) "Не удалось зарегистрироваться." else "Не удалось войти. Проверь данные."
+            } finally {
+                busy = false
+            }
+        }
+    }
 
     Box(
         Modifier.fillMaxSize().background(
@@ -161,7 +225,13 @@ private fun MessengerApp() {
         ),
         contentAlignment = Alignment.Center
     ) {
-        if (signedIn) {
+        if (!authReady) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                CircularProgressIndicator(color = Blue)
+                Spacer(Modifier.height(14.dp))
+                Text("Восстанавливаем сессию Dolby404…", color = White, fontSize = 14.sp)
+            }
+        } else if (signedIn) {
             MessengerHome(
                 onSignOut = {
                     scope.launch {
@@ -189,7 +259,12 @@ private fun MessengerApp() {
                 ) {
                     Text("DOLBY404", fontSize = 30.sp, fontWeight = FontWeight.Black, color = White)
                     Text("MESSENGER", fontSize = 13.sp, letterSpacing = 5.sp, color = Color(0xFF9FCBFF))
-                    Spacer(Modifier.height(30.dp))
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        if (isRegistering) "СОЗДАТЬ АККАУНТ" else "ЕДИНЫЙ АККАУНТ С САЙТОМ",
+                        fontSize = 12.sp, letterSpacing = 1.5.sp, color = Color(0xFF9FCBFF)
+                    )
+                    Spacer(Modifier.height(22.dp))
                     OutlinedTextField(
                         value = email, onValueChange = { email = it },
                         modifier = Modifier.fillMaxWidth(), label = { Text("Email") }, singleLine = true,
@@ -198,54 +273,37 @@ private fun MessengerApp() {
                     Spacer(Modifier.height(12.dp))
                     OutlinedTextField(
                         value = password, onValueChange = { password = it },
-                        modifier = Modifier.fillMaxWidth(), label = { Text("Пароль") }, singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text(if (isRegistering) "Пароль (минимум 8 символов)" else "Пароль") },
+                        singleLine = true,
                         visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                        keyboardActions = KeyboardActions(onDone = {
-                            if (!busy && email.isNotBlank() && password.isNotBlank()) {
-                                scope.launch {
-                                    busy = true
-                                    try {
-                                        dolbyClient.auth.signInWith(Email) {
-                                            this.email = email.trim()
-                                            this.password = password
-                                        }
-                                        signedIn = true
-                                        message = "Авторизация успешна."
-                                    } catch (e: Exception) {
-                                        message = e.message ?: "Не удалось войти. Проверь данные."
-                                    } finally { busy = false }
-                                }
-                            }
-                        })
+                        keyboardActions = KeyboardActions(onDone = { submitAuth() })
                     )
                     Spacer(Modifier.height(20.dp))
                     Button(
-                        onClick = {
-                            scope.launch {
-                                busy = true
-                                message = "Подключаемся к Dolby404..."
-                                try {
-                                    dolbyClient.auth.signInWith(Email) {
-                                        this.email = email.trim()
-                                        this.password = password
-                                    }
-                                    signedIn = true
-                                    message = "Авторизация успешна."
-                                } catch (e: Exception) {
-                                    message = e.message ?: "Не удалось войти. Проверь данные."
-                                } finally { busy = false }
-                            }
-                        },
+                        onClick = { submitAuth() },
                         modifier = Modifier.fillMaxWidth().height(52.dp),
                         enabled = !busy && email.isNotBlank() && password.isNotBlank(),
                         colors = ButtonDefaults.buttonColors(containerColor = Blue),
                         shape = RoundedCornerShape(16.dp)
                     ) {
                         if (busy) CircularProgressIndicator(color = White, modifier = Modifier.size(22.dp))
-                        else Text("ВОЙТИ В АККАУНТ", fontWeight = FontWeight.Bold)
+                        else Text(if (isRegistering) "ЗАРЕГИСТРИРОВАТЬСЯ" else "ВОЙТИ В АККАУНТ", fontWeight = FontWeight.Bold)
                     }
-                    Spacer(Modifier.height(16.dp))
+                    TextButton(
+                        onClick = {
+                            isRegistering = !isRegistering
+                            message = if (isRegistering) "Войди с существующим аккаунтом Dolby404." else "Создай аккаунт. Он будет работать и на сайте, и в приложении."
+                        },
+                        enabled = !busy
+                    ) {
+                        Text(
+                            if (isRegistering) "Уже есть аккаунт? Войти" else "Нет аккаунта? Зарегистрироваться",
+                            color = Color(0xFF9FCBFF)
+                        )
+                    }
+                    Spacer(Modifier.height(4.dp))
                     Text(message, color = Color(0xFFB9D9FF), fontSize = 13.sp)
                 }
             }
