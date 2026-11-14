@@ -10,6 +10,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -627,7 +629,7 @@ private fun MessengerHome(onSignOut: () -> Unit, onDeleteAccount: () -> Unit) {
                     )
                     "Звонки" -> CallsScreen(onInfo = { infoMessage = it })
                     "Контакты" -> ContactsScreen(onStart = { selectedProfile = it; tab = "Чаты" })
-                    else -> SettingsScreen(onSignOut = onSignOut, onDeleteAccount = onDeleteAccount, onInfo = { infoMessage = it })
+                    else -> SettingsScreen(currentUserId = currentUserId, onBack = { tab = "Чаты" }, onSignOut = onSignOut, onDeleteAccount = onDeleteAccount, onInfo = { infoMessage = it })
                 }
 
                 }
@@ -1037,7 +1039,33 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     var loading by remember { mutableStateOf(true) }
     var sending by remember { mutableStateOf(false) }
     var errorText by remember { mutableStateOf("") }
-NaN
+    val scope = rememberCoroutineScope()
+    var uploadingAttachment by remember { mutableStateOf(false) }
+    val attachmentPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null && !uploadingAttachment) scope.launch {
+            uploadingAttachment = true
+            try {
+                val resolver = context.contentResolver
+                val mime = resolver.getType(uri) ?: "application/octet-stream"
+                val name = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) cursor.getString(0) else null
+                } ?: "attachment"
+                val bytes = withContext(Dispatchers.IO) {
+                    resolver.openInputStream(uri)?.use { it.readBytes() } ?: error("Не удалось прочитать файл.")
+                }
+                if (bytes.size > 50 * 1024 * 1024) error("Размер файла превышает 50 МБ.")
+                val safeName = name.substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"), "_").take(100).ifBlank { "attachment" }
+                val path = "$currentUserId/${UUID.randomUUID()}_$safeName"
+                withContext(Dispatchers.IO) { floustreamClient.storage.from("message-media").upload(path, bytes) }
+                sendDirectAttachment(currentUserId, peer.id, path, name, mime)
+                refresh()
+            } catch (e: Exception) {
+                errorText = e.message ?: "Не удалось отправить файл."
+            } finally { uploadingAttachment = false }
+        }
+    }
+
+    suspend fun refresh() {
         try {
             markIncomingMessagesRead(currentUserId, peer.id)
             val latest = loadDirectMessages(currentUserId, peer.id)
@@ -1063,7 +1091,7 @@ NaN
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("‹", Modifier.clickable { onBack() }.padding(horizontal = 10.dp), color = White, fontSize = 32.sp)
-            Avatar((peer.displayName ?: peer.username ?: "D").take(1).uppercase())
+            Avatar((peer.displayName ?: peer.username ?: "D").take(1).uppercase(), avatarUrl = peer.avatarUrl)
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
                 Text(peer.displayName ?: peer.username ?: "Пользователь", color = White, fontWeight = FontWeight.Bold, maxLines = 1)
