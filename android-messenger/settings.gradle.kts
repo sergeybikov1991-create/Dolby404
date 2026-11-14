@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Dolby404Messenger"
+rootProject.name = "FLOUSTREAMMessenger"
 include(":app")
