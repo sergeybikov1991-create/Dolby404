@@ -1,6 +1,7 @@
 name: Publish Dolby404 Messenger update
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - "v*"
@@ -47,10 +48,19 @@ jobs:
           gradle --no-daemon :app:assembleRelease
       - name: Prepare release APK
         run: cp android-messenger/app/build/outputs/apk/release/app-release.apk Dolby404-Messenger.apk
+      - name: Package APK as ZIP
+        run: zip -j Dolby404-Messenger.zip Dolby404-Messenger.apk
+      - name: Upload install package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Dolby404-Messenger
+          path: Dolby404-Messenger.zip
+          if-no-files-found: error
       - name: Publish update
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: Dolby404-Messenger.apk
+          files: Dolby404-Messenger.apk,Dolby404-Messenger.zip
           generate_release_notes: true
       - name: Remove signing key from runner
         if: always()
