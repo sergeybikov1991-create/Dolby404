@@ -1,6 +1,7 @@
 package com.dolby404.messenger
 
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -16,6 +17,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -36,8 +38,14 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
 
 private val Night = Color(0xFF080D1B)
 private val Panel = Color(0xFF111A2D)
@@ -59,8 +67,20 @@ private val floustreamClient = createSupabaseClient(
 }
 
 class MainActivity : ComponentActivity() {
+    private var pendingLifecycleAction by mutableStateOf<String?>(null)
+
+    private fun lifecycleActionFromIntent(intent: android.content.Intent): String? {
+        val uri = intent.data ?: return null
+        return when {
+            uri.getQueryParameter("confirm_delete") == "1" -> "request_delete"
+            uri.getQueryParameter("restore") == "1" -> "restore"
+            else -> null
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pendingLifecycleAction = lifecycleActionFromIntent(intent)
         floustreamClient.handleDeeplinks(intent)
         setContent {
             MaterialTheme(
@@ -72,12 +92,14 @@ class MainActivity : ComponentActivity() {
                     onBackground = White,
                     onSurface = White
                 )
-            ) { androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) { MessengerApp(); AppUpdatePrompt() } }
+            ) { androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) { MessengerApp(pendingLifecycleAction) { pendingLifecycleAction = null }; AppUpdatePrompt() } }
         }
     }
 
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
+        setIntent(intent)
+        pendingLifecycleAction = lifecycleActionFromIntent(intent)
         floustreamClient.handleDeeplinks(intent)
     }
 }
@@ -184,8 +206,54 @@ private suspend fun loadInboxThreads(userId: String): List<ChatThread> {
     }.sortedByDescending { it.lastMessage.createdAt }
 }
 
+private suspend fun sendAccountEmailLink(email: String, action: String) = withContext(Dispatchers.IO) {
+    val redirect = "dolby404://auth-callback?" + if (action == "request_delete") "confirm_delete=1" else "restore=1"
+    val encodedRedirect = URLEncoder.encode(redirect, "UTF-8")
+    val connection = URL("${BuildConfig.SUPABASE_URL}/auth/v1/otp?redirect_to=$encodedRedirect")
+        .openConnection() as HttpURLConnection
+    try {
+        connection.requestMethod = "POST"
+        connection.connectTimeout = 12000
+        connection.readTimeout = 12000
+        connection.doOutput = true
+        connection.setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+        connection.setRequestProperty("Content-Type", "application/json")
+        val body = JSONObject().put("email", email).put("create_user", false).toString()
+        connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+        if (connection.responseCode !in 200..299) {
+            val detail = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+            throw IllegalStateException("Не удалось отправить письмо. $detail")
+        }
+    } finally { connection.disconnect() }
+}
+
+private suspend fun callAccountLifecycle(action: String): String = withContext(Dispatchers.IO) {
+    val token = floustreamClient.auth.currentSessionOrNull()?.accessToken
+        ?: throw IllegalStateException("Сессия подтверждения не найдена. Открой ссылку из письма ещё раз.")
+    val connection = URL("${BuildConfig.SUPABASE_URL}/functions/v1/account-lifecycle")
+        .openConnection() as HttpURLConnection
+    try {
+        connection.requestMethod = "POST"
+        connection.connectTimeout = 12000
+        connection.readTimeout = 15000
+        connection.doOutput = true
+        connection.setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+        connection.setRequestProperty("Authorization", "Bearer $token")
+        connection.setRequestProperty("Content-Type", "application/json")
+        connection.outputStream.use { it.write(JSONObject().put("action", action).toString().toByteArray(Charsets.UTF_8)) }
+        val stream = if (connection.responseCode in 200..299) connection.inputStream else connection.errorStream
+        val response = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+        if (connection.responseCode !in 200..299) {
+            val errorMessage = try { JSONObject(response).optString("error", "Не удалось выполнить действие.") }
+                catch (_: Exception) { "Не удалось выполнить действие." }
+            throw IllegalStateException(errorMessage)
+        }
+        response
+    } finally { connection.disconnect() }
+}
+
 @Composable
-private fun MessengerApp() {
+private fun MessengerApp(pendingLifecycleAction: String?, onLifecycleHandled: () -> Unit) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var firstName by remember { mutableStateOf("") }
@@ -197,6 +265,30 @@ private fun MessengerApp() {
     var isRegistering by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("Войди с тем же аккаунтом, что используешь на сайте FLOUSTREAM.") }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    LaunchedEffect(pendingLifecycleAction) {
+        val action = pendingLifecycleAction ?: return@LaunchedEffect
+        var attempts = 0
+        while (floustreamClient.auth.currentSessionOrNull() == null && attempts < 20) {
+            delay(250)
+            attempts++
+        }
+        try {
+            if (floustreamClient.auth.currentSessionOrNull() == null) error("Не удалось открыть подтверждённую сессию.")
+            callAccountLifecycle(action)
+            if (action == "request_delete") {
+                Toast.makeText(context, "Аккаунт деактивирован. Его можно восстановить в течение 30 дней.", Toast.LENGTH_LONG).show()
+                floustreamClient.auth.signOut()
+                signedIn = false
+            } else {
+                Toast.makeText(context, "Прежний аккаунт восстановлен.", Toast.LENGTH_LONG).show()
+                signedIn = true
+            }
+        } catch (e: Exception) {
+            Toast.makeText(context, e.message ?: "Не удалось подтвердить действие.", Toast.LENGTH_LONG).show()
+        } finally { onLifecycleHandled() }
+    }
 
     // Restore the saved Supabase session before deciding which screen to show.
     // Closing the app or removing it from Recents must not sign the user out.
@@ -286,6 +378,22 @@ private fun MessengerApp() {
             }
         } else if (signedIn) {
             MessengerHome(
+                onDeleteAccount = {
+                    val accountEmail = floustreamClient.auth.currentUserOrNull()?.email
+                    if (accountEmail.isNullOrBlank()) {
+                        Toast.makeText(context, "Не удалось определить email аккаунта.", Toast.LENGTH_LONG).show()
+                    } else {
+                        scope.launch {
+                            busy = true
+                            try {
+                                sendAccountEmailLink(accountEmail, "request_delete")
+                                Toast.makeText(context, "Письмо отправлено на $accountEmail. Открой ссылку, чтобы подтвердить удаление.", Toast.LENGTH_LONG).show()
+                            } catch (e: Exception) {
+                                Toast.makeText(context, e.message ?: "Не удалось отправить письмо.", Toast.LENGTH_LONG).show()
+                            } finally { busy = false }
+                        }
+                    }
+                },
                 onSignOut = {
                     scope.launch {
                         busy = true
@@ -364,6 +472,24 @@ private fun MessengerApp() {
                     }
                     TextButton(
                         onClick = {
+                            if (busy || email.isBlank()) {
+                                message = "Введи email прежнего аккаунта для восстановления."
+                            } else {
+                                scope.launch {
+                                    busy = true
+                                    try {
+                                        sendAccountEmailLink(email.trim(), "restore")
+                                        message = "Если аккаунт ожидает удаления, письмо для восстановления отправлено."
+                                    } catch (e: Exception) {
+                                        message = e.message ?: "Не удалось отправить письмо."
+                                    } finally { busy = false }
+                                }
+                            }
+                        },
+                        enabled = !busy && email.isNotBlank()
+                    ) { Text("Восстановить аккаунт по email", color = Color(0xFF9FCBFF)) }
+                    TextButton(
+                        onClick = {
                             isRegistering = !isRegistering
                             message = if (isRegistering) "Войди с существующим аккаунтом FLOUSTREAM." else "Создай аккаунт. Он будет работать и на сайте, и в приложении."
                         },
@@ -383,7 +509,7 @@ private fun MessengerApp() {
 }
 
 @Composable
-private fun MessengerHome(onSignOut: () -> Unit) {
+private fun MessengerHome(onSignOut: () -> Unit, onDeleteAccount: () -> Unit) {
     var tab by remember { mutableStateOf("Чаты") }
     var selectedProfile by remember { mutableStateOf<ProfileDto?>(null) }
     val currentUserId = floustreamClient.auth.currentUserOrNull()?.id.orEmpty()
@@ -437,7 +563,7 @@ private fun MessengerHome(onSignOut: () -> Unit) {
                     )
                     "Звонки" -> CallsScreen(onInfo = { infoMessage = it })
                     "Контакты" -> ContactsScreen(onStart = { selectedProfile = it; tab = "Чаты" })
-                    else -> SettingsScreen(onSignOut = onSignOut, onInfo = { infoMessage = it })
+                    else -> SettingsScreen(onSignOut = onSignOut, onDeleteAccount = onDeleteAccount, onInfo = { infoMessage = it })
                 }
 
                 NavigationBar(containerColor = Panel, contentColor = White) {
@@ -701,8 +827,9 @@ private fun ContactsScreen(onStart: (ProfileDto) -> Unit) {
 }
 
 @Composable
-private fun SettingsScreen(onSignOut: () -> Unit, onInfo: (String) -> Unit) {
+private fun SettingsScreen(onSignOut: () -> Unit, onDeleteAccount: () -> Unit, onInfo: (String) -> Unit) {
     var confirmSignOut by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize().padding(20.dp)) {
         Text("Настройки", color = White, fontSize = 23.sp, fontWeight = FontWeight.Bold)
@@ -724,6 +851,7 @@ private fun SettingsScreen(onSignOut: () -> Unit, onInfo: (String) -> Unit) {
         SettingsRow("◈", "Приватность", "Кто может с тобой связаться") { onInfo("Настройки приватности подключим к общей системе FLOUSTREAM.") }
         SettingsRow("⟳", "Синхронизация с сайтом", "Чаты и медиа между сайтом и приложением") { onInfo("Чаты используют общую таблицу direct_messages Supabase. Остальные настройки синхронизации добавим по мере подключения функций.") }
         SettingsRow("⬆", "Обновления приложения", "Обязательные обновления · отключить нельзя") { onInfo("FLOUSTREAM автоматически проверяет обновления. Если выйдет новая версия, приложение попросит установить её перед продолжением работы. Отключить обязательные обновления нельзя.") }
+        SettingsRow("⌫", "Удалить учётную запись", "Подтверждение email · 30 дней на восстановление") { confirmDelete = true }
         SettingsRow("◐", "О приложении", "FLOUSTREAM Messenger · 0.3.0") { onInfo("FLOUSTREAM Messenger, версия 0.3.0.") }
         Spacer(Modifier.height(18.dp))
         Surface(
@@ -744,6 +872,19 @@ private fun SettingsScreen(onSignOut: () -> Unit, onInfo: (String) -> Unit) {
                 Text("›", color = Color(0xFFFF9AAA), fontSize = 25.sp)
             }
         }
+    }
+
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            containerColor = Panel,
+            title = { Text("Удалить учётную запись?", color = White) },
+            text = { Text("После подтверждения по email аккаунт будет деактивирован. В течение 30 дней можно восстановить именно прежний аккаунт. После этого личные данные и файлы будут удалены, а текст переписок останется у собеседников.", color = Muted) },
+            confirmButton = {
+                TextButton(onClick = { confirmDelete = false; onDeleteAccount() }) { Text("Отправить письмо", color = Color(0xFFFF9AAA)) }
+            },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Отмена", color = White) } }
+        )
     }
 
     if (confirmSignOut) {
