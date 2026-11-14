@@ -9,6 +9,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.FileProvider
@@ -22,7 +23,20 @@ import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 
-private data class AvailableUpdate(val versionName: String, val apkUrl: String, val notes: String)
+private data class UpdatePolicy(
+    val minimumSupportedVersion: String,
+    val type: String,
+    val maxPostponements: Int,
+    val postponeHours: Int
+)
+
+private data class AvailableUpdate(
+    val versionName: String,
+    val apkUrl: String,
+    val notes: String,
+    val canPostpone: Boolean,
+    val postponeHours: Int
+)
 
 private fun isNewerVersion(remote: String, current: String): Boolean {
     val a = remote.removePrefix("v").split(".").map { it.toIntOrNull() ?: 0 }
@@ -35,7 +49,38 @@ private fun isNewerVersion(remote: String, current: String): Boolean {
     return false
 }
 
-private suspend fun findAvailableUpdate(): AvailableUpdate? = withContext(Dispatchers.IO) {
+private suspend fun fetchUpdatePolicy(): UpdatePolicy = withContext(Dispatchers.IO) {
+    val connection = URL("https://raw.githubusercontent.com/sergeybikov1991-create/Dolby404/main/android-messenger/update-policy.json")
+        .openConnection() as HttpURLConnection
+    try {
+        connection.connectTimeout = 8000
+        connection.readTimeout = 8000
+        connection.setRequestProperty("User-Agent", "Dolby404-Messenger")
+        if (connection.responseCode != 200) error("Update policy unavailable")
+        val json = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+        val type = json.optString("update_type", "normal").lowercase()
+        val defaultMax = when (type) {
+            "critical" -> 0
+            "important" -> 1
+            else -> 3
+        }
+        val defaultHours = when (type) {
+            "critical" -> 0
+            "important" -> 6
+            else -> 24
+        }
+        UpdatePolicy(
+            minimumSupportedVersion = json.optString("minimum_supported_version", "0.0.0"),
+            type = if (type in setOf("normal", "important", "critical")) type else "normal",
+            maxPostponements = if (type == "critical") 0 else json.optInt("max_postponements", defaultMax).coerceIn(0, 3),
+            postponeHours = if (type == "critical") 0 else json.optInt("postpone_hours", defaultHours).coerceIn(1, 72)
+        )
+    } finally {
+        connection.disconnect()
+    }
+}
+
+private suspend fun findAvailableUpdate(context: android.content.Context): AvailableUpdate? = withContext(Dispatchers.IO) {
     val connection = URL("https://api.github.com/repos/sergeybikov1991-create/Dolby404/releases/latest")
         .openConnection() as HttpURLConnection
     try {
@@ -63,7 +108,22 @@ private suspend fun findAvailableUpdate(): AvailableUpdate? = withContext(Dispat
             !parsedApkUrl.path.startsWith("/sergeybikov1991-create/Dolby404/releases/download/") ||
             !parsedApkUrl.path.endsWith("/Dolby404-Messenger.apk")
         ) return@withContext null
-        AvailableUpdate(tag, apkUrl, json.optString("body").take(500))
+
+        // If the policy cannot be reached, fail open: never lock a user out offline.
+        val policy = try { fetchUpdatePolicy() } catch (_: Exception) {
+            UpdatePolicy("0.0.0", "normal", 3, 24)
+        }
+        val belowMinimum = isNewerVersion(policy.minimumSupportedVersion, BuildConfig.VERSION_NAME)
+        val preferences = context.getSharedPreferences("dolby404_update_policy", android.content.Context.MODE_PRIVATE)
+        val countKey = "postponements_$tag"
+        val untilKey = "postpone_until_$tag"
+        val used = preferences.getInt(countKey, 0)
+        val postponeUntil = preferences.getLong(untilKey, 0L)
+        val now = System.currentTimeMillis()
+
+        if (!belowMinimum && now < postponeUntil) return@withContext null
+        val canPostpone = !belowMinimum && policy.type != "critical" && used < policy.maxPostponements
+        AvailableUpdate(tag, apkUrl, json.optString("body").take(500), canPostpone, policy.postponeHours)
     } finally {
         connection.disconnect()
     }
@@ -117,24 +177,30 @@ fun AppUpdatePrompt() {
     var progress by remember { mutableFloatStateOf(0f) }
     var error by remember { mutableStateOf<String?>(null) }
 
-    // Check immediately and retry periodically while the app is open.
-    // A temporary network failure must not lock users out while offline.
-    LaunchedEffect(Unit) {
-        while (update == null) {
-            try { update = findAvailableUpdate() } catch (_: Exception) { }
-            if (update == null) delay(15 * 60 * 1000L)
+    // Check on launch and retry every 15 minutes. Offline failures never block app use.
+    LaunchedEffect(update == null) {
+        if (update == null) {
+            while (update == null) {
+                try { update = findAvailableUpdate(context) } catch (_: Exception) { }
+                if (update == null) delay(15 * 60 * 1000L)
+            }
         }
     }
 
     val available = update
     if (available != null) {
         AlertDialog(
-            onDismissRequest = { /* Mandatory update: cannot be dismissed. */ },
+            onDismissRequest = { /* The postpone button is the only permitted deferral. */ },
             title = { Text("Доступно обновление Dolby404") },
             text = {
                 Column {
                     Text("Новая версия: ${available.versionName}")
                     if (available.notes.isNotBlank()) Text(available.notes)
+                    if (available.canPostpone) {
+                        Text("Можно отложить ещё ограниченное число раз. После этого обновление станет обязательным.")
+                    } else {
+                        Text("Это обновление необходимо установить, чтобы продолжить пользоваться приложением.")
+                    }
                     if (downloading) {
                         LinearProgressIndicator(progress = { progress })
                         Text("Загрузка: ${(progress * 100).toInt()}%")
@@ -189,6 +255,23 @@ fun AppUpdatePrompt() {
                     }
                 ) { Text(if (downloadedApk != null) "Обновить" else "Скачать обновление") }
             },
+            dismissButton = {
+                if (available.canPostpone && !downloading) {
+                    TextButton(onClick = {
+                        val preferences = context.getSharedPreferences("dolby404_update_policy", android.content.Context.MODE_PRIVATE)
+                        val countKey = "postponements_${available.versionName}"
+                        val untilKey = "postpone_until_${available.versionName}"
+                        val nextCount = preferences.getInt(countKey, 0) + 1
+                        preferences.edit()
+                            .putInt(countKey, nextCount)
+                            .putLong(untilKey, System.currentTimeMillis() + available.postponeHours * 60L * 60L * 1000L)
+                            .apply()
+                        downloadedApk = null
+                        error = null
+                        update = null
+                    }) { Text("Позже") }
+                }
+            }
         )
     }
 }
