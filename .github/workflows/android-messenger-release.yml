@@ -6,7 +6,7 @@ on:
       release_tag:
         description: "Release version tag"
         required: true
-        default: "v0.2.0"
+        default: "v0.3.0"
   push:
     tags:
       - "v*"
@@ -74,16 +74,12 @@ jobs:
           cp "$APK" FLOUSTREAM-Messenger.apk
           sha256sum FLOUSTREAM-Messenger.apk > FLOUSTREAM-Messenger.apk.sha256
 
-      - name: Package APK
-        run: zip -j FLOUSTREAM-Messenger.zip FLOUSTREAM-Messenger.apk FLOUSTREAM-Messenger.apk.sha256
-
       - name: Upload install package
         uses: actions/upload-artifact@v4
         with:
           name: FLOUSTREAM-Messenger-release
           path: |
             FLOUSTREAM-Messenger.apk
-            FLOUSTREAM-Messenger.zip
             FLOUSTREAM-Messenger.apk.sha256
           if-no-files-found: error
           retention-days: 30
