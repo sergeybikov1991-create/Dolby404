@@ -257,6 +257,22 @@ button:disabled {
         <input id="password" type="password"
                placeholder="Пароль (минимум 8 символов)">
 
+        <input id="first-name" type="text" autocomplete="given-name"
+               placeholder="Имя (для регистрации)" maxlength="60">
+        <input id="last-name" type="text" autocomplete="family-name"
+               placeholder="Фамилия (для регистрации)" maxlength="60">
+        <select id="country-code" aria-label="Страна">
+            <option value="">Выбери страну</option>
+            <option value="DE">Германия</option><option value="RU">Россия</option>
+            <option value="UA">Украина</option><option value="BY">Беларусь</option>
+            <option value="KZ">Казахстан</option><option value="NL">Нидерланды</option>
+            <option value="US">США</option><option value="GB">Великобритания</option>
+            <option value="OTHER">Другая страна</option>
+        </select>
+        <select id="preferred-language" aria-label="Язык по умолчанию">
+            <option value="ru">Русский</option><option value="en">English</option>
+        </select>
+
         <button id="register-button" disabled>
             Зарегистрироваться
         </button>
@@ -406,6 +422,10 @@ async function registerUser() {
 
     const password =
         document.getElementById("password").value;
+    const firstName = document.getElementById("first-name").value.trim();
+    const lastName = document.getElementById("last-name").value.trim();
+    const countryCode = document.getElementById("country-code").value;
+    const preferredLanguage = document.getElementById("preferred-language").value;
 
     if (!email || !password) {
         message.textContent = "Введи Email и пароль.";
@@ -415,6 +435,10 @@ async function registerUser() {
     if (password.length < 8) {
         message.textContent =
             "Пароль должен содержать минимум 8 символов.";
+        return;
+    }
+    if (!firstName || !lastName || !countryCode) {
+        message.textContent = "Укажи имя, фамилию и страну.";
         return;
     }
 
@@ -434,7 +458,14 @@ async function registerUser() {
                 email: email,
                 password: password,
                 options: {
-                    emailRedirectTo: redirectUrl
+                    emailRedirectTo: redirectUrl,
+                    data: {
+                        first_name: firstName,
+                        last_name: lastName,
+                        country_code: countryCode,
+                        preferred_language: preferredLanguage,
+                        display_name: firstName + " " + lastName
+                    }
                 }
             });
 
