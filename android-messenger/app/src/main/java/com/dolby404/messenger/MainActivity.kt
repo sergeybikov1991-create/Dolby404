@@ -2479,7 +2479,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                         shape = RoundedCornerShape(17.dp),
                         modifier = Modifier.widthIn(max = 290.dp)
                             .combinedClickable(
-                                onClick = {},
+                                onClick = { pendingDeleteMessage = msg },
                                 onLongClick = { pendingDeleteMessage = msg }
                             )
                             .pointerInput(msg.id, mine) {
