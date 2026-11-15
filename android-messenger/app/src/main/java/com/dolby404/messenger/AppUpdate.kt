@@ -1,6 +1,7 @@
 package com.dolby404.messenger
 
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -186,6 +187,40 @@ private suspend fun downloadUpdate(
     }
 }
 
+private fun verifyDownloadedApk(context: android.content.Context, apk: File) {
+    val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        PackageManager.GET_SIGNING_CERTIFICATES
+    } else {
+        @Suppress("DEPRECATION")
+        PackageManager.GET_SIGNATURES
+    }
+    @Suppress("DEPRECATION")
+    val installed = context.packageManager.getPackageInfo(context.packageName, flags)
+    @Suppress("DEPRECATION")
+    val downloaded = context.packageManager.getPackageArchiveInfo(apk.absolutePath, flags)
+        ?: error("Не удалось проверить установочный файл.")
+    if (downloaded.packageName != context.packageName) {
+        error("Файл обновления предназначен для другого приложения.")
+    }
+    val installedVersion = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) installed.longVersionCode else installed.versionCode.toLong()
+    val downloadedVersion = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) downloaded.longVersionCode else downloaded.versionCode.toLong()
+    if (downloadedVersion <= installedVersion) {
+        error("Обновление имеет неподходящую версию. Установка отменена.")
+    }
+    val sameSigner = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        val oldSigners = installed.signingInfo?.apkContentsSigners?.map { it.toCharsString() }?.toSet().orEmpty()
+        val newSigners = downloaded.signingInfo?.apkContentsSigners?.map { it.toCharsString() }?.toSet().orEmpty()
+        oldSigners.isNotEmpty() && oldSigners == newSigners
+    } else {
+        @Suppress("DEPRECATION")
+        val oldSigners = installed.signatures?.map { it.toCharsString() }?.toSet().orEmpty()
+        @Suppress("DEPRECATION")
+        val newSigners = downloaded.signatures?.map { it.toCharsString() }?.toSet().orEmpty()
+        oldSigners.isNotEmpty() && oldSigners == newSigners
+    }
+    if (!sameSigner) error("Подпись обновления не совпадает с установленным приложением.")
+}
+
 @Composable
 fun AppUpdatePrompt() {
     val context = LocalContext.current
@@ -234,6 +269,7 @@ fun AppUpdatePrompt() {
                         val existing = downloadedApk
                         if (existing != null && existing.exists()) {
                             try {
+                                verifyDownloadedApk(context, existing)
                                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
                                     !context.packageManager.canRequestPackageInstalls()
                                 ) {
@@ -264,6 +300,7 @@ fun AppUpdatePrompt() {
                             scope.launch {
                                 try {
                                     downloadedApk = downloadUpdate(context.cacheDir, available.apkUrl, available.sha256) { progress = it }
+                                    verifyDownloadedApk(context, downloadedApk!!)
                                 } catch (e: Exception) {
                                     error = e.message ?: "Ошибка загрузки."
                                 } finally {
