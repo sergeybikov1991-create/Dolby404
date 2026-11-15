@@ -16,6 +16,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -49,6 +50,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import io.github.jan.supabase.createSupabaseClient
@@ -79,6 +81,8 @@ import java.net.URLEncoder
 import java.util.UUID
 import kotlin.time.Duration.Companion.minutes
 import coil.compose.AsyncImage
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.google.firebase.messaging.FirebaseMessaging
 
 private val Night = Color(0xFF080D1B)
@@ -1676,6 +1680,7 @@ private fun MessageAttachment(message: DirectMessageDto) {
         }
     }
 
+    var showFullScreen by remember(path) { mutableStateOf(false) }
     val url = signedUrl
     when {
         url == null && !loadError -> CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Blue)
@@ -1683,10 +1688,12 @@ private fun MessageAttachment(message: DirectMessageDto) {
         mime.startsWith("image/") -> AsyncImage(
             model = url,
             contentDescription = message.attachmentName ?: "Изображение",
-            modifier = Modifier.fillMaxWidth().heightIn(max = 240.dp).clip(RoundedCornerShape(12.dp)),
-            contentScale = ContentScale.Crop
+            modifier = Modifier.fillMaxWidth().heightIn(max = 280.dp)
+                .clip(RoundedCornerShape(5.dp)).clickable { showFullScreen = true },
+            contentScale = ContentScale.Fit
         )
-        mime.startsWith("video/") || mime.startsWith("audio/") -> {
+        mime.startsWith("audio/") -> AudioMessagePlayer(url!!)
+        mime.startsWith("video/") -> {
             val player = remember(url) {
                 ExoPlayer.Builder(context).build().apply {
                     setMediaItem(MediaItem.fromUri(url!!))
@@ -1701,17 +1708,11 @@ private fun MessageAttachment(message: DirectMessageDto) {
                     PlayerView(viewContext).apply {
                         this.player = player
                         useController = true
-                        if (mime.startsWith("video/")) {
-                            resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                        }
+                        resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                     }
                 },
                 update = { it.player = player },
-                modifier = if (mime.startsWith("video/")) {
-                    Modifier.size(190.dp).clip(CircleShape)
-                } else {
-                    Modifier.fillMaxWidth().height(76.dp)
-                }
+                modifier = Modifier.size(190.dp).clip(CircleShape)
             )
         }
         else -> Row(
@@ -1734,6 +1735,90 @@ private fun MessageAttachment(message: DirectMessageDto) {
                 Text(message.attachmentName ?: "Файл", color = White, fontSize = 13.sp, maxLines = 2)
                 Text("Нажми, чтобы открыть", color = Muted, fontSize = 10.sp)
             }
+        }
+    }
+    if (showFullScreen && url != null && mime.startsWith("image/")) {
+        Dialog(
+            onDismissRequest = { showFullScreen = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Box(Modifier.fillMaxSize().background(Color.Black)) {
+                AsyncImage(
+                    model = url,
+                    contentDescription = message.attachmentName ?: "Фотография",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Fit
+                )
+                Text(
+                    "×",
+                    Modifier.align(Alignment.TopEnd).clickable { showFullScreen = false }.padding(20.dp),
+                    color = Color.White,
+                    fontSize = 34.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AudioMessagePlayer(url: String) {
+    val context = LocalContext.current
+    val player = remember(url) {
+        ExoPlayer.Builder(context).build().apply {
+            setMediaItem(MediaItem.fromUri(url))
+            prepare()
+        }
+    }
+    var isPlaying by remember(url) { mutableStateOf(false) }
+    var durationMs by remember(url) { mutableLongStateOf(0L) }
+    var positionMs by remember(url) { mutableLongStateOf(0L) }
+    DisposableEffect(player) {
+        val listener = object : Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_READY) durationMs = player.duration.coerceAtLeast(0L)
+                if (playbackState == Player.STATE_ENDED) {
+                    isPlaying = false
+                    positionMs = 0L
+                    player.seekTo(0L)
+                }
+            }
+            override fun onIsPlayingChanged(playing: Boolean) { isPlaying = playing }
+        }
+        player.addListener(listener)
+        onDispose {
+            player.removeListener(listener)
+            player.release()
+        }
+    }
+    LaunchedEffect(player, isPlaying) {
+        while (isPlaying) {
+            positionMs = player.currentPosition.coerceAtLeast(0L)
+            delay(250L)
+        }
+    }
+    Row(
+        Modifier.fillMaxWidth().background(PanelSoft, RoundedCornerShape(13.dp)).padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            modifier = Modifier.size(42.dp).clickable {
+                if (player.isPlaying) player.pause() else player.play()
+            },
+            color = Blue,
+            shape = CircleShape
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Text(if (isPlaying) "Ⅱ" else "▶", color = White, fontSize = 19.sp)
+            }
+        }
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text("Голосовое сообщение", color = White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Text(
+                String.format("%d:%02d / %d:%02d", positionMs / 60000L, (positionMs / 1000L) % 60L, durationMs / 60000L, (durationMs / 1000L) % 60L),
+                color = Muted,
+                fontSize = 11.sp
+            )
         }
     }
 }
