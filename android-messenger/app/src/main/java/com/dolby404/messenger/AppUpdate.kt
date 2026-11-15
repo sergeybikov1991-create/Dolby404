@@ -302,7 +302,9 @@ fun AppUpdatePrompt() {
                                     downloadedApk = downloadUpdate(context.cacheDir, available.apkUrl, available.sha256) { progress = it }
                                     verifyDownloadedApk(context, downloadedApk!!)
                                 } catch (e: Exception) {
-                                    error = e.message ?: "Ошибка загрузки."
+                                    downloadedApk?.delete()
+                                    downloadedApk = null
+                                    error = e.message ?: "Ошибка загрузки или проверки обновления."
                                 } finally {
                                     downloading = false
                                 }
