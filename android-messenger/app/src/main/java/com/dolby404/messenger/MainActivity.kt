@@ -1305,6 +1305,18 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     var voiceRecorder by remember { mutableStateOf<MediaRecorder?>(null) }
     var voiceFile by remember { mutableStateOf<File?>(null) }
     var recordingVoice by remember { mutableStateOf(false) }
+    DisposableEffect(peer.id) {
+        onDispose {
+            val recorder = voiceRecorder
+            voiceRecorder = null
+            try { recorder?.stop() } catch (_: Exception) { }
+            try { recorder?.reset() } catch (_: Exception) { }
+            try { recorder?.release() } catch (_: Exception) { }
+            voiceFile?.delete()
+            voiceFile = null
+            recordingVoice = false
+        }
+    }
     val microphonePermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         errorText = if (granted) "Микрофон разрешён. Удержи кнопку отправки ещё раз для записи." else "Для голосовых сообщений нужно разрешить доступ к микрофону."
     }
@@ -1314,9 +1326,13 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
             return false
         }
+        var createdRecorder: MediaRecorder? = null
+        var createdFile: File? = null
         return try {
             val file = File(context.cacheDir, "voice_${UUID.randomUUID()}.m4a")
+            createdFile = file
             val recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) MediaRecorder(context) else MediaRecorder()
+            createdRecorder = recorder
             recorder.setAudioSource(MediaRecorder.AudioSource.MIC)
             recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
             recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
@@ -1330,9 +1346,10 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             recordingVoice = true
             true
         } catch (_: Exception) {
-            voiceRecorder?.release()
+            try { createdRecorder?.reset() } catch (_: Exception) { }
+            try { createdRecorder?.release() } catch (_: Exception) { }
+            createdFile?.delete()
             voiceRecorder = null
-            voiceFile?.delete()
             voiceFile = null
             recordingVoice = false
             errorText = "Не удалось начать запись. Проверь разрешение микрофона."
