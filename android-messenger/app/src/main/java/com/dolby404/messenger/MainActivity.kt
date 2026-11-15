@@ -1391,6 +1391,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
         }
     }
     var showAttachmentMenu by remember { mutableStateOf(false) }
+    var showRoundVideoRecorder by remember { mutableStateOf(false) }
     var showMediaLibrary by remember { mutableStateOf(false) }
     var mediaLibrary by remember { mutableStateOf<List<MediaLibraryItem>>(emptyList()) }
     var selectedMediaIds by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -1523,6 +1524,12 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                     )
                 }
             }
+            Surface(
+                modifier = Modifier.size(42.dp).clickable { showRoundVideoRecorder = true },
+                color = PanelSoft, shape = CircleShape
+            ) {
+                Box(contentAlignment = Alignment.Center) { Text("●", color = Violet, fontSize = 19.sp) }
+            }
             OutlinedTextField(
                 value = draft, onValueChange = { draft = it },
                 modifier = Modifier.weight(1f).padding(horizontal = 7.dp),
@@ -1603,6 +1610,41 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 }
             }
         }
+    }
+
+    if (showRoundVideoRecorder) {
+        RoundVideoRecorder(
+            onDismiss = { showRoundVideoRecorder = false },
+            onError = { message ->
+                errorText = message
+                showRoundVideoRecorder = false
+            },
+            onRecorded = { file ->
+                showRoundVideoRecorder = false
+                scope.launch {
+                    uploadingAttachment = true
+                    try {
+                        val bytes = withContext(Dispatchers.IO) { file.readBytes() }
+                        if (bytes.size > 50 * 1024 * 1024) error("Видео превышает допустимый размер 50 МБ.")
+                        val name = "video_" + System.currentTimeMillis() + ".mp4"
+                        val path = currentUserId + "/" + UUID.randomUUID().toString() + "_" + name
+                        withContext(Dispatchers.IO) {
+                            floustreamClient.storage.from("message-media").upload(path, bytes) {
+                                contentType = ContentType.parse("video/mp4")
+                            }
+                        }
+                        sendDirectAttachment(currentUserId, peer.id, path, name, "video/mp4")
+                        refresh()
+                        errorText = ""
+                    } catch (_: Exception) {
+                        errorText = "Не удалось отправить видеосообщение. Проверь интернет и попробуй ещё раз."
+                    } finally {
+                        file.delete()
+                        uploadingAttachment = false
+                    }
+                }
+            }
+        )
     }
 
     if (showMediaLibrary) {
