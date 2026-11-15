@@ -598,7 +598,6 @@ private fun MessengerHome(onSignOut: () -> Unit, onDeleteAccount: () -> Unit) {
     val currentUserId = floustreamClient.auth.currentUserOrNull()?.id.orEmpty()
     var searchOpen by remember { mutableStateOf(false) }
     var search by remember { mutableStateOf("") }
-    var showNewChat by remember { mutableStateOf(false) }
     var infoMessage by remember { mutableStateOf("") }
 
     Surface(Modifier.fillMaxSize(), color = Night) {
@@ -670,33 +669,10 @@ private fun MessengerHome(onSignOut: () -> Unit, onDeleteAccount: () -> Unit) {
                     }
                 }
 
-                if (tab == "Чаты") {
-                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.BottomEnd) {
-                        FloatingActionButton(
-                            onClick = { showNewChat = true },
-                            modifier = Modifier.padding(end = 20.dp, bottom = 84.dp),
-                            containerColor = Blue,
-                            contentColor = White,
-                            shape = RoundedCornerShape(18.dp)
-                        ) { Text("+", fontSize = 30.sp, fontWeight = FontWeight.Light) }
-                    }
-                }
             }
         }
     }
 
-    if (showNewChat) {
-        AlertDialog(
-            onDismissRequest = { showNewChat = false },
-            containerColor = Panel,
-            title = { Text("Новый чат", color = White) },
-            text = { Text("Выбери «Контакты», чтобы найти собеседника. Создание групп подключим вместе с серверной частью.", color = Muted) },
-            confirmButton = {
-                TextButton(onClick = { showNewChat = false; tab = "Контакты" }) { Text("К контактам") }
-            },
-            dismissButton = { TextButton(onClick = { showNewChat = false }) { Text("Закрыть") } }
-        )
-    }
     if (infoMessage.isNotBlank()) {
         AlertDialog(
             onDismissRequest = { infoMessage = "" },
@@ -824,7 +800,7 @@ private fun Avatar(initials: String, online: Boolean = false, avatarUrl: String?
         ) {
             Box(contentAlignment = Alignment.Center) {
                 if (!avatarUrl.isNullOrBlank()) {
-                    AsyncImage(model = avatarUrl, contentDescription = "Фото профиля", modifier = Modifier.fillMaxSize().clip(CircleShape))
+                    AsyncImage(model = avatarUrl, contentDescription = "Фото профиля", modifier = Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
                 } else {
                     Text(initials, color = White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
                 }
@@ -1154,7 +1130,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             val latest = loadDirectMessages(currentUserId, peer.id)
             messages.clear()
             messages.addAll(latest)
-            if (!silent) errorText = ""
+            errorText = ""
         } catch (e: Exception) {
             if (!silent) errorText = e.message ?: "Не удалось загрузить переписку."
         } finally {
@@ -1164,26 +1140,34 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     }
 
     var uploadingAttachment by remember { mutableStateOf(false) }
-    val attachmentPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null && !uploadingAttachment) scope.launch {
+    val attachmentPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isNotEmpty() && !uploadingAttachment) scope.launch {
             uploadingAttachment = true
+            var sentCount = 0
+            val failures = mutableListOf<String>()
             try {
-                val resolver = context.contentResolver
-                val mime = resolver.getType(uri) ?: "application/octet-stream"
-                val name = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
-                    if (cursor.moveToFirst()) cursor.getString(0) else null
-                } ?: "attachment"
-                val bytes = withContext(Dispatchers.IO) {
-                    resolver.openInputStream(uri)?.use { it.readBytes() } ?: error("Не удалось прочитать файл.")
+                uris.forEach { uri ->
+                    try {
+                        val resolver = context.contentResolver
+                        val mime = resolver.getType(uri) ?: "application/octet-stream"
+                        val name = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                            if (cursor.moveToFirst()) cursor.getString(0) else null
+                        } ?: "attachment"
+                        val bytes = withContext(Dispatchers.IO) {
+                            resolver.openInputStream(uri)?.use { it.readBytes() } ?: error("Не удалось прочитать файл.")
+                        }
+                        if (bytes.size > 50 * 1024 * 1024) error("$name: размер превышает 50 МБ.")
+                        val safeName = name.substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"), "_").take(100).ifBlank { "attachment" }
+                        val path = "$currentUserId/${UUID.randomUUID()}_$safeName"
+                        withContext(Dispatchers.IO) { floustreamClient.storage.from("message-media").upload(path, bytes) { contentType = ContentType.parse(mime) } }
+                        sendDirectAttachment(currentUserId, peer.id, path, name, mime)
+                        sentCount++
+                    } catch (e: Exception) {
+                        failures += e.message ?: "Не удалось отправить файл."
+                    }
                 }
-                if (bytes.size > 50 * 1024 * 1024) error("Размер файла превышает 50 МБ.")
-                val safeName = name.substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"), "_").take(100).ifBlank { "attachment" }
-                val path = "$currentUserId/${UUID.randomUUID()}_$safeName"
-                withContext(Dispatchers.IO) { floustreamClient.storage.from("message-media").upload(path, bytes) { contentType = ContentType.parse(mime) } }
-                sendDirectAttachment(currentUserId, peer.id, path, name, mime)
                 refresh()
-            } catch (e: Exception) {
-                errorText = e.message ?: "Не удалось отправить файл."
+                errorText = if (failures.isEmpty()) "" else "Отправлено $sentCount из ${uris.size}. ${failures.joinToString("; ")}"
             } finally { uploadingAttachment = false }
         }
     }
