@@ -34,9 +34,13 @@ class FLOUSTREAMMessagingService : FirebaseMessagingService() {
         val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
             ?: Intent(this, MainActivity::class.java)
         launchIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        val notificationId = (System.currentTimeMillis() % Int.MAX_VALUE).toInt().coerceAtLeast(1)
+        message.data["sender_id"]?.takeIf { it.isNotBlank() }?.let {
+            launchIntent.putExtra("sender_id", it)
+        }
         val pendingIntent = PendingIntent.getActivity(
             this,
-            404,
+            notificationId,
             launchIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -50,7 +54,7 @@ class FLOUSTREAMMessagingService : FirebaseMessagingService() {
             .setContentIntent(pendingIntent)
             .build()
         try {
-            NotificationManagerCompat.from(this).notify((System.currentTimeMillis() % Int.MAX_VALUE).toInt(), notification)
+            NotificationManagerCompat.from(this).notify(notificationId, notification)
         } catch (_: SecurityException) {
             // Android 13+: user has not granted notification permission.
         }
