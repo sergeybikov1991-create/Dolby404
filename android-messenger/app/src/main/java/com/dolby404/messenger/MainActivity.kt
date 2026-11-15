@@ -2485,15 +2485,18 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             }
             items(messages) { msg ->
                 val mine = msg.senderId == currentUserId
+                val isImageAttachment = !msg.attachmentPath.isNullOrBlank() &&
+                    msg.attachmentMime.orEmpty().startsWith("image/")
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
                     Surface(
-                        color = if (!msg.attachmentPath.isNullOrBlank() &&
-                            msg.attachmentMime.orEmpty().startsWith("image/")) Color.Transparent
+                        color = if (isImageAttachment) Color.Transparent
                             else if (mine) Color(0xFF254D91) else PanelSoft,
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.widthIn(max = 290.dp)
                             .combinedClickable(
-                                onClick = { pendingDeleteMessage = msg },
+                                // Let the image's own click target open the full-screen viewer.
+                                // Taps on text/audio/video bubbles still open delete confirmation.
+                                onClick = { if (!isImageAttachment) pendingDeleteMessage = msg },
                                 onLongClick = { pendingDeleteMessage = msg }
                             )
                             .pointerInput(msg.id, mine) {
