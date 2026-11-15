@@ -1228,10 +1228,17 @@ private fun MessageAttachment(message: DirectMessageDto) {
                     PlayerView(viewContext).apply {
                         this.player = player
                         useController = true
+                        if (mime.startsWith("video/")) {
+                            resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                        }
                     }
                 },
                 update = { it.player = player },
-                modifier = Modifier.fillMaxWidth().height(if (mime.startsWith("video/")) 190.dp else 76.dp)
+                modifier = if (mime.startsWith("video/")) {
+                    Modifier.size(190.dp).clip(CircleShape)
+                } else {
+                    Modifier.fillMaxWidth().height(76.dp)
+                }
             )
         }
         else -> Row(
