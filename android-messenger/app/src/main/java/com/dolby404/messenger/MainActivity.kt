@@ -1535,7 +1535,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 modifier = Modifier.size(42.dp).clickable { showRoundVideoRecorder = true },
                 color = PanelSoft, shape = CircleShape
             ) {
-                Box(contentAlignment = Alignment.Center) { Text("●", color = Violet, fontSize = 19.sp) }
+                Box(contentAlignment = Alignment.Center) { Text("📹", fontSize = 19.sp) }
             }
             OutlinedTextField(
                 value = draft, onValueChange = { draft = it },
