@@ -434,6 +434,7 @@ private fun MessengerApp(pendingLifecycleAction: String?, onLifecycleHandled: ()
     var firstName by remember { mutableStateOf("") }
     var lastName by remember { mutableStateOf("") }
     var countryCode by remember { mutableStateOf("DE") }
+    var username by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var signedIn by remember { mutableStateOf(false) }
     var authReady by remember { mutableStateOf(false) }
@@ -527,6 +528,11 @@ private fun MessengerApp(pendingLifecycleAction: String?, onLifecycleHandled: ()
             message = "Укажи имя, фамилию и двухбуквенный код страны (например DE или RU)."
             return
         }
+        val normalizedUsername = username.trim().removePrefix("@").lowercase()
+        if (isRegistering && !normalizedUsername.matches(Regex("[a-z0-9_]{3,24}"))) {
+            message = "Имя пользователя: 3–24 символа, только латинские буквы, цифры и _."
+            return
+        }
         scope.launch {
             busy = true
             message = if (isRegistering) "Создаём аккаунт FLOUSTREAM..." else "Подключаемся к FLOUSTREAM..."
@@ -541,6 +547,7 @@ private fun MessengerApp(pendingLifecycleAction: String?, onLifecycleHandled: ()
                         data = buildJsonObject {
                             put("first_name", firstName.trim())
                             put("last_name", lastName.trim())
+                            put("username", normalizedUsername)
                             put("country_code", normalizedCountry)
                             put("preferred_language", defaultLanguage)
                             put("display_name", firstName.trim() + " " + lastName.trim())
@@ -563,7 +570,15 @@ private fun MessengerApp(pendingLifecycleAction: String?, onLifecycleHandled: ()
                     message = "Авторизация успешна."
                 }
             } catch (e: Exception) {
-                message = e.message ?: if (isRegistering) "Не удалось зарегистрироваться." else "Не удалось войти. Проверь данные."
+                val errorText = e.message.orEmpty()
+                message = when {
+                    errorText.contains("username", ignoreCase = true) &&
+                        (errorText.contains("duplicate", ignoreCase = true) || errorText.contains("unique", ignoreCase = true) || errorText.contains("23505")) ->
+                        "Это имя пользователя уже занято. Выбери другое."
+                    errorText.contains("username_invalid_format", ignoreCase = true) ->
+                        "Имя пользователя должно содержать 3–24 символа: латинские буквы, цифры или _."
+                    else -> e.message ?: if (isRegistering) "Не удалось зарегистрироваться." else "Не удалось войти. Проверь данные."
+                }
             } finally {
                 busy = false
             }
@@ -640,6 +655,12 @@ private fun MessengerApp(pendingLifecycleAction: String?, onLifecycleHandled: ()
                     Spacer(Modifier.height(12.dp))
                     if (isRegistering) {
                         Spacer(Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = username, onValueChange = { username = it.lowercase().filter { ch -> ch.isLetterOrDigit() || ch == '_' }.take(24) },
+                            modifier = Modifier.fillMaxWidth(), label = { Text("@Имя пользователя") }, singleLine = true,
+                            supportingText = { Text("Уникальное имя для поиска. 3–24 символа: a–z, 0–9 и _") }
+                        )
+                        Spacer(Modifier.height(8.dp))
                         OutlinedTextField(
                             value = firstName, onValueChange = { firstName = it },
                             modifier = Modifier.fillMaxWidth(), label = { Text("Имя") }, singleLine = true
