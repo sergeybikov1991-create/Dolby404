@@ -743,11 +743,6 @@ private fun MessengerHome(onSignOut: () -> Unit, onDeleteAccount: () -> Unit) {
                         Text("MESSENGER", fontSize = 10.sp, color = Color(0xFF9FCBFF), letterSpacing = 4.sp)
                     }
                     HeaderAction("⌕") { searchOpen = !searchOpen }
-                    HeaderAction("⚙") {
-                        tab = "Настройки"
-                        selectedProfile = null
-                        searchOpen = false
-                    }
                 }
 
                 if (searchOpen) {
