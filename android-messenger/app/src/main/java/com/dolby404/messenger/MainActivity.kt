@@ -1,6 +1,7 @@
 package com.dolby404.messenger
 
 import android.os.Bundle
+import android.net.Uri
 import android.media.MediaRecorder
 import java.io.File
 import android.Manifest
@@ -14,7 +15,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.activity.result.PickVisualMediaRequest
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -2396,7 +2396,10 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     var showMediaLibrary by remember { mutableStateOf(false) }
     var mediaLibrary by remember { mutableStateOf<List<MediaLibraryItem>>(emptyList()) }
     var selectedMediaIds by remember { mutableStateOf<Set<String>>(emptySet()) }
-    val attachmentPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(maxItems = 20)) { uris ->
+    var showPhoneMediaPicker by remember { mutableStateOf(false) }
+    var phoneMediaPickerVideo by remember { mutableStateOf(false) }
+
+    fun uploadPickedAttachments(uris: List<Uri>) {
         if (uris.isNotEmpty() && !uploadingAttachment) scope.launch {
             uploadingAttachment = true
             var sentCount = 0
@@ -2405,7 +2408,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 uris.forEach { uri ->
                     try {
                         val resolver = context.contentResolver
-                        val mime = resolver.getType(uri) ?: "application/octet-stream"
+                        val mime = resolver.getType(uri) ?: if (phoneMediaPickerVideo) "video/mp4" else "image/jpeg"
                         val name = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
                             if (cursor.moveToFirst()) cursor.getString(0) else null
                         } ?: "attachment"
@@ -2415,7 +2418,11 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                         if (bytes.size > 50 * 1024 * 1024) error("$name: размер превышает 50 МБ.")
                         val safeName = name.substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"), "_").take(100).ifBlank { "attachment" }
                         val path = "$currentUserId/${UUID.randomUUID()}_$safeName"
-                        withContext(Dispatchers.IO) { floustreamClient.storage.from("message-media").upload(path, bytes) { contentType = ContentType.parse(mime) } }
+                        withContext(Dispatchers.IO) {
+                            floustreamClient.storage.from("message-media").upload(path, bytes) {
+                                contentType = ContentType.parse(mime)
+                            }
+                        }
                         sendDirectAttachment(currentUserId, peer.id, path, name, mime)
                         sentCount++
                     } catch (_: Exception) {
@@ -2424,7 +2431,9 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 }
                 if (sentCount > 0) refresh()
                 errorText = if (failures.isEmpty()) "" else "Отправлено $sentCount из ${uris.size}. ${failures.distinct().joinToString("; ")}"
-            } finally { uploadingAttachment = false }
+            } finally {
+                uploadingAttachment = false
+            }
         }
     }
 
@@ -2542,14 +2551,14 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                         text = { Text("Фото из галереи") },
                         onClick = {
                             showAttachmentMenu = false
-                            attachmentPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                            phoneMediaPickerVideo = false; showPhoneMediaPicker = true
                         }
                     )
                     DropdownMenuItem(
                         text = { Text("Видео из галереи") },
                         onClick = {
                             showAttachmentMenu = false
-                            attachmentPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly))
+                            phoneMediaPickerVideo = true; showPhoneMediaPicker = true
                         }
                     )
                     DropdownMenuItem(
@@ -2806,6 +2815,17 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             },
             dismissButton = {
                 TextButton(onClick = { showMediaLibrary = false }) { Text("Закрыть", color = White) }
+            }
+        )
+    }
+
+    if (showPhoneMediaPicker) {
+        PhoneMediaPickerDialog(
+            isVideo = phoneMediaPickerVideo,
+            onDismiss = { showPhoneMediaPicker = false },
+            onSelected = { uris ->
+                showPhoneMediaPicker = false
+                uploadPickedAttachments(uris)
             }
         )
     }
