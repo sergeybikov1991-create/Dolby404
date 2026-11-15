@@ -211,7 +211,7 @@ private data class FollowDto(
 
 @Serializable
 private data class SocialPostDto(
-    @SerialName("id") val id: String,
+    @SerialName("id") val id: Long,
     @SerialName("user_id") val userId: String,
     @SerialName("content") val content: String? = null,
     @SerialName("image_url") val imageUrl: String? = null,
