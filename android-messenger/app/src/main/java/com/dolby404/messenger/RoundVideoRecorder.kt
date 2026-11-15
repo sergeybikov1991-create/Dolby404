@@ -70,6 +70,12 @@ internal fun RoundVideoRecorder(
     var cameraProvider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
     var outputFile by remember { mutableStateOf<File?>(null) }
 
+    // DisposableEffect(Unit) is intentionally stable, so keep its cleanup pointed
+    // at the latest camera/recording/file instead of the initial null values.
+    val latestRecording = rememberUpdatedState(recording)
+    val latestCameraProvider = rememberUpdatedState(cameraProvider)
+    val latestOutputFile = rememberUpdatedState(outputFile)
+
     LaunchedEffect(recordingActive, recordingStartedAt) {
         if (recordingActive && recordingStartedAt > 0L) {
             while (recordingActive) {
@@ -90,10 +96,9 @@ internal fun RoundVideoRecorder(
     DisposableEffect(Unit) {
         onDispose {
             shouldSend = false
-            try { recording?.stop() } catch (_: Exception) { }
-            recording = null
-            cameraProvider?.unbindAll()
-            outputFile?.delete()
+            try { latestRecording.value?.stop() } catch (_: Exception) { }
+            latestCameraProvider.value?.unbindAll()
+            latestOutputFile.value?.delete()
         }
     }
     LaunchedEffect(hasPermissions, frontCamera, previewView) {
