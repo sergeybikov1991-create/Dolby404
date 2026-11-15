@@ -211,6 +211,7 @@ private data class FollowDto(
 
 @Serializable
 private data class FriendRequestDto(
+    @SerialName("id") val id: String,
     @SerialName("requester_id") val requesterId: String,
     @SerialName("recipient_id") val recipientId: String,
     @SerialName("status") val status: String
@@ -452,6 +453,46 @@ private suspend fun sendFriendRequest(userId: String, recipientId: String) {
             userHighId = ordered.last()
         )
     )
+}
+
+private suspend fun loadIncomingFriendRequests(userId: String): List<Pair<FriendRequestDto, ProfileDto>> {
+    val requests = floustreamClient.from("friend_requests").select {
+        filter { eq("recipient_id", userId); eq("status", "pending") }
+    }.decodeList<FriendRequestDto>()
+    if (requests.isEmpty()) return emptyList()
+    val requesterIds = requests.map { it.requesterId }.distinct()
+    val profiles = floustreamClient.from("profiles").select {
+        filter { isIn("id", requesterIds) }
+    }.decodeList<ProfileDto>().associateBy { it.id }
+    return requests.mapNotNull { request ->
+        profiles[request.requesterId]?.let { request to it }
+    }
+}
+
+private suspend fun respondToFriendRequest(userId: String, requestId: String, accept: Boolean) = withContext(Dispatchers.IO) {
+    val token = floustreamClient.auth.currentSessionOrNull()?.accessToken
+        ?: throw IllegalStateException("Сессия истекла. Войди в аккаунт ещё раз.")
+    val encodedId = URLEncoder.encode(requestId, "UTF-8")
+    val connection = URL("${BuildConfig.SUPABASE_URL}/rest/v1/friend_requests?id=eq.$encodedId&recipient_id=eq.$userId&status=eq.pending")
+        .openConnection() as HttpURLConnection
+    try {
+        connection.requestMethod = if (accept) "PATCH" else "DELETE"
+        connection.connectTimeout = 10000
+        connection.readTimeout = 10000
+        connection.setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+        connection.setRequestProperty("Authorization", "Bearer $token")
+        connection.setRequestProperty("Prefer", "return=minimal")
+        if (accept) {
+            connection.doOutput = true
+            connection.setRequestProperty("Content-Type", "application/json")
+            connection.outputStream.use {
+                it.write(JSONObject().put("status", "accepted").toString().toByteArray(Charsets.UTF_8))
+            }
+        }
+        if (connection.responseCode !in 200..299) throw IllegalStateException("Не удалось обработать заявку.")
+    } finally {
+        connection.disconnect()
+    }
 }
 
 private suspend fun sendDirectAttachment(userId: String, peerId: String, path: String, name: String, mime: String) {
@@ -1073,6 +1114,8 @@ private fun SocialNetworkScreen(
     var posts by remember(currentUserId) { mutableStateOf<List<SocialPostDto>>(emptyList()) }
     var feedPosts by remember(currentUserId) { mutableStateOf<List<SocialFeedItem>>(emptyList()) }
     var friends by remember(currentUserId) { mutableStateOf<List<ProfileDto>>(emptyList()) }
+    var incomingFriendRequests by remember(currentUserId) { mutableStateOf<List<Pair<FriendRequestDto, ProfileDto>>>(emptyList()) }
+    var friendActionBusyId by remember { mutableStateOf<String?>(null) }
     var publicMedia by remember(currentUserId) { mutableStateOf<List<Pair<MediaLibraryItem, String>>>(emptyList()) }
     var searchText by remember { mutableStateOf("") }
     var searchResults by remember { mutableStateOf<List<ProfileDto>>(emptyList()) }
@@ -1094,6 +1137,7 @@ private fun SocialNetworkScreen(
             posts = if (section == "Моя страница") loadSocialPosts(currentUserId) else emptyList()
             feedPosts = if (section == "Лента") loadSocialFeed() else emptyList()
             friends = if (section == "Друзья") loadMutualFriends(currentUserId) else emptyList()
+            incomingFriendRequests = if (section == "Друзья") loadIncomingFriendRequests(currentUserId) else emptyList()
             if (section == "Настройки соцсети") {
                 val settings = loadSocialPrivacySettings(currentUserId)
                 privacyPublicPhotos = settings.optBoolean("public_album_visible", true)
@@ -1223,6 +1267,56 @@ private fun SocialNetworkScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     item { Text("Друзья", color = White, fontSize = 23.sp, fontWeight = FontWeight.Bold) }
+                    if (incomingFriendRequests.isNotEmpty()) {
+                        item { Text("Заявки в друзья", color = White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold) }
+                        items(incomingFriendRequests, key = { it.first.id }) { (request, requester) ->
+                            Row(
+                                Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(14.dp)).padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                val requesterName = requester.displayName ?: requester.username ?: "Пользователь"
+                                Avatar(requesterName.take(1).uppercase(), avatarUrl = requester.avatarUrl)
+                                Spacer(Modifier.width(10.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(requesterName, color = White, fontWeight = FontWeight.SemiBold)
+                                    Text(requester.username?.let { "@$it" } ?: "", color = Muted, fontSize = 11.sp)
+                                }
+                                TextButton(
+                                    enabled = friendActionBusyId != request.id,
+                                    onClick = {
+                                        scope.launch {
+                                            friendActionBusyId = request.id
+                                            try {
+                                                respondToFriendRequest(currentUserId, request.id, true)
+                                                incomingFriendRequests = loadIncomingFriendRequests(currentUserId)
+                                                friends = loadMutualFriends(currentUserId)
+                                            } catch (_: Exception) {
+                                                error = "Не удалось принять заявку. Попробуй ещё раз."
+                                            } finally {
+                                                friendActionBusyId = null
+                                            }
+                                        }
+                                    }
+                                ) { Text("Принять", color = Color(0xFF9FCBFF), fontSize = 11.sp) }
+                                TextButton(
+                                    enabled = friendActionBusyId != request.id,
+                                    onClick = {
+                                        scope.launch {
+                                            friendActionBusyId = request.id
+                                            try {
+                                                respondToFriendRequest(currentUserId, request.id, false)
+                                                incomingFriendRequests = loadIncomingFriendRequests(currentUserId)
+                                            } catch (_: Exception) {
+                                                error = "Не удалось отклонить заявку. Попробуй ещё раз."
+                                            } finally {
+                                                friendActionBusyId = null
+                                            }
+                                        }
+                                    }
+                                ) { Text("×", color = Color(0xFFFF9AAA), fontSize = 16.sp) }
+                            }
+                        }
+                    }
                     if (friends.isEmpty()) item {
                         Text("Пока нет друзей. Найди людей по @имени пользователя.", color = Muted, fontSize = 13.sp)
                     }
