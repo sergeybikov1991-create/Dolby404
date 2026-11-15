@@ -30,6 +30,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
@@ -946,6 +947,7 @@ private fun SocialNetworkScreen(
     onOpenDrawer: () -> Unit,
     onBackToMessenger: () -> Unit
 ) {
+    val scope = rememberCoroutineScope()
     var profile by remember(currentUserId) { mutableStateOf<ProfileDto?>(null) }
     var posts by remember(currentUserId) { mutableStateOf<List<SocialPostDto>>(emptyList()) }
     var friends by remember(currentUserId) { mutableStateOf<List<ProfileDto>>(emptyList()) }
