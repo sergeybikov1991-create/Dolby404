@@ -2165,6 +2165,13 @@ private fun AudioMessagePlayer(url: String) {
             }
         }
         player.addListener(listener)
+        // The player may already be READY by the time this effect is installed.
+        // Synchronize the initial Compose state so the buffering indicator cannot get stuck.
+        isBuffering = player.playbackState == Player.STATE_BUFFERING
+        isPlaying = player.isPlaying
+        durationMs = player.duration.takeIf { player.playbackState == Player.STATE_READY && it > 0L } ?: 0L
+        positionMs = player.currentPosition.coerceAtLeast(0L)
+        playbackError = player.playerError != null
         onDispose {
             player.removeListener(listener)
             player.release()
