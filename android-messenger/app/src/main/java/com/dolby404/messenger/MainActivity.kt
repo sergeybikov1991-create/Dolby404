@@ -327,7 +327,7 @@ private suspend fun loadCurrentProfile(userId: String): ProfileDto? = floustream
 }.decodeList<ProfileDto>().firstOrNull()
 
 private suspend fun loadSocialPosts(userId: String): List<SocialPostDto> =
-    floustreamClient.from("posts").select(columns = "id,user_id,content,image_url,created_at") {
+    floustreamClient.from("posts").select {
         filter { eq("user_id", userId) }
     }.decodeList<SocialPostDto>().sortedByDescending { it.createdAt.orEmpty() }.take(50)
 
