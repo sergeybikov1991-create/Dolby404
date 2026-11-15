@@ -656,7 +656,7 @@ private fun MessengerApp(pendingLifecycleAction: String?, onLifecycleHandled: ()
                     if (isRegistering) {
                         Spacer(Modifier.height(12.dp))
                         OutlinedTextField(
-                            value = username, onValueChange = { username = it.lowercase().filter { ch -> ch.isLetterOrDigit() || ch == '_' }.take(24) },
+                            value = username, onValueChange = { username = it.lowercase().filter { ch -> ch in 'a'..'z' || ch in '0'..'9' || ch == '_' }.take(24) },
                             modifier = Modifier.fillMaxWidth(), label = { Text("@Имя пользователя") }, singleLine = true,
                             supportingText = { Text("Уникальное имя для поиска. 3–24 символа: a–z, 0–9 и _") }
                         )
