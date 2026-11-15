@@ -36,6 +36,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
+import kotlin.coroutines.resume
 
 @Composable
 internal fun RoundVideoRecorder(
@@ -90,7 +91,7 @@ internal fun RoundVideoRecorder(
             val future = ProcessCameraProvider.getInstance(context)
             val provider = kotlinx.coroutines.suspendCancellableCoroutine<ProcessCameraProvider> { cont ->
                 future.addListener({
-                    try { cont.resume(future.get()) {} }
+                    try { cont.resume(future.get()) }
                     catch (e: Exception) { cont.resumeWith(Result.failure(e)) }
                 }, ContextCompat.getMainExecutor(context))
             }
