@@ -763,8 +763,9 @@ private fun MessengerHome(onSignOut: () -> Unit, onDeleteAccount: () -> Unit) {
                     onBackToMessenger = { socialOpen = false; socialDrawerOpen = false }
                 )
                 if (socialDrawerOpen) {
-                    Box(Modifier.fillMaxSize().background(Color(0x99000000))) {
-                        Column(Modifier.fillMaxHeight().width(304.dp).background(Panel).padding(18.dp)) {
+                    Box(Modifier.fillMaxSize()) {
+                        Spacer(Modifier.fillMaxSize().background(Color(0x99000000)).clickable { socialDrawerOpen = false })
+                        Column(Modifier.align(Alignment.CenterStart).fillMaxHeight().width(304.dp).background(Panel).padding(18.dp)) {
                             Text("FLOUSTREAM", color = White, fontSize = 21.sp, fontWeight = FontWeight.Black)
                             Text("СОЦИАЛЬНАЯ СЕТЬ", color = Color(0xFF9FCBFF), fontSize = 10.sp, letterSpacing = 2.sp)
                             Spacer(Modifier.height(24.dp))
@@ -786,7 +787,6 @@ private fun MessengerHome(onSignOut: () -> Unit, onDeleteAccount: () -> Unit) {
                                 Text("← Вернуться в Messenger", color = Color(0xFF9FCBFF))
                             }
                         }
-                        Spacer(Modifier.fillMaxSize().clickable { socialDrawerOpen = false })
                     }
                 }
             } else if (selectedProfile != null) {
