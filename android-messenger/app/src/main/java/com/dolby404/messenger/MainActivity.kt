@@ -469,29 +469,21 @@ private suspend fun loadIncomingFriendRequests(userId: String): List<Pair<Friend
     }
 }
 
-private suspend fun respondToFriendRequest(userId: String, requestId: String, accept: Boolean) = withContext(Dispatchers.IO) {
-    val token = floustreamClient.auth.currentSessionOrNull()?.accessToken
-        ?: throw IllegalStateException("Сессия истекла. Войди в аккаунт ещё раз.")
-    val encodedId = URLEncoder.encode(requestId, "UTF-8")
-    val connection = URL("${BuildConfig.SUPABASE_URL}/rest/v1/friend_requests?id=eq.$encodedId&recipient_id=eq.$userId&status=eq.pending")
-        .openConnection() as HttpURLConnection
-    try {
-        connection.requestMethod = if (accept) "PATCH" else "DELETE"
-        connection.connectTimeout = 10000
-        connection.readTimeout = 10000
-        connection.setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
-        connection.setRequestProperty("Authorization", "Bearer $token")
-        connection.setRequestProperty("Prefer", "return=minimal")
-        if (accept) {
-            connection.doOutput = true
-            connection.setRequestProperty("Content-Type", "application/json")
-            connection.outputStream.use {
-                it.write(JSONObject().put("status", "accepted").toString().toByteArray(Charsets.UTF_8))
-            }
+private suspend fun respondToFriendRequest(userId: String, requestId: String, accept: Boolean) {
+    if (accept) {
+        floustreamClient.from("friend_requests").update(
+            { set("status", "accepted") }
+        ) {
+            eq("id", requestId)
+            eq("recipient_id", userId)
+            eq("status", "pending")
         }
-        if (connection.responseCode !in 200..299) throw IllegalStateException("Не удалось обработать заявку.")
-    } finally {
-        connection.disconnect()
+    } else {
+        floustreamClient.from("friend_requests").delete {
+            eq("id", requestId)
+            eq("recipient_id", userId)
+            eq("status", "pending")
+        }
     }
 }
 
