@@ -192,6 +192,12 @@ private data class ProfileDto(
 )
 
 @Serializable
+private data class FollowDto(
+    @SerialName("follower_id") val followerId: String? = null,
+    @SerialName("following_id") val followingId: String? = null
+)
+
+@Serializable
 private data class SocialPostDto(
     @SerialName("id") val id: String,
     @SerialName("user_id") val userId: String,
@@ -330,6 +336,23 @@ private suspend fun loadSocialPosts(userId: String): List<SocialPostDto> =
     floustreamClient.from("posts").select {
         filter { eq("user_id", userId) }
     }.decodeList<SocialPostDto>().sortedByDescending { it.createdAt.orEmpty() }.take(50)
+
+private suspend fun loadMutualFriends(userId: String): List<ProfileDto> {
+    val following = floustreamClient.from("follows").select {
+        filter { eq("follower_id", userId) }
+    }.decodeList<FollowDto>().mapNotNull { it.followingId }.distinct()
+    if (following.isEmpty()) return emptyList()
+    val mutual = floustreamClient.from("follows").select {
+        filter {
+            eq("following_id", userId)
+            isIn("follower_id", following)
+        }
+    }.decodeList<FollowDto>().mapNotNull { it.followerId }.distinct()
+    if (mutual.isEmpty()) return emptyList()
+    return floustreamClient.from("profiles").select {
+        filter { isIn("id", mutual) }
+    }.decodeList<ProfileDto>().filter { !it.isDeleted }
+}
 
 private suspend fun sendDirectAttachment(userId: String, peerId: String, path: String, name: String, mime: String) {
     floustreamClient.from("direct_messages").insert(
@@ -889,6 +912,9 @@ private fun SocialNetworkScreen(
 ) {
     var profile by remember(currentUserId) { mutableStateOf<ProfileDto?>(null) }
     var posts by remember(currentUserId) { mutableStateOf<List<SocialPostDto>>(emptyList()) }
+    var friends by remember(currentUserId) { mutableStateOf<List<ProfileDto>>(emptyList()) }
+    var searchText by remember { mutableStateOf("") }
+    var searchResults by remember { mutableStateOf<List<ProfileDto>>(emptyList()) }
     var loading by remember(currentUserId) { mutableStateOf(true) }
     var error by remember(currentUserId) { mutableStateOf("") }
 
@@ -898,10 +924,22 @@ private fun SocialNetworkScreen(
         try {
             profile = loadCurrentProfile(currentUserId)
             posts = if (section == "Моя страница") loadSocialPosts(currentUserId) else emptyList()
+            friends = if (section == "Друзья") loadMutualFriends(currentUserId) else emptyList()
         } catch (_: Exception) {
             error = "Не удалось загрузить раздел. Проверь подключение и попробуй ещё раз."
         } finally {
             loading = false
+        }
+    }
+
+    LaunchedEffect(searchText, section) {
+        if (section == "Поиск и рекомендации") {
+            if (searchText.trim().length < 2) searchResults = emptyList()
+            else {
+                delay(350)
+                try { searchResults = findFloustreamUsers(searchText) }
+                catch (_: Exception) { searchResults = emptyList() }
+            }
         }
     }
 
@@ -924,6 +962,68 @@ private fun SocialNetworkScreen(
             }
             error.isNotBlank() -> Column(Modifier.fillMaxWidth().padding(20.dp)) {
                 Text(error, color = Color(0xFFFF9AA8), fontSize = 13.sp)
+            }
+            section == "Друзья" -> {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    item { Text("Друзья", color = White, fontSize = 23.sp, fontWeight = FontWeight.Bold) }
+                    if (friends.isEmpty()) item {
+                        Text("Пока нет взаимных друзей. Найди людей по @имени пользователя.", color = Muted, fontSize = 13.sp)
+                    }
+                    items(friends, key = { it.id }) { friend ->
+                        Row(
+                            Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(14.dp)).padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val name = friend.displayName ?: friend.username ?: "Пользователь"
+                            Avatar(name.take(1).uppercase(), avatarUrl = friend.avatarUrl)
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(name, color = White, fontWeight = FontWeight.SemiBold)
+                                Text(friend.username?.let { "@$it" } ?: "", color = Muted, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+            }
+            section == "Поиск и рекомендации" -> {
+                Column(Modifier.fillMaxSize().padding(16.dp)) {
+                    Text("Поиск людей", color = White, fontSize = 23.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = searchText,
+                        onValueChange = { searchText = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        placeholder = { Text("@имя пользователя") },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = White, unfocusedTextColor = White,
+                            focusedBorderColor = Blue, unfocusedBorderColor = Muted,
+                            focusedPlaceholderColor = Muted, unfocusedPlaceholderColor = Muted
+                        )
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    if (searchText.trim().length < 2) Text("Введи минимум 2 символа username.", color = Muted, fontSize = 12.sp)
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(searchResults, key = { it.id }) { person ->
+                            Row(
+                                Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(14.dp)).padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                val name = person.displayName ?: person.username ?: "Пользователь"
+                                Avatar(name.take(1).uppercase(), avatarUrl = person.avatarUrl)
+                                Spacer(Modifier.width(12.dp))
+                                Column {
+                                    Text(name, color = White, fontWeight = FontWeight.SemiBold)
+                                    Text(person.username?.let { "@$it" } ?: "", color = Muted, fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+                }
             }
             section == "Моя страница" -> {
                 LazyColumn(
