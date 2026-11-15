@@ -246,6 +246,17 @@ private data class SocialFeedItem(
 )
 
 @Serializable
+private data class HiddenDirectMessageDto(
+    @SerialName("message_id") val messageId: String
+)
+
+@Serializable
+private data class NewHiddenDirectMessage(
+    @SerialName("message_id") val messageId: String,
+    @SerialName("user_id") val userId: String
+)
+
+@Serializable
 private data class DirectMessageDto(
     @SerialName("id") val id: String,
     @SerialName("sender_id") val senderId: String,
@@ -346,7 +357,10 @@ private suspend fun loadDirectMessages(userId: String, peerId: String): List<Dir
             eq("recipient_id", userId)
         }
     }.decodeList<DirectMessageDto>()
-    return (sent + received).sortedBy { it.createdAt }.takeLast(200)
+    val hiddenIds = floustreamClient.from("direct_message_hidden").select {
+        filter { eq("user_id", userId) }
+    }.decodeList<HiddenDirectMessageDto>().map { it.messageId }.toSet()
+    return (sent + received).filterNot { it.id in hiddenIds }.sortedBy { it.createdAt }.takeLast(200)
 }
 
 private suspend fun markIncomingMessagesRead(userId: String, peerId: String) = withContext(Dispatchers.IO) {
@@ -499,6 +513,12 @@ private suspend fun sendDirectAttachment(userId: String, peerId: String, path: S
 private suspend fun sendDirectMessage(userId: String, peerId: String, content: String) {
     floustreamClient.from("direct_messages").insert(
         NewDirectMessage(senderId = userId, recipientId = peerId, content = content)
+    )
+}
+
+private suspend fun hideDirectMessage(userId: String, messageId: String) {
+    floustreamClient.from("direct_message_hidden").insert(
+        NewHiddenDirectMessage(messageId = messageId, userId = userId)
     )
 }
 
@@ -2410,7 +2430,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                         modifier = Modifier.widthIn(max = 290.dp)
                             .combinedClickable(
                                 onClick = {},
-                                onLongClick = { if (mine) pendingDeleteMessage = msg }
+                                onLongClick = { pendingDeleteMessage = msg }
                             )
                             .pointerInput(msg.id, mine) {
                                 var dragTotal = 0f
@@ -2420,7 +2440,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                                         change.consume()
                                     },
                                     onDragEnd = {
-                                        if (mine && abs(dragTotal) > 84.dp.toPx()) pendingDeleteMessage = msg
+                                        if (abs(dragTotal) > 84.dp.toPx()) pendingDeleteMessage = msg
                                         dragTotal = 0f
                                     },
                                     onDragCancel = { dragTotal = 0f }
@@ -2615,7 +2635,13 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             onDismissRequest = { if (!deletingMessage) pendingDeleteMessage = null },
             containerColor = Panel,
             title = { Text("Удалить сообщение?", color = White) },
-            text = { Text("Сообщение будет удалено из переписки у тебя и собеседника.", color = Muted) },
+            text = {
+                Text(
+                    if (pendingDeleteMessage?.senderId == currentUserId) "Сообщение будет удалено у тебя и собеседника."
+                    else "Сообщение будет скрыто только в твоей переписке.",
+                    color = Muted
+                )
+            },
             confirmButton = {
                 TextButton(
                     enabled = !deletingMessage,
@@ -2624,7 +2650,8 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                         scope.launch {
                             deletingMessage = true
                             try {
-                                deleteDirectMessage(currentUserId, target.id)
+                                if (target.senderId == currentUserId) deleteDirectMessage(currentUserId, target.id)
+                                else hideDirectMessage(currentUserId, target.id)
                                 messages.removeAll { it.id == target.id }
                                 pendingDeleteMessage = null
                             } catch (e: Exception) {
@@ -2634,7 +2661,13 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                             }
                         }
                     }
-                ) { Text(if (deletingMessage) "Удаляем…" else "Удалить", color = Color(0xFFFF9AAA)) }
+                ) {
+                    Text(
+                        if (deletingMessage) "Удаляем…"
+                        else if (pendingDeleteMessage?.senderId == currentUserId) "Удалить у всех" else "Удалить у меня",
+                        color = Color(0xFFFF9AAA)
+                    )
+                }
             },
             dismissButton = {
                 TextButton(enabled = !deletingMessage, onClick = { pendingDeleteMessage = null }) {
