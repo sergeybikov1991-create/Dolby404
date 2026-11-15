@@ -22,6 +22,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.security.MessageDigest
 
 private data class UpdatePolicy(
     val minimumSupportedVersion: String,
@@ -33,6 +34,7 @@ private data class UpdatePolicy(
 private data class AvailableUpdate(
     val versionName: String,
     val apkUrl: String,
+    val sha256: String,
     val notes: String,
     val canPostpone: Boolean,
     val postponeHours: Int
@@ -102,14 +104,16 @@ private suspend fun findAvailableUpdate(context: android.content.Context): Avail
         if (tag.isBlank() || !isNewerVersion(tag, BuildConfig.VERSION_NAME)) return@withContext null
         val assets = json.optJSONArray("assets") ?: return@withContext null
         var apkUrl: String? = null
+        var apkSha256: String? = null
         for (i in 0 until assets.length()) {
             val asset = assets.getJSONObject(i)
             if (asset.optString("name") == "FLOUSTREAM-Messenger.apk") {
                 apkUrl = asset.optString("browser_download_url")
+                apkSha256 = asset.optString("digest").removePrefix("sha256:").lowercase().takeIf { it.matches(Regex("[a-f0-9]{64}")) }
                 break
             }
         }
-        if (apkUrl.isNullOrBlank()) return@withContext null
+        if (apkUrl.isNullOrBlank() || apkSha256.isNullOrBlank()) return@withContext null
         val parsedApkUrl = URL(apkUrl)
         if (parsedApkUrl.protocol != "https" ||
             parsedApkUrl.host != "github.com" ||
@@ -131,7 +135,7 @@ private suspend fun findAvailableUpdate(context: android.content.Context): Avail
 
         if (!belowMinimum && policy.type != "critical" && now < postponeUntil) return@withContext null
         val canPostpone = !belowMinimum && policy.type != "critical" && used < policy.maxPostponements
-        AvailableUpdate(tag, apkUrl, json.optString("body").take(500), canPostpone, policy.postponeHours)
+        AvailableUpdate(tag, apkUrl, apkSha256, json.optString("body").take(500), canPostpone, policy.postponeHours)
     } finally {
         connection.disconnect()
     }
@@ -140,6 +144,7 @@ private suspend fun findAvailableUpdate(context: android.content.Context): Avail
 private suspend fun downloadUpdate(
     contextCache: File,
     url: String,
+    expectedSha256: String,
     onProgress: (Float) -> Unit
 ): File = withContext(Dispatchers.IO) {
     val connection = URL(url).openConnection() as HttpURLConnection
@@ -168,6 +173,12 @@ private suspend fun downloadUpdate(
                 }
                 output.flush()
             }
+        }
+        val actualSha256 = MessageDigest.getInstance("SHA-256").digest(apk.readBytes())
+            .joinToString("") { "%02x".format(it) }
+        if (!actualSha256.equals(expectedSha256, ignoreCase = true)) {
+            apk.delete()
+            error("Проверка целостности обновления не пройдена. Загрузите его ещё раз.")
         }
         apk
     } finally {
@@ -252,7 +263,7 @@ fun AppUpdatePrompt() {
                             error = null
                             scope.launch {
                                 try {
-                                    downloadedApk = downloadUpdate(context.cacheDir, available.apkUrl) { progress = it }
+                                    downloadedApk = downloadUpdate(context.cacheDir, available.apkUrl, available.sha256) { progress = it }
                                 } catch (e: Exception) {
                                     error = e.message ?: "Ошибка загрузки."
                                 } finally {
