@@ -1309,7 +1309,7 @@ private fun SocialNetworkScreen(
                             }
                         }
                     }
-                    if (friends.isEmpty()) item {
+                    if (friends.isEmpty() && incomingFriendRequests.isEmpty()) item {
                         Text("Пока нет друзей. Найди людей по @имени пользователя.", color = Muted, fontSize = 13.sp)
                     }
                     items(friends, key = { it.id }) { friend ->
