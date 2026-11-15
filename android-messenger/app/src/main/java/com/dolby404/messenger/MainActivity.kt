@@ -1070,7 +1070,7 @@ private fun SettingsScreen(currentUserId: String, onBack: () -> Unit, onSignOut:
         SettingsRow("⟳", "Синхронизация с сайтом", "Чаты и медиа между сайтом и приложением") { onInfo("Чаты используют общую таблицу direct_messages Supabase. Остальные настройки синхронизации добавим по мере подключения функций.") }
         SettingsRow("⬆", "Обновления приложения", "Обязательные обновления · отключить нельзя") { onInfo("FLOUSTREAM автоматически проверяет обновления. Если выйдет новая версия, приложение попросит установить её перед продолжением работы. Отключить обязательные обновления нельзя.") }
         SettingsRow("⌫", "Удалить учётную запись", "Подтверждение email · 30 дней на восстановление") { confirmDelete = true }
-        SettingsRow("◐", "О приложении", "FLOUSTREAM Messenger · 0.3.2") { onInfo("FLOUSTREAM Messenger, версия 0.3.2.") }
+        SettingsRow("◐", "О приложении", "FLOUSTREAM Messenger · ${BuildConfig.VERSION_NAME}") { onInfo("FLOUSTREAM Messenger, версия ${BuildConfig.VERSION_NAME}.") }
         Spacer(Modifier.height(18.dp))
         Surface(
             modifier = Modifier.fillMaxWidth().clickable { confirmSignOut = true },
