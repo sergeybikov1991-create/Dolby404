@@ -328,6 +328,41 @@ private suspend fun markIncomingMessagesRead(userId: String, peerId: String) = w
     } finally { connection.disconnect() }
 }
 
+private suspend fun loadSocialPrivacySettings(userId: String): JSONObject = withContext(Dispatchers.IO) {
+    val token = floustreamClient.auth.currentSessionOrNull()?.accessToken ?: error("Сессия истекла.")
+    val connection = URL("${BuildConfig.SUPABASE_URL}/rest/v1/profile_privacy_settings?owner_id=eq.$userId&select=*").openConnection() as HttpURLConnection
+    try {
+        connection.connectTimeout = 10000
+        connection.readTimeout = 15000
+        connection.setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+        connection.setRequestProperty("Authorization", "Bearer $token")
+        val stream = if (connection.responseCode in 200..299) connection.inputStream else connection.errorStream
+        val rows = JSONArray(stream?.bufferedReader()?.use { it.readText() }.orEmpty())
+        if (rows.length() > 0) rows.getJSONObject(0) else JSONObject()
+            .put("public_album_visible", true).put("video_album_visible", true)
+            .put("comments_visible", true).put("feed_posts_visible", true)
+    } finally { connection.disconnect() }
+}
+
+private suspend fun saveSocialPrivacySettings(userId: String, settings: JSONObject) = withContext(Dispatchers.IO) {
+    val token = floustreamClient.auth.currentSessionOrNull()?.accessToken ?: error("Сессия истекла.")
+    val connection = URL("${BuildConfig.SUPABASE_URL}/rest/v1/profile_privacy_settings?on_conflict=owner_id").openConnection() as HttpURLConnection
+    try {
+        connection.requestMethod = "POST"
+        connection.connectTimeout = 10000
+        connection.readTimeout = 15000
+        connection.doOutput = true
+        connection.setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+        connection.setRequestProperty("Authorization", "Bearer $token")
+        connection.setRequestProperty("Content-Type", "application/json")
+        connection.setRequestProperty("Prefer", "resolution=merge-duplicates,return=minimal")
+        val body = JSONObject(settings.toString()).put("owner_id", userId)
+            .put("updated_at", java.time.Instant.now().toString()).toString()
+        connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+        if (connection.responseCode !in 200..299) error("Не удалось сохранить настройки.")
+    } finally { connection.disconnect() }
+}
+
 private suspend fun loadCurrentProfile(userId: String): ProfileDto? = floustreamClient.from("profiles").select {
     filter { eq("id", userId) }
 }.decodeList<ProfileDto>().firstOrNull()
@@ -916,6 +951,12 @@ private fun SocialNetworkScreen(
     var publicMedia by remember(currentUserId) { mutableStateOf<List<Pair<MediaLibraryItem, String>>>(emptyList()) }
     var searchText by remember { mutableStateOf("") }
     var searchResults by remember { mutableStateOf<List<ProfileDto>>(emptyList()) }
+    var privacyPublicPhotos by remember(currentUserId) { mutableStateOf(true) }
+    var privacyVideos by remember(currentUserId) { mutableStateOf(true) }
+    var privacyComments by remember(currentUserId) { mutableStateOf(true) }
+    var privacyFeed by remember(currentUserId) { mutableStateOf(true) }
+    var privacySaving by remember { mutableStateOf(false) }
+    var privacyStatus by remember { mutableStateOf("") }
     var loading by remember(currentUserId) { mutableStateOf(true) }
     var error by remember(currentUserId) { mutableStateOf("") }
 
@@ -926,6 +967,13 @@ private fun SocialNetworkScreen(
             profile = loadCurrentProfile(currentUserId)
             posts = if (section == "Моя страница") loadSocialPosts(currentUserId) else emptyList()
             friends = if (section == "Друзья") loadMutualFriends(currentUserId) else emptyList()
+            if (section == "Настройки соцсети") {
+                val settings = loadSocialPrivacySettings(currentUserId)
+                privacyPublicPhotos = settings.optBoolean("public_album_visible", true)
+                privacyVideos = settings.optBoolean("video_album_visible", true)
+                privacyComments = settings.optBoolean("comments_visible", true)
+                privacyFeed = settings.optBoolean("feed_posts_visible", true)
+            }
             publicMedia = if (section == "Фото" || section == "Видео") {
                 loadPublicMediaLibrary(currentUserId)
                     .filter { if (section == "Фото") it.mime.startsWith("image/") else it.mime.startsWith("video/") }
@@ -1069,6 +1117,54 @@ private fun SocialNetworkScreen(
                             }
                         }
                     }
+                }
+            }
+            section == "Настройки соцсети" -> {
+                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
+                    Text("Настройки соцсети", color = White, fontSize = 23.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(8.dp))
+                    Text("Управляй видимостью открытых материалов и публикаций.", color = Muted, fontSize = 13.sp)
+                    Spacer(Modifier.height(16.dp))
+                    Row(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(14.dp)).clickable { privacyPublicPhotos = !privacyPublicPhotos }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Открытый фотоальбом виден другим", color = White, modifier = Modifier.weight(1f), fontSize = 14.sp)
+                        Switch(checked = privacyPublicPhotos, onCheckedChange = { privacyPublicPhotos = it })
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Row(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(14.dp)).clickable { privacyVideos = !privacyVideos }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Открытый видеоальбом виден другим", color = White, modifier = Modifier.weight(1f), fontSize = 14.sp)
+                        Switch(checked = privacyVideos, onCheckedChange = { privacyVideos = it })
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Row(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(14.dp)).clickable { privacyComments = !privacyComments }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Комментарии разрешены", color = White, modifier = Modifier.weight(1f), fontSize = 14.sp)
+                        Switch(checked = privacyComments, onCheckedChange = { privacyComments = it })
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Row(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(14.dp)).clickable { privacyFeed = !privacyFeed }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Публикации видны в ленте", color = White, modifier = Modifier.weight(1f), fontSize = 14.sp)
+                        Switch(checked = privacyFeed, onCheckedChange = { privacyFeed = it })
+                    }
+                    Spacer(Modifier.height(14.dp))
+                    Button(onClick = {
+                        privacySaving = true
+                        privacyStatus = ""
+                        scope.launch {
+                            try {
+                                saveSocialPrivacySettings(currentUserId, JSONObject()
+                                    .put("public_album_visible", privacyPublicPhotos)
+                                    .put("video_album_visible", privacyVideos)
+                                    .put("comments_visible", privacyComments)
+                                    .put("feed_posts_visible", privacyFeed)
+                                    .put("music_visible", true))
+                                privacyStatus = "Настройки сохранены."
+                            } catch (_: Exception) {
+                                privacyStatus = "Не удалось сохранить. Проверь подключение и попробуй ещё раз."
+                            } finally { privacySaving = false }
+                        }
+                    }, enabled = !privacySaving, modifier = Modifier.fillMaxWidth()) {
+                        Text(if (privacySaving) "Сохраняем…" else "Сохранить настройки")
+                    }
+                    if (privacyStatus.isNotBlank()) Text(privacyStatus, color = Muted, fontSize = 12.sp)
                 }
             }
             section == "Моя страница" -> {
