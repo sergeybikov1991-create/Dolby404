@@ -62,7 +62,6 @@ import io.github.jan.supabase.auth.handleDeeplinks
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.from
-import io.github.jan.supabase.postgrest.query.filter.eq
 import io.github.jan.supabase.storage.Storage
 import io.github.jan.supabase.storage.storage
 import io.ktor.http.ContentType
@@ -474,15 +473,19 @@ private suspend fun respondToFriendRequest(userId: String, requestId: String, ac
         floustreamClient.from("friend_requests").update(
             { set("status", "accepted") }
         ) {
-            eq("id", requestId)
-            eq("recipient_id", userId)
-            eq("status", "pending")
+            filter {
+                eq("id", requestId)
+                eq("recipient_id", userId)
+                eq("status", "pending")
+            }
         }
     } else {
         floustreamClient.from("friend_requests").delete {
-            eq("id", requestId)
-            eq("recipient_id", userId)
-            eq("status", "pending")
+            filter {
+                eq("id", requestId)
+                eq("recipient_id", userId)
+                eq("status", "pending")
+            }
         }
     }
 }
