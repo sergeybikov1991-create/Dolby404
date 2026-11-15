@@ -2130,23 +2130,38 @@ private fun AudioMessagePlayer(url: String) {
     val player = remember(url) {
         ExoPlayer.Builder(context).build().apply {
             setMediaItem(MediaItem.fromUri(url))
+            playWhenReady = false
             prepare()
         }
     }
     var isPlaying by remember(url) { mutableStateOf(false) }
+    var isBuffering by remember(url) { mutableStateOf(true) }
+    var playbackError by remember(url) { mutableStateOf(false) }
     var durationMs by remember(url) { mutableLongStateOf(0L) }
     var positionMs by remember(url) { mutableLongStateOf(0L) }
+
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
-                if (playbackState == Player.STATE_READY) durationMs = player.duration.coerceAtLeast(0L)
+                isBuffering = playbackState == Player.STATE_BUFFERING
+                if (playbackState == Player.STATE_READY) {
+                    durationMs = player.duration.takeIf { it > 0L } ?: 0L
+                    playbackError = false
+                }
                 if (playbackState == Player.STATE_ENDED) {
                     isPlaying = false
                     positionMs = 0L
                     player.seekTo(0L)
                 }
             }
-            override fun onIsPlayingChanged(playing: Boolean) { isPlaying = playing }
+            override fun onIsPlayingChanged(playing: Boolean) {
+                isPlaying = playing
+            }
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                playbackError = true
+                isPlaying = false
+                isBuffering = false
+            }
         }
         player.addListener(listener)
         onDispose {
@@ -2154,32 +2169,54 @@ private fun AudioMessagePlayer(url: String) {
             player.release()
         }
     }
+
     LaunchedEffect(player, isPlaying) {
         while (isPlaying) {
             positionMs = player.currentPosition.coerceAtLeast(0L)
             delay(250L)
         }
     }
+
     Row(
         Modifier.fillMaxWidth().background(PanelSoft, RoundedCornerShape(13.dp)).padding(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Surface(
-            modifier = Modifier.size(42.dp).clickable {
+            modifier = Modifier.size(42.dp).clickable(enabled = !playbackError) {
                 if (player.isPlaying) player.pause() else player.play()
             },
-            color = Blue,
+            color = if (playbackError) Muted else Blue,
             shape = CircleShape
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Text(if (isPlaying) "Ⅱ" else "▶", color = White, fontSize = 19.sp)
+                when {
+                    isBuffering && !playbackError -> CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        color = White,
+                        strokeWidth = 2.dp
+                    )
+                    isPlaying -> Text("Ⅱ", color = White, fontSize = 19.sp)
+                    else -> Text("▶", color = White, fontSize = 19.sp)
+                }
             }
         }
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
-            Text("Голосовое сообщение", color = White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             Text(
-                String.format("%d:%02d / %d:%02d", positionMs / 60000L, (positionMs / 1000L) % 60L, durationMs / 60000L, (durationMs / 1000L) % 60L),
+                if (playbackError) "Не удалось воспроизвести аудио" else "Голосовое сообщение",
+                color = White,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                if (playbackError) "Файл повреждён или недоступен"
+                else String.format(
+                    "%d:%02d / %d:%02d",
+                    positionMs / 60000L,
+                    (positionMs / 1000L) % 60L,
+                    durationMs / 60000L,
+                    (durationMs / 1000L) % 60L
+                ),
                 color = Muted,
                 fontSize = 11.sp
             )
@@ -2307,16 +2344,29 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     suspend fun finishVoiceRecording(send: Boolean) {
         val recorder = voiceRecorder
         val file = voiceFile
+        val recordedSeconds = voiceElapsedSeconds
         voiceRecorder = null
         voiceFile = null
         recordingVoice = false
         voiceRecordingStartedAt = 0L
-        try { recorder?.stop() } catch (_: Exception) { }
-        try { recorder?.reset() } catch (_: Exception) { }
-        try { recorder?.release() } catch (_: Exception) { }
-        if (!send || file == null || !file.exists() || file.length() < 1500L) {
+
+        var recordingSaved = true
+        try {
+            recorder?.stop()
+        } catch (_: Exception) {
+            recordingSaved = false
+        } finally {
+            try { recorder?.reset() } catch (_: Exception) { }
+            try { recorder?.release() } catch (_: Exception) { }
+        }
+
+        if (!send || file == null) {
             file?.delete()
-            if (send) errorText = "Запись слишком короткая. Удерживай кнопку немного дольше."
+            return
+        }
+        if (!recordingSaved || !file.exists() || file.length() < 1500L || recordedSeconds < 1) {
+            file.delete()
+            errorText = "Голосовое сообщение не сохранилось. Удерживай кнопку не менее секунды и попробуй ещё раз."
             return
         }
         uploadingAttachment = true
