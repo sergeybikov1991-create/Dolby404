@@ -18,6 +18,7 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -80,6 +81,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 import java.util.UUID
+import kotlin.math.abs
 import kotlin.time.Duration.Companion.minutes
 import coil.compose.AsyncImage
 import androidx.compose.ui.window.Dialog
@@ -409,6 +411,27 @@ private suspend fun sendDirectMessage(userId: String, peerId: String, content: S
     floustreamClient.from("direct_messages").insert(
         NewDirectMessage(senderId = userId, recipientId = peerId, content = content)
     )
+}
+
+private suspend fun deleteDirectMessage(userId: String, messageId: String) = withContext(Dispatchers.IO) {
+    val token = floustreamClient.auth.currentSessionOrNull()?.accessToken
+        ?: throw IllegalStateException("Сессия истекла. Войди в аккаунт ещё раз.")
+    val encodedId = URLEncoder.encode(messageId, "UTF-8")
+    val connection = URL("${BuildConfig.SUPABASE_URL}/rest/v1/direct_messages?id=eq.$encodedId&sender_id=eq.$userId")
+        .openConnection() as HttpURLConnection
+    try {
+        connection.requestMethod = "DELETE"
+        connection.connectTimeout = 10000
+        connection.readTimeout = 10000
+        connection.setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+        connection.setRequestProperty("Authorization", "Bearer $token")
+        connection.setRequestProperty("Prefer", "return=minimal")
+        if (connection.responseCode !in 200..299) {
+            throw IllegalStateException("Не удалось удалить сообщение.")
+        }
+    } finally {
+        connection.disconnect()
+    }
 }
 
 private suspend fun loadInboxThreads(userId: String): List<ChatThread> {
@@ -1871,6 +1894,8 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     var voiceRecorder by remember { mutableStateOf<MediaRecorder?>(null) }
     var voiceFile by remember { mutableStateOf<File?>(null) }
     var recordingVoice by remember { mutableStateOf(false) }
+    var pendingDeleteMessage by remember { mutableStateOf<DirectMessageDto?>(null) }
+    var deletingMessage by remember { mutableStateOf(false) }
     var voiceRecordingStartedAt by remember { mutableLongStateOf(0L) }
     var voiceElapsedSeconds by remember { mutableIntStateOf(0) }
     LaunchedEffect(recordingVoice, voiceRecordingStartedAt) {
@@ -2063,6 +2088,24 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                         color = if (mine) Color(0xFF254D91) else PanelSoft,
                         shape = RoundedCornerShape(17.dp),
                         modifier = Modifier.widthIn(max = 290.dp)
+                            .combinedClickable(
+                                onClick = {},
+                                onLongClick = { if (mine) pendingDeleteMessage = msg }
+                            )
+                            .pointerInput(msg.id, mine) {
+                                var dragTotal = 0f
+                                detectHorizontalDragGestures(
+                                    onHorizontalDrag = { change, amount ->
+                                        dragTotal += amount
+                                        change.consume()
+                                    },
+                                    onDragEnd = {
+                                        if (mine && abs(dragTotal) > 84.dp.toPx()) pendingDeleteMessage = msg
+                                        dragTotal = 0f
+                                    },
+                                    onDragCancel = { dragTotal = 0f }
+                                )
+                            }
                     ) {
                         Column(Modifier.padding(horizontal = 13.dp, vertical = 9.dp)) {
                             if (!msg.attachmentPath.isNullOrBlank()) {
@@ -2235,6 +2278,40 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                         file.delete()
                         uploadingAttachment = false
                     }
+                }
+            }
+        )
+    }
+
+    if (pendingDeleteMessage != null) {
+        AlertDialog(
+            onDismissRequest = { if (!deletingMessage) pendingDeleteMessage = null },
+            containerColor = Panel,
+            title = { Text("Удалить сообщение?", color = White) },
+            text = { Text("Сообщение будет удалено из переписки у тебя и собеседника.", color = Muted) },
+            confirmButton = {
+                TextButton(
+                    enabled = !deletingMessage,
+                    onClick = {
+                        val target = pendingDeleteMessage ?: return@TextButton
+                        scope.launch {
+                            deletingMessage = true
+                            try {
+                                deleteDirectMessage(currentUserId, target.id)
+                                messages.removeAll { it.id == target.id }
+                                pendingDeleteMessage = null
+                            } catch (e: Exception) {
+                                errorText = e.message ?: "Не удалось удалить сообщение."
+                            } finally {
+                                deletingMessage = false
+                            }
+                        }
+                    }
+                ) { Text(if (deletingMessage) "Удаляем…" else "Удалить", color = Color(0xFFFF9AAA)) }
+            },
+            dismissButton = {
+                TextButton(enabled = !deletingMessage, onClick = { pendingDeleteMessage = null }) {
+                    Text("Отмена", color = White)
                 }
             }
         )
