@@ -46,7 +46,7 @@ body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 18% 0%,#281
  <div class="messages" id="messages"><div class="empty">Подключаем сообщения…</div></div>
  <div class="notice" id="notice" aria-live="polite"></div>
  <form class="composer" id="composer">
-  <input id="attachment-input" type="file" hidden accept="image/*,video/*,audio/*,.pdf,.zip,.doc,.docx,.xls,.xlsx,.txt">
+  <input id="attachment-input" type="file" multiple hidden accept="image/*,video/*,audio/*,.pdf,.zip,.doc,.docx,.xls,.xlsx,.txt">
   <button class="attach" id="attach" type="button" aria-label="Прикрепить фото, видео, аудио или файл">+</button>
   <textarea id="message-input" maxlength="5000" rows="1" placeholder="Написать сообщение…" aria-label="Текст сообщения"></textarea>
   <button class="send" id="send" type="submit" aria-label="Отправить">➤</button>
@@ -152,20 +152,28 @@ async function start(){
    $("message-input").addEventListener("keydown",event=>{if(event.key==="Enter"&&!event.shiftKey){event.preventDefault();$("composer").requestSubmit();}});
    $("attach").addEventListener("click",()=>$("attachment-input").click());
    $("attachment-input").addEventListener("change",async event=>{
-    const file=event.target.files?.[0];if(!file)return;
-    const button=$("attach");button.disabled=true;showNotice("Загружаем вложение…");let path=null;
+    const files=Array.from(event.target.files||[]);if(!files.length)return;
+    const button=$("attach");button.disabled=true;let sentCount=0;const failures=[];
     try{
-     if(file.size>50*1024*1024)throw new Error("Файл больше 50 МБ.");
-     const safeName=file.name.replace(/[^A-Za-z0-9._-]/g,"_").slice(0,100)||"attachment";
-     path=viewer.id+"/"+crypto.randomUUID()+"_"+safeName;
-     const uploaded=await client.storage.from("message-media").upload(path,file,{upsert:false,contentType:file.type||"application/octet-stream"});
-     if(uploaded.error)throw uploaded.error;
-     const sent=await client.from("direct_messages").insert({sender_id:viewer.id,recipient_id:peerId,content:"",attachment_path:path,attachment_name:file.name,attachment_mime:file.type||"application/octet-stream"});
-     if(sent.error)throw sent.error;
-     showNotice("Вложение отправлено.");await loadMessages();
-    }catch(error){
-     if(path)await client.storage.from("message-media").remove([path]);
-     showNotice("Не удалось отправить файл: "+error.message,true);
+     for(const file of files){
+      let path=null;
+      try{
+       if(file.size>50*1024*1024)throw new Error(file.name+": файл больше 50 МБ.");
+       const safeName=file.name.replace(/[^A-Za-z0-9._-]/g,"_").slice(0,100)||"attachment";
+       path=viewer.id+"/"+crypto.randomUUID()+"_"+safeName;
+       const uploaded=await client.storage.from("message-media").upload(path,file,{upsert:false,contentType:file.type||"application/octet-stream"});
+       if(uploaded.error)throw uploaded.error;
+       const sent=await client.from("direct_messages").insert({sender_id:viewer.id,recipient_id:peerId,content:"",attachment_path:path,attachment_name:file.name,attachment_mime:file.type||"application/octet-stream"});
+       if(sent.error)throw sent.error;
+       sentCount++;
+      }catch(error){
+       if(path)await client.storage.from("message-media").remove([path]);
+       failures.push(error.message||"Не удалось отправить файл.");
+      }
+     }
+     await loadMessages();
+     if(failures.length)showNotice("Отправлено "+sentCount+" из "+files.length+". "+failures.join(" "),true);
+     else showNotice("Отправлено файлов: "+sentCount+".");
     }finally{button.disabled=false;event.target.value="";}
    });
   }

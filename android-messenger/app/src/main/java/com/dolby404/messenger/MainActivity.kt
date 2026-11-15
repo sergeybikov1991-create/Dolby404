@@ -1,6 +1,10 @@
 package com.dolby404.messenger
 
 import android.os.Bundle
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
 import android.content.Intent
 import android.provider.OpenableColumns
 import android.widget.Toast
@@ -67,6 +71,7 @@ import java.net.URLEncoder
 import java.util.UUID
 import kotlin.time.Duration.Companion.minutes
 import coil.compose.AsyncImage
+import com.google.firebase.messaging.FirebaseMessaging
 
 private val Night = Color(0xFF080D1B)
 private val Panel = Color(0xFF111A2D)
@@ -126,6 +131,47 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+
+private fun registerFcmToken(context: Context, userId: String) {
+    FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+        if (!task.isSuccessful) return@addOnCompleteListener
+        val fcmToken = task.result ?: return@addOnCompleteListener
+        val accessToken = floustreamClient.auth.currentSessionOrNull()?.accessToken ?: return@addOnCompleteListener
+        Thread {
+            val connection = URL("${BuildConfig.SUPABASE_URL}/rest/v1/device_push_tokens?on_conflict=token")
+                .openConnection() as HttpURLConnection
+            try {
+                connection.requestMethod = "POST"
+                connection.connectTimeout = 10000
+                connection.readTimeout = 10000
+                connection.doOutput = true
+                connection.setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+                connection.setRequestProperty("Authorization", "Bearer $accessToken")
+                connection.setRequestProperty("Content-Type", "application/json")
+                connection.setRequestProperty("Prefer", "resolution=merge-duplicates,return=minimal")
+                val payload = JSONObject()
+                    .put("token", fcmToken)
+                    .put("user_id", userId)
+                    .put("platform", "android")
+                    .put("updated_at", java.time.Instant.now().toString())
+                    .toString()
+                connection.outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
+                val responseCode = connection.responseCode
+                if (responseCode in 200..299) {
+                    val prefs = context.getSharedPreferences("floustream_push", Context.MODE_PRIVATE)
+                    if (prefs.getString("pending_fcm_token", null) == fcmToken) {
+                        prefs.edit().remove("pending_fcm_token").apply()
+                    }
+                }
+            } catch (_: Exception) {
+                // Token registration is retried on the next app launch/resume.
+            } finally {
+                connection.disconnect()
+            }
+        }.start()
+    }
+}
+
 private data class ChatMessage(val text: String, val mine: Boolean, val time: String)
 
 @Serializable
@@ -167,6 +213,55 @@ private data class NewDirectMessage(
     @SerialName("attachment_name") val attachmentName: String? = null,
     @SerialName("attachment_mime") val attachmentMime: String? = null
 )
+
+@Serializable
+private data class AlbumMediaDto(
+    @SerialName("id") val id: String,
+    @SerialName("owner_id") val ownerId: String,
+    @SerialName("object_path") val objectPath: String,
+    @SerialName("file_name") val fileName: String,
+    @SerialName("mime_type") val mimeType: String
+)
+
+private data class MediaLibraryItem(
+    val id: String,
+    val path: String,
+    val name: String,
+    val mime: String,
+    val bucket: String
+)
+
+private suspend fun loadPublicMediaLibrary(userId: String): List<MediaLibraryItem> {
+    // Only public profile albums are available here. Secret/private albums are deliberately excluded.
+    val photos = floustreamClient.from("photo_album_photos").select {
+        filter { eq("owner_id", userId) }
+    }.decodeList<AlbumMediaDto>().map {
+        MediaLibraryItem(it.id, it.objectPath, it.fileName, it.mimeType, "photo-albums")
+    }
+    val videos = floustreamClient.from("video_album_videos").select {
+        filter { eq("owner_id", userId) }
+    }.decodeList<AlbumMediaDto>().map {
+        MediaLibraryItem(it.id, it.objectPath, it.fileName, it.mimeType, "video-albums")
+    }
+    return (photos + videos).sortedByDescending { it.id }
+}
+
+private suspend fun sendLibraryMedia(userId: String, peerId: String, item: MediaLibraryItem) = withContext(Dispatchers.IO) {
+    val signedUrl = floustreamClient.storage.from(item.bucket).createSignedUrl(item.path, 10.minutes)
+    val connection = URL(signedUrl).openConnection() as HttpURLConnection
+    val bytes = try {
+        connection.connectTimeout = 15000
+        connection.readTimeout = 60000
+        connection.inputStream.use { it.readBytes() }
+    } finally { connection.disconnect() }
+    if (bytes.size > 50 * 1024 * 1024) error("Файл больше 50 МБ.")
+    val safeName = item.name.replace(Regex("[^A-Za-z0-9._-]"), "_").take(100).ifBlank { "attachment" }
+    val targetPath = userId + "/" + UUID.randomUUID().toString() + "_" + safeName
+    floustreamClient.storage.from("message-media").upload(targetPath, bytes) {
+        contentType = ContentType.parse(item.mime.ifBlank { "application/octet-stream" })
+    }
+    sendDirectAttachment(userId, peerId, targetPath, item.name, item.mime)
+}
 
 private suspend fun findFloustreamUsers(query: String): List<ProfileDto> {
     val term = query.trim().removePrefix("@")
@@ -346,6 +441,34 @@ private fun MessengerApp(pendingLifecycleAction: String?, onLifecycleHandled: ()
     var message by remember { mutableStateOf("Войди с тем же аккаунтом, что используешь на сайте FLOUSTREAM.") }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { }
+
+    LaunchedEffect(signedIn) {
+        if (signedIn && Build.VERSION.SDK_INT >= 33 &&
+            context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    // Re-register the latest FCM token whenever the app returns to the foreground.
+    // This also picks up tokens refreshed while the app was in the background.
+    DisposableEffect(signedIn, lifecycleOwner) {
+        val userId = floustreamClient.auth.currentUserOrNull()?.id
+        if (!signedIn || userId.isNullOrBlank()) {
+            onDispose { }
+        } else {
+            val observer = LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_RESUME) registerFcmToken(context, userId)
+            }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            registerFcmToken(context, userId)
+            onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        }
+    }
 
     LaunchedEffect(pendingLifecycleAction) {
         val action = pendingLifecycleAction ?: return@LaunchedEffect
@@ -598,7 +721,6 @@ private fun MessengerHome(onSignOut: () -> Unit, onDeleteAccount: () -> Unit) {
     val currentUserId = floustreamClient.auth.currentUserOrNull()?.id.orEmpty()
     var searchOpen by remember { mutableStateOf(false) }
     var search by remember { mutableStateOf("") }
-    var showNewChat by remember { mutableStateOf(false) }
     var infoMessage by remember { mutableStateOf("") }
 
     Surface(Modifier.fillMaxSize(), color = Night) {
@@ -670,33 +792,10 @@ private fun MessengerHome(onSignOut: () -> Unit, onDeleteAccount: () -> Unit) {
                     }
                 }
 
-                if (tab == "Чаты") {
-                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.BottomEnd) {
-                        FloatingActionButton(
-                            onClick = { showNewChat = true },
-                            modifier = Modifier.padding(end = 20.dp, bottom = 84.dp),
-                            containerColor = Blue,
-                            contentColor = White,
-                            shape = RoundedCornerShape(18.dp)
-                        ) { Text("+", fontSize = 30.sp, fontWeight = FontWeight.Light) }
-                    }
-                }
             }
         }
     }
 
-    if (showNewChat) {
-        AlertDialog(
-            onDismissRequest = { showNewChat = false },
-            containerColor = Panel,
-            title = { Text("Новый чат", color = White) },
-            text = { Text("Выбери «Контакты», чтобы найти собеседника. Создание групп подключим вместе с серверной частью.", color = Muted) },
-            confirmButton = {
-                TextButton(onClick = { showNewChat = false; tab = "Контакты" }) { Text("К контактам") }
-            },
-            dismissButton = { TextButton(onClick = { showNewChat = false }) { Text("Закрыть") } }
-        )
-    }
     if (infoMessage.isNotBlank()) {
         AlertDialog(
             onDismissRequest = { infoMessage = "" },
@@ -727,20 +826,38 @@ private fun ChatsScreen(
     val threads = remember(currentUserId) { mutableStateListOf<ChatThread>() }
     var loading by remember(currentUserId) { mutableStateOf(true) }
     var error by remember(currentUserId) { mutableStateOf("") }
+    var hasLoadedInbox by remember(currentUserId) { mutableStateOf(false) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var isInboxResumed by remember { mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) }
 
-    LaunchedEffect(currentUserId) {
-        while (true) {
-            try {
-                val latest = loadInboxThreads(currentUserId)
-                threads.clear()
-                threads.addAll(latest)
-                error = ""
-            } catch (e: Exception) {
-                error = e.message ?: "Не удалось загрузить список чатов."
-            } finally {
-                loading = false
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> { error = ""; isInboxResumed = true }
+                Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP -> isInboxResumed = false
+                else -> Unit
             }
-            delay(5000)
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    LaunchedEffect(currentUserId, isInboxResumed) {
+        if (isInboxResumed) {
+            do {
+                try {
+                    val latest = loadInboxThreads(currentUserId)
+                    threads.clear()
+                    threads.addAll(latest)
+                    error = ""
+                } catch (e: Exception) {
+                    if (!hasLoadedInbox) error = e.message ?: "Не удалось загрузить список чатов."
+                } finally {
+                    loading = false
+                    hasLoadedInbox = true
+                }
+                if (isInboxResumed) delay(5000)
+            } while (isInboxResumed)
         }
     }
 
@@ -824,7 +941,7 @@ private fun Avatar(initials: String, online: Boolean = false, avatarUrl: String?
         ) {
             Box(contentAlignment = Alignment.Center) {
                 if (!avatarUrl.isNullOrBlank()) {
-                    AsyncImage(model = avatarUrl, contentDescription = "Фото профиля", modifier = Modifier.fillMaxSize().clip(CircleShape))
+                    AsyncImage(model = avatarUrl, contentDescription = "Фото профиля", modifier = Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
                 } else {
                     Text(initials, color = White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
                 }
@@ -1154,7 +1271,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             val latest = loadDirectMessages(currentUserId, peer.id)
             messages.clear()
             messages.addAll(latest)
-            if (!silent) errorText = ""
+            errorText = ""
         } catch (e: Exception) {
             if (!silent) errorText = e.message ?: "Не удалось загрузить переписку."
         } finally {
@@ -1164,26 +1281,38 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     }
 
     var uploadingAttachment by remember { mutableStateOf(false) }
-    val attachmentPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null && !uploadingAttachment) scope.launch {
+    var showAttachmentMenu by remember { mutableStateOf(false) }
+    var showMediaLibrary by remember { mutableStateOf(false) }
+    var mediaLibrary by remember { mutableStateOf<List<MediaLibraryItem>>(emptyList()) }
+    var selectedMediaIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    val attachmentPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isNotEmpty() && !uploadingAttachment) scope.launch {
             uploadingAttachment = true
+            var sentCount = 0
+            val failures = mutableListOf<String>()
             try {
-                val resolver = context.contentResolver
-                val mime = resolver.getType(uri) ?: "application/octet-stream"
-                val name = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
-                    if (cursor.moveToFirst()) cursor.getString(0) else null
-                } ?: "attachment"
-                val bytes = withContext(Dispatchers.IO) {
-                    resolver.openInputStream(uri)?.use { it.readBytes() } ?: error("Не удалось прочитать файл.")
+                uris.forEach { uri ->
+                    try {
+                        val resolver = context.contentResolver
+                        val mime = resolver.getType(uri) ?: "application/octet-stream"
+                        val name = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                            if (cursor.moveToFirst()) cursor.getString(0) else null
+                        } ?: "attachment"
+                        val bytes = withContext(Dispatchers.IO) {
+                            resolver.openInputStream(uri)?.use { it.readBytes() } ?: error("Не удалось прочитать файл.")
+                        }
+                        if (bytes.size > 50 * 1024 * 1024) error("$name: размер превышает 50 МБ.")
+                        val safeName = name.substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"), "_").take(100).ifBlank { "attachment" }
+                        val path = "$currentUserId/${UUID.randomUUID()}_$safeName"
+                        withContext(Dispatchers.IO) { floustreamClient.storage.from("message-media").upload(path, bytes) { contentType = ContentType.parse(mime) } }
+                        sendDirectAttachment(currentUserId, peer.id, path, name, mime)
+                        sentCount++
+                    } catch (e: Exception) {
+                        failures += e.message ?: "Не удалось отправить файл."
+                    }
                 }
-                if (bytes.size > 50 * 1024 * 1024) error("Размер файла превышает 50 МБ.")
-                val safeName = name.substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"), "_").take(100).ifBlank { "attachment" }
-                val path = "$currentUserId/${UUID.randomUUID()}_$safeName"
-                withContext(Dispatchers.IO) { floustreamClient.storage.from("message-media").upload(path, bytes) { contentType = ContentType.parse(mime) } }
-                sendDirectAttachment(currentUserId, peer.id, path, name, mime)
                 refresh()
-            } catch (e: Exception) {
-                errorText = e.message ?: "Не удалось отправить файл."
+                errorText = if (failures.isEmpty()) "" else "Отправлено $sentCount из ${uris.size}. ${failures.joinToString("; ")}"
             } finally { uploadingAttachment = false }
         }
     }
@@ -1256,10 +1385,33 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             Modifier.fillMaxWidth().background(Panel).padding(horizontal = 8.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Surface(modifier = Modifier.size(42.dp).clickable { attachmentPicker.launch(arrayOf("*/*")) }, color = PanelSoft, shape = CircleShape) {
-                Box(contentAlignment = Alignment.Center) {
-                    if (uploadingAttachment) CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Blue)
-                    else Text("+", color = White, fontSize = 25.sp)
+            Box {
+                Surface(modifier = Modifier.size(42.dp).clickable { showAttachmentMenu = true }, color = PanelSoft, shape = CircleShape) {
+                    Box(contentAlignment = Alignment.Center) {
+                        if (uploadingAttachment) CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Blue)
+                        else Text("+", color = White, fontSize = 25.sp)
+                    }
+                }
+                DropdownMenu(expanded = showAttachmentMenu, onDismissRequest = { showAttachmentMenu = false }) {
+                    DropdownMenuItem(
+                        text = { Text("Файлы телефона") },
+                        onClick = { showAttachmentMenu = false; attachmentPicker.launch(arrayOf("*/*")) }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Медиатека FLOUSTREAM") },
+                        onClick = {
+                            showAttachmentMenu = false
+                            scope.launch {
+                                try {
+                                    mediaLibrary = loadPublicMediaLibrary(currentUserId)
+                                    selectedMediaIds = emptySet()
+                                    showMediaLibrary = true
+                                } catch (e: Exception) {
+                                    errorText = e.message ?: "Не удалось открыть медиатеку."
+                                }
+                            }
+                        }
+                    )
                 }
             }
             OutlinedTextField(
@@ -1309,6 +1461,72 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 }
             }
         }
+    }
+
+    if (showMediaLibrary) {
+        AlertDialog(
+            onDismissRequest = { showMediaLibrary = false },
+            containerColor = Panel,
+            title = { Text("Медиатека FLOUSTREAM", color = White) },
+            text = {
+                if (mediaLibrary.isEmpty()) {
+                    Text("В открытых фото- и видеоальбомах пока нет файлов. Секретный альбом сюда не попадает.", color = Muted)
+                } else {
+                    Column(Modifier.heightIn(max = 380.dp).verticalScroll(rememberScrollState())) {
+                        mediaLibrary.forEach { item ->
+                            Row(
+                                Modifier.fillMaxWidth().clickable {
+                                    selectedMediaIds = if (item.id in selectedMediaIds) selectedMediaIds - item.id else selectedMediaIds + item.id
+                                }.padding(vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = item.id in selectedMediaIds,
+                                    onCheckedChange = { checked ->
+                                        selectedMediaIds = if (checked) selectedMediaIds + item.id else selectedMediaIds - item.id
+                                    }
+                                )
+                                Text(if (item.mime.startsWith("video/")) "🎬" else "🖼", fontSize = 22.sp)
+                                Spacer(Modifier.width(10.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(item.name, color = White, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    Text(if (item.mime.startsWith("video/")) "Видеоальбом" else "Фотоальбом", color = Muted, fontSize = 10.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = selectedMediaIds.isNotEmpty() && !uploadingAttachment,
+                    onClick = {
+                        val selected = mediaLibrary.filter { it.id in selectedMediaIds }
+                        showMediaLibrary = false
+                        scope.launch {
+                            uploadingAttachment = true
+                            var sentCount = 0
+                            val failures = mutableListOf<String>()
+                            try {
+                                selected.forEach { item ->
+                                    try {
+                                        sendLibraryMedia(currentUserId, peer.id, item)
+                                        sentCount++
+                                    } catch (e: Exception) {
+                                        failures += e.message ?: "Не удалось отправить файл."
+                                    }
+                                }
+                                refresh()
+                                errorText = if (failures.isEmpty()) "" else "Отправлено " + sentCount + " из " + selected.size + ". " + failures.joinToString("; ")
+                            } finally { uploadingAttachment = false }
+                        }
+                    }
+                ) { Text("Отправить (" + selectedMediaIds.size + ")") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showMediaLibrary = false }) { Text("Закрыть", color = White) }
+            }
+        )
     }
 }
 
