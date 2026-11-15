@@ -767,7 +767,6 @@ private fun MessengerHome(onSignOut: () -> Unit, onDeleteAccount: () -> Unit) {
                         searchQuery = search,
                         onOpen = { selectedProfile = it }
                     )
-                    "Звонки" -> CallsScreen(onInfo = { infoMessage = it })
                     "Контакты" -> ContactsScreen(onStart = { selectedProfile = it; tab = "Чаты" })
                     else -> SettingsScreen(currentUserId = currentUserId, onBack = { tab = "Чаты" }, onSignOut = onSignOut, onDeleteAccount = onDeleteAccount, onInfo = { infoMessage = it })
                 }
@@ -775,7 +774,7 @@ private fun MessengerHome(onSignOut: () -> Unit, onDeleteAccount: () -> Unit) {
                 }
 
                 NavigationBar(containerColor = Panel, contentColor = White) {
-                    listOf("Чаты" to "▤", "Звонки" to "◉", "Контакты" to "♙", "Настройки" to "⚙").forEach { item ->
+                    listOf("Чаты" to "▤", "Контакты" to "♙", "Настройки" to "⚙").forEach { item ->
                         NavigationBarItem(
                             selected = tab == item.first,
                             onClick = { tab = item.first; selectedProfile = null },
