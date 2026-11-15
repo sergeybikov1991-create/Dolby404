@@ -2267,19 +2267,22 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    suspend fun refresh(silent: Boolean = false) {
+    suspend fun refresh(silent: Boolean = false): Boolean {
+        var loaded = false
         try {
             try { markIncomingMessagesRead(currentUserId, peer.id) } catch (_: Exception) { }
             val latest = loadDirectMessages(currentUserId, peer.id)
             messages.clear()
             messages.addAll(latest)
             errorText = ""
+            loaded = true
         } catch (e: Exception) {
             if (!silent) errorText = e.message ?: "Не удалось загрузить переписку."
         } finally {
             loading = false
             hasLoadedOnce = true
         }
+        return loaded
     }
 
     var uploadingAttachment by remember { mutableStateOf(false) }
@@ -2453,7 +2456,14 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
 
     LaunchedEffect(peer.id, isResumed) {
         if (isResumed) {
-            refresh(silent = hasLoadedOnce)
+            // Notification/deep-link launches can race session restoration or a brief
+            // network wake-up. Retry once before showing a red error to the user.
+            val loaded = refresh(silent = true)
+            if (!loaded && messages.isEmpty() && isResumed) {
+                loading = true
+                delay(900)
+                if (isResumed) refresh(silent = false)
+            }
             while (isResumed) {
                 delay(5000)
                 if (isResumed) refresh(silent = true)
