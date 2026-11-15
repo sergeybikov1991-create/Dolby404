@@ -1224,7 +1224,7 @@ private fun SocialNetworkScreen(
                 ) {
                     item { Text("Друзья", color = White, fontSize = 23.sp, fontWeight = FontWeight.Bold) }
                     if (friends.isEmpty()) item {
-                        Text("Пока нет взаимных друзей. Найди людей по @имени пользователя.", color = Muted, fontSize = 13.sp)
+                        Text("Пока нет друзей. Найди людей по @имени пользователя.", color = Muted, fontSize = 13.sp)
                     }
                     items(friends, key = { it.id }) { friend ->
                         Row(
@@ -1286,7 +1286,7 @@ private fun SocialNetworkScreen(
                                             }
                                         }
                                     }
-                                ) { Text("Добавить", color = Color(0xFF9FCBFF), fontSize = 11.sp) }
+                                ) { Text("В друзья", color = Color(0xFF9FCBFF), fontSize = 11.sp) }
                             }
                         }
                     }
