@@ -192,6 +192,15 @@ private data class ProfileDto(
 )
 
 @Serializable
+private data class SocialPostDto(
+    @SerialName("id") val id: String,
+    @SerialName("user_id") val userId: String,
+    @SerialName("content") val content: String? = null,
+    @SerialName("image_url") val imageUrl: String? = null,
+    @SerialName("created_at") val createdAt: String? = null
+)
+
+@Serializable
 private data class DirectMessageDto(
     @SerialName("id") val id: String,
     @SerialName("sender_id") val senderId: String,
@@ -316,6 +325,11 @@ private suspend fun markIncomingMessagesRead(userId: String, peerId: String) = w
 private suspend fun loadCurrentProfile(userId: String): ProfileDto? = floustreamClient.from("profiles").select {
     filter { eq("id", userId) }
 }.decodeList<ProfileDto>().firstOrNull()
+
+private suspend fun loadSocialPosts(userId: String): List<SocialPostDto> =
+    floustreamClient.from("posts").select(columns = "id,user_id,content,image_url,created_at") {
+        filter { eq("user_id", userId) }
+    }.decodeList<SocialPostDto>().sortedByDescending { it.createdAt.orEmpty() }.take(50)
 
 private suspend fun sendDirectAttachment(userId: String, peerId: String, path: String, name: String, mime: String) {
     floustreamClient.from("direct_messages").insert(
@@ -874,15 +888,18 @@ private fun SocialNetworkScreen(
     onBackToMessenger: () -> Unit
 ) {
     var profile by remember(currentUserId) { mutableStateOf<ProfileDto?>(null) }
+    var posts by remember(currentUserId) { mutableStateOf<List<SocialPostDto>>(emptyList()) }
     var loading by remember(currentUserId) { mutableStateOf(true) }
     var error by remember(currentUserId) { mutableStateOf("") }
 
-    LaunchedEffect(currentUserId) {
+    LaunchedEffect(currentUserId, section) {
+        loading = true
+        error = ""
         try {
             profile = loadCurrentProfile(currentUserId)
-            error = ""
+            posts = if (section == "Моя страница") loadSocialPosts(currentUserId) else emptyList()
         } catch (_: Exception) {
-            error = "Не удалось загрузить профиль. Проверь подключение и попробуй ещё раз."
+            error = "Не удалось загрузить раздел. Проверь подключение и попробуй ещё раз."
         } finally {
             loading = false
         }
@@ -901,28 +918,74 @@ private fun SocialNetworkScreen(
             }
             TextButton(onClick = onBackToMessenger) { Text("Messenger", color = Color(0xFF9FCBFF)) }
         }
-        Column(Modifier.fillMaxWidth().padding(20.dp)) {
-            Text(section, color = White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(14.dp))
-            when {
-                loading -> CircularProgressIndicator(color = Blue)
-                error.isNotBlank() -> Text(error, color = Color(0xFFFF9AA8), fontSize = 13.sp)
-                section == "Моя страница" -> {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        val name = profile?.displayName ?: profile?.username ?: "Пользователь"
-                        Avatar((name.firstOrNull()?.toString() ?: "F").uppercase(), avatarUrl = profile?.avatarUrl)
-                        Spacer(Modifier.width(14.dp))
-                        Column {
-                            Text(name, color = White, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
-                            Text(profile?.username?.let { "@$it" } ?: "", color = Muted, fontSize = 13.sp)
+        when {
+            loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = Blue)
+            }
+            error.isNotBlank() -> Column(Modifier.fillMaxWidth().padding(20.dp)) {
+                Text(error, color = Color(0xFFFF9AA8), fontSize = 13.sp)
+            }
+            section == "Моя страница" -> {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    item {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = Panel,
+                            shape = RoundedCornerShape(18.dp)
+                        ) {
+                            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                                val name = profile?.displayName ?: profile?.username ?: "Пользователь"
+                                Avatar((name.firstOrNull()?.toString() ?: "F").uppercase(), avatarUrl = profile?.avatarUrl)
+                                Spacer(Modifier.width(14.dp))
+                                Column {
+                                    Text(name, color = White, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
+                                    Text(profile?.username?.let { "@$it" } ?: "", color = Muted, fontSize = 13.sp)
+                                }
+                            }
                         }
                     }
-                    Spacer(Modifier.height(18.dp))
-                    Text("Профиль загружен из общего аккаунта FLOUSTREAM.", color = Muted, fontSize = 13.sp)
-                    Spacer(Modifier.height(8.dp))
-                    Text("Публикации, фото и остальные разделы подключаются отдельно.", color = Muted, fontSize = 12.sp)
+                    item {
+                        Text("Публикации", color = White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    }
+                    if (posts.isEmpty()) {
+                        item {
+                            Text("Пока нет публикаций. Здесь будут отображаться твои записи.", color = Muted, fontSize = 13.sp)
+                        }
+                    } else {
+                        items(posts, key = { it.id }) { post ->
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = Panel,
+                                shape = RoundedCornerShape(16.dp)
+                            ) {
+                                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Text(profile?.displayName ?: profile?.username ?: "Пользователь", color = White, fontWeight = FontWeight.SemiBold)
+                                    post.createdAt?.let { Text(it.replace("T", " ").take(16), color = Muted, fontSize = 11.sp) }
+                                    post.content?.takeIf { it.isNotBlank() }?.let {
+                                        Text(it, color = White, fontSize = 14.sp)
+                                    }
+                                    post.imageUrl?.takeIf { it.startsWith("https://") }?.let { url ->
+                                        AsyncImage(
+                                            model = url,
+                                            contentDescription = "Фото публикации",
+                                            modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp).clip(RoundedCornerShape(12.dp)),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
-                else -> Text("Раздел «$section» — подключаем нативные функции.", color = Muted, fontSize = 13.sp)
+            }
+            else -> Column(Modifier.fillMaxWidth().padding(20.dp)) {
+                Text(section, color = White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(12.dp))
+                Text("Раздел «$section» подключим следующим этапом.", color = Muted, fontSize = 13.sp)
             }
         }
     }
