@@ -168,6 +168,55 @@ private data class NewDirectMessage(
     @SerialName("attachment_mime") val attachmentMime: String? = null
 )
 
+@Serializable
+private data class AlbumMediaDto(
+    @SerialName("id") val id: String,
+    @SerialName("owner_id") val ownerId: String,
+    @SerialName("object_path") val objectPath: String,
+    @SerialName("file_name") val fileName: String,
+    @SerialName("mime_type") val mimeType: String
+)
+
+private data class MediaLibraryItem(
+    val id: String,
+    val path: String,
+    val name: String,
+    val mime: String,
+    val bucket: String
+)
+
+private suspend fun loadPublicMediaLibrary(userId: String): List<MediaLibraryItem> {
+    // Only public profile albums are available here. Secret/private albums are deliberately excluded.
+    val photos = floustreamClient.from("photo_album_photos").select {
+        filter { eq("owner_id", userId) }
+    }.decodeList<AlbumMediaDto>().map {
+        MediaLibraryItem(it.id, it.objectPath, it.fileName, it.mimeType, "photo-albums")
+    }
+    val videos = floustreamClient.from("video_album_videos").select {
+        filter { eq("owner_id", userId) }
+    }.decodeList<AlbumMediaDto>().map {
+        MediaLibraryItem(it.id, it.objectPath, it.fileName, it.mimeType, "video-albums")
+    }
+    return (photos + videos).sortedByDescending { it.id }
+}
+
+private suspend fun sendLibraryMedia(userId: String, peerId: String, item: MediaLibraryItem) = withContext(Dispatchers.IO) {
+    val signedUrl = floustreamClient.storage.from(item.bucket).createSignedUrl(item.path, 10.minutes)
+    val connection = URL(signedUrl).openConnection() as HttpURLConnection
+    val bytes = try {
+        connection.connectTimeout = 15000
+        connection.readTimeout = 60000
+        connection.inputStream.use { it.readBytes() }
+    } finally { connection.disconnect() }
+    if (bytes.size > 50 * 1024 * 1024) error("Файл больше 50 МБ.")
+    val safeName = item.name.replace(Regex("[^A-Za-z0-9._-]"), "_").take(100).ifBlank { "attachment" }
+    val targetPath = userId + "/" + UUID.randomUUID().toString() + "_" + safeName
+    floustreamClient.storage.from("message-media").upload(targetPath, bytes) {
+        contentType = ContentType.parse(item.mime.ifBlank { "application/octet-stream" })
+    }
+    sendDirectAttachment(userId, peerId, targetPath, item.name, item.mime)
+}
+
 private suspend fun findFloustreamUsers(query: String): List<ProfileDto> {
     val term = query.trim().removePrefix("@")
     if (term.length < 2) return emptyList()
@@ -1140,6 +1189,10 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     }
 
     var uploadingAttachment by remember { mutableStateOf(false) }
+    var showAttachmentMenu by remember { mutableStateOf(false) }
+    var showMediaLibrary by remember { mutableStateOf(false) }
+    var mediaLibrary by remember { mutableStateOf<List<MediaLibraryItem>>(emptyList()) }
+    var selectedMediaIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     val attachmentPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty() && !uploadingAttachment) scope.launch {
             uploadingAttachment = true
@@ -1240,10 +1293,33 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             Modifier.fillMaxWidth().background(Panel).padding(horizontal = 8.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Surface(modifier = Modifier.size(42.dp).clickable { attachmentPicker.launch(arrayOf("*/*")) }, color = PanelSoft, shape = CircleShape) {
-                Box(contentAlignment = Alignment.Center) {
-                    if (uploadingAttachment) CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Blue)
-                    else Text("+", color = White, fontSize = 25.sp)
+            Box {
+                Surface(modifier = Modifier.size(42.dp).clickable { showAttachmentMenu = true }, color = PanelSoft, shape = CircleShape) {
+                    Box(contentAlignment = Alignment.Center) {
+                        if (uploadingAttachment) CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Blue)
+                        else Text("+", color = White, fontSize = 25.sp)
+                    }
+                }
+                DropdownMenu(expanded = showAttachmentMenu, onDismissRequest = { showAttachmentMenu = false }) {
+                    DropdownMenuItem(
+                        text = { Text("Файлы телефона") },
+                        onClick = { showAttachmentMenu = false; attachmentPicker.launch(arrayOf("*/*")) }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Медиатека FLOUSTREAM") },
+                        onClick = {
+                            showAttachmentMenu = false
+                            scope.launch {
+                                try {
+                                    mediaLibrary = loadPublicMediaLibrary(currentUserId)
+                                    selectedMediaIds = emptySet()
+                                    showMediaLibrary = true
+                                } catch (e: Exception) {
+                                    errorText = e.message ?: "Не удалось открыть медиатеку."
+                                }
+                            }
+                        }
+                    )
                 }
             }
             OutlinedTextField(
@@ -1293,6 +1369,72 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 }
             }
         }
+    }
+
+    if (showMediaLibrary) {
+        AlertDialog(
+            onDismissRequest = { showMediaLibrary = false },
+            containerColor = Panel,
+            title = { Text("Медиатека FLOUSTREAM", color = White) },
+            text = {
+                if (mediaLibrary.isEmpty()) {
+                    Text("В открытых фото- и видеоальбомах пока нет файлов. Секретный альбом сюда не попадает.", color = Muted)
+                } else {
+                    Column(Modifier.heightIn(max = 380.dp).verticalScroll(rememberScrollState())) {
+                        mediaLibrary.forEach { item ->
+                            Row(
+                                Modifier.fillMaxWidth().clickable {
+                                    selectedMediaIds = if (item.id in selectedMediaIds) selectedMediaIds - item.id else selectedMediaIds + item.id
+                                }.padding(vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = item.id in selectedMediaIds,
+                                    onCheckedChange = { checked ->
+                                        selectedMediaIds = if (checked) selectedMediaIds + item.id else selectedMediaIds - item.id
+                                    }
+                                )
+                                Text(if (item.mime.startsWith("video/")) "🎬" else "🖼", fontSize = 22.sp)
+                                Spacer(Modifier.width(10.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(item.name, color = White, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    Text(if (item.mime.startsWith("video/")) "Видеоальбом" else "Фотоальбом", color = Muted, fontSize = 10.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = selectedMediaIds.isNotEmpty() && !uploadingAttachment,
+                    onClick = {
+                        val selected = mediaLibrary.filter { it.id in selectedMediaIds }
+                        showMediaLibrary = false
+                        scope.launch {
+                            uploadingAttachment = true
+                            var sentCount = 0
+                            val failures = mutableListOf<String>()
+                            try {
+                                selected.forEach { item ->
+                                    try {
+                                        sendLibraryMedia(currentUserId, peer.id, item)
+                                        sentCount++
+                                    } catch (e: Exception) {
+                                        failures += e.message ?: "Не удалось отправить файл."
+                                    }
+                                }
+                                refresh()
+                                errorText = if (failures.isEmpty()) "" else "Отправлено " + sentCount + " из " + selected.size + ". " + failures.joinToString("; ")
+                            } finally { uploadingAttachment = false }
+                        }
+                    }
+                ) { Text("Отправить (" + selectedMediaIds.size + ")") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showMediaLibrary = false }) { Text("Закрыть", color = White) }
+            }
+        )
     }
 }
 
