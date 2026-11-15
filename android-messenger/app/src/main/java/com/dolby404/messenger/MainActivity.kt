@@ -994,19 +994,32 @@ private fun MessengerHome(
             return@LaunchedEffect
         }
         try {
-            val peer = floustreamClient.from("profiles").select {
-                filter { eq("id", peerId) }
-            }.decodeList<ProfileDto>().firstOrNull()
+            var peer: ProfileDto? = null
+            var lastError: Exception? = null
+            // A push can wake the radio before the first Supabase request is ready.
+            // Retry the recipient lookup quietly instead of showing a false error dialog.
+            repeat(3) { attempt ->
+                if (peer == null) {
+                    try {
+                        peer = floustreamClient.from("profiles").select {
+                            filter { eq("id", peerId) }
+                        }.decodeList<ProfileDto>().firstOrNull()
+                    } catch (e: Exception) {
+                        lastError = e
+                    }
+                    if (peer == null && attempt < 2) delay(900L * (attempt + 1))
+                }
+            }
             if (peer != null) {
                 tab = "Чаты"
                 socialOpen = false
                 socialDrawerOpen = false
                 selectedProfile = peer
+            } else if (lastError != null) {
+                infoMessage = "Не удалось открыть переписку. Проверь подключение и попробуй ещё раз."
             } else {
                 infoMessage = "Этот собеседник больше недоступен."
             }
-        } catch (_: Exception) {
-            infoMessage = "Не удалось открыть переписку. Попробуй ещё раз."
         } finally {
             onNotificationHandled()
         }
@@ -2456,11 +2469,16 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
         if (isResumed) {
             // Notification/deep-link launches can race session restoration or a brief
             // network wake-up. Retry once before showing a red error to the user.
-            val loaded = refresh(silent = true)
+            var loaded = refresh(silent = true)
             if (!loaded && messages.isEmpty() && isResumed) {
                 loading = true
+                // Give Android time to restore the network after opening from a push.
                 delay(900)
-                if (isResumed) refresh(silent = false)
+                if (isResumed) loaded = refresh(silent = true)
+                if (!loaded && messages.isEmpty() && isResumed) {
+                    delay(1800)
+                    if (isResumed) refresh(silent = false)
+                }
             }
             while (isResumed) {
                 delay(5000)
