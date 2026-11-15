@@ -749,10 +749,47 @@ private fun MessengerHome(onSignOut: () -> Unit, onDeleteAccount: () -> Unit) {
     var searchOpen by remember { mutableStateOf(false) }
     var search by remember { mutableStateOf("") }
     var infoMessage by remember { mutableStateOf("") }
+    var socialOpen by remember { mutableStateOf(false) }
+    var socialDrawerOpen by remember { mutableStateOf(false) }
+    var socialSection by remember { mutableStateOf("Моя страница") }
 
     Surface(Modifier.fillMaxSize(), color = Night) {
         Column(Modifier.fillMaxSize()) {
-            if (selectedProfile != null) {
+            if (socialOpen) {
+                SocialNetworkScreen(
+                    currentUserId = currentUserId,
+                    section = socialSection,
+                    onOpenDrawer = { socialDrawerOpen = true },
+                    onBackToMessenger = { socialOpen = false; socialDrawerOpen = false }
+                )
+                if (socialDrawerOpen) {
+                    Box(Modifier.fillMaxSize().background(Color(0x99000000))) {
+                        Column(Modifier.fillMaxHeight().width(304.dp).background(Panel).padding(18.dp)) {
+                            Text("FLOUSTREAM", color = White, fontSize = 21.sp, fontWeight = FontWeight.Black)
+                            Text("СОЦИАЛЬНАЯ СЕТЬ", color = Color(0xFF9FCBFF), fontSize = 10.sp, letterSpacing = 2.sp)
+                            Spacer(Modifier.height(24.dp))
+                            listOf("Моя страница", "Друзья", "Группы", "Фото", "Видео", "Поиск и рекомендации", "Настройки соцсети").forEach { item ->
+                                Surface(
+                                    Modifier.fillMaxWidth().padding(vertical = 3.dp).clickable {
+                                        socialSection = item
+                                        socialDrawerOpen = false
+                                    },
+                                    color = if (socialSection == item) Color(0xFF263B68) else Color.Transparent,
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Text(item, Modifier.padding(horizontal = 14.dp, vertical = 13.dp), color = White, fontSize = 14.sp)
+                                }
+                            }
+                            Spacer(Modifier.weight(1f))
+                            HorizontalDivider(color = Color(0xFF31415E))
+                            TextButton(onClick = { socialOpen = false; socialDrawerOpen = false }) {
+                                Text("← Вернуться в Messenger", color = Color(0xFF9FCBFF))
+                            }
+                        }
+                        Spacer(Modifier.fillMaxSize().clickable { socialDrawerOpen = false })
+                    }
+                }
+            } else if (selectedProfile != null) {
                 RealConversationScreen(
                     peer = selectedProfile!!,
                     currentUserId = currentUserId,
@@ -770,6 +807,7 @@ private fun MessengerHome(onSignOut: () -> Unit, onDeleteAccount: () -> Unit) {
                         Text("MESSENGER", fontSize = 10.sp, color = Color(0xFF9FCBFF), letterSpacing = 4.sp)
                     }
                     HeaderAction("⌕") { searchOpen = !searchOpen }
+                    HeaderAction("☰") { socialOpen = true; socialDrawerOpen = true }
                 }
 
                 if (searchOpen) {
@@ -825,6 +863,68 @@ private fun MessengerHome(onSignOut: () -> Unit, onDeleteAccount: () -> Unit) {
             text = { Text(infoMessage, color = Muted) },
             confirmButton = { TextButton(onClick = { infoMessage = "" }) { Text("Понятно") } }
         )
+    }
+}
+
+@Composable
+private fun SocialNetworkScreen(
+    currentUserId: String,
+    section: String,
+    onOpenDrawer: () -> Unit,
+    onBackToMessenger: () -> Unit
+) {
+    var profile by remember(currentUserId) { mutableStateOf<ProfileDto?>(null) }
+    var loading by remember(currentUserId) { mutableStateOf(true) }
+    var error by remember(currentUserId) { mutableStateOf("") }
+
+    LaunchedEffect(currentUserId) {
+        try {
+            profile = loadCurrentProfile(currentUserId)
+            error = ""
+        } catch (_: Exception) {
+            error = "Не удалось загрузить профиль. Проверь подключение и попробуй ещё раз."
+        } finally {
+            loading = false
+        }
+    }
+
+    Column(Modifier.fillMaxSize().background(Night)) {
+        Row(
+            Modifier.fillMaxWidth().background(Brush.horizontalGradient(listOf(Color(0xFF142A59), Color(0xFF241747))))
+                .padding(horizontal = 16.dp, vertical = 15.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            HeaderAction("☰", onOpenDrawer)
+            Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                Text("FLOUSTREAM", color = White, fontSize = 19.sp, fontWeight = FontWeight.Black)
+                Text("СОЦИАЛЬНАЯ СЕТЬ", color = Color(0xFF9FCBFF), fontSize = 9.sp, letterSpacing = 2.sp)
+            }
+            TextButton(onClick = onBackToMessenger) { Text("Messenger", color = Color(0xFF9FCBFF)) }
+        }
+        Column(Modifier.fillMaxWidth().padding(20.dp)) {
+            Text(section, color = White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(14.dp))
+            when {
+                loading -> CircularProgressIndicator(color = Blue)
+                error.isNotBlank() -> Text(error, color = Color(0xFFFF9AA8), fontSize = 13.sp)
+                section == "Моя страница" -> {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        val name = profile?.displayName ?: profile?.username ?: "Пользователь"
+                        Avatar((name.firstOrNull()?.toString() ?: "F").uppercase(), avatarUrl = profile?.avatarUrl)
+                        Spacer(Modifier.width(14.dp))
+                        Column {
+                            Text(name, color = White, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
+                            Text(profile?.username?.let { "@$it" } ?: "", color = Muted, fontSize = 13.sp)
+                        }
+                    }
+                    Spacer(Modifier.height(18.dp))
+                    Text("Профиль загружен из общего аккаунта FLOUSTREAM.", color = Muted, fontSize = 13.sp)
+                    Spacer(Modifier.height(8.dp))
+                    Text("Публикации, фото и остальные разделы подключаются отдельно.", color = Muted, fontSize = 12.sp)
+                }
+                else -> Text("Раздел «$section» — подключаем нативные функции.", color = Muted, fontSize = 13.sp)
+            }
+        }
     }
 }
 
