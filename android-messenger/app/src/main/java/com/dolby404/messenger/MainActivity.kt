@@ -14,6 +14,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -2344,7 +2345,9 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     suspend fun finishVoiceRecording(send: Boolean) {
         val recorder = voiceRecorder
         val file = voiceFile
-        val recordedSeconds = voiceElapsedSeconds
+        val recordedSeconds = if (voiceRecordingStartedAt > 0L) {
+            ((System.currentTimeMillis() - voiceRecordingStartedAt) / 1000L).toInt()
+        } else voiceElapsedSeconds
         voiceRecorder = null
         voiceFile = null
         recordingVoice = false
@@ -2393,7 +2396,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     var showMediaLibrary by remember { mutableStateOf(false) }
     var mediaLibrary by remember { mutableStateOf<List<MediaLibraryItem>>(emptyList()) }
     var selectedMediaIds by remember { mutableStateOf<Set<String>>(emptySet()) }
-    val attachmentPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
+    val attachmentPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(maxItems = 20)) { uris ->
         if (uris.isNotEmpty() && !uploadingAttachment) scope.launch {
             uploadingAttachment = true
             var sentCount = 0
@@ -2530,14 +2533,14 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                         text = { Text("Фото из галереи") },
                         onClick = {
                             showAttachmentMenu = false
-                            attachmentPicker.launch("image/*")
+                            attachmentPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                         }
                     )
                     DropdownMenuItem(
                         text = { Text("Видео из галереи") },
                         onClick = {
                             showAttachmentMenu = false
-                            attachmentPicker.launch("video/*")
+                            attachmentPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly))
                         }
                     )
                     DropdownMenuItem(
@@ -2637,7 +2640,12 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 Box(contentAlignment = Alignment.Center) {
                     when {
                         sending || uploadingAttachment -> CircularProgressIndicator(modifier = Modifier.size(18.dp), color = White)
-                        recordingVoice -> Text("●", color = White, fontSize = 20.sp)
+                        recordingVoice -> Text(
+                            "● " + String.format("%d:%02d", voiceElapsedSeconds / 60, voiceElapsedSeconds % 60),
+                            color = White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                         else -> Text("➤", color = White, fontSize = 20.sp)
                     }
                 }
