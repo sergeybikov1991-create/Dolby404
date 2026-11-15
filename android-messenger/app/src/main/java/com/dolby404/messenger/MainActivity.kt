@@ -210,6 +210,22 @@ private data class FollowDto(
 )
 
 @Serializable
+private data class FriendRequestDto(
+    @SerialName("requester_id") val requesterId: String,
+    @SerialName("recipient_id") val recipientId: String,
+    @SerialName("status") val status: String
+)
+
+@Serializable
+private data class NewFriendRequest(
+    @SerialName("requester_id") val requesterId: String,
+    @SerialName("recipient_id") val recipientId: String,
+    @SerialName("user_low_id") val userLowId: String,
+    @SerialName("user_high_id") val userHighId: String,
+    @SerialName("status") val status: String = "pending"
+)
+
+@Serializable
 private data class SocialPostDto(
     @SerialName("id") val id: Long,
     @SerialName("user_id") val userId: String,
@@ -413,20 +429,29 @@ private suspend fun createSocialPost(userId: String, content: String) {
 }
 
 private suspend fun loadMutualFriends(userId: String): List<ProfileDto> {
-    val following = floustreamClient.from("follows").select {
-        filter { eq("follower_id", userId) }
-    }.decodeList<FollowDto>().mapNotNull { it.followingId }.distinct()
-    if (following.isEmpty()) return emptyList()
-    val mutual = floustreamClient.from("follows").select {
-        filter {
-            eq("following_id", userId)
-            isIn("follower_id", following)
-        }
-    }.decodeList<FollowDto>().mapNotNull { it.followerId }.distinct()
-    if (mutual.isEmpty()) return emptyList()
+    val sent = floustreamClient.from("friend_requests").select {
+        filter { eq("requester_id", userId); eq("status", "accepted") }
+    }.decodeList<FriendRequestDto>()
+    val received = floustreamClient.from("friend_requests").select {
+        filter { eq("recipient_id", userId); eq("status", "accepted") }
+    }.decodeList<FriendRequestDto>()
+    val friendIds = (sent.map { it.recipientId } + received.map { it.requesterId }).distinct()
+    if (friendIds.isEmpty()) return emptyList()
     return floustreamClient.from("profiles").select {
-        filter { isIn("id", mutual) }
+        filter { isIn("id", friendIds) }
     }.decodeList<ProfileDto>().filter { !it.isDeleted }
+}
+
+private suspend fun sendFriendRequest(userId: String, recipientId: String) {
+    val ordered = listOf(userId, recipientId).sorted()
+    floustreamClient.from("friend_requests").insert(
+        NewFriendRequest(
+            requesterId = userId,
+            recipientId = recipientId,
+            userLowId = ordered.first(),
+            userHighId = ordered.last()
+        )
+    )
 }
 
 private suspend fun sendDirectAttachment(userId: String, peerId: String, path: String, name: String, mime: String) {
@@ -1051,6 +1076,7 @@ private fun SocialNetworkScreen(
     var publicMedia by remember(currentUserId) { mutableStateOf<List<Pair<MediaLibraryItem, String>>>(emptyList()) }
     var searchText by remember { mutableStateOf("") }
     var searchResults by remember { mutableStateOf<List<ProfileDto>>(emptyList()) }
+    var friendRequestStatus by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var privacyPublicPhotos by remember(currentUserId) { mutableStateOf(true) }
     var privacyVideos by remember(currentUserId) { mutableStateOf(true) }
     var privacyComments by remember(currentUserId) { mutableStateOf(true) }
@@ -1243,10 +1269,24 @@ private fun SocialNetworkScreen(
                                 val name = person.displayName ?: person.username ?: "Пользователь"
                                 Avatar(name.take(1).uppercase(), avatarUrl = person.avatarUrl)
                                 Spacer(Modifier.width(12.dp))
-                                Column {
+                                Column(Modifier.weight(1f)) {
                                     Text(name, color = White, fontWeight = FontWeight.SemiBold)
                                     Text(person.username?.let { "@$it" } ?: "", color = Muted, fontSize = 12.sp)
+                                    friendRequestStatus[person.id]?.let { Text(it, color = Muted, fontSize = 10.sp) }
                                 }
+                                TextButton(
+                                    enabled = friendRequestStatus[person.id] == null,
+                                    onClick = {
+                                        scope.launch {
+                                            try {
+                                                sendFriendRequest(currentUserId, person.id)
+                                                friendRequestStatus = friendRequestStatus + (person.id to "Запрос отправлен")
+                                            } catch (_: Exception) {
+                                                friendRequestStatus = friendRequestStatus + (person.id to "Запрос уже отправлен или дружба оформлена")
+                                            }
+                                        }
+                                    }
+                                ) { Text("Добавить", color = Color(0xFF9FCBFF), fontSize = 11.sp) }
                             }
                         }
                     }
