@@ -207,6 +207,17 @@ body{background:radial-gradient(ellipse at 15% 0%,#281342 0,transparent 38%),#09
 .friend-cta:active{transform:scale(.985);filter:brightness(1.18)}.friend-cta:disabled{opacity:.65;cursor:default}
 .friend-action-status{min-height:16px;margin:-5px 22px 16px;text-align:center;color:#c7a4ed;font-size:11px}
 @media(max-width:440px){.profile-actions{gap:7px}.profile-actions .contact-cta,.friend-cta{font-size:12px;padding:10px 7px;min-height:54px}}
+
+.public-albums{display:grid;gap:18px;margin:18px 0 24px;padding:18px;border:1px solid #382b4b;border-radius:18px;background:linear-gradient(145deg,#191625,#101019)}
+.public-album-section[hidden],.public-albums[hidden]{display:none!important}
+.public-album-title{margin:0 0 12px;color:#f2e9ff;font-size:18px}
+.public-album-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:10px}
+.public-album-photo{display:block;width:100%;aspect-ratio:1/1;padding:0;overflow:hidden;border:1px solid #62458b;border-radius:12px;background:#100d19;cursor:pointer}
+.public-album-photo img{display:block;width:100%;height:100%;object-fit:cover}
+.public-album-video{min-width:0;overflow:hidden;border:1px solid #49385e;border-radius:12px;background:#100d19}
+.public-album-video video{display:block;width:100%;aspect-ratio:4/5;object-fit:contain;background:#050509}
+.public-album-video-name{padding:7px 9px;color:#cfc2e4;font-size:11px;overflow-wrap:anywhere}
+@media(max-width:480px){.public-albums{padding:13px}.public-album-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}}
 </style>
 </head>
 <body>
@@ -227,6 +238,10 @@ body{background:radial-gradient(ellipse at 15% 0%,#281342 0,transparent 38%),#09
  <div class="identity"><div class="avatar" id="avatar">◉</div><div class="name"><h1 id="display-name">Загружаем профиль…</h1><p id="username"></p><p class="profile-presence" id="profile-presence" aria-live="polite"></p></div></div>
  <p class="bio" id="bio"></p>
  <div class="profile-actions" id="profile-actions" hidden><a class="contact-cta" id="contact-cta" href="messages.html"><span class="contact-cta-label">Связаться</span></a><button class="friend-cta" id="friend-cta" type="button"><span aria-hidden="true">♧＋</span><span id="friend-cta-label">В друзья</span></button></div><p class="friend-action-status" id="friend-action-status" aria-live="polite"></p>
+</section>
+<section class="public-albums" id="public-albums" hidden aria-label="Публичные альбомы">
+ <div class="public-album-section" id="public-photos-section" hidden><h2 class="public-album-title">Фотоальбом</h2><div class="public-album-grid" id="public-photo-grid"></div></div>
+ <div class="public-album-section" id="public-videos-section" hidden><h2 class="public-album-title">Видеоальбом</h2><div class="public-album-grid" id="public-video-grid"></div></div>
 </section>
 <section class="feed-section"><h2 class="feed-title">Публикации</h2><div class="feed" id="feed"><div class="status" id="status">Загружаем публикации…</div></div></section>
 </main>
@@ -411,6 +426,36 @@ async function loadProfileVisitHistory(){
  }catch(error){console.warn("FLOUSTREAM visit history:",error);}
 }
 window.addEventListener("pageshow",()=>{if(viewer&&client)loadProfileVisitHistory();});
+async function loadPublicAlbums(){
+ const host=$("public-albums"),photoSection=$("public-photos-section"),videoSection=$("public-videos-section");
+ const photoGrid=$("public-photo-grid"),videoGrid=$("public-video-grid");
+ photoGrid.replaceChildren();videoGrid.replaceChildren();photoSection.hidden=true;videoSection.hidden=true;host.hidden=true;
+ try{
+  // Только публичные таблицы. Секретные фото- и видеоальбомы здесь никогда не запрашиваются.
+  const [photoResult,videoResult]=await Promise.all([
+   client.from("photo_album_photos").select("id,object_path,file_name,created_at").eq("owner_id",target.id).order("created_at",{ascending:false}).limit(36),
+   client.from("video_album_videos").select("id,object_path,file_name,created_at").eq("owner_id",target.id).order("created_at",{ascending:false}).limit(18)
+  ]);
+  if(photoResult.error)throw photoResult.error;if(videoResult.error)throw videoResult.error;
+  const photos=photoResult.data||[],videos=videoResult.data||[];
+  if(photos.length){
+   const signed=await client.storage.from("photo-albums").createSignedUrls(photos.map(x=>x.object_path),3600);
+   if(signed.error)throw signed.error;
+   const urls=new Map((signed.data||[]).filter(x=>x.signedUrl&&!x.error).map(x=>[x.path,x.signedUrl]));
+   for(const item of photos){const url=urls.get(item.object_path);if(!url)continue;const button=document.createElement("button");button.type="button";button.className="public-album-photo";button.setAttribute("aria-label",item.file_name||"Открыть фотографию");const img=document.createElement("img");img.src=url;img.alt=item.file_name||"Фотография";img.loading="lazy";button.append(img);button.addEventListener("click",()=>openPhotoViewer(url));photoGrid.append(button);}
+   photoSection.hidden=!photoGrid.childElementCount;
+  }
+  if(videos.length){
+   const signed=await client.storage.from("video-albums").createSignedUrls(videos.map(x=>x.object_path),3600);
+   if(signed.error)throw signed.error;
+   const urls=new Map((signed.data||[]).filter(x=>x.signedUrl&&!x.error).map(x=>[x.path,x.signedUrl]));
+   for(const item of videos){const url=urls.get(item.object_path);if(!url)continue;const card=document.createElement("article");card.className="public-album-video";const video=document.createElement("video");video.src=url;video.controls=true;video.playsInline=true;video.preload="metadata";video.setAttribute("aria-label",item.file_name||"Видео");const name=document.createElement("div");name.className="public-album-video-name";name.textContent=item.file_name||"Видео";card.append(video,name);videoGrid.append(card);}
+   videoSection.hidden=!videoGrid.childElementCount;
+  }
+  host.hidden=photoSection.hidden&&videoSection.hidden;
+ }catch(error){console.warn("FLOUSTREAM public albums:",error);host.hidden=true;}
+}
+
 async function start(){
  try{
   await loadLibrary();client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
@@ -421,6 +466,7 @@ async function start(){
   const profileResult=await client.from("profiles").select("id,username,display_name,bio,avatar_url,avatar_photo_id,cover_url,last_activity_at,time_zone").eq("id",targetId).maybeSingle();
   if(profileResult.error)throw profileResult.error;if(!profileResult.data){showError("Профиль не найден или недоступен.");return;}
   target=profileResult.data;
+  await loadPublicAlbums();
   renderTargetPresence(false);
   watchTargetPresence();
   if(viewer){
