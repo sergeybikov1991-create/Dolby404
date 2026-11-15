@@ -156,7 +156,13 @@ private fun registerFcmToken(context: Context, userId: String) {
                     .put("updated_at", java.time.Instant.now().toString())
                     .toString()
                 connection.outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
-                connection.responseCode
+                val responseCode = connection.responseCode
+                if (responseCode in 200..299) {
+                    val prefs = context.getSharedPreferences("floustream_push", Context.MODE_PRIVATE)
+                    if (prefs.getString("pending_fcm_token", null) == fcmToken) {
+                        prefs.edit().remove("pending_fcm_token").apply()
+                    }
+                }
             } catch (_: Exception) {
                 // Token registration is retried on the next app launch/resume.
             } finally {
@@ -435,19 +441,32 @@ private fun MessengerApp(pendingLifecycleAction: String?, onLifecycleHandled: ()
     var message by remember { mutableStateOf("Войди с тем же аккаунтом, что используешь на сайте FLOUSTREAM.") }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { }
 
     LaunchedEffect(signedIn) {
-        if (signedIn) {
-            if (Build.VERSION.SDK_INT >= 33 &&
-                context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-            ) {
-                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        if (signedIn && Build.VERSION.SDK_INT >= 33 &&
+            context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    // Re-register the latest FCM token whenever the app returns to the foreground.
+    // This also picks up tokens refreshed while the app was in the background.
+    DisposableEffect(signedIn, lifecycleOwner) {
+        val userId = floustreamClient.auth.currentUserOrNull()?.id
+        if (!signedIn || userId.isNullOrBlank()) {
+            onDispose { }
+        } else {
+            val observer = LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_RESUME) registerFcmToken(context, userId)
             }
-            val userId = floustreamClient.auth.currentUserOrNull()?.id
-            if (!userId.isNullOrBlank()) registerFcmToken(context, userId)
+            lifecycleOwner.lifecycle.addObserver(observer)
+            registerFcmToken(context, userId)
+            onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
         }
     }
 
