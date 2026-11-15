@@ -103,6 +103,7 @@ private val floustreamClient = createSupabaseClient(
 
 class MainActivity : ComponentActivity() {
     private var pendingLifecycleAction by mutableStateOf<String?>(null)
+    private var pendingNotificationPeerId by mutableStateOf<String?>(null)
 
     private fun lifecycleActionFromIntent(intent: android.content.Intent): String? {
         val uri = intent.data ?: return null
@@ -116,6 +117,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         pendingLifecycleAction = lifecycleActionFromIntent(intent)
+        pendingNotificationPeerId = intent.getStringExtra("sender_id")?.takeIf { it.isNotBlank() }
         floustreamClient.handleDeeplinks(intent)
         setContent {
             MaterialTheme(
@@ -127,7 +129,7 @@ class MainActivity : ComponentActivity() {
                     onBackground = White,
                     onSurface = White
                 )
-            ) { androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) { MessengerApp(pendingLifecycleAction) { pendingLifecycleAction = null }; AppUpdatePrompt() } }
+            ) { androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) { MessengerApp(pendingLifecycleAction, pendingNotificationPeerId, { pendingLifecycleAction = null }) { pendingNotificationPeerId = null }; AppUpdatePrompt() } }
         }
     }
 
@@ -135,6 +137,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         pendingLifecycleAction = lifecycleActionFromIntent(intent)
+        pendingNotificationPeerId = intent.getStringExtra("sender_id")?.takeIf { it.isNotBlank() }
         floustreamClient.handleDeeplinks(intent)
     }
 }
@@ -508,7 +511,12 @@ private suspend fun callAccountLifecycle(action: String): String = withContext(D
 }
 
 @Composable
-private fun MessengerApp(pendingLifecycleAction: String?, onLifecycleHandled: () -> Unit) {
+private fun MessengerApp(
+    pendingLifecycleAction: String?,
+    notificationPeerId: String?,
+    onLifecycleHandled: () -> Unit,
+    onNotificationHandled: () -> Unit
+) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var firstName by remember { mutableStateOf("") }
@@ -679,6 +687,8 @@ private fun MessengerApp(pendingLifecycleAction: String?, onLifecycleHandled: ()
             }
         } else if (signedIn) {
             MessengerHome(
+                notificationPeerId = notificationPeerId,
+                onNotificationHandled = onNotificationHandled,
                 onDeleteAccount = {
                     val accountEmail = floustreamClient.auth.currentUserOrNull()?.email
                     if (accountEmail.isNullOrBlank()) {
@@ -816,7 +826,12 @@ private fun MessengerApp(pendingLifecycleAction: String?, onLifecycleHandled: ()
 }
 
 @Composable
-private fun MessengerHome(onSignOut: () -> Unit, onDeleteAccount: () -> Unit) {
+private fun MessengerHome(
+    onSignOut: () -> Unit,
+    onDeleteAccount: () -> Unit,
+    notificationPeerId: String?,
+    onNotificationHandled: () -> Unit
+) {
     var tab by remember { mutableStateOf("Чаты") }
     var selectedProfile by remember { mutableStateOf<ProfileDto?>(null) }
     val currentUserId = floustreamClient.auth.currentUserOrNull()?.id.orEmpty()
@@ -826,6 +841,31 @@ private fun MessengerHome(onSignOut: () -> Unit, onDeleteAccount: () -> Unit) {
     var socialOpen by remember { mutableStateOf(false) }
     var socialDrawerOpen by remember { mutableStateOf(false) }
     var socialSection by remember { mutableStateOf("Моя страница") }
+
+    LaunchedEffect(notificationPeerId, currentUserId) {
+        val peerId = notificationPeerId?.takeIf { it.isNotBlank() } ?: return@LaunchedEffect
+        if (peerId == currentUserId) {
+            onNotificationHandled()
+            return@LaunchedEffect
+        }
+        try {
+            val peer = floustreamClient.from("profiles").select {
+                filter { eq("id", peerId) }
+            }.decodeList<ProfileDto>().firstOrNull()
+            if (peer != null) {
+                tab = "Чаты"
+                socialOpen = false
+                socialDrawerOpen = false
+                selectedProfile = peer
+            } else {
+                infoMessage = "Этот собеседник больше недоступен."
+            }
+        } catch (_: Exception) {
+            infoMessage = "Не удалось открыть переписку. Попробуй ещё раз."
+        } finally {
+            onNotificationHandled()
+        }
+    }
 
     Surface(Modifier.fillMaxSize(), color = Night) {
         Column(Modifier.fillMaxSize()) {
