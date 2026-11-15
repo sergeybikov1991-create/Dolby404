@@ -752,20 +752,38 @@ private fun ChatsScreen(
     val threads = remember(currentUserId) { mutableStateListOf<ChatThread>() }
     var loading by remember(currentUserId) { mutableStateOf(true) }
     var error by remember(currentUserId) { mutableStateOf("") }
+    var hasLoadedInbox by remember(currentUserId) { mutableStateOf(false) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var isInboxResumed by remember { mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) }
 
-    LaunchedEffect(currentUserId) {
-        while (true) {
-            try {
-                val latest = loadInboxThreads(currentUserId)
-                threads.clear()
-                threads.addAll(latest)
-                error = ""
-            } catch (e: Exception) {
-                error = e.message ?: "Не удалось загрузить список чатов."
-            } finally {
-                loading = false
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> { error = ""; isInboxResumed = true }
+                Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP -> isInboxResumed = false
+                else -> Unit
             }
-            delay(5000)
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    LaunchedEffect(currentUserId, isInboxResumed) {
+        if (isInboxResumed) {
+            do {
+                try {
+                    val latest = loadInboxThreads(currentUserId)
+                    threads.clear()
+                    threads.addAll(latest)
+                    error = ""
+                } catch (e: Exception) {
+                    if (!hasLoadedInbox) error = e.message ?: "Не удалось загрузить список чатов."
+                } finally {
+                    loading = false
+                    hasLoadedInbox = true
+                }
+                if (isInboxResumed) delay(5000)
+            } while (isInboxResumed)
         }
     }
 
