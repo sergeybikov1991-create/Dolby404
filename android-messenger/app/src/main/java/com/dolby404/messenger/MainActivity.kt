@@ -1322,12 +1322,12 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                         withContext(Dispatchers.IO) { floustreamClient.storage.from("message-media").upload(path, bytes) { contentType = ContentType.parse(mime) } }
                         sendDirectAttachment(currentUserId, peer.id, path, name, mime)
                         sentCount++
-                    } catch (e: Exception) {
-                        failures += e.message ?: "Не удалось отправить файл."
+                    } catch (_: Exception) {
+                        failures += "Не удалось отправить один из файлов. Проверьте интернет и попробуйте ещё раз."
                     }
                 }
-                refresh()
-                errorText = if (failures.isEmpty()) "" else "Отправлено $sentCount из ${uris.size}. ${failures.joinToString("; ")}"
+                if (sentCount > 0) refresh()
+                errorText = if (failures.isEmpty()) "" else "Отправлено $sentCount из ${uris.size}. ${failures.distinct().joinToString("; ")}"
             } finally { uploadingAttachment = false }
         }
     }
