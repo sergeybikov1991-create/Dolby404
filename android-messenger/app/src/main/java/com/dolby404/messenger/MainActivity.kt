@@ -670,17 +670,6 @@ private fun MessengerHome(onSignOut: () -> Unit, onDeleteAccount: () -> Unit) {
                     }
                 }
 
-                if (tab == "Чаты") {
-                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.BottomEnd) {
-                        FloatingActionButton(
-                            onClick = { showNewChat = true },
-                            modifier = Modifier.padding(end = 20.dp, bottom = 84.dp),
-                            containerColor = Blue,
-                            contentColor = White,
-                            shape = RoundedCornerShape(18.dp)
-                        ) { Text("+", fontSize = 30.sp, fontWeight = FontWeight.Light) }
-                    }
-                }
             }
         }
     }
@@ -727,6 +716,7 @@ private fun ChatsScreen(
     val threads = remember(currentUserId) { mutableStateListOf<ChatThread>() }
     var loading by remember(currentUserId) { mutableStateOf(true) }
     var error by remember(currentUserId) { mutableStateOf("") }
+    var chatFilter by remember { mutableStateOf("Все") }
 
     LaunchedEffect(currentUserId) {
         while (true) {
@@ -747,7 +737,9 @@ private fun ChatsScreen(
     val filtered = threads.filter { thread ->
         val name = thread.peer.displayName ?: thread.peer.username ?: ""
         val preview = thread.lastMessage.content
-        name.contains(searchQuery, true) || preview.contains(searchQuery, true)
+        val matchesSearch = searchQuery.isBlank() || name.contains(searchQuery, true) || preview.contains(searchQuery, true)
+        val matchesFilter = chatFilter == "Все" || (chatFilter == "Непрочитанные" && thread.unread > 0)
+        matchesSearch && matchesFilter
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -766,7 +758,29 @@ private fun ChatsScreen(
         if (error.isNotBlank()) {
             Text(error, Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 6.dp), color = Color(0xFFFF9AA8), fontSize = 11.sp)
         }
-        LazyColumn(contentPadding = PaddingValues(bottom = 110.dp)) {
+        Row(
+            Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            listOf("Все", "Непрочитанные").forEach { filter ->
+                val selected = chatFilter == filter
+                Surface(
+                    modifier = Modifier.clickable { chatFilter = filter },
+                    color = if (selected) Color(0xFF294D88) else PanelSoft,
+                    shape = RoundedCornerShape(18.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, if (selected) Blue else Color(0xFF34415B))
+                ) {
+                    Text(
+                        filter,
+                        Modifier.padding(horizontal = 16.dp, vertical = 9.dp),
+                        color = if (selected) White else Muted,
+                        fontSize = 12.sp,
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                    )
+                }
+            }
+        }
+        LazyColumn(contentPadding = PaddingValues(bottom = 20.dp)) {
             if (loading && threads.isEmpty()) {
                 item {
                     Row(Modifier.fillMaxWidth().padding(24.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
@@ -779,8 +793,8 @@ private fun ChatsScreen(
                 item {
                     EmptyPanel(
                         "✉",
-                        if (searchQuery.isBlank()) "Пока нет переписок" else "Ничего не найдено",
-                        if (searchQuery.isBlank()) "Найди человека во вкладке «Контакты» и отправь ему первое сообщение. Диалог появится здесь." else "Попробуй изменить поисковый запрос."
+                        if (searchQuery.isBlank() && chatFilter == "Все") "Пока нет переписок" else if (chatFilter == "Непрочитанные" && searchQuery.isBlank()) "Нет непрочитанных сообщений" else "Ничего не найдено",
+                        if (searchQuery.isBlank() && chatFilter == "Все") "Найди человека во вкладке «Контакты» и отправь ему первое сообщение. Диалог появится здесь." else if (chatFilter == "Непрочитанные" && searchQuery.isBlank()) "Все сообщения уже прочитаны." else "Попробуй изменить поисковый запрос."
                     )
                 }
             }
@@ -824,7 +838,12 @@ private fun Avatar(initials: String, online: Boolean = false, avatarUrl: String?
         ) {
             Box(contentAlignment = Alignment.Center) {
                 if (!avatarUrl.isNullOrBlank()) {
-                    AsyncImage(model = avatarUrl, contentDescription = "Фото профиля", modifier = Modifier.fillMaxSize().clip(CircleShape))
+                    AsyncImage(
+                        model = avatarUrl,
+                        contentDescription = "Фото профиля",
+                        modifier = Modifier.fillMaxSize().clip(CircleShape),
+                        contentScale = ContentScale.Crop
+                    )
                 } else {
                     Text(initials, color = White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
                 }
