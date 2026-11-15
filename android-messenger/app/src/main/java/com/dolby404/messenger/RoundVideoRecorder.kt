@@ -62,11 +62,24 @@ internal fun RoundVideoRecorder(
     var videoCapture by remember { mutableStateOf<VideoCapture<Recorder>?>(null) }
     var recording by remember { mutableStateOf<androidx.camera.video.Recording?>(null) }
     var recordingActive by remember { mutableStateOf(false) }
+    var recordingStartedAt by remember { mutableLongStateOf(0L) }
+    var elapsedSeconds by remember { mutableIntStateOf(0) }
     var shouldSend by remember { mutableStateOf(false) }
     var finalizing by remember { mutableStateOf(false) }
     var cameraReady by remember { mutableStateOf(false) }
     var cameraProvider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
     var outputFile by remember { mutableStateOf<File?>(null) }
+
+    LaunchedEffect(recordingActive, recordingStartedAt) {
+        if (recordingActive && recordingStartedAt > 0L) {
+            while (recordingActive) {
+                elapsedSeconds = ((System.currentTimeMillis() - recordingStartedAt) / 1000L).toInt()
+                kotlinx.coroutines.delay(250L)
+            }
+        } else {
+            elapsedSeconds = 0
+        }
+    }
 
     LaunchedEffect(Unit) {
         if (!hasPermissions && !permissionRequested) {
@@ -122,9 +135,15 @@ internal fun RoundVideoRecorder(
                 .withAudioEnabled()
                 .start(ContextCompat.getMainExecutor(context)) { event ->
                     when (event) {
-                        is VideoRecordEvent.Start -> recordingActive = true
+                        is VideoRecordEvent.Start -> {
+                            recordingStartedAt = System.currentTimeMillis()
+                            elapsedSeconds = 0
+                            recordingActive = true
+                        }
                         is VideoRecordEvent.Finalize -> {
                             recordingActive = false
+                            recordingStartedAt = 0L
+                            elapsedSeconds = 0
                             recording = null
                             finalizing = false
                             val completed = outputFile
@@ -181,7 +200,7 @@ internal fun RoundVideoRecorder(
             Text(
                 when {
                     finalizing -> "Сохраняем видео…"
-                    recordingActive -> "● Идёт запись — отпусти для отправки"
+                    recordingActive -> "● Запись \${elapsedSeconds / 60}:" + String.format("%02d", elapsedSeconds % 60) + " — отпусти для отправки"
                     else -> "Удерживай кнопку · свайп влево отменяет"
                 }, color = Color(0xFFB7C4DA), fontSize = 12.sp
             )
@@ -189,7 +208,8 @@ internal fun RoundVideoRecorder(
             Box(
                 Modifier.size(78.dp).clip(CircleShape)
                     .background(if (recordingActive) Color(0xFF9A65FF) else Color(0xFF548BFF))
-                    .pointerInput(cameraReady, recordingActive, finalizing) {
+                    // Keep this gesture alive while recordingActive changes on Start.
+                    .pointerInput(cameraReady, finalizing) {
                         awaitEachGesture {
                             if (!cameraReady || recordingActive || finalizing) return@awaitEachGesture
                             val down = awaitFirstDown(requireUnconsumed = false)
