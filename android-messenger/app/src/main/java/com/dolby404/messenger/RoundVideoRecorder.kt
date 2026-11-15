@@ -151,9 +151,17 @@ internal fun RoundVideoRecorder(
                             if (event.hasError()) {
                                 completed?.delete()
                                 onError("Не удалось завершить видеозапись. Попробуй ещё раз.")
-                            } else if (shouldSend && completed != null && completed.exists() && completed.length() > 1500L) {
-                                onRecorded(completed)
-                            } else completed?.delete()
+                            } else if (shouldSend && completed != null && completed.exists()) {
+                                if (completed.length() > 1500L) {
+                                    onRecorded(completed)
+                                } else {
+                                    completed.delete()
+                                    onError("Видео слишком короткое. Удерживай кнопку хотя бы секунду.")
+                                }
+                            } else {
+                                completed?.delete()
+                                if (shouldSend) onError("Не удалось сохранить видеосообщение. Попробуй записать ещё раз.")
+                            }
                         }
                     }
                 }
