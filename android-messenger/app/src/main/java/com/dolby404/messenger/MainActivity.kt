@@ -219,6 +219,17 @@ private data class SocialPostDto(
 )
 
 @Serializable
+private data class NewSocialPost(
+    @SerialName("user_id") val userId: String,
+    @SerialName("content") val content: String
+)
+
+private data class SocialFeedItem(
+    val post: SocialPostDto,
+    val author: ProfileDto?
+)
+
+@Serializable
 private data class DirectMessageDto(
     @SerialName("id") val id: String,
     @SerialName("sender_id") val senderId: String,
@@ -383,6 +394,23 @@ private suspend fun loadSocialPosts(userId: String): List<SocialPostDto> =
     floustreamClient.from("posts").select {
         filter { eq("user_id", userId) }
     }.decodeList<SocialPostDto>().sortedByDescending { it.createdAt.orEmpty() }.take(50)
+
+private suspend fun loadSocialFeed(): List<SocialFeedItem> {
+    val posts = floustreamClient.from("posts").select()
+        .decodeList<SocialPostDto>()
+        .sortedByDescending { it.createdAt.orEmpty() }
+        .take(100)
+    if (posts.isEmpty()) return emptyList()
+    val authorIds = posts.map { it.userId }.distinct()
+    val authors = floustreamClient.from("profiles").select {
+        filter { isIn("id", authorIds) }
+    }.decodeList<ProfileDto>().associateBy { it.id }
+    return posts.map { SocialFeedItem(it, authors[it.userId]) }
+}
+
+private suspend fun createSocialPost(userId: String, content: String) {
+    floustreamClient.from("posts").insert(NewSocialPost(userId = userId, content = content))
+}
 
 private suspend fun loadMutualFriends(userId: String): List<ProfileDto> {
     val following = floustreamClient.from("follows").select {
@@ -911,7 +939,7 @@ private fun MessengerHome(
                             Text("FLOUSTREAM", color = White, fontSize = 21.sp, fontWeight = FontWeight.Black)
                             Text("СОЦИАЛЬНАЯ СЕТЬ", color = Color(0xFF9FCBFF), fontSize = 10.sp, letterSpacing = 2.sp)
                             Spacer(Modifier.height(24.dp))
-                            listOf("Моя страница", "Друзья", "Группы", "Фото", "Видео", "Поиск и рекомендации", "Настройки соцсети").forEach { item ->
+                            listOf("Лента", "Моя страница", "Друзья", "Фото", "Видео", "Поиск и рекомендации", "Настройки соцсети").forEach { item ->
                                 Surface(
                                     Modifier.fillMaxWidth().padding(vertical = 3.dp).clickable {
                                         socialSection = item
@@ -1018,6 +1046,7 @@ private fun SocialNetworkScreen(
     val scope = rememberCoroutineScope()
     var profile by remember(currentUserId) { mutableStateOf<ProfileDto?>(null) }
     var posts by remember(currentUserId) { mutableStateOf<List<SocialPostDto>>(emptyList()) }
+    var feedPosts by remember(currentUserId) { mutableStateOf<List<SocialFeedItem>>(emptyList()) }
     var friends by remember(currentUserId) { mutableStateOf<List<ProfileDto>>(emptyList()) }
     var publicMedia by remember(currentUserId) { mutableStateOf<List<Pair<MediaLibraryItem, String>>>(emptyList()) }
     var searchText by remember { mutableStateOf("") }
@@ -1037,6 +1066,7 @@ private fun SocialNetworkScreen(
         try {
             profile = loadCurrentProfile(currentUserId)
             posts = if (section == "Моя страница") loadSocialPosts(currentUserId) else emptyList()
+            feedPosts = if (section == "Лента") loadSocialFeed() else emptyList()
             friends = if (section == "Друзья") loadMutualFriends(currentUserId) else emptyList()
             if (section == "Настройки соцсети") {
                 val settings = loadSocialPrivacySettings(currentUserId)
@@ -1110,6 +1140,55 @@ private fun SocialNetworkScreen(
             }
             error.isNotBlank() -> Column(Modifier.fillMaxWidth().padding(20.dp)) {
                 Text(error, color = Color(0xFFFF9AA8), fontSize = 13.sp)
+            }
+            section == "Лента" -> {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    item {
+                        Text("Лента публикаций", color = White, fontSize = 23.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(10.dp))
+                        SocialPostComposer(currentUserId) { feedPosts = loadSocialFeed() }
+                    }
+                    if (feedPosts.isEmpty()) item {
+                        Text("Пока нет публикаций. Здесь появятся открытые записи пользователей FLOUSTREAM.", color = Muted, fontSize = 13.sp)
+                    }
+                    items(feedPosts, key = { it.post.id }) { entry ->
+                        val post = entry.post
+                        val author = entry.author
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = Panel,
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    val authorName = author?.displayName ?: author?.username ?: "Пользователь"
+                                    Avatar(authorName.take(1).uppercase(), avatarUrl = author?.avatarUrl)
+                                    Spacer(Modifier.width(10.dp))
+                                    Column {
+                                        Text(authorName, color = White, fontWeight = FontWeight.SemiBold)
+                                        Text(author?.username?.let { "@$it" } ?: "FLOUSTREAM", color = Muted, fontSize = 11.sp)
+                                    }
+                                }
+                                post.content?.takeIf { it.isNotBlank() }?.let {
+                                    Text(it, color = White, fontSize = 14.sp)
+                                }
+                                post.imageUrl?.takeIf { it.startsWith("https://") }?.let { url ->
+                                    AsyncImage(
+                                        model = url,
+                                        contentDescription = "Фото публикации",
+                                        modifier = Modifier.fillMaxWidth().heightIn(max = 340.dp).clip(RoundedCornerShape(6.dp)),
+                                        contentScale = ContentScale.Fit
+                                    )
+                                }
+                                post.createdAt?.let { Text(it.replace("T", " ").take(16), color = Muted, fontSize = 10.sp) }
+                            }
+                        }
+                    }
+                }
             }
             section == "Друзья" -> {
                 LazyColumn(
@@ -1263,6 +1342,7 @@ private fun SocialNetworkScreen(
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    item { SocialPostComposer(currentUserId) { posts = loadSocialPosts(currentUserId) } }
                     item {
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
@@ -1319,6 +1399,62 @@ private fun SocialNetworkScreen(
                 Spacer(Modifier.height(12.dp))
                 Text("Раздел «$section» подключим следующим этапом.", color = Muted, fontSize = 13.sp)
             }
+        }
+    }
+}
+
+@Composable
+private fun SocialPostComposer(currentUserId: String, onPosted: suspend () -> Unit) {
+    var draft by remember { mutableStateOf("") }
+    var sending by remember { mutableStateOf(false) }
+    var status by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = Panel,
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            OutlinedTextField(
+                value = draft,
+                onValueChange = { draft = it; status = "" },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Что нового?", color = Muted) },
+                minLines = 2,
+                maxLines = 5,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = White,
+                    unfocusedTextColor = White,
+                    focusedBorderColor = Blue,
+                    unfocusedBorderColor = Muted
+                )
+            )
+            Button(
+                onClick = {
+                    val content = draft.trim()
+                    if (content.isNotEmpty() && !sending) {
+                        scope.launch {
+                            sending = true
+                            status = ""
+                            try {
+                                createSocialPost(currentUserId, content)
+                                draft = ""
+                                onPosted()
+                                status = "Публикация размещена."
+                            } catch (_: Exception) {
+                                status = "Не удалось опубликовать. Проверь подключение и попробуй ещё раз."
+                            } finally {
+                                sending = false
+                            }
+                        }
+                    }
+                },
+                enabled = draft.isNotBlank() && !sending,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(if (sending) "Публикуем…" else "Опубликовать")
+            }
+            if (status.isNotBlank()) Text(status, color = Muted, fontSize = 11.sp)
         }
     }
 }
