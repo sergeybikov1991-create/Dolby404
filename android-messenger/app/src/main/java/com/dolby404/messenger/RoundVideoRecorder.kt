@@ -200,7 +200,7 @@ internal fun RoundVideoRecorder(
             Text(
                 when {
                     finalizing -> "Сохраняем видео…"
-                    recordingActive -> "● Запись \${elapsedSeconds / 60}:" + String.format("%02d", elapsedSeconds % 60) + " — отпусти для отправки"
+                    recordingActive -> "● Запись ${elapsedSeconds / 60}:" + String.format("%02d", elapsedSeconds % 60) + " — отпусти для отправки"
                     else -> "Удерживай кнопку · свайп влево отменяет"
                 }, color = Color(0xFFB7C4DA), fontSize = 12.sp
             )
