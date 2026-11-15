@@ -2247,7 +2247,6 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     var loading by remember { mutableStateOf(true) }
     var sending by remember { mutableStateOf(false) }
     var errorText by remember { mutableStateOf("") }
-    var hasLoadedOnce by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
     var isResumed by remember { mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) }
@@ -2280,7 +2279,6 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             if (!silent) errorText = e.message ?: "Не удалось загрузить переписку."
         } finally {
             loading = false
-            hasLoadedOnce = true
         }
         return loaded
     }
