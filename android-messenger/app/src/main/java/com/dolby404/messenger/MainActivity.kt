@@ -1,6 +1,10 @@
 package com.dolby404.messenger
 
 import android.os.Bundle
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
 import android.content.Intent
 import android.provider.OpenableColumns
 import android.widget.Toast
@@ -67,6 +71,7 @@ import java.net.URLEncoder
 import java.util.UUID
 import kotlin.time.Duration.Companion.minutes
 import coil.compose.AsyncImage
+import com.google.firebase.messaging.FirebaseMessaging
 
 private val Night = Color(0xFF080D1B)
 private val Panel = Color(0xFF111A2D)
@@ -123,6 +128,41 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         pendingLifecycleAction = lifecycleActionFromIntent(intent)
         floustreamClient.handleDeeplinks(intent)
+    }
+}
+
+
+private fun registerFcmToken(context: Context, userId: String) {
+    FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+        if (!task.isSuccessful) return@addOnCompleteListener
+        val fcmToken = task.result ?: return@addOnCompleteListener
+        val accessToken = floustreamClient.auth.currentSessionOrNull()?.accessToken ?: return@addOnCompleteListener
+        Thread {
+            val connection = URL("${BuildConfig.SUPABASE_URL}/rest/v1/device_push_tokens?on_conflict=token")
+                .openConnection() as HttpURLConnection
+            try {
+                connection.requestMethod = "POST"
+                connection.connectTimeout = 10000
+                connection.readTimeout = 10000
+                connection.doOutput = true
+                connection.setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+                connection.setRequestProperty("Authorization", "Bearer $accessToken")
+                connection.setRequestProperty("Content-Type", "application/json")
+                connection.setRequestProperty("Prefer", "resolution=merge-duplicates,return=minimal")
+                val payload = JSONObject()
+                    .put("token", fcmToken)
+                    .put("user_id", userId)
+                    .put("platform", "android")
+                    .put("updated_at", java.time.Instant.now().toString())
+                    .toString()
+                connection.outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
+                connection.responseCode
+            } catch (_: Exception) {
+                // Token registration is retried on the next app launch/resume.
+            } finally {
+                connection.disconnect()
+            }
+        }.start()
     }
 }
 
@@ -395,6 +435,21 @@ private fun MessengerApp(pendingLifecycleAction: String?, onLifecycleHandled: ()
     var message by remember { mutableStateOf("Войди с тем же аккаунтом, что используешь на сайте FLOUSTREAM.") }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { }
+
+    LaunchedEffect(signedIn) {
+        if (signedIn) {
+            if (Build.VERSION.SDK_INT >= 33 &&
+                context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+            ) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+            val userId = floustreamClient.auth.currentUserOrNull()?.id
+            if (!userId.isNullOrBlank()) registerFcmToken(context, userId)
+        }
+    }
 
     LaunchedEffect(pendingLifecycleAction) {
         val action = pendingLifecycleAction ?: return@LaunchedEffect
