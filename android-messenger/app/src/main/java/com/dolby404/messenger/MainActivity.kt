@@ -1871,6 +1871,18 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     var voiceRecorder by remember { mutableStateOf<MediaRecorder?>(null) }
     var voiceFile by remember { mutableStateOf<File?>(null) }
     var recordingVoice by remember { mutableStateOf(false) }
+    var voiceRecordingStartedAt by remember { mutableLongStateOf(0L) }
+    var voiceElapsedSeconds by remember { mutableIntStateOf(0) }
+    LaunchedEffect(recordingVoice, voiceRecordingStartedAt) {
+        if (recordingVoice && voiceRecordingStartedAt > 0L) {
+            while (recordingVoice) {
+                voiceElapsedSeconds = ((System.currentTimeMillis() - voiceRecordingStartedAt) / 1000L).toInt()
+                delay(250L)
+            }
+        } else {
+            voiceElapsedSeconds = 0
+        }
+    }
     DisposableEffect(peer.id) {
         onDispose {
             val recorder = voiceRecorder
@@ -1909,6 +1921,8 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             recorder.start()
             voiceFile = file
             voiceRecorder = recorder
+            voiceRecordingStartedAt = System.currentTimeMillis()
+            voiceElapsedSeconds = 0
             recordingVoice = true
             true
         } catch (_: Exception) {
@@ -1918,6 +1932,8 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             voiceRecorder = null
             voiceFile = null
             recordingVoice = false
+            voiceRecordingStartedAt = 0L
+            voiceElapsedSeconds = 0
             errorText = "Не удалось начать запись. Проверь разрешение микрофона."
             false
         }
@@ -1929,6 +1945,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
         voiceRecorder = null
         voiceFile = null
         recordingVoice = false
+        voiceRecordingStartedAt = 0L
         try { recorder?.stop() } catch (_: Exception) { }
         try { recorder?.reset() } catch (_: Exception) { }
         try { recorder?.release() } catch (_: Exception) { }
@@ -2021,6 +2038,13 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
         }
         if (errorText.isNotBlank()) {
             Text(errorText, Modifier.fillMaxWidth().padding(10.dp), color = Color(0xFFFF9AA8), fontSize = 11.sp)
+        }
+        if (recordingVoice) {
+            Text(
+                "● Запись ${voiceElapsedSeconds / 60}:" + String.format("%02d", voiceElapsedSeconds % 60) + " — отпусти для отправки",
+                Modifier.fillMaxWidth().background(PanelSoft).padding(horizontal = 16.dp, vertical = 9.dp),
+                color = Color(0xFFFF8EAD), fontSize = 12.sp, fontWeight = FontWeight.SemiBold
+            )
         }
         LazyColumn(
             modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -2128,7 +2152,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                         val down = awaitFirstDown(requireUnconsumed = false)
                         val startedAt = System.currentTimeMillis()
                         var movedToCancel = false
-                        val longHold = withTimeoutOrNull(2000L) {
+                        val longHold = withTimeoutOrNull(450L) {
                             while (true) {
                                 val event = awaitPointerEvent()
                                 val change = event.changes.firstOrNull { it.id == down.id } ?: break
