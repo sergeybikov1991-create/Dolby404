@@ -1,6 +1,8 @@
 package com.dolby404.messenger
 
 import android.os.Bundle
+import android.media.MediaRecorder
+import java.io.File
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
@@ -14,6 +16,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.awaitPointerEvent
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
@@ -63,6 +69,7 @@ import kotlinx.serialization.json.put
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -1296,6 +1303,77 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     }
 
     var uploadingAttachment by remember { mutableStateOf(false) }
+    var voiceRecorder by remember { mutableStateOf<MediaRecorder?>(null) }
+    var voiceFile by remember { mutableStateOf<File?>(null) }
+    var recordingVoice by remember { mutableStateOf(false) }
+    val microphonePermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        errorText = if (granted) "Микрофон разрешён. Удержи кнопку отправки ещё раз для записи." else "Для голосовых сообщений нужно разрешить доступ к микрофону."
+    }
+
+    fun startVoiceRecording(): Boolean {
+        if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
+            return false
+        }
+        return try {
+            val file = File(context.cacheDir, "voice_${UUID.randomUUID()}.m4a")
+            val recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) MediaRecorder(context) else MediaRecorder()
+            recorder.setAudioSource(MediaRecorder.AudioSource.MIC)
+            recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+            recorder.setAudioEncodingBitRate(96000)
+            recorder.setAudioSamplingRate(44100)
+            recorder.setOutputFile(file.absolutePath)
+            recorder.prepare()
+            recorder.start()
+            voiceFile = file
+            voiceRecorder = recorder
+            recordingVoice = true
+            true
+        } catch (_: Exception) {
+            voiceRecorder?.release()
+            voiceRecorder = null
+            voiceFile?.delete()
+            voiceFile = null
+            recordingVoice = false
+            errorText = "Не удалось начать запись. Проверь разрешение микрофона."
+            false
+        }
+    }
+
+    suspend fun finishVoiceRecording(send: Boolean) {
+        val recorder = voiceRecorder
+        val file = voiceFile
+        voiceRecorder = null
+        voiceFile = null
+        recordingVoice = false
+        try { recorder?.stop() } catch (_: Exception) { }
+        try { recorder?.reset() } catch (_: Exception) { }
+        try { recorder?.release() } catch (_: Exception) { }
+        if (!send || file == null || !file.exists() || file.length() < 1500L) {
+            file?.delete()
+            if (send) errorText = "Запись слишком короткая. Удерживай кнопку немного дольше."
+            return
+        }
+        uploadingAttachment = true
+        try {
+            val bytes = withContext(Dispatchers.IO) { file.readBytes() }
+            if (bytes.size > 50 * 1024 * 1024) error("Запись превышает допустимый размер.")
+            val name = "voice_${System.currentTimeMillis()}.m4a"
+            val path = "$currentUserId/${UUID.randomUUID()}_$name"
+            withContext(Dispatchers.IO) {
+                floustreamClient.storage.from("message-media").upload(path, bytes) { contentType = ContentType.parse("audio/mp4") }
+            }
+            sendDirectAttachment(currentUserId, peer.id, path, name, "audio/mp4")
+            refresh()
+            errorText = ""
+        } catch (_: Exception) {
+            errorText = "Не удалось отправить голосовое сообщение. Проверь интернет и попробуй ещё раз."
+        } finally {
+            file.delete()
+            uploadingAttachment = false
+        }
+    }
     var showAttachmentMenu by remember { mutableStateOf(false) }
     var showMediaLibrary by remember { mutableStateOf(false) }
     var mediaLibrary by remember { mutableStateOf<List<MediaLibraryItem>>(emptyList()) }
@@ -1453,26 +1531,59 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 })
             )
             Surface(
-                modifier = Modifier.size(44.dp).clickable {
-                    val text = draft.trim()
-                    if (text.isNotEmpty() && !sending) {
-                        scope.launch {
-                            sending = true
-                            try {
-                                sendDirectMessage(currentUserId, peer.id, text)
-                                draft = ""
-                                refresh()
-                            } catch (e: Exception) {
-                                errorText = e.message ?: "Не удалось отправить сообщение."
-                            } finally { sending = false }
+                modifier = Modifier.size(44.dp).pointerInput(draft, sending, uploadingAttachment) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        val startedAt = System.currentTimeMillis()
+                        var movedToCancel = false
+                        val longHold = withTimeoutOrNull(2000L) {
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                if (!change.pressed) break
+                                if (change.position.x < down.position.x - 72.dp.toPx()) {
+                                    movedToCancel = true
+                                    break
+                                }
+                            }
+                            false
+                        } ?: true
+                        if (longHold && !movedToCancel) {
+                            val started = startVoiceRecording()
+                            if (started) {
+                                while (true) {
+                                    val event = awaitPointerEvent()
+                                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                    if (change.position.x < down.position.x - 90.dp.toPx()) movedToCancel = true
+                                    if (!change.pressed) break
+                                }
+                                scope.launch { finishVoiceRecording(!movedToCancel) }
+                            }
+                        } else if (!movedToCancel && System.currentTimeMillis() - startedAt < 2000L) {
+                            val text = draft.trim()
+                            if (text.isNotEmpty() && !sending && !uploadingAttachment) {
+                                scope.launch {
+                                    sending = true
+                                    try {
+                                        sendDirectMessage(currentUserId, peer.id, text)
+                                        draft = ""
+                                        refresh()
+                                    } catch (_: Exception) {
+                                        errorText = "Не удалось отправить сообщение. Проверь интернет и попробуй ещё раз."
+                                    } finally { sending = false }
+                                }
+                            }
                         }
                     }
                 },
-                color = Blue, shape = CircleShape
+                color = if (recordingVoice) Violet else Blue, shape = CircleShape
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    if (sending) CircularProgressIndicator(modifier = Modifier.size(18.dp), color = White)
-                    else Text("➤", color = White, fontSize = 20.sp)
+                    when {
+                        sending || uploadingAttachment -> CircularProgressIndicator(modifier = Modifier.size(18.dp), color = White)
+                        recordingVoice -> Text("●", color = White, fontSize = 20.sp)
+                        else -> Text("➤", color = White, fontSize = 20.sp)
+                    }
                 }
             }
         }
