@@ -1,6 +1,6 @@
 # План FLOUSTREAM Messenger 0.5.0
 
-Связанный issue: #TBD
+Связанный issue: [#4](https://github.com/sergeybikov1991-create/Dolby404/issues/4)
 
 > Планирование и аудит. APK не выпускать, PR #3 не сливать до реализации и приёмочных тестов.
 
@@ -45,6 +45,9 @@
 - direct_messages содержит attachment_path, attachment_name, attachment_mime, но не имеет поля, отличающего voice_message/round_video от обычных аудио/видео вложений.
 - В текущей схеме Supabase не обнаружена таблица или другая прикладная сущность для call sessions/signaling.
 - Нынешние smoke tests проверяют в основном вход/выход и некоторые страницы профиля; чатовые сценарии нужно покрыть отдельно.
+- Проверка Storage: bucket `message-media` существует, закрытый (private), лимит 50 MiB; разрешённые MIME-типы включают изображения, видео, аудио и документы. Политика SELECT ограничивает чтение владельцем или участником соответствующего direct_messages; INSERT — папкой пользователя.
+- История миграций Supabase отслеживается, включая `direct_message_read_receipts_and_realtime` и `create_device_push_tokens`; отдельной миграции/таблицы для звонков пока нет.
+- Последние CI проверки ветки 0.4.0: Android signed release build — success; browser smoke workflow — success. Эти проверки не являются тестом записи медиа или реального звонка.
 
 ## Технические решения, которые нужно утвердить до реализации
 1. Звонки: выбрать управляемый SFU (например, LiveKit Cloud) или P2P WebRTC с отдельным TURN-сервером. Для стабильных звонков через мобильные сети и NAT нужен TURN/SFU, а не только STUN.
