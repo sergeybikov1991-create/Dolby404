@@ -535,9 +535,16 @@ private suspend fun deleteDirectMessage(userId: String, messageId: String) = wit
         connection.readTimeout = 10000
         connection.setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
         connection.setRequestProperty("Authorization", "Bearer $token")
-        connection.setRequestProperty("Prefer", "return=minimal")
-        if (connection.responseCode !in 200..299) {
+        connection.setRequestProperty("Prefer", "return=representation")
+        val responseCode = connection.responseCode
+        if (responseCode !in 200..299) {
             throw IllegalStateException("Не удалось удалить сообщение.")
+        }
+        // A 2xx response with zero affected rows can mean RLS blocked the delete
+        // or the row was already gone. Confirm the server actually removed it.
+        val deletedRows = JSONArray(connection.inputStream.bufferedReader().use { it.readText() })
+        if (deletedRows.length() == 0) {
+            throw IllegalStateException("Сообщение не удалено. Проверь права доступа и попробуй ещё раз.")
         }
     } finally {
         connection.disconnect()
