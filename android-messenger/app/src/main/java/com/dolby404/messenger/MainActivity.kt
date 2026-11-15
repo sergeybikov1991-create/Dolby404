@@ -14,6 +14,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -1960,7 +1961,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     var showMediaLibrary by remember { mutableStateOf(false) }
     var mediaLibrary by remember { mutableStateOf<List<MediaLibraryItem>>(emptyList()) }
     var selectedMediaIds by remember { mutableStateOf<Set<String>>(emptySet()) }
-    val attachmentPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+    val attachmentPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(20)) { uris ->
         if (uris.isNotEmpty() && !uploadingAttachment) scope.launch {
             uploadingAttachment = true
             var sentCount = 0
@@ -2069,8 +2070,11 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 }
                 DropdownMenu(expanded = showAttachmentMenu, onDismissRequest = { showAttachmentMenu = false }) {
                     DropdownMenuItem(
-                        text = { Text("Файлы телефона") },
-                        onClick = { showAttachmentMenu = false; attachmentPicker.launch(arrayOf("*/*")) }
+                        text = { Text("Фото и видео из галереи") },
+                        onClick = {
+                            showAttachmentMenu = false
+                            attachmentPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))
+                        }
                     )
                     DropdownMenuItem(
                         text = { Text("Медиатека FLOUSTREAM") },
