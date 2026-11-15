@@ -168,7 +168,7 @@ internal fun RoundVideoRecorder(
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 TextButton(onClick = { stopRecording(false); onDismiss() }) { Text("Отмена", color = Color.White) }
                 Text("Видеосообщение", color = Color.White, fontSize = 17.sp)
-                TextButton(onClick = { if (!recordingActive) frontCamera = !frontCamera }) { Text("↻", color = Color.White, fontSize = 22.sp) }
+                TextButton(onClick = { if (!recordingActive && !finalizing) frontCamera = !frontCamera }) { Text("↻", color = Color.White, fontSize = 22.sp) }
             }
             Spacer(Modifier.height(24.dp))
             Box(Modifier.size(280.dp).clip(CircleShape).background(Color.Black), contentAlignment = Alignment.Center) {
@@ -191,6 +191,7 @@ internal fun RoundVideoRecorder(
                     .background(if (recordingActive) Color(0xFF9A65FF) else Color(0xFF548BFF))
                     .pointerInput(cameraReady, recordingActive, finalizing) {
                         awaitEachGesture {
+                            if (!cameraReady || recordingActive || finalizing) return@awaitEachGesture
                             val down = awaitFirstDown(requireUnconsumed = false)
                             var cancel = false
                             val held = withTimeoutOrNull(350L) {
