@@ -2478,8 +2478,10 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 val mine = msg.senderId == currentUserId
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
                     Surface(
-                        color = if (mine) Color(0xFF254D91) else PanelSoft,
-                        shape = RoundedCornerShape(17.dp),
+                        color = if (!msg.attachmentPath.isNullOrBlank() &&
+                            msg.attachmentMime.orEmpty().startsWith("image/")) Color.Transparent
+                            else if (mine) Color(0xFF254D91) else PanelSoft,
+                        shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.widthIn(max = 290.dp)
                             .combinedClickable(
                                 onClick = { pendingDeleteMessage = msg },
@@ -2500,7 +2502,14 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                                 )
                             }
                     ) {
-                        Column(Modifier.padding(horizontal = 13.dp, vertical = 9.dp)) {
+                        Column(
+                            Modifier.padding(
+                                horizontal = if (!msg.attachmentPath.isNullOrBlank() &&
+                                    msg.attachmentMime.orEmpty().startsWith("image/")) 2.dp else 13.dp,
+                                vertical = if (!msg.attachmentPath.isNullOrBlank() &&
+                                    msg.attachmentMime.orEmpty().startsWith("image/")) 2.dp else 9.dp
+                            )
+                        ) {
                             if (!msg.attachmentPath.isNullOrBlank()) {
                                 MessageAttachment(msg)
                                 if (!msg.content.isNullOrBlank() && msg.content != msg.attachmentName) {
