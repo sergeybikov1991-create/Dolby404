@@ -913,6 +913,7 @@ private fun SocialNetworkScreen(
     var profile by remember(currentUserId) { mutableStateOf<ProfileDto?>(null) }
     var posts by remember(currentUserId) { mutableStateOf<List<SocialPostDto>>(emptyList()) }
     var friends by remember(currentUserId) { mutableStateOf<List<ProfileDto>>(emptyList()) }
+    var publicMedia by remember(currentUserId) { mutableStateOf<List<Pair<MediaLibraryItem, String>>>(emptyList()) }
     var searchText by remember { mutableStateOf("") }
     var searchResults by remember { mutableStateOf<List<ProfileDto>>(emptyList()) }
     var loading by remember(currentUserId) { mutableStateOf(true) }
@@ -925,6 +926,15 @@ private fun SocialNetworkScreen(
             profile = loadCurrentProfile(currentUserId)
             posts = if (section == "Моя страница") loadSocialPosts(currentUserId) else emptyList()
             friends = if (section == "Друзья") loadMutualFriends(currentUserId) else emptyList()
+            publicMedia = if (section == "Фото" || section == "Видео") {
+                loadPublicMediaLibrary(currentUserId)
+                    .filter { if (section == "Фото") it.mime.startsWith("image/") else it.mime.startsWith("video/") }
+                    .mapNotNull { item ->
+                        runCatching {
+                            item to floustreamClient.storage.from(item.bucket).createSignedUrl(item.path, 60.minutes)
+                        }.getOrNull()
+                    }
+            } else emptyList()
         } catch (_: Exception) {
             error = "Не удалось загрузить раздел. Проверь подключение и попробуй ещё раз."
         } finally {
@@ -1025,6 +1035,42 @@ private fun SocialNetworkScreen(
                     }
                 }
             }
+            section == "Фото" || section == "Видео" -> {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    item {
+                        Text(section, color = White, fontSize = 23.sp, fontWeight = FontWeight.Bold)
+                        Text("Только материалы открытого альбома.", color = Muted, fontSize = 12.sp)
+                    }
+                    if (publicMedia.isEmpty()) item {
+                        Text(if (section == "Фото") "В открытом фотоальбоме пока нет фотографий." else "В открытом видеоальбоме пока нет видео.", color = Muted, fontSize = 13.sp)
+                    }
+                    items(publicMedia, key = { it.first.id }) { (item, url) ->
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = Panel,
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (item.mime.startsWith("image/")) {
+                                    AsyncImage(
+                                        model = url,
+                                        contentDescription = "Фотография из открытого альбома",
+                                        modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp).clip(RoundedCornerShape(12.dp)),
+                                        contentScale = ContentScale.Fit
+                                    )
+                                } else {
+                                    SocialVideoPlayer(url = url)
+                                }
+                                Text(item.name, color = Muted, fontSize = 12.sp, maxLines = 1)
+                            }
+                        }
+                    }
+                }
+            }
             section == "Моя страница" -> {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
@@ -1089,6 +1135,31 @@ private fun SocialNetworkScreen(
             }
         }
     }
+}
+
+@Composable
+private fun SocialVideoPlayer(url: String) {
+    val context = LocalContext.current
+    val player = remember(url) {
+        ExoPlayer.Builder(context).build().apply {
+            setMediaItem(MediaItem.fromUri(url))
+            prepare()
+        }
+    }
+    DisposableEffect(player) {
+        onDispose { player.release() }
+    }
+    AndroidView(
+        factory = { viewContext ->
+            PlayerView(viewContext).apply {
+                this.player = player
+                useController = true
+                resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+            }
+        },
+        update = { it.player = player },
+        modifier = Modifier.fillMaxWidth().height(240.dp).clip(RoundedCornerShape(12.dp))
+    )
 }
 
 @Composable
