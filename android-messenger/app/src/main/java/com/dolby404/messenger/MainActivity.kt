@@ -949,7 +949,7 @@ private fun MessengerHome(
                         Text("MESSENGER", fontSize = 10.sp, color = Color(0xFF9FCBFF), letterSpacing = 4.sp)
                     }
                     HeaderAction("⌕") { searchOpen = !searchOpen }
-                    HeaderAction("☰") { socialOpen = true; socialDrawerOpen = true }
+                    SocialEntryButton { socialOpen = true; socialDrawerOpen = true }
                 }
 
                 if (searchOpen) {
@@ -1072,13 +1072,32 @@ private fun SocialNetworkScreen(
         }
     }
 
-    Column(Modifier.fillMaxSize().background(Night)) {
+    Column(
+        Modifier.fillMaxSize().background(Night).pointerInput(section) {
+            var startX = 0f
+            var dragDistance = 0f
+            detectHorizontalDragGestures(
+                onDragStart = { start -> startX = start.x; dragDistance = 0f },
+                onHorizontalDrag = { change, amount ->
+                    if (startX <= 48.dp.toPx() && amount > 0f) {
+                        dragDistance += amount
+                        change.consume()
+                    }
+                },
+                onDragEnd = {
+                    if (startX <= 48.dp.toPx() && dragDistance >= 88.dp.toPx()) onOpenDrawer()
+                    dragDistance = 0f
+                },
+                onDragCancel = { dragDistance = 0f }
+            )
+        }
+    ) {
         Row(
             Modifier.fillMaxWidth().background(Brush.horizontalGradient(listOf(Color(0xFF142A59), Color(0xFF241747))))
                 .padding(horizontal = 16.dp, vertical = 15.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            HeaderAction("☰", onOpenDrawer)
+            SocialMenuButton(onOpenDrawer)
             Column(Modifier.weight(1f).padding(start = 12.dp)) {
                 Text("FLOUSTREAM", color = White, fontSize = 19.sp, fontWeight = FontWeight.Black)
                 Text("СОЦИАЛЬНАЯ СЕТЬ", color = Color(0xFF9FCBFF), fontSize = 9.sp, letterSpacing = 2.sp)
@@ -1327,6 +1346,42 @@ private fun SocialVideoPlayer(url: String) {
         update = { it.player = player },
         modifier = Modifier.fillMaxWidth().height(240.dp).clip(RoundedCornerShape(12.dp))
     )
+}
+
+@Composable
+private fun SocialEntryButton(onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier.padding(start = 8.dp).height(42.dp).clickable { onClick() },
+        color = Color(0x332E579F),
+        shape = RoundedCornerShape(14.dp)
+    ) {
+        Row(
+            Modifier.padding(horizontal = 11.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
+            Text("◉", color = Color(0xFF9FCBFF), fontSize = 17.sp)
+            Text("Соцсеть", color = White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+
+@Composable
+private fun SocialMenuButton(onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier.height(42.dp).clickable { onClick() },
+        color = Color(0x332E579F),
+        shape = RoundedCornerShape(14.dp)
+    ) {
+        Row(
+            Modifier.padding(horizontal = 11.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
+            Text("☰", color = White, fontSize = 17.sp)
+            Text("Разделы", color = White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        }
+    }
 }
 
 @Composable
