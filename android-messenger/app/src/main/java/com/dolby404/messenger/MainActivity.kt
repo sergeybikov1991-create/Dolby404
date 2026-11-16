@@ -3284,10 +3284,16 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 RoundVideoDiagnostics.record(context, "video sender callback reached; persistentFile=${file.name}; exists=${file.exists()}; bytes=${file.length()}")
                 if (!file.exists() || file.length() < 1500L) error("Файл видеосообщения не сохранился.")
                 if (file.length() > 50L * 1024L * 1024L) error("Видео превышает лимит отправки 50 МБ. Файл сохранён в памяти приложения.")
-                val name = (if (videoCaptureMode == VideoCaptureMode.ROUND_FRONT) "round_" else "normal_") +
-                    "video_" + System.currentTimeMillis() + ".mp4"
                 val draftPrefs = context.getSharedPreferences("floustream_video_drafts", Context.MODE_PRIVATE)
                 val pathKey = file.name
+                val roundDraft = draftPrefs.getBoolean("${pathKey}_round", videoCaptureMode == VideoCaptureMode.ROUND_FRONT)
+                val name = draftPrefs.getString("${pathKey}_name", null) ?: (
+                    (if (roundDraft) "round_" else "normal_") + "video_" + System.currentTimeMillis() + ".mp4"
+                ).also { draftPrefs.edit().putString("${pathKey}_name", it).apply() }
+                draftPrefs.edit()
+                    .putString("${pathKey}_peer", peer.id)
+                    .putBoolean("${pathKey}_round", roundDraft)
+                    .apply()
                 val path = draftPrefs.getString(pathKey, null) ?: (
                     currentUserId + "/" + UUID.randomUUID().toString() + "_" + name
                 ).also { draftPrefs.edit().putString(pathKey, it).apply() }
@@ -3311,7 +3317,13 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 RoundVideoDiagnostics.record(context, "video upload completed; inserting direct message")
                 sendDirectAttachment(currentUserId, peer.id, path, name, "video/mp4")
                 messageCommitted = true
-                draftPrefs.edit().remove(pathKey).remove("${pathKey}_uploaded").apply()
+                draftPrefs.edit()
+                    .remove(pathKey)
+                    .remove("${pathKey}_uploaded")
+                    .remove("${pathKey}_peer")
+                    .remove("${pathKey}_name")
+                    .remove("${pathKey}_round")
+                    .apply()
                 pendingLocalVideo = null
                 RoundVideoDiagnostics.record(context, "video direct message inserted successfully")
                 refresh()
@@ -3326,6 +3338,31 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 if (messageCommitted) file.delete()
                 videoUploadInProgress = false
                 uploadingAttachment = false
+            }
+        }
+    }
+
+    LaunchedEffect(peer.id, currentUserId) {
+        if (pendingLocalVideo == null && currentUserId.isNotBlank()) {
+            val draftPrefs = context.getSharedPreferences("floustream_video_drafts", Context.MODE_PRIVATE)
+            val draftsDir = File(context.filesDir, "video-drafts")
+            val recoverable = draftPrefs.all.keys
+                .filter { it.endsWith("_peer") && draftPrefs.getString(it, null) == peer.id }
+                .mapNotNull { peerKey ->
+                    val fileName = peerKey.removeSuffix("_peer")
+                    val draftFile = File(draftsDir, fileName)
+                    if (draftFile.isFile && draftFile.length() > 1500L) fileName to draftFile else null
+                }
+                .maxByOrNull { it.second.lastModified() }
+
+            recoverable?.let { (fileName, draftFile) ->
+                val isRound = draftPrefs.getBoolean("${fileName}_round", true)
+                videoCaptureMode = if (isRound) VideoCaptureMode.ROUND_FRONT else VideoCaptureMode.NORMAL_SWITCHABLE
+                pendingLocalVideo = draftFile
+                pendingVideoReady = true
+                pendingVideoUploadFailed = true
+                errorText = "Найдено несохранённое видео. Нажми «Повторить», чтобы продолжить отправку."
+                RoundVideoDiagnostics.record(context, "Recovered pending video draft for current chat; file=$fileName; bytes=${draftFile.length()}")
             }
         }
     }
@@ -4044,6 +4081,10 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 pendingLocalVideo = file
                 pendingVideoReady = false
                 pendingVideoUploadFailed = false
+                context.getSharedPreferences("floustream_video_drafts", Context.MODE_PRIVATE).edit()
+                    .putString("${file.name}_peer", peer.id)
+                    .putBoolean("${file.name}_round", videoCaptureMode == VideoCaptureMode.ROUND_FRONT)
+                    .apply()
                 scope.launch {
                     delay(40L)
                     val lastIndex = messageListState.layoutInfo.totalItemsCount - 1
