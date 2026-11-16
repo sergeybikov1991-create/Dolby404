@@ -2984,6 +2984,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                         sendDirectAttachment(currentUserId, peer.id, path, name, mime)
                         sentCount++
                     } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
                         val reason = e.message?.takeIf { it.isNotBlank() } ?: "ошибка загрузки или сохранения сообщения"
                         failures += "$name: $reason"
                     }
@@ -3023,12 +3024,16 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             val messageCollector = launch {
                 try {
                     messageChanges.collect { if (isResumed) refresh(silent = true) }
-                } catch (_: Exception) { }
+                } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                }
             }
             val reactionCollector = launch {
                 try {
                     reactionChanges.collect { if (isResumed) refresh(silent = true) }
-                } catch (_: Exception) { }
+                } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                }
             }
 
             try {
@@ -3271,6 +3276,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                                         hasMoreOlderMessages = older.size >= 100 && additions.isNotEmpty()
                                     }
                                 } catch (e: Exception) {
+                                    if (e is kotlinx.coroutines.CancellationException) throw e
                                     errorText = e.message ?: "Не удалось загрузить старые сообщения."
                                 } finally {
                                     loadingOlderMessages = false
