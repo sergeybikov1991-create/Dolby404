@@ -2756,7 +2756,13 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             val latest = loadDirectMessagesPage(currentUserId, peer.id)
             hasMoreOlderMessages = latest.size >= 100
             val loadedFavoriteIds = loadDirectMessageFavorites(currentUserId)
-            val favoriteMessages = loadFavoriteDirectMessages(currentUserId, peer.id, loadedFavoriteIds)
+            // A failure in the optional full-history favorites lookup must not block the chat itself.
+            val favoriteMessages = try {
+                loadFavoriteDirectMessages(currentUserId, peer.id, loadedFavoriteIds)
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                emptyList()
+            }
             val refreshedMessages = (latest + favoriteMessages).distinctBy { it.id }
             val merged = (messages.toList() + refreshedMessages).distinctBy { it.id }
                 .sortedWith(compareBy<DirectMessageDto> { it.createdAt }.thenBy { it.id })
