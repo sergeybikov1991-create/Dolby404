@@ -128,8 +128,8 @@ internal fun RoundVideoRecorder(
         if (!hasPermissions) return@LaunchedEffect
         try {
             if (mode == VideoCaptureMode.ROUND_FRONT) {
-                runCatching { cameraSource.switchCamera() }
-                    .onFailure { RoundVideoDiagnostics.record(context, "Front camera selection failed", it) }
+                cameraSource.switchCamera()
+                RoundVideoDiagnostics.record(context, "Front camera selected for round video")
             }
             RoundVideoDiagnostics.record(context, "RootEncoder prepare; mode=$mode; 640x480; rotation=90")
             val videoPrepared = stream.prepareVideo(640, 480, 700_000, fps = 24, rotation = 90)
@@ -174,9 +174,9 @@ internal fun RoundVideoRecorder(
                         recordingFile.value = null
                         when {
                             shouldSend.get() && !disposed.get() && file.isFile && file.length() > 1500L -> {
-                                if (file.length() > 50L * 1024L * 1024L) {
-                                    latestOnError.value("Видео превышает лимит отправки 50 МБ. Файл сохранён в памяти приложения.")
-                                } else latestOnRecorded.value(file)
+                                // Hand the finalized draft to the chat immediately. The sender
+                                // owns the size check and retains the file if upload is rejected.
+                                latestOnRecorded.value(file)
                             }
                             shouldSend.get() && !disposed.get() -> {
                                 file.delete()
