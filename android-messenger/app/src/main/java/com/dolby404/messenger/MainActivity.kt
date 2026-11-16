@@ -846,8 +846,7 @@ private suspend fun uploadRoundVideoFile(file: File, objectPath: String) {
             }
             val responseCode = connection.responseCode
             if (responseCode !in 200..299) {
-                val detail = (connection.errorStream ?: connection.inputStream)
-                    .bufferedReader().use { it.readText() }.take(240)
+                val detail = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty().take(240)
                 throw IllegalStateException("Хранилище отклонило видео ($responseCode). ${detail.ifBlank { "Проверь подключение и повтори отправку." }}")
             }
         } finally {
