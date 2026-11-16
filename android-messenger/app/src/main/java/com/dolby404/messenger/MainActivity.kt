@@ -519,11 +519,14 @@ private suspend fun loadFavoriteDirectMessages(
     val token = floustreamClient.auth.currentSessionOrNull()?.accessToken
         ?: throw IllegalStateException("Сессия истекла.")
     val columns = "id,sender_id,recipient_id,content,created_at,read_at,attachment_path,attachment_name,attachment_mime,reply_to_message_id,edited_at"
-    fun fetchDirection(ids: List<String>, senderId: String, recipientId: String): List<DirectMessageDto> {
-        val encodedIds = URLEncoder.encode(ids.joinToString(",", "(", ")"), "UTF-8")
-        val encodedSender = URLEncoder.encode(senderId, "UTF-8")
-        val encodedRecipient = URLEncoder.encode(recipientId, "UTF-8")
-        val url = "${BuildConfig.SUPABASE_URL}/rest/v1/direct_messages?select=$columns&id=in.$encodedIds&sender_id=eq.$encodedSender&recipient_id=eq.$encodedRecipient"
+    val encodedUser = URLEncoder.encode(userId, "UTF-8")
+    val encodedPeer = URLEncoder.encode(peerId, "UTF-8")
+    val loaded = mutableListOf<DirectMessageDto>()
+    messageIds.toList().chunked(100).forEach { batch ->
+        val encodedIds = URLEncoder.encode(batch.joinToString(",", "(", ")"), "UTF-8")
+        val directions = "(and(sender_id.eq.$encodedUser,recipient_id.eq.$encodedPeer),and(sender_id.eq.$encodedPeer,recipient_id.eq.$encodedUser))"
+        val encodedDirections = URLEncoder.encode(directions, "UTF-8")
+        val url = "${BuildConfig.SUPABASE_URL}/rest/v1/direct_messages?select=$columns&id=in.$encodedIds&or=$encodedDirections"
         val connection = URL(url).openConnection() as HttpURLConnection
         try {
             connection.requestMethod = "GET"
@@ -537,10 +540,10 @@ private suspend fun loadFavoriteDirectMessages(
                 throw IllegalStateException("Не удалось загрузить избранные сообщения ($code). ${detail.take(180)}")
             }
             val rows = JSONArray(connection.inputStream.bufferedReader().use { it.readText() })
-            return (0 until rows.length()).map { index ->
+            for (index in 0 until rows.length()) {
                 val row = rows.getJSONObject(index)
                 fun nullable(name: String): String? = if (row.isNull(name)) null else row.optString(name).takeIf { it.isNotBlank() }
-                DirectMessageDto(
+                loaded += DirectMessageDto(
                     id = row.getString("id"),
                     senderId = row.getString("sender_id"),
                     recipientId = row.getString("recipient_id"),
@@ -557,11 +560,6 @@ private suspend fun loadFavoriteDirectMessages(
         } finally {
             connection.disconnect()
         }
-    }
-    val loaded = mutableListOf<DirectMessageDto>()
-    messageIds.toList().chunked(100).forEach { batch ->
-        loaded += fetchDirection(batch, userId, peerId)
-        loaded += fetchDirection(batch, peerId, userId)
     }
     val hiddenIds = floustreamClient.from("direct_message_hidden").select {
         filter { eq("user_id", userId) }
