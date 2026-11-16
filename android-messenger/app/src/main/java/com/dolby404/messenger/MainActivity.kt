@@ -3815,10 +3815,6 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 scope.launch {
                     uploadingAttachment = true
                     try {
-                        if (!file.exists() || file.length() < 1500L) error("Файл видеосообщения не сохранился.")
-                        if (file.length() > 18L * 1024L * 1024L) error("Видео превышает лимит 18 МБ. Запиши более короткий кружок.")
-                        val name = "video_" + System.currentTimeMillis() + ".mp4"
-                        val path = currentUserId + "/" + UUID.randomUUID().toString() + "_" + name
                         RoundVideoDiagnostics.record(context, "video sender callback reached; fileExists=${file.exists()}; bytes=${file.length()}")
                         if (!file.exists() || file.length() < 1500L) error("Файл видеосообщения не сохранился.")
                         if (file.length() > 18L * 1024L * 1024L) error("Видео превышает лимит 18 МБ. Запиши более короткий кружок.")
