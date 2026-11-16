@@ -3068,6 +3068,48 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             contentPadding = PaddingValues(14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            if (messages.isNotEmpty() && hasMoreOlderMessages) {
+                item(key = "load_older_messages") {
+                    TextButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !loadingOlderMessages,
+                        onClick = {
+                            scope.launch {
+                                loadingOlderMessages = true
+                                val oldIndex = messageListState.firstVisibleItemIndex
+                                val oldOffset = messageListState.firstVisibleItemScrollOffset
+                                try {
+                                    val oldestTimestamp = messages.firstOrNull()?.createdAt
+                                    if (oldestTimestamp.isNullOrBlank()) {
+                                        hasMoreOlderMessages = false
+                                    } else {
+                                        val older = loadDirectMessagesPage(currentUserId, peer.id, oldestTimestamp)
+                                        val existingIds = messages.mapTo(hashSetOf()) { it.id }
+                                        val additions = older.filterNot { it.id in existingIds }
+                                        if (additions.isNotEmpty()) {
+                                            messages.addAll(0, additions)
+                                            val olderReactions = loadDirectMessageReactions(additions.map { it.id })
+                                            reactions = reactions + olderReactions
+                                            val allIds = messages.map { it.id }.toSet()
+                                            pinnedMessageIds = loadDirectMessagePins(currentUserId).intersect(allIds)
+                                            favoriteMessageIds = loadDirectMessageFavorites(currentUserId).intersect(allIds)
+                                            val anchorIndex = if (oldIndex == 0) additions.size + 1 else oldIndex + additions.size
+                                            messageListState.scrollToItem(anchorIndex, oldOffset)
+                                        }
+                                        hasMoreOlderMessages = older.size >= 100 && additions.isNotEmpty()
+                                    }
+                                } catch (e: Exception) {
+                                    errorText = e.message ?: "Не удалось загрузить старые сообщения."
+                                } finally {
+                                    loadingOlderMessages = false
+                                }
+                            }
+                        }
+                    ) {
+                        Text(if (loadingOlderMessages) "Загружаем старые сообщения…" else "↑ Загрузить более ранние сообщения", color = Blue)
+                    }
+                }
+            }
             if (loading && messages.isEmpty()) {
                 item { Text("Загружаем переписку…", color = Muted) }
             } else if (messages.isEmpty()) {
