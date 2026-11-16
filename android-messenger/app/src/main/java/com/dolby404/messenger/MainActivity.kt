@@ -3315,7 +3315,23 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                     draftPrefs.edit().putBoolean(uploadedKey, true).apply()
                 }
                 RoundVideoDiagnostics.record(context, "video upload completed; inserting direct message")
-                sendDirectAttachment(currentUserId, peer.id, path, name, "video/mp4")
+                // A previous insert may have reached PostgREST even if the client
+                // lost its response (for example, when the chat was closed). The
+                // unique Storage path is our retry key: check it before inserting.
+                val alreadyCommitted = withContext(Dispatchers.IO) {
+                    floustreamClient.from("direct_messages").select {
+                        filter {
+                            eq("sender_id", currentUserId)
+                            eq("recipient_id", peer.id)
+                            eq("attachment_path", path)
+                        }
+                    }.decodeList<DirectMessageDto>().isNotEmpty()
+                }
+                if (!alreadyCommitted) {
+                    sendDirectAttachment(currentUserId, peer.id, path, name, "video/mp4")
+                } else {
+                    RoundVideoDiagnostics.record(context, "Video message already exists for persisted attachment path; skipping duplicate insert")
+                }
                 messageCommitted = true
                 draftPrefs.edit()
                     .remove(pathKey)
