@@ -14,8 +14,8 @@ android {
         applicationId = "com.dolby404.messenger"
         minSdk = 26
         targetSdk = 36
-        versionCode = 21
-        versionName = "0.4.13"
+        versionCode = 22
+        versionName = "0.4.14"
 
         buildConfigField("String", "SUPABASE_URL", "\"https://qhpobdktlbhdqsnajypr.supabase.co\"")
         buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"sb_publishable_tzG1qVsbjaW8YE_LBVN87Q_v0CahKN5\"")
@@ -67,11 +67,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.10.0")
     implementation("androidx.media3:media3-exoplayer:1.6.1")
     implementation("androidx.media3:media3-ui:1.6.1")
-    implementation("androidx.camera:camera-core:1.6.2")
-    implementation("androidx.camera:camera-camera2:1.6.2")
-    implementation("androidx.camera:camera-lifecycle:1.6.2")
-    implementation("androidx.camera:camera-video:1.6.2")
-    implementation("androidx.camera:camera-view:1.6.2")
+    implementation("com.github.pedroSG94.RootEncoder:library:2.8.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
 
     implementation(platform("io.github.jan-tennert.supabase:bom:3.5.0"))
