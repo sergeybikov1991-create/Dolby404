@@ -509,6 +509,66 @@ private suspend fun loadDirectMessageFavorites(userId: String): Set<String> = wi
     } finally { connection.disconnect() }
 }
 
+
+private suspend fun loadFavoriteDirectMessages(
+    userId: String,
+    peerId: String,
+    messageIds: Set<String>
+): List<DirectMessageDto> = withContext(Dispatchers.IO) {
+    if (messageIds.isEmpty()) return@withContext emptyList()
+    val token = floustreamClient.auth.currentSessionOrNull()?.accessToken
+        ?: throw IllegalStateException("Сессия истекла.")
+    val columns = "id,sender_id,recipient_id,content,created_at,read_at,attachment_path,attachment_name,attachment_mime,reply_to_message_id,edited_at"
+    fun fetchDirection(ids: List<String>, senderId: String, recipientId: String): List<DirectMessageDto> {
+        val encodedIds = URLEncoder.encode(ids.joinToString(",", "(", ")"), "UTF-8")
+        val encodedSender = URLEncoder.encode(senderId, "UTF-8")
+        val encodedRecipient = URLEncoder.encode(recipientId, "UTF-8")
+        val url = "${BuildConfig.SUPABASE_URL}/rest/v1/direct_messages?select=$columns&id=in.$encodedIds&sender_id=eq.$encodedSender&recipient_id=eq.$encodedRecipient"
+        val connection = URL(url).openConnection() as HttpURLConnection
+        try {
+            connection.requestMethod = "GET"
+            connection.connectTimeout = 15000
+            connection.readTimeout = 20000
+            connection.setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+            connection.setRequestProperty("Authorization", "Bearer $token")
+            val code = connection.responseCode
+            if (code !in 200..299) {
+                val detail = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                throw IllegalStateException("Не удалось загрузить избранные сообщения ($code). ${detail.take(180)}")
+            }
+            val rows = JSONArray(connection.inputStream.bufferedReader().use { it.readText() })
+            return (0 until rows.length()).map { index ->
+                val row = rows.getJSONObject(index)
+                fun nullable(name: String): String? = if (row.isNull(name)) null else row.optString(name).takeIf { it.isNotBlank() }
+                DirectMessageDto(
+                    id = row.getString("id"),
+                    senderId = row.getString("sender_id"),
+                    recipientId = row.getString("recipient_id"),
+                    content = row.optString("content"),
+                    createdAt = row.getString("created_at"),
+                    readAt = nullable("read_at"),
+                    attachmentPath = nullable("attachment_path"),
+                    attachmentName = nullable("attachment_name"),
+                    attachmentMime = nullable("attachment_mime"),
+                    replyToMessageId = nullable("reply_to_message_id"),
+                    editedAt = nullable("edited_at")
+                )
+            }
+        } finally {
+            connection.disconnect()
+        }
+    }
+    val loaded = mutableListOf<DirectMessageDto>()
+    messageIds.toList().chunked(100).forEach { batch ->
+        loaded += fetchDirection(batch, userId, peerId)
+        loaded += fetchDirection(batch, peerId, userId)
+    }
+    val hiddenIds = floustreamClient.from("direct_message_hidden").select {
+        filter { eq("user_id", userId) }
+    }.decodeList<HiddenDirectMessageDto>().map { it.messageId }.toSet()
+    loaded.distinctBy { it.id }.filterNot { it.id in hiddenIds }
+}
+
 private suspend fun setDirectMessageFavorite(userId: String, messageId: String, favorite: Boolean) = withContext(Dispatchers.IO) {
     val token = floustreamClient.auth.currentSessionOrNull()?.accessToken
         ?: throw IllegalStateException("Сессия истекла.")
@@ -2697,14 +2757,17 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             try { markIncomingMessagesRead(currentUserId, peer.id) } catch (_: Exception) { }
             val latest = loadDirectMessagesPage(currentUserId, peer.id)
             hasMoreOlderMessages = latest.size >= 100
-            val merged = (messages.toList() + latest).distinctBy { it.id }
+            val loadedFavoriteIds = loadDirectMessageFavorites(currentUserId)
+            val favoriteMessages = loadFavoriteDirectMessages(currentUserId, peer.id, loadedFavoriteIds)
+            val refreshedMessages = (latest + favoriteMessages).distinctBy { it.id }
+            val merged = (messages.toList() + refreshedMessages).distinctBy { it.id }
                 .sortedWith(compareBy<DirectMessageDto> { it.createdAt }.thenBy { it.id })
             reactions = loadDirectMessageReactions(merged.map { it.id })
             val allIds = merged.map { it.id }.toSet()
             pinnedMessageIds = loadDirectMessagePins(currentUserId).intersect(allIds)
-            favoriteMessageIds = loadDirectMessageFavorites(currentUserId).intersect(allIds)
-            // Keep previously loaded older pages; only merge fresh messages by stable ID.
-            latest.forEach { incoming ->
+            favoriteMessageIds = loadedFavoriteIds.intersect(allIds)
+            // Keep previously loaded older pages and all favorited messages; merge by stable ID.
+            refreshedMessages.forEach { incoming ->
                 val existingIndex = messages.indexOfFirst { it.id == incoming.id }
                 if (existingIndex >= 0) {
                     if (messages[existingIndex] != incoming) messages[existingIndex] = incoming
