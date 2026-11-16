@@ -3186,6 +3186,26 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                                 cursor.getString(cursor.getColumnIndexOrThrow(OpenableColumns.DISPLAY_NAME))
                             } else null
                         } ?: "attachment"
+                        // Some Android document providers report application/octet-stream
+                        // even for gallery photos. Recover the media type from the filename.
+                        val extension = name.substringAfterLast('.', "").lowercase()
+                        val inferredMime = when (extension) {
+                            "jpg", "jpeg" -> "image/jpeg"
+                            "png" -> "image/png"
+                            "webp" -> "image/webp"
+                            "gif" -> "image/gif"
+                            "heic" -> "image/heic"
+                            "heif" -> "image/heif"
+                            "avif" -> "image/avif"
+                            "bmp" -> "image/bmp"
+                            "mp4", "m4v" -> "video/mp4"
+                            "3gp" -> "video/3gpp"
+                            "webm" -> "video/webm"
+                            else -> null
+                        }
+                        if (inferredMime != null && (mime == "application/octet-stream" || mime == "binary/octet-stream" || mime.isBlank())) {
+                            mime = inferredMime
+                        }
                         if (declaredSize > 50L * 1024L * 1024L) error("$name: размер превышает 50 МБ.")
                         var bytes = withContext(Dispatchers.IO) {
                             resolver.openInputStream(uri)?.use { it.readBytes() } ?: error("Не удалось прочитать файл.")
