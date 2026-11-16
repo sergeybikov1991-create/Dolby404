@@ -2755,8 +2755,13 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             try { markIncomingMessagesRead(currentUserId, peer.id) } catch (_: Exception) { }
             val latest = loadDirectMessagesPage(currentUserId, peer.id)
             hasMoreOlderMessages = latest.size >= 100
-            val loadedFavoriteIds = loadDirectMessageFavorites(currentUserId)
-            // A failure in the optional full-history favorites lookup must not block the chat itself.
+            // Favorites are supplementary: their endpoint must never prevent the conversation from opening.
+            val loadedFavoriteIds = try {
+                loadDirectMessageFavorites(currentUserId)
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                favoriteMessageIds
+            }
             val favoriteMessages = try {
                 loadFavoriteDirectMessages(currentUserId, peer.id, loadedFavoriteIds)
             } catch (e: Exception) {
