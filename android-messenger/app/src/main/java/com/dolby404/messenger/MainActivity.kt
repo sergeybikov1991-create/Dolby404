@@ -259,6 +259,14 @@ private data class NewHiddenDirectMessage(
     @SerialName("user_id") val userId: String
 )
 
+private data class DirectMessageReactionDto(
+    val id: String,
+    val messageId: String,
+    val userId: String,
+    val emoji: String,
+    val createdAt: String
+)
+
 @Serializable
 private data class DirectMessageDto(
     @SerialName("id") val id: String,
@@ -366,6 +374,77 @@ private suspend fun loadDirectMessages(userId: String, peerId: String): List<Dir
         filter { eq("user_id", userId) }
     }.decodeList<HiddenDirectMessageDto>().map { it.messageId }.toSet()
     return (sent + received).filterNot { it.id in hiddenIds }.sortedBy { it.createdAt }.takeLast(200)
+}
+
+private suspend fun loadDirectMessageReactions(messageIds: List<String>): Map<String, List<DirectMessageReactionDto>> = withContext(Dispatchers.IO) {
+    if (messageIds.isEmpty()) return@withContext emptyMap()
+    val token = floustreamClient.auth.currentSessionOrNull()?.accessToken
+        ?: throw IllegalStateException("Сессия истекла.")
+    val ids = messageIds.distinct().joinToString(",")
+    val query = URLEncoder.encode("(${ids})", "UTF-8")
+    val connection = URL("${BuildConfig.SUPABASE_URL}/rest/v1/direct_message_reactions?select=id,message_id,user_id,emoji,created_at&message_id=in.$query")
+        .openConnection() as HttpURLConnection
+    try {
+        connection.requestMethod = "GET"
+        connection.connectTimeout = 10000
+        connection.readTimeout = 10000
+        connection.setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+        connection.setRequestProperty("Authorization", "Bearer $token")
+        val code = connection.responseCode
+        if (code !in 200..299) throw IllegalStateException("Не удалось загрузить реакции.")
+        val rows = JSONArray(connection.inputStream.bufferedReader().use { it.readText() })
+        val result = mutableMapOf<String, MutableList<DirectMessageReactionDto>>()
+        for (i in 0 until rows.length()) {
+            val row = rows.getJSONObject(i)
+            val item = DirectMessageReactionDto(
+                id = row.getString("id"),
+                messageId = row.getString("message_id"),
+                userId = row.getString("user_id"),
+                emoji = row.getString("emoji"),
+                createdAt = row.getString("created_at")
+            )
+            result.getOrPut(item.messageId) { mutableListOf() }.add(item)
+        }
+        result.mapValues { it.value.toList() }
+    } finally { connection.disconnect() }
+}
+
+private suspend fun setDirectMessageReaction(userId: String, messageId: String, emoji: String, currentEmoji: String?) = withContext(Dispatchers.IO) {
+    val token = floustreamClient.auth.currentSessionOrNull()?.accessToken
+        ?: throw IllegalStateException("Сессия истекла.")
+    val encodedMessage = URLEncoder.encode(messageId, "UTF-8")
+    val encodedUser = URLEncoder.encode(userId, "UTF-8")
+    val connection = if (currentEmoji == emoji) {
+        URL("${BuildConfig.SUPABASE_URL}/rest/v1/direct_message_reactions?message_id=eq.$encodedMessage&user_id=eq.$encodedUser")
+            .openConnection() as HttpURLConnection
+    } else {
+        URL("${BuildConfig.SUPABASE_URL}/rest/v1/direct_message_reactions?on_conflict=message_id%2Cuser_id")
+            .openConnection() as HttpURLConnection
+    }
+    try {
+        connection.connectTimeout = 10000
+        connection.readTimeout = 10000
+        connection.setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+        connection.setRequestProperty("Authorization", "Bearer $token")
+        connection.setRequestProperty("Content-Type", "application/json")
+        connection.setRequestProperty("Prefer", "resolution=merge-duplicates,return=minimal")
+        if (currentEmoji == emoji) {
+            connection.requestMethod = "DELETE"
+        } else {
+            connection.requestMethod = "POST"
+            connection.doOutput = true
+            val body = JSONObject()
+                .put("message_id", messageId)
+                .put("user_id", userId)
+                .put("emoji", emoji)
+                .toString()
+            connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+        }
+        if (connection.responseCode !in 200..299) {
+            val error = try { connection.errorStream?.bufferedReader()?.use { it.readText() } } catch (_: Exception) { null }
+            throw IllegalStateException(error?.take(180) ?: "Не удалось сохранить реакцию.")
+        }
+    } finally { connection.disconnect() }
 }
 
 private suspend fun markIncomingMessagesRead(userId: String, peerId: String) = withContext(Dispatchers.IO) {
@@ -2339,6 +2418,7 @@ private fun AudioMessagePlayer(url: String, onRetry: () -> Unit) {
 private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBack: () -> Unit) {
     val context = LocalContext.current
     val messages = remember(peer.id) { mutableStateListOf<DirectMessageDto>() }
+    var reactions by remember(peer.id) { mutableStateOf<Map<String, List<DirectMessageReactionDto>>>(emptyMap()) }
     var draft by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(true) }
     var sending by remember { mutableStateOf(false) }
@@ -2367,6 +2447,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
         try {
             try { markIncomingMessagesRead(currentUserId, peer.id) } catch (_: Exception) { }
             val latest = loadDirectMessages(currentUserId, peer.id)
+            reactions = loadDirectMessageReactions(latest.map { it.id })
             // Reconcile by stable message ID instead of clearing the whole list.
             // This keeps LazyColumn item identity and scroll position during polling.
             val latestIds = latest.mapTo(hashSetOf()) { it.id }
@@ -2633,49 +2714,62 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 val isImageAttachment = !msg.attachmentPath.isNullOrBlank() &&
                     msg.attachmentMime.orEmpty().startsWith("image/")
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
-                    Surface(
-                        color = if (isImageAttachment) Color.Transparent
-                            else if (mine) Color(0xFF254D91) else PanelSoft,
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.widthIn(max = 290.dp)
-                            .combinedClickable(
-                                // A normal tap must never trigger destructive actions.
-                                // Long press remains the temporary entry point until
-                                // the full message action sheet is implemented.
-                                onClick = { },
-                                onLongClick = { pendingMessageActions = msg }
-                            )
-                    ) {
-                        Column(
-                            Modifier.padding(
-                                horizontal = if (!msg.attachmentPath.isNullOrBlank() &&
-                                    msg.attachmentMime.orEmpty().startsWith("image/")) 2.dp else 13.dp,
-                                vertical = if (!msg.attachmentPath.isNullOrBlank() &&
-                                    msg.attachmentMime.orEmpty().startsWith("image/")) 2.dp else 9.dp
-                            )
+                    Column(horizontalAlignment = if (mine) Alignment.End else Alignment.Start) {
+                        Surface(
+                            color = if (isImageAttachment) Color.Transparent
+                                else if (mine) Color(0xFF254D91) else PanelSoft,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.widthIn(max = 290.dp)
+                                .combinedClickable(
+                                    onClick = { },
+                                    onLongClick = { pendingMessageActions = msg }
+                                )
                         ) {
-                            msg.replyToMessageId?.let { replyId ->
-                                messages.firstOrNull { it.id == replyId }?.let { quoted ->
-                                    Text(
-                                        "↪ " + (quoted.content.ifBlank { quoted.attachmentName ?: "Вложение" }).take(90),
-                                        color = Color(0xFFBBD5FF),
-                                        fontSize = 11.sp,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
+                            Column(
+                                Modifier.padding(
+                                    horizontal = if (!msg.attachmentPath.isNullOrBlank() &&
+                                        msg.attachmentMime.orEmpty().startsWith("image/")) 2.dp else 13.dp,
+                                    vertical = if (!msg.attachmentPath.isNullOrBlank() &&
+                                        msg.attachmentMime.orEmpty().startsWith("image/")) 2.dp else 9.dp
+                                )
+                            ) {
+                                msg.replyToMessageId?.let { replyId ->
+                                    messages.firstOrNull { it.id == replyId }?.let { quoted ->
+                                        Text(
+                                            "↪ " + (quoted.content.ifBlank { quoted.attachmentName ?: "Вложение" }).take(90),
+                                            color = Color(0xFFBBD5FF),
+                                            fontSize = 11.sp,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                                if (!msg.attachmentPath.isNullOrBlank()) {
+                                    MessageAttachment(msg)
+                                    if (!msg.content.isNullOrBlank() && msg.content != msg.attachmentName) {
+                                        Text(msg.content, color = White, fontSize = 13.sp)
+                                    }
+                                } else Text(msg.content, color = White, fontSize = 14.sp)
+                                Text(
+                                    msg.createdAt.substringAfter("T").take(5),
+                                    Modifier.align(Alignment.End),
+                                    color = Color(0xFFB4C7E5), fontSize = 9.sp
+                                )
+                            }
+                        }
+                        val messageReactions = reactions[msg.id].orEmpty().groupBy { it.emoji }
+                        if (messageReactions.isNotEmpty()) {
+                            Row(Modifier.padding(top = 3.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                messageReactions.forEach { (emoji, users) ->
+                                    val mineReaction = users.any { it.userId == currentUserId }
+                                    Surface(
+                                        color = if (mineReaction) Color(0xFF315A91) else PanelSoft,
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        Text("$emoji ${users.size}", Modifier.padding(horizontal = 7.dp, vertical = 3.dp), color = White, fontSize = 11.sp)
+                                    }
                                 }
                             }
-                            if (!msg.attachmentPath.isNullOrBlank()) {
-                                MessageAttachment(msg)
-                                if (!msg.content.isNullOrBlank() && msg.content != msg.attachmentName) {
-                                    Text(msg.content, color = White, fontSize = 13.sp)
-                                }
-                            } else Text(msg.content, color = White, fontSize = 14.sp)
-                            Text(
-                                msg.createdAt.substringAfter("T").take(5),
-                                Modifier.align(Alignment.End),
-                                color = Color(0xFFB4C7E5), fontSize = 9.sp
-                            )
                         }
                     }
                 }
@@ -2887,6 +2981,27 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                         pendingMessageActions = null
                         Toast.makeText(context, "Скопировано", Toast.LENGTH_SHORT).show()
                     }) { Text("Копировать", color = White) }
+                    Text("Реакция", color = Color(0xFF9FCBFF), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                        listOf("👍", "❤️", "😂", "😮", "😢", "🙏").forEach { emoji ->
+                            TextButton(
+                                onClick = {
+                                    val current = reactions[target.id].orEmpty()
+                                        .firstOrNull { it.userId == currentUserId }?.emoji
+                                    scope.launch {
+                                        try {
+                                            setDirectMessageReaction(currentUserId, target.id, emoji, current)
+                                            refresh(silent = true)
+                                        } catch (e: Exception) {
+                                            errorText = e.message ?: "Не удалось сохранить реакцию."
+                                        }
+                                    }
+                                    pendingMessageActions = null
+                                },
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
+                            ) { Text(emoji, fontSize = 20.sp) }
+                        }
+                    }
                     TextButton(onClick = {
                         replyToMessage = target
                         pendingMessageActions = null
