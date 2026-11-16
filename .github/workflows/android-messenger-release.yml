@@ -12,6 +12,7 @@ on:
       - "release/floustream-0.3.2"
       - "feature/messenger-0.4.0-foundation"
       - "feature/android-0.4.1-no-calls"
+      - "feature/android-0.4.2-fixes"
     tags:
       - "v*"
 
