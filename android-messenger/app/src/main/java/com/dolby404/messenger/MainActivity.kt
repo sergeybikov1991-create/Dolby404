@@ -2691,6 +2691,48 @@ private fun MessageAttachment(message: DirectMessageDto) {
 }
 
 @Composable
+private fun VideoModeButton(onModeSelected: (VideoCaptureMode) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        Surface(
+            modifier = Modifier.size(42.dp).clickable { expanded = !expanded },
+            color = PanelSoft, shape = CircleShape
+        ) {
+            Box(contentAlignment = Alignment.Center) { Text("📹", fontSize = 19.sp) }
+        }
+        AnimatedVisibility(
+            visible = expanded,
+            modifier = Modifier.align(Alignment.BottomStart).offset(y = (-48).dp),
+            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Surface(
+                    modifier = Modifier.width(132.dp).clickable { expanded = false; onModeSelected(VideoCaptureMode.ROUND_FRONT) },
+                    color = PanelSoft, shape = RoundedCornerShape(14.dp), shadowElevation = 8.dp
+                ) {
+                    Row(Modifier.padding(horizontal = 12.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("◉", color = Color(0xFFFF7C9B), fontSize = 18.sp)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Кружок", color = White, fontSize = 13.sp)
+                    }
+                }
+                Surface(
+                    modifier = Modifier.width(132.dp).clickable { expanded = false; onModeSelected(VideoCaptureMode.NORMAL_SWITCHABLE) },
+                    color = PanelSoft, shape = RoundedCornerShape(14.dp), shadowElevation = 8.dp
+                ) {
+                    Row(Modifier.padding(horizontal = 12.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("▣", color = Color(0xFF9FCBFF), fontSize = 18.sp)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Видео", color = White, fontSize = 13.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun VideoMessagePlayer(url: String, isRound: Boolean = true, onRetry: () -> Unit) {
     val context = LocalContext.current
     val player = remember(url) {
@@ -3790,50 +3832,10 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                     )
                 }
             }
-            Box {
-                Surface(
-                    modifier = Modifier.size(42.dp).clickable { showVideoModeMenu = !showVideoModeMenu },
-                    color = PanelSoft, shape = CircleShape
-                ) {
-                    Box(contentAlignment = Alignment.Center) { Text("📹", fontSize = 19.sp) }
-                }
-                AnimatedVisibility(
-                    visible = showVideoModeMenu,
-                    modifier = Modifier.align(Alignment.BottomStart).offset(y = (-48).dp),
-                    enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-                    exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Surface(
-                            modifier = Modifier.width(132.dp).clickable {
-                                videoCaptureMode = VideoCaptureMode.ROUND_FRONT
-                                showVideoModeMenu = false
-                                showVideoRecorder = true
-                            },
-                            color = PanelSoft, shape = RoundedCornerShape(14.dp), shadowElevation = 8.dp
-                        ) {
-                            Row(Modifier.padding(horizontal = 12.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text("◉", color = Color(0xFFFF7C9B), fontSize = 18.sp)
-                                Spacer(Modifier.width(8.dp))
-                                Text("Кружок", color = White, fontSize = 13.sp)
-                            }
-                        }
-                        Surface(
-                            modifier = Modifier.width(132.dp).clickable {
-                                videoCaptureMode = VideoCaptureMode.NORMAL_SWITCHABLE
-                                showVideoModeMenu = false
-                                showVideoRecorder = true
-                            },
-                            color = PanelSoft, shape = RoundedCornerShape(14.dp), shadowElevation = 8.dp
-                        ) {
-                            Row(Modifier.padding(horizontal = 12.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text("▣", color = Color(0xFF9FCBFF), fontSize = 18.sp)
-                                Spacer(Modifier.width(8.dp))
-                                Text("Видео", color = White, fontSize = 13.sp)
-                            }
-                        }
-                    }
-                }
+            VideoModeButton { selectedMode ->
+                videoCaptureMode = selectedMode
+                showVideoModeMenu = false
+                showVideoRecorder = true
             }
             OutlinedTextField(
                 value = draft, onValueChange = { draft = it },
