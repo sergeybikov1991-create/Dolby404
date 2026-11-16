@@ -3949,6 +3949,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             mode = videoCaptureMode,
             onDismiss = { showVideoRecorder = false },
             onRecordingFinishing = { file ->
+                showVideoRecorder = false
                 pendingLocalVideo = file
                 pendingVideoReady = false
                 pendingVideoUploadFailed = false
