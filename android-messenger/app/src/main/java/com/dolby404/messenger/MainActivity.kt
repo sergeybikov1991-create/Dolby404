@@ -1357,6 +1357,7 @@ private fun MessengerHome(
                             filter { eq("id", peerId) }
                         }.decodeList<ProfileDto>().firstOrNull()
                     } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
                         lastError = e
                     }
                     if (peer == null && attempt < 2) delay(900L * (attempt + 1))
@@ -1537,12 +1538,16 @@ private fun SocialNetworkScreen(
                 loadPublicMediaLibrary(currentUserId)
                     .filter { if (section == "Фото") it.mime.startsWith("image/") else it.mime.startsWith("video/") }
                     .mapNotNull { item ->
-                        runCatching {
+                        try {
                             item to floustreamClient.storage.from(item.bucket).createSignedUrl(item.path, 60.minutes)
-                        }.getOrNull()
+                        } catch (e: Exception) {
+                            if (e is kotlinx.coroutines.CancellationException) throw e
+                            null
+                        }
                     }
             } else emptyList()
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             error = "Не удалось загрузить раздел. Проверь подключение и попробуй ещё раз."
         } finally {
             loading = false
@@ -1555,7 +1560,10 @@ private fun SocialNetworkScreen(
             else {
                 delay(350)
                 try { searchResults = findFloustreamUsers(searchText) }
-                catch (_: Exception) { searchResults = emptyList() }
+                catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    searchResults = emptyList()
+                }
             }
         }
     }
@@ -2086,6 +2094,7 @@ private fun ChatsScreen(
                     threads.addAll(latest)
                     error = ""
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     if (!hasLoadedInbox) error = e.message ?: "Не удалось загрузить список чатов."
                 } finally {
                     loading = false
@@ -2268,6 +2277,7 @@ private fun ContactsScreen(onStart: (ProfileDto) -> Unit) {
                         results = findFloustreamUsers(query)
                         status = if (results.isEmpty()) "Никого не нашли. Проверь @username и попробуй ещё раз." else "Найдено: ${results.size}"
                     } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
                         status = "Поиск временно недоступен: ${e.message ?: "ошибка"}"
                     } finally { loading = false }
                 }
@@ -2309,7 +2319,9 @@ private fun SettingsScreen(currentUserId: String, onBack: () -> Unit, onSignOut:
     var profile by remember(currentUserId) { mutableStateOf<ProfileDto?>(null) }
     LaunchedEffect(currentUserId) {
         while (true) {
-            try { profile = loadCurrentProfile(currentUserId) } catch (_: Exception) { }
+            try { profile = loadCurrentProfile(currentUserId) } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+            }
             delay(30000)
         }
     }
@@ -2449,7 +2461,8 @@ private fun MessageAttachment(message: DirectMessageDto) {
         loadError = false
         try {
             signedUrl = floustreamClient.storage.from("message-media").createSignedUrl(path, 30.minutes)
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             loadError = true
         }
     }
@@ -3439,6 +3452,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                                     selectedMediaIds = emptySet()
                                     showMediaLibrary = true
                                 } catch (e: Exception) {
+                                    if (e is kotlinx.coroutines.CancellationException) throw e
                                     errorText = e.message ?: "Не удалось открыть медиатеку."
                                 }
                             }
