@@ -366,24 +366,72 @@ private suspend fun findFloustreamUsers(query: String): List<ProfileDto> {
     }.take(30)
 }
 
-private suspend fun loadDirectMessages(userId: String, peerId: String): List<DirectMessageDto> {
-    val sent = floustreamClient.from("direct_messages").select {
-        filter {
-            eq("sender_id", userId)
-            eq("recipient_id", peerId)
+private suspend fun loadDirectMessagesPage(
+    userId: String,
+    peerId: String,
+    beforeCreatedAt: String? = null,
+    pageSize: Int = 100
+): List<DirectMessageDto> = withContext(Dispatchers.IO) {
+    val token = floustreamClient.auth.currentSessionOrNull()?.accessToken
+        ?: throw IllegalStateException("Сессия истекла.")
+    val columns = "id,sender_id,recipient_id,content,created_at,read_at,attachment_path,attachment_name,attachment_mime,reply_to_message_id,edited_at"
+    fun fetchDirection(senderId: String, recipientId: String): List<DirectMessageDto> {
+        val filters = buildString {
+            append("sender_id=eq.").append(URLEncoder.encode(senderId, "UTF-8"))
+            append("&recipient_id=eq.").append(URLEncoder.encode(recipientId, "UTF-8"))
+            if (beforeCreatedAt != null) {
+                append("&created_at=lt.").append(URLEncoder.encode(beforeCreatedAt, "UTF-8"))
+            }
+            append("&order=created_at.desc,id.desc&limit=").append(pageSize)
         }
-    }.decodeList<DirectMessageDto>()
-    val received = floustreamClient.from("direct_messages").select {
-        filter {
-            eq("sender_id", peerId)
-            eq("recipient_id", userId)
+        val connection = URL("${BuildConfig.SUPABASE_URL}/rest/v1/direct_messages?select=$columns&$filters")
+            .openConnection() as HttpURLConnection
+        try {
+            connection.requestMethod = "GET"
+            connection.connectTimeout = 15000
+            connection.readTimeout = 20000
+            connection.setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+            connection.setRequestProperty("Authorization", "Bearer $token")
+            val code = connection.responseCode
+            if (code !in 200..299) {
+                val detail = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                throw IllegalStateException("Не удалось загрузить сообщения ($code). ${detail.take(180)}")
+            }
+            val rows = JSONArray(connection.inputStream.bufferedReader().use { it.readText() })
+            return (0 until rows.length()).map { index ->
+                val row = rows.getJSONObject(index)
+                fun nullable(name: String): String? = if (row.isNull(name)) null else row.optString(name).takeIf { it.isNotBlank() }
+                DirectMessageDto(
+                    id = row.getString("id"),
+                    senderId = row.getString("sender_id"),
+                    recipientId = row.getString("recipient_id"),
+                    content = row.optString("content"),
+                    createdAt = row.getString("created_at"),
+                    readAt = nullable("read_at"),
+                    attachmentPath = nullable("attachment_path"),
+                    attachmentName = nullable("attachment_name"),
+                    attachmentMime = nullable("attachment_mime"),
+                    replyToMessageId = nullable("reply_to_message_id"),
+                    editedAt = nullable("edited_at")
+                )
+            }
+        } finally {
+            connection.disconnect()
         }
-    }.decodeList<DirectMessageDto>()
+    }
+    val sent = fetchDirection(userId, peerId)
+    val received = fetchDirection(peerId, userId)
+    val page = (sent + received).distinctBy { it.id }.sortedBy { it.createdAt }
+    if (page.isEmpty()) return@withContext emptyList()
     val hiddenIds = floustreamClient.from("direct_message_hidden").select {
-        filter { eq("user_id", userId) }
+        filter {
+            eq("user_id", userId)
+            isIn("message_id", page.map { it.id })
+        }
     }.decodeList<HiddenDirectMessageDto>().map { it.messageId }.toSet()
-    return (sent + received).filterNot { it.id in hiddenIds }.sortedBy { it.createdAt }.takeLast(200)
+    page.filterNot { it.id in hiddenIds }
 }
+
 
 private suspend fun loadDirectMessageReactions(messageIds: List<String>): Map<String, List<DirectMessageReactionDto>> = withContext(Dispatchers.IO) {
     if (messageIds.isEmpty()) return@withContext emptyMap()
