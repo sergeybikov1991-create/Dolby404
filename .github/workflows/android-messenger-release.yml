@@ -75,7 +75,7 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$DOLBY404_KEY_PASSWORD" || { echo "Missing DOLBY404_KEY_PASSWORD"; exit 1; }
-          gradle --no-daemon :app:assembleRelease
+          gradle --no-daemon --stacktrace :app:assembleRelease
 
       - name: Verify APK signature
         run: |
