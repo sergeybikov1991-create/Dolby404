@@ -2697,7 +2697,8 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             try { markIncomingMessagesRead(currentUserId, peer.id) } catch (_: Exception) { }
             val latest = loadDirectMessagesPage(currentUserId, peer.id)
             hasMoreOlderMessages = latest.size >= 100
-            val merged = (messages.toList() + latest).distinctBy { it.id }.sortedBy { it.createdAt }
+            val merged = (messages.toList() + latest).distinctBy { it.id }
+                .sortedWith(compareBy<DirectMessageDto> { it.createdAt }.thenBy { it.id })
             reactions = loadDirectMessageReactions(merged.map { it.id })
             val allIds = merged.map { it.id }.toSet()
             pinnedMessageIds = loadDirectMessagePins(currentUserId).intersect(allIds)
@@ -2708,7 +2709,9 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 if (existingIndex >= 0) {
                     if (messages[existingIndex] != incoming) messages[existingIndex] = incoming
                 } else {
-                    val insertAt = messages.indexOfFirst { it.createdAt > incoming.createdAt }
+                    val insertAt = messages.indexOfFirst { existing ->
+                        compareValuesBy(incoming, existing, { it.createdAt }, { it.id }) < 0
+                    }
                     if (insertAt >= 0) messages.add(insertAt, incoming) else messages.add(incoming)
                 }
             }
