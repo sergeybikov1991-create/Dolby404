@@ -663,7 +663,10 @@ private suspend fun setDirectMessageReaction(userId: String, messageId: String, 
 
 private suspend fun markIncomingMessagesRead(userId: String, peerId: String) = withContext(Dispatchers.IO) {
     val token = floustreamClient.auth.currentSessionOrNull()?.accessToken ?: return@withContext
-    val connection = URL("${BuildConfig.SUPABASE_URL}/rest/v1/direct_messages?sender_id=eq.$peerId&recipient_id=eq.$userId&read_at=is.null").openConnection() as HttpURLConnection
+    val encodedUserId = URLEncoder.encode(userId, "UTF-8")
+    val encodedPeerId = URLEncoder.encode(peerId, "UTF-8")
+    val url = "${BuildConfig.SUPABASE_URL}/rest/v1/direct_messages?sender_id=eq.$encodedPeerId&recipient_id=eq.$encodedUserId&read_at=is.null"
+    val connection = URL(url).openConnection() as HttpURLConnection
     try {
         connection.requestMethod = "PATCH"
         connection.connectTimeout = 10000
@@ -675,7 +678,18 @@ private suspend fun markIncomingMessagesRead(userId: String, peerId: String) = w
         connection.setRequestProperty("Prefer", "return=minimal")
         val body = JSONObject().put("read_at", java.time.Instant.now().toString()).toString()
         connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
-        if (connection.responseCode !in 200..299) throw IllegalStateException("Не удалось отметить сообщения прочитанными.")
+        val responseCode = connection.responseCode
+        if (responseCode !in 200..299) {
+            val detail = try {
+                connection.errorStream?.bufferedReader()?.use { it.readText() }
+            } catch (_: Exception) {
+                null
+            }
+            throw IllegalStateException(
+                detail?.takeIf { it.isNotBlank() }?.take(180)
+                    ?: "Не удалось отметить сообщения прочитанными ($responseCode)."
+            )
+        }
     } finally { connection.disconnect() }
 }
 
