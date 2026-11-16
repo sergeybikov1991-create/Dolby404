@@ -2938,15 +2938,27 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                     ?: throw IllegalStateException("Нет активной сессии для синхронизации.")
                 floustreamClient.realtime.setAuth(accessToken)
                 floustreamClient.realtime.connect()
-                channel.subscribe()
+                // Wait for the server to confirm the subscription before treating Realtime as active.
+                channel.subscribe(blockUntilSubscribed = true)
 
-                // Safety sync remains as a fallback for missed websocket events or reconnects.
+                // Monitor collectors frequently so a silently-ended Flow switches to polling.
+                // Keep a slower safety refresh in case the socket misses an event.
+                var safetySyncElapsed = 0
                 while (isResumed) {
-                    delay(30_000)
-                    if (isResumed) refresh(silent = true)
+                    delay(5_000)
+                    if (messageCollector.isCompleted || reactionCollector.isCompleted) {
+                        throw IllegalStateException("Realtime change stream stopped.")
+                    }
+                    safetySyncElapsed += 5
+                    if (safetySyncElapsed >= 30) {
+                        if (isResumed) refresh(silent = true)
+                        safetySyncElapsed = 0
+                    }
                 }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
             } catch (_: Exception) {
-                // If Realtime is unavailable, keep the conversation usable with polling.
+                // If Realtime is unavailable or its stream stops, keep the chat usable with polling.
                 while (isResumed) {
                     delay(5_000)
                     if (isResumed) refresh(silent = true)
