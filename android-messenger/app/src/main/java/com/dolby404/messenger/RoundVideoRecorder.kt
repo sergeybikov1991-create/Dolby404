@@ -287,7 +287,11 @@ internal fun RoundVideoRecorder(
                             } ?: true
                             if (held && !cancel && cameraReady) {
                                 startRecording()
-                                while (recording != null && !finalizing) {
+                                // Do not read Compose state captured when pointerInput was
+                                // created: recording was null in that snapshot, so the old loop
+                                // could stop immediately after starting. Wait for the actual
+                                // pointer-up event, then stop the CameraX recording exactly once.
+                                while (true) {
                                     val event = awaitPointerEvent()
                                     val change = event.changes.firstOrNull { it.id == down.id } ?: break
                                     if (change.position.x < down.position.x - 70.dp.toPx()) cancel = true
