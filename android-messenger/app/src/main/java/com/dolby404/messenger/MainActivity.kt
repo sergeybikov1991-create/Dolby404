@@ -2538,6 +2538,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     var sending by remember { mutableStateOf(false) }
     var errorText by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
+    val messageListState = rememberLazyListState()
     val lifecycleOwner = LocalLifecycleOwner.current
     var isResumed by remember { mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) }
 
@@ -2885,7 +2886,6 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 color = Color(0xFFFF8EAD), fontSize = 12.sp, fontWeight = FontWeight.SemiBold
             )
         }
-        val messageListState = rememberLazyListState()
         val firstPinnedMessage = messages.firstOrNull { it.id in pinnedMessageIds }
         if (firstPinnedMessage != null) {
             Surface(
