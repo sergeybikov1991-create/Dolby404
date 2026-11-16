@@ -54,7 +54,13 @@ internal object TusVideoUploader {
                 if (e is IOException && retry < RETRY_DELAYS.size) {
                     Thread.sleep(RETRY_DELAYS[retry++])
                     offset = queryOffset(uploadUrl, accessToken, apiKey)
-                    if (offset < 0L || offset > file.length()) throw e
+                    if (offset < 0L) {
+                        prefs.edit().remove(stateKey).apply()
+                        uploadUrl = createUpload(bucket, objectPath, file, accessToken, apiKey)
+                        prefs.edit().putString(stateKey, uploadUrl).apply()
+                        offset = 0L
+                    }
+                    if (offset > file.length()) throw e
                 } else {
                     throw e
                 }
