@@ -63,6 +63,7 @@ internal fun RoundVideoRecorder(
         )
     }
     var cameraReady by remember { mutableStateOf(false) }
+    var frontCamera by remember { mutableStateOf(true) }
     var recordingActive by remember { mutableStateOf(false) }
     var finalizing by remember { mutableStateOf(false) }
     var elapsedSeconds by remember { mutableIntStateOf(0) }
@@ -229,7 +230,10 @@ internal fun RoundVideoRecorder(
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = { stopRecording(false); onDismiss() }) { Text("Отмена", color = Color.White) }
                 Text("Видеосообщение", color = Color.White, fontSize = 17.sp)
-                Text(" ", color = Color.White)
+                TextButton(enabled = cameraReady && !recordingActive && !finalizing, onClick = {
+                    try { cameraSource.switchCamera(); frontCamera = !frontCamera }
+                    catch (error: Exception) { RoundVideoDiagnostics.record(context, "RootEncoder camera switch failed", error); latestOnError.value(error.message ?: "Не удалось переключить камеру.") }
+                }) { Text("↻", color = Color.White, fontSize = 22.sp) }
             }
             Spacer(Modifier.height(24.dp))
             Box(Modifier.size(280.dp).clip(CircleShape).background(Color.Black), contentAlignment = Alignment.Center) {
