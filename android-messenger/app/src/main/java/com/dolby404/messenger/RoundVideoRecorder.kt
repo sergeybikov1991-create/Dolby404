@@ -213,7 +213,8 @@ internal fun RoundVideoRecorder(
     LaunchedEffect(recordingActive, startedAt) {
         while (recordingActive && startedAt > 0L) {
             elapsedSeconds = ((System.currentTimeMillis() - startedAt) / 1000L).toInt()
-            if (elapsedSeconds >= 60) {
+            val maxDurationSeconds = if (mode == VideoCaptureMode.ROUND_FRONT) 60 else 300
+            if (elapsedSeconds >= maxDurationSeconds) {
                 stopRecording(send = true)
                 break
             }
@@ -282,7 +283,7 @@ internal fun RoundVideoRecorder(
                 when {
                     finalizing -> "Сохраняем видео…"
                     recordingActive && mode == VideoCaptureMode.ROUND_FRONT -> "● Запись 0:${String.format("%02d", elapsedSeconds)} — отпусти для отправки"
-                    recordingActive -> "● Идёт запись обычного видео — нажми ■ для завершения"
+                    recordingActive -> "● Видео ${String.format("%d:%02d", elapsedSeconds / 60, elapsedSeconds % 60)} — нажми ■ для завершения"
                     mode == VideoCaptureMode.ROUND_FRONT -> "Удерживай кнопку · свайп влево отменяет"
                     else -> "Нажми ● чтобы начать запись · затем ■ для завершения"
                 },
