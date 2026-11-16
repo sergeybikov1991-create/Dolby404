@@ -126,7 +126,7 @@ internal object TusVideoUploader {
         }
         try {
             val code = connection.responseCode
-            if (code == HttpURLConnection.HTTP_NOT_FOUND || code == HttpURLConnection.GONE) return -1L
+            if (code == HttpURLConnection.HTTP_NOT_FOUND || code == 410) return -1L
             if (code !in 200..299) throw IOException("Не удалось проверить продолжение загрузки (HTTP $code).")
             return connection.getHeaderField("Upload-Offset")?.toLongOrNull()
                 ?: throw IOException("Storage не вернул Upload-Offset.")
