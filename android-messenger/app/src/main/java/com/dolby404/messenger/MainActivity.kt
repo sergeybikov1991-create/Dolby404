@@ -3079,6 +3079,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     var uploadingAttachment by remember { mutableStateOf(false) }
     var pendingLocalVideo by remember(peer.id) { mutableStateOf<File?>(null) }
     var pendingVideoUploadFailed by remember { mutableStateOf(false) }
+    var pendingVideoReady by remember { mutableStateOf(false) }
     var videoUploadInProgress by remember { mutableStateOf(false) }
     var voiceRecorder by remember { mutableStateOf<MediaRecorder?>(null) }
     var voiceFile by remember { mutableStateOf<File?>(null) }
@@ -3228,6 +3229,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     fun uploadVideoDraft(file: File) {
         if (videoUploadInProgress) return
         pendingLocalVideo = file
+        pendingVideoReady = true
         pendingVideoUploadFailed = false
         scope.launch {
             videoUploadInProgress = true
@@ -3749,10 +3751,26 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                             Modifier.widthIn(max = 290.dp).background(Color(0xFF254D91), RoundedCornerShape(12.dp)).padding(9.dp),
                             horizontalAlignment = Alignment.End
                         ) {
-                            VideoMessagePlayer(
-                                localFile.toURI().toString(),
-                                isRound = videoCaptureMode == VideoCaptureMode.ROUND_FRONT
-                            ) { }
+                            if (pendingVideoReady) {
+                                VideoMessagePlayer(
+                                    localFile.toURI().toString(),
+                                    isRound = videoCaptureMode == VideoCaptureMode.ROUND_FRONT
+                                ) { }
+                            } else {
+                                val isRoundDraft = videoCaptureMode == VideoCaptureMode.ROUND_FRONT
+                                Box(
+                                    Modifier.size(if (isRoundDraft) 190.dp else 250.dp, if (isRoundDraft) 190.dp else 150.dp)
+                                        .clip(if (isRoundDraft) CircleShape else RoundedCornerShape(18.dp))
+                                        .background(Color.Black),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        CircularProgressIndicator(Modifier.size(22.dp), color = Blue, strokeWidth = 2.dp)
+                                        Spacer(Modifier.height(7.dp))
+                                        Text("Подготавливаем видео…", color = White, fontSize = 10.sp)
+                                    }
+                                }
+                            }
                             Spacer(Modifier.height(5.dp))
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 if (videoUploadInProgress) CircularProgressIndicator(Modifier.size(12.dp), color = White, strokeWidth = 1.5.dp)
@@ -3930,13 +3948,25 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
         RoundVideoRecorder(
             mode = videoCaptureMode,
             onDismiss = { showVideoRecorder = false },
+            onRecordingFinishing = { file ->
+                pendingLocalVideo = file
+                pendingVideoReady = false
+                pendingVideoUploadFailed = false
+                scope.launch {
+                    delay(40L)
+                    val lastIndex = messageListState.layoutInfo.totalItemsCount - 1
+                    if (lastIndex >= 0) messageListState.animateScrollToItem(lastIndex)
+                }
+            },
             onError = { message ->
                 errorText = message
                 showVideoRecorder = false
+                if (!pendingVideoReady) pendingLocalVideo = null
             },
             onRecorded = { file ->
                 showVideoRecorder = false
                 pendingLocalVideo = file
+                pendingVideoReady = true
                 pendingVideoUploadFailed = false
                 scope.launch {
                     delay(60L)
