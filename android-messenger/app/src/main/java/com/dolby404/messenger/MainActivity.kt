@@ -2557,16 +2557,23 @@ private fun MessageAttachment(message: DirectMessageDto) {
     }
 
     var showFullScreen by remember(path) { mutableStateOf(false) }
+    var imageLoadError by remember(path) { mutableStateOf(false) }
     val url = signedUrl
     when {
         url == null && !loadError -> CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Blue)
-        loadError -> Text("Не удалось загрузить вложение", color = Muted, fontSize = 12.sp)
+        loadError -> Text("Не удалось получить ссылку на вложение", color = Muted, fontSize = 12.sp)
+        mime.startsWith("image/") && imageLoadError -> Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Не удалось отобразить фото", color = Muted, fontSize = 12.sp)
+            TextButton(onClick = { urlRefreshAttempt++; imageLoadError = false }) { Text("Повторить", color = Blue) }
+        }
         mime.startsWith("image/") -> AsyncImage(
             model = url,
             contentDescription = message.attachmentName ?: "Изображение",
             modifier = Modifier.fillMaxWidth().heightIn(max = 280.dp)
                 .clip(RoundedCornerShape(5.dp)).clickable { showFullScreen = true },
-            contentScale = ContentScale.Fit
+            contentScale = ContentScale.Fit,
+            onLoading = { imageLoadError = false },
+            onError = { imageLoadError = true }
         )
         mime.startsWith("audio/") -> AudioMessagePlayer(url!!) { urlRefreshAttempt++ }
         mime.startsWith("video/") -> VideoMessagePlayer(url!!) { urlRefreshAttempt++ }
@@ -2835,6 +2842,8 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
         .filter { !showFavoritesOnly || it.id in favoriteMessageIds }
     val lifecycleOwner = LocalLifecycleOwner.current
     var isResumed by remember { mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) }
+    var didInitialChatScroll by remember(peer.id) { mutableStateOf(false) }
+    var refreshInProgress by remember { mutableStateOf(false) }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -2852,13 +2861,12 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     }
 
     suspend fun refresh(silent: Boolean = false): Boolean {
+        if (refreshInProgress) return false
+        refreshInProgress = true
+        val wasAtBottom = messageListState.layoutInfo.totalItemsCount > 0 &&
+            messageListState.layoutInfo.visibleItemsInfo.lastOrNull()?.index == messageListState.layoutInfo.totalItemsCount - 1
         var loaded = false
         try {
-            try {
-                markIncomingMessagesRead(currentUserId, peer.id)
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-            }
             val latest = loadDirectMessagesPage(currentUserId, peer.id)
             hasMoreOlderMessages = latest.size >= 100
             // Favorites are supplementary: their endpoint must never prevent the conversation from opening.
@@ -2894,6 +2902,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             pinnedMessageIds = loadedPinnedIds.intersect(allIds)
             favoriteMessageIds = loadedFavoriteIds.intersect(allIds)
             // Keep previously loaded older pages and all favorited messages; merge by stable ID.
+            var insertedMessages = 0
             refreshedMessages.forEach { incoming ->
                 val existingIndex = messages.indexOfFirst { it.id == incoming.id }
                 if (existingIndex >= 0) {
@@ -2903,7 +2912,13 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                         compareValuesBy(incoming, existing, { it.createdAt }, { it.id }) < 0
                     }
                     if (insertAt >= 0) messages.add(insertAt, incoming) else messages.add(incoming)
+                    insertedMessages++
                 }
+            }
+            if (wasAtBottom && insertedMessages > 0) {
+                delay(50L)
+                val lastIndex = messageListState.layoutInfo.totalItemsCount - 1
+                if (lastIndex >= 0) messageListState.scrollToItem(lastIndex)
             }
             errorText = ""
             loaded = true
@@ -2912,8 +2927,35 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             if (!silent) errorText = e.message ?: "Не удалось загрузить переписку."
         } finally {
             loading = false
+            refreshInProgress = false
         }
         return loaded
+    }
+
+    // Mark messages read only when the newest message is visible in the resumed chat.
+    LaunchedEffect(peer.id, currentUserId, isResumed, loading, messages.size,
+        messageListState.firstVisibleItemIndex, chatSearchOpen, showFavoritesOnly) {
+        if (!isResumed || loading || messages.isEmpty() || chatSearchOpen || showFavoritesOnly) return@LaunchedEffect
+        delay(700L)
+        val layout = messageListState.layoutInfo
+        val lastIndex = layout.totalItemsCount - 1
+        if (lastIndex >= 0 && layout.visibleItemsInfo.any { it.index == lastIndex }) {
+            try {
+                markIncomingMessagesRead(currentUserId, peer.id)
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+            }
+        }
+    }
+
+    // Scroll to the newest message once after the first successful load.
+    LaunchedEffect(peer.id, loading, messages.size) {
+        if (!loading && messages.isNotEmpty() && !didInitialChatScroll) {
+            delay(80L)
+            val lastIndex = messageListState.layoutInfo.totalItemsCount - 1
+            if (lastIndex >= 0) messageListState.scrollToItem(lastIndex)
+            didInitialChatScroll = true
+        }
     }
 
     var uploadingAttachment by remember { mutableStateOf(false) }
@@ -3033,8 +3075,9 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
         }
         uploadingAttachment = true
         try {
+            if (file.length() > 45L * 1024L * 1024L) error("Голосовая запись превышает допустимый размер 45 МБ.")
             val bytes = withContext(Dispatchers.IO) { file.readBytes() }
-            if (bytes.size > 50 * 1024 * 1024) error("Запись превышает допустимый размер.")
+            if (bytes.isEmpty()) error("Голосовая запись пустая.")
             val name = "voice_${System.currentTimeMillis()}.m4a"
             val path = "$currentUserId/${UUID.randomUUID()}_$name"
             withContext(Dispatchers.IO) {
@@ -3069,13 +3112,20 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                     var name = "attachment"
                     try {
                         val resolver = context.contentResolver
-                        val mime = resolver.getType(uri) ?: if (phoneMediaPickerVideo) "video/mp4" else "image/jpeg"
-                        name = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
-                            if (cursor.moveToFirst()) cursor.getString(0) else null
+                        val mime = (resolver.getType(uri)?.substringBefore(';')?.trim()?.lowercase())
+                            ?.takeIf { it.contains('/') } ?: if (phoneMediaPickerVideo) "video/mp4" else "image/jpeg"
+                        var declaredSize = -1L
+                        name = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { cursor ->
+                            if (cursor.moveToFirst()) {
+                                declaredSize = cursor.getLong(cursor.getColumnIndexOrThrow(OpenableColumns.SIZE))
+                                cursor.getString(cursor.getColumnIndexOrThrow(OpenableColumns.DISPLAY_NAME))
+                            } else null
                         } ?: "attachment"
+                        if (declaredSize > 50L * 1024L * 1024L) error("$name: размер превышает 50 МБ.")
                         val bytes = withContext(Dispatchers.IO) {
                             resolver.openInputStream(uri)?.use { it.readBytes() } ?: error("Не удалось прочитать файл.")
                         }
+                        if (bytes.isEmpty()) error("$name: файл пустой или недоступен.")
                         if (bytes.size > 50 * 1024 * 1024) error("$name: размер превышает 50 МБ.")
                         val safeName = name.substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"), "_").take(100).ifBlank { "attachment" }
                         val path = "$currentUserId/${UUID.randomUUID()}_$safeName"
