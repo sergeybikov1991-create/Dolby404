@@ -106,7 +106,7 @@ import com.google.firebase.messaging.FirebaseMessaging
 
 private fun isFinalizedVideoFile(file: File): Boolean {
     if (!file.isFile || file.length() <= 1500L) return false
-    val extractor = android.media.MediaExtractor()
+    val extractor = MediaExtractor()
     return try {
         extractor.setDataSource(file.absolutePath)
         (0 until extractor.trackCount).any { index ->
