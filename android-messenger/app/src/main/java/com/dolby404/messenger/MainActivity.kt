@@ -3817,13 +3817,11 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                         if (file.length() > 18L * 1024L * 1024L) error("Видео превышает лимит 18 МБ. Запиши более короткий кружок.")
                         val name = "video_" + System.currentTimeMillis() + ".mp4"
                         val path = currentUserId + "/" + UUID.randomUUID().toString() + "_" + name
-                        // Supabase Kotlin Storage streams File uploads from disk on Android/JVM.
-                        // Keep the recording out of a full-size ByteArray to avoid memory spikes.
-                        withContext(Dispatchers.IO) {
-                            floustreamClient.storage.from("message-media").upload(path, file) {
-                                contentType = ContentType.parse("video/mp4")
-                            }
-                        }
+                        // Supabase resumable upload reads the recording from disk in chunks.
+                        // Do not allocate a second video-sized ByteArray in app memory.
+                        val videoUpload = floustreamClient.storage.from("message-media")
+                            .resumable.createOrContinueUpload(path, file)
+                        videoUpload.startOrResumeUploading()
                         sendDirectAttachment(currentUserId, peer.id, path, name, "video/mp4")
                         refresh()
                         errorText = ""
