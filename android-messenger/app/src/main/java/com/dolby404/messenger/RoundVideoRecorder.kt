@@ -65,7 +65,6 @@ internal fun RoundVideoRecorder(
         )
     }
     var cameraReady by remember { mutableStateOf(false) }
-    var frontCamera by remember { mutableStateOf(true) }
     var recordingActive by remember { mutableStateOf(false) }
     var finalizing by remember { mutableStateOf(false) }
     var elapsedSeconds by remember { mutableIntStateOf(0) }
@@ -81,7 +80,7 @@ internal fun RoundVideoRecorder(
     val shouldSend = remember { AtomicBoolean(false) }
     val disposed = remember { AtomicBoolean(false) }
     val recordingFile = remember { mutableStateOf<File?>(null) }
-    val cameraSource = remember(context) { Camera2Source(context).also { it.switchCamera() } }
+    val cameraSource = remember(context) { Camera2Source(context) }
     val stream = remember(context) {
         val checker = object : ConnectChecker {
             override fun onConnectionStarted(url: String) {}
@@ -91,9 +90,9 @@ internal fun RoundVideoRecorder(
             override fun onAuthError() {}
             override fun onAuthSuccess() {}
         }
-        GenericStream(context.applicationContext, checker, cameraSource, MicrophoneSource()).also {
-            it.setRecordController(SynchronizedRecordController())
-        }
+        // Use RootEncoder's built-in AndroidMuxerRecordController.
+        // A custom lock around its async callbacks can deadlock start/stop.
+        GenericStream(context.applicationContext, checker, cameraSource, MicrophoneSource())
     }
 
     fun stopRecording(send: Boolean) {
@@ -123,12 +122,12 @@ internal fun RoundVideoRecorder(
         val view = previewView ?: return@LaunchedEffect
         if (!hasPermissions) return@LaunchedEffect
         try {
-            RoundVideoDiagnostics.record(context, "RootEncoder prepare; Camera2Source front camera; 640x480; rotation=90")
+            RoundVideoDiagnostics.record(context, "RootEncoder prepare; Camera2Source default camera; 640x480; rotation=90")
             val videoPrepared = stream.prepareVideo(640, 480, 700_000, fps = 24, rotation = 90)
             val audioPrepared = stream.prepareAudio(32_000, true, 96_000)
             if (!videoPrepared || !audioPrepared) throw IllegalStateException("RootEncoder не смог подготовить видео- или аудиокодек.")
-            stream.startPreview(view, true)
-            cameraReady = true
+            if (!stream.isOnPreview) stream.startPreview(view, true)
+            cameraReady = stream.isOnPreview
             RoundVideoDiagnostics.record(context, "RootEncoder preview started")
         } catch (error: Exception) {
             RoundVideoDiagnostics.record(context, "RootEncoder initialization failed", error)
@@ -237,7 +236,7 @@ internal fun RoundVideoRecorder(
                 TextButton(onClick = { stopRecording(false); onDismiss() }) { Text("Отмена", color = Color.White) }
                 Text("Видеосообщение", color = Color.White, fontSize = 17.sp)
                 TextButton(enabled = cameraReady && !recordingActive && !finalizing, onClick = {
-                    try { cameraSource.switchCamera(); frontCamera = !frontCamera }
+                    try { cameraSource.switchCamera(); RoundVideoDiagnostics.record(context, "RootEncoder camera switch requested while preview active") }
                     catch (error: Exception) { RoundVideoDiagnostics.record(context, "RootEncoder camera switch failed", error); latestOnError.value(error.message ?: "Не удалось переключить камеру.") }
                 }) { Text("↻", color = Color.White, fontSize = 22.sp) }
             }
