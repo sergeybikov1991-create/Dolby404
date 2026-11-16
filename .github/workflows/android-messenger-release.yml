@@ -1,4 +1,4 @@
-name: Build and publish FLOUSTREAM Messenger 0.4.6
+name: Build and publish FLOUSTREAM Messenger 0.4.6 (latest source)
 
 on:
   workflow_dispatch:
