@@ -355,7 +355,7 @@ private suspend fun loadPublicMediaLibrary(userId: String): List<MediaLibraryIte
     return (photos + videos).sortedByDescending { it.id }
 }
 
-private suspend fun sendLibraryMedia(userId: String, peerId: String, item: MediaLibraryItem) = withContext(Dispatchers.IO) {
+private suspend fun sendLibraryMedia(context: Context, userId: String, peerId: String, item: MediaLibraryItem) = withContext(Dispatchers.IO) {
     val signedUrl = floustreamClient.storage.from(item.bucket).createSignedUrl(item.path, 10.minutes)
     val connection = URL(signedUrl).openConnection() as HttpURLConnection
     val safeName = item.name.replace(Regex("[^A-Za-z0-9._-]"), "_").take(100).ifBlank { "attachment" }
@@ -4389,7 +4389,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                             try {
                                 selected.forEach { item ->
                                     try {
-                                        sendLibraryMedia(currentUserId, peer.id, item)
+                                        sendLibraryMedia(context, currentUserId, peer.id, item)
                                         sentCount++
                                     } catch (e: Exception) {
                                         if (e is kotlinx.coroutines.CancellationException) throw e
