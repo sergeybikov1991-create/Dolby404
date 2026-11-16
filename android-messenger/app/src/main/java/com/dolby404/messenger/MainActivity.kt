@@ -436,6 +436,52 @@ private suspend fun loadDirectMessagePins(userId: String): Set<String> = withCon
     } finally { connection.disconnect() }
 }
 
+private suspend fun loadDirectMessageFavorites(userId: String): Set<String> = withContext(Dispatchers.IO) {
+    val token = floustreamClient.auth.currentSessionOrNull()?.accessToken
+        ?: throw IllegalStateException("Сессия истекла.")
+    val encodedUser = URLEncoder.encode(userId, "UTF-8")
+    val connection = URL("${BuildConfig.SUPABASE_URL}/rest/v1/direct_message_favorites?select=message_id&user_id=eq.$encodedUser")
+        .openConnection() as HttpURLConnection
+    try {
+        connection.requestMethod = "GET"
+        connection.connectTimeout = 10000
+        connection.readTimeout = 10000
+        connection.setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+        connection.setRequestProperty("Authorization", "Bearer $token")
+        if (connection.responseCode !in 200..299) throw IllegalStateException("Не удалось загрузить избранные сообщения.")
+        val rows = JSONArray(connection.inputStream.bufferedReader().use { it.readText() })
+        buildSet { for (i in 0 until rows.length()) add(rows.getJSONObject(i).getString("message_id")) }
+    } finally { connection.disconnect() }
+}
+
+private suspend fun setDirectMessageFavorite(userId: String, messageId: String, favorite: Boolean) = withContext(Dispatchers.IO) {
+    val token = floustreamClient.auth.currentSessionOrNull()?.accessToken
+        ?: throw IllegalStateException("Сессия истекла.")
+    val encodedUser = URLEncoder.encode(userId, "UTF-8")
+    val encodedMessage = URLEncoder.encode(messageId, "UTF-8")
+    val url = if (favorite) {
+        "${BuildConfig.SUPABASE_URL}/rest/v1/direct_message_favorites"
+    } else {
+        "${BuildConfig.SUPABASE_URL}/rest/v1/direct_message_favorites?user_id=eq.$encodedUser&message_id=eq.$encodedMessage"
+    }
+    val connection = URL(url).openConnection() as HttpURLConnection
+    try {
+        connection.requestMethod = if (favorite) "POST" else "DELETE"
+        connection.connectTimeout = 10000
+        connection.readTimeout = 10000
+        connection.setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+        connection.setRequestProperty("Authorization", "Bearer $token")
+        connection.setRequestProperty("Content-Type", "application/json")
+        connection.setRequestProperty("Prefer", "return=minimal")
+        if (favorite) {
+            connection.doOutput = true
+            val body = JSONObject().put("message_id", messageId).put("user_id", userId).toString()
+            connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+        }
+        if (connection.responseCode !in 200..299) throw IllegalStateException("Не удалось изменить избранное.")
+    } finally { connection.disconnect() }
+}
+
 private suspend fun setDirectMessagePin(userId: String, messageId: String, pinned: Boolean) = withContext(Dispatchers.IO) {
     val token = floustreamClient.auth.currentSessionOrNull()?.accessToken
         ?: throw IllegalStateException("Сессия истекла.")
@@ -2530,6 +2576,8 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     val messages = remember(peer.id) { mutableStateListOf<DirectMessageDto>() }
     var reactions by remember(peer.id) { mutableStateOf<Map<String, List<DirectMessageReactionDto>>>(emptyMap()) }
     var pinnedMessageIds by remember(peer.id) { mutableStateOf<Set<String>>(emptySet()) }
+    var favoriteMessageIds by remember(peer.id) { mutableStateOf<Set<String>>(emptySet()) }
+    var showFavoritesOnly by remember(peer.id) { mutableStateOf(false) }
     var chatSearchOpen by remember(peer.id) { mutableStateOf(false) }
     var chatSearchQuery by remember(peer.id) { mutableStateOf("") }
     var chatSearchDate by remember(peer.id) { mutableStateOf("") }
@@ -2566,6 +2614,8 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
         val dateMatches = normalizedSearchDate.isBlank() || msg.createdAt.startsWith(normalizedSearchDate)
         textMatches && mediaMatches && dateMatches
     }
+    val visibleMessages = (if (chatSearchOpen) filteredMessages else messages)
+        .filter { !showFavoritesOnly || it.id in favoriteMessageIds }
     val lifecycleOwner = LocalLifecycleOwner.current
     var isResumed by remember { mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) }
 
@@ -2591,6 +2641,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             val latest = loadDirectMessages(currentUserId, peer.id)
             reactions = loadDirectMessageReactions(latest.map { it.id })
             pinnedMessageIds = loadDirectMessagePins(currentUserId).intersect(latest.map { it.id }.toSet())
+            favoriteMessageIds = loadDirectMessageFavorites(currentUserId).intersect(latest.map { it.id }.toSet())
             // Reconcile by stable message ID instead of clearing the whole list.
             // This keeps LazyColumn item identity and scroll position during polling.
             val latestIds = latest.mapTo(hashSetOf()) { it.id }
@@ -2829,6 +2880,10 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 Text(peer.displayName ?: peer.username ?: "Пользователь", color = White, fontWeight = FontWeight.Bold, maxLines = 1)
                 Text(if (peer.isDeleted) "История переписки сохранена" else peer.username?.let { "@$it" } ?: "FLOUSTREAM", color = Muted, fontSize = 10.sp)
             }
+            Text("★", Modifier.clickable {
+                showFavoritesOnly = !showFavoritesOnly
+                if (showFavoritesOnly) chatSearchOpen = false
+            }.padding(horizontal = 7.dp, vertical = 6.dp), color = if (showFavoritesOnly) Color(0xFFFFD36A) else White, fontSize = 20.sp)
             Text("☎", Modifier.clickable {
                 Toast.makeText(context, "Аудиозвонки появятся в следующем этапе", Toast.LENGTH_SHORT).show()
             }.padding(horizontal = 7.dp, vertical = 6.dp), color = White, fontSize = 21.sp)
@@ -2969,7 +3024,9 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 item { Text("Загружаем переписку…", color = Muted) }
             } else if (messages.isEmpty()) {
                 item { Text("Это начало вашей переписки. Отправь первое сообщение!", Modifier.fillMaxWidth().padding(20.dp), color = Muted, fontSize = 13.sp) }
-            } else if (filteredMessages.isEmpty() && chatSearchOpen) {
+            } else if (visibleMessages.isEmpty() && showFavoritesOnly) {
+                item { Text("В этой переписке пока нет избранных сообщений.", Modifier.fillMaxWidth().padding(20.dp), color = Muted, fontSize = 13.sp) }
+            } else if (visibleMessages.isEmpty() && chatSearchOpen) {
                 item {
                     Text(
                         "По этим условиям ничего не найдено.",
@@ -2979,7 +3036,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                     )
                 }
             }
-            items(if (chatSearchOpen) filteredMessages else messages, key = { it.id }) { msg ->
+            items(visibleMessages, key = { it.id }) { msg ->
                 val mine = msg.senderId == currentUserId
                 val isImageAttachment = !msg.attachmentPath.isNullOrBlank() &&
                     msg.attachmentMime.orEmpty().startsWith("image/")
@@ -3289,6 +3346,21 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                             ) { Text(emoji, fontSize = 20.sp) }
                         }
                     }
+                    TextButton(
+                        onClick = {
+                            val shouldFavorite = target.id !in favoriteMessageIds
+                            scope.launch {
+                                try {
+                                    setDirectMessageFavorite(currentUserId, target.id, shouldFavorite)
+                                    favoriteMessageIds = if (shouldFavorite) favoriteMessageIds + target.id else favoriteMessageIds - target.id
+                                    Toast.makeText(context, if (shouldFavorite) "Добавлено в избранное" else "Убрано из избранного", Toast.LENGTH_SHORT).show()
+                                } catch (e: Exception) {
+                                    errorText = e.message ?: "Не удалось изменить избранное."
+                                }
+                            }
+                            pendingMessageActions = null
+                        }
+                    ) { Text(if (target.id in favoriteMessageIds) "★ Убрать из избранного" else "☆ В избранное", color = Color(0xFFFFD36A)) }
                     TextButton(
                         onClick = {
                             val shouldPin = target.id !in pinnedMessageIds
