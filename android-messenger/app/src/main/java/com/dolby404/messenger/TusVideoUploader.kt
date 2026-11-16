@@ -52,7 +52,7 @@ internal object TusVideoUploader {
                 retry = 0
             } catch (e: Exception) {
                 if (e is IOException && retry < RETRY_DELAYS.size) {
-                    Thread.sleep(RETRY_DELAYS[retry++])
+                    retry++
                     offset = queryOffsetWithRetry(uploadUrl, accessToken, apiKey)
                     if (offset < 0L) {
                         prefs.edit().remove(stateKey).apply()
