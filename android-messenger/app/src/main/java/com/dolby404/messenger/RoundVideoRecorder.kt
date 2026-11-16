@@ -55,11 +55,13 @@ internal enum class VideoCaptureMode { ROUND_FRONT, NORMAL_SWITCHABLE }
 internal fun RoundVideoRecorder(
     mode: VideoCaptureMode,
     onDismiss: () -> Unit,
+    onRecordingFinishing: (File) -> Unit,
     onRecorded: (File) -> Unit,
     onError: (String) -> Unit
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val latestOnRecordingFinishing = rememberUpdatedState(onRecordingFinishing)
     val latestOnRecorded = rememberUpdatedState(onRecorded)
     val latestOnError = rememberUpdatedState(onError)
 
@@ -104,6 +106,7 @@ internal fun RoundVideoRecorder(
         if (!stream.isRecording) return
         shouldSend.set(send)
         finalizing = true
+        if (send) recordingFile.value?.let { file -> latestOnRecordingFinishing.value(file) }
         RoundVideoDiagnostics.record(context, "RootEncoder stopRecord requested; send=$send")
         try {
             stream.stopRecord()
@@ -249,7 +252,7 @@ internal fun RoundVideoRecorder(
                 TextButton(onClick = { stopRecording(false); onDismiss() }) { Text("Отмена", color = Color.White) }
                 Text(if (mode == VideoCaptureMode.ROUND_FRONT) "Видеокружок" else "Обычное видео", color = Color.White, fontSize = 17.sp)
                 if (mode == VideoCaptureMode.NORMAL_SWITCHABLE) {
-                    TextButton(enabled = cameraReady && !recordingActive && !finalizing, onClick = {
+                    TextButton(enabled = cameraReady && !finalizing, onClick = {
                         try { cameraSource.switchCamera(); RoundVideoDiagnostics.record(context, "RootEncoder camera switch requested while preview active") }
                         catch (error: Exception) { RoundVideoDiagnostics.record(context, "RootEncoder camera switch failed", error); latestOnError.value(error.message ?: "Не удалось переключить камеру.") }
                     }) { Text("↻", color = Color.White, fontSize = 22.sp) }
