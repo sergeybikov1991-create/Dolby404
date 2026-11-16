@@ -2530,6 +2530,9 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     val messages = remember(peer.id) { mutableStateListOf<DirectMessageDto>() }
     var reactions by remember(peer.id) { mutableStateOf<Map<String, List<DirectMessageReactionDto>>>(emptyMap()) }
     var pinnedMessageIds by remember(peer.id) { mutableStateOf<Set<String>>(emptySet()) }
+    var chatSearchOpen by remember(peer.id) { mutableStateOf(false) }
+    var chatSearchQuery by remember(peer.id) { mutableStateOf("") }
+    var chatSearchIndex by remember(peer.id) { mutableIntStateOf(0) }
     var draft by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(true) }
     var sending by remember { mutableStateOf(false) }
@@ -2800,9 +2803,74 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             Text("☎", Modifier.clickable {
                 Toast.makeText(context, "Аудиозвонки появятся в следующем этапе", Toast.LENGTH_SHORT).show()
             }.padding(horizontal = 7.dp, vertical = 6.dp), color = White, fontSize = 21.sp)
+            Text("⌕", Modifier.clickable {
+                chatSearchOpen = !chatSearchOpen
+                if (!chatSearchOpen) {
+                    chatSearchQuery = ""
+                    chatSearchIndex = 0
+                }
+            }.padding(horizontal = 8.dp, vertical = 6.dp), color = White, fontSize = 25.sp)
             Text("▣", Modifier.clickable {
                 Toast.makeText(context, "Видеозвонки появятся в следующем этапе", Toast.LENGTH_SHORT).show()
             }.padding(horizontal = 7.dp, vertical = 6.dp), color = White, fontSize = 20.sp)
+        }
+        if (chatSearchOpen) {
+            val matchingCount = messages.count { msg ->
+                val q = chatSearchQuery.trim()
+                q.isNotEmpty() && (msg.content.contains(q, ignoreCase = true) ||
+                    msg.attachmentName.orEmpty().contains(q, ignoreCase = true))
+            }
+            Row(
+                Modifier.fillMaxWidth().background(PanelSoft).padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = chatSearchQuery,
+                    onValueChange = { chatSearchQuery = it; chatSearchIndex = 0 },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    placeholder = { Text("Поиск в переписке", color = Muted) },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = White,
+                        unfocusedTextColor = White,
+                        focusedBorderColor = Blue,
+                        unfocusedBorderColor = Muted,
+                        cursorColor = Blue
+                    )
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(if (chatSearchQuery.isBlank()) "—" else "$matchingCount", color = Muted, fontSize = 11.sp)
+                TextButton(
+                    enabled = matchingCount > 0,
+                    onClick = {
+                        val matches = messages.filter { msg ->
+                            msg.content.contains(chatSearchQuery.trim(), ignoreCase = true) ||
+                                msg.attachmentName.orEmpty().contains(chatSearchQuery.trim(), ignoreCase = true)
+                        }
+                        if (matches.isNotEmpty()) {
+                            chatSearchIndex = (chatSearchIndex - 1 + matches.size) % matches.size
+                            val targetIndex = messages.indexOfFirst { it.id == matches[chatSearchIndex].id }
+                            if (targetIndex >= 0) scope.launch { messageListState.animateScrollToItem(targetIndex) }
+                        }
+                    },
+                    contentPadding = PaddingValues(horizontal = 2.dp)
+                ) { Text("↑", color = White) }
+                TextButton(
+                    enabled = matchingCount > 0,
+                    onClick = {
+                        val matches = messages.filter { msg ->
+                            msg.content.contains(chatSearchQuery.trim(), ignoreCase = true) ||
+                                msg.attachmentName.orEmpty().contains(chatSearchQuery.trim(), ignoreCase = true)
+                        }
+                        if (matches.isNotEmpty()) {
+                            chatSearchIndex = (chatSearchIndex + 1) % matches.size
+                            val targetIndex = messages.indexOfFirst { it.id == matches[chatSearchIndex].id }
+                            if (targetIndex >= 0) scope.launch { messageListState.animateScrollToItem(targetIndex) }
+                        }
+                    },
+                    contentPadding = PaddingValues(horizontal = 2.dp)
+                ) { Text("↓", color = White) }
+            }
         }
         if (peer.isDeleted) {
             Text("Этот аккаунт удалён. История сообщений сохранена, отправка новых сообщений недоступна.", Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp), color = Muted, fontSize = 12.sp)
