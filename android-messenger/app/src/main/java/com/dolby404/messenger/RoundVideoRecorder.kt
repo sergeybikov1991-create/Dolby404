@@ -64,6 +64,7 @@ internal fun RoundVideoRecorder(
     val latestOnRecordingFinishing = rememberUpdatedState(onRecordingFinishing)
     val latestOnRecorded = rememberUpdatedState(onRecorded)
     val latestOnError = rememberUpdatedState(onError)
+    val latestFinalizing = rememberUpdatedState(finalizing)
 
     var hasPermissions by remember {
         mutableStateOf(
@@ -236,7 +237,7 @@ internal fun RoundVideoRecorder(
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
             disposed.set(true)
-            if (finalizing && shouldSend.get()) {
+            if (latestFinalizing.value && shouldSend.get()) {
                 // The chat now owns the pending bubble. Let the muxer finish closing
                 // the MP4 before releasing RootEncoder or deleting the persistent draft.
                 RoundVideoDiagnostics.record(context, "Recorder UI disposed during send finalization; deferring stream release")
