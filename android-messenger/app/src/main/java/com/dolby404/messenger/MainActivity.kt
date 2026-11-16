@@ -2775,9 +2775,21 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             val refreshedMessages = (latest + favoriteMessages).distinctBy { it.id }
             val merged = (messages.toList() + refreshedMessages).distinctBy { it.id }
                 .sortedWith(compareBy<DirectMessageDto> { it.createdAt }.thenBy { it.id })
-            reactions = loadDirectMessageReactions(merged.map { it.id })
+            val loadedReactions = try {
+                loadDirectMessageReactions(merged.map { it.id })
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                reactions
+            }
+            reactions = loadedReactions
             val allIds = merged.map { it.id }.toSet()
-            pinnedMessageIds = loadDirectMessagePins(currentUserId).intersect(allIds)
+            val loadedPinnedIds = try {
+                loadDirectMessagePins(currentUserId)
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                pinnedMessageIds
+            }
+            pinnedMessageIds = loadedPinnedIds.intersect(allIds)
             favoriteMessageIds = loadedFavoriteIds.intersect(allIds)
             // Keep previously loaded older pages and all favorited messages; merge by stable ID.
             refreshedMessages.forEach { incoming ->
