@@ -16,6 +16,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -3163,7 +3168,9 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
         }
     }
     var showAttachmentMenu by remember { mutableStateOf(false) }
-    var showRoundVideoRecorder by remember { mutableStateOf(false) }
+    var showVideoRecorder by remember { mutableStateOf(false) }
+    var showVideoModeMenu by remember { mutableStateOf(false) }
+    var videoCaptureMode by remember { mutableStateOf(VideoCaptureMode.ROUND_FRONT) }
     var showMediaLibrary by remember { mutableStateOf(false) }
     var mediaLibrary by remember { mutableStateOf<List<MediaLibraryItem>>(emptyList()) }
     var selectedMediaIds by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -3707,11 +3714,50 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                     )
                 }
             }
-            Surface(
-                modifier = Modifier.size(42.dp).clickable { showRoundVideoRecorder = true },
-                color = PanelSoft, shape = CircleShape
-            ) {
-                Box(contentAlignment = Alignment.Center) { Text("📹", fontSize = 19.sp) }
+            Box {
+                Surface(
+                    modifier = Modifier.size(42.dp).clickable { showVideoModeMenu = !showVideoModeMenu },
+                    color = PanelSoft, shape = CircleShape
+                ) {
+                    Box(contentAlignment = Alignment.Center) { Text("📹", fontSize = 19.sp) }
+                }
+                AnimatedVisibility(
+                    visible = showVideoModeMenu,
+                    modifier = Modifier.align(Alignment.BottomStart).offset(y = (-48).dp),
+                    enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                    exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Surface(
+                            modifier = Modifier.width(132.dp).clickable {
+                                videoCaptureMode = VideoCaptureMode.ROUND_FRONT
+                                showVideoModeMenu = false
+                                showVideoRecorder = true
+                            },
+                            color = PanelSoft, shape = RoundedCornerShape(14.dp), shadowElevation = 8.dp
+                        ) {
+                            Row(Modifier.padding(horizontal = 12.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text("◉", color = Color(0xFFFF7C9B), fontSize = 18.sp)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Кружок", color = White, fontSize = 13.sp)
+                            }
+                        }
+                        Surface(
+                            modifier = Modifier.width(132.dp).clickable {
+                                videoCaptureMode = VideoCaptureMode.NORMAL_SWITCHABLE
+                                showVideoModeMenu = false
+                                showVideoRecorder = true
+                            },
+                            color = PanelSoft, shape = RoundedCornerShape(14.dp), shadowElevation = 8.dp
+                        ) {
+                            Row(Modifier.padding(horizontal = 12.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text("▣", color = Color(0xFF9FCBFF), fontSize = 18.sp)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Видео", color = White, fontSize = 13.sp)
+                            }
+                        }
+                    }
+                }
             }
             OutlinedTextField(
                 value = draft, onValueChange = { draft = it },
@@ -3804,12 +3850,13 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
         }
     }
 
-    if (showRoundVideoRecorder) {
+    if (showVideoRecorder) {
         RoundVideoRecorder(
-            onDismiss = { showRoundVideoRecorder = false },
+            mode = videoCaptureMode,
+            onDismiss = { showVideoRecorder = false },
             onError = { message ->
                 errorText = message
-                showRoundVideoRecorder = false
+                showVideoRecorder = false
             },
             onRecorded = { file ->
                 showRoundVideoRecorder = false
