@@ -2,21 +2,38 @@ package com.dolby404.messenger
 
 import android.content.Context
 import android.util.Base64
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.MediaType.Companion.toMediaType
 import java.io.File
 import java.io.IOException
 import java.io.RandomAccessFile
-import java.net.HttpURLConnection
 import java.net.URI
-import java.net.URL
+import java.util.concurrent.TimeUnit
 
 /**
  * Supabase Storage TUS uploader. The remote object remains one ordinary file;
  * TUS only transfers it in resumable chunks and never creates chat fragments.
+ *
+ * OkHttp is used deliberately: Android HttpURLConnection does not list PATCH
+ * as a supported request method, while PATCH is mandatory for the TUS protocol.
  */
 internal object TusVideoUploader {
     private const val CHUNK_SIZE = 6 * 1024 * 1024
     private const val PREFS = "floustream_tus_uploads"
     private const val TUS_VERSION = "1.0.0"
+    private val RETRY_DELAYS = longArrayOf(0L, 3000L, 5000L, 10000L, 20000L)
+
+    private val httpClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(20, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(60, TimeUnit.SECONDS)
+            // A failed PATCH is reconciled with HEAD before it is retried.
+            .retryOnConnectionFailure(false)
+            .build()
+    }
 
     fun upload(
         context: Context,
@@ -50,26 +67,25 @@ internal object TusVideoUploader {
                 patchChunk(uploadUrl, file, offset, count, accessToken, apiKey)
                 offset += count
                 retry = 0
-            } catch (e: Exception) {
-                if (e is IOException && retry < RETRY_DELAYS.size) {
-                    retry++
-                    offset = queryOffsetWithRetry(uploadUrl, accessToken, apiKey)
-                    if (offset < 0L) {
-                        prefs.edit().remove(stateKey).apply()
-                        uploadUrl = createUpload(bucket, objectPath, file, accessToken, apiKey, contentType)
-                        prefs.edit().putString(stateKey, uploadUrl).apply()
-                        offset = 0L
-                    }
-                    if (offset > file.length()) throw e
-                } else {
-                    throw e
+            } catch (error: IOException) {
+                if (retry >= RETRY_DELAYS.size) throw error
+                val delayMs = RETRY_DELAYS[retry++]
+                if (delayMs > 0L) Thread.sleep(delayMs)
+
+                // The server may have accepted a chunk even if the response was
+                // lost. Always reconcile the authoritative offset before retrying.
+                offset = queryOffsetWithRetry(uploadUrl, accessToken, apiKey)
+                if (offset < 0L) {
+                    prefs.edit().remove(stateKey).apply()
+                    uploadUrl = createUpload(bucket, objectPath, file, accessToken, apiKey, contentType)
+                    prefs.edit().putString(stateKey, uploadUrl).apply()
+                    offset = 0L
                 }
+                if (offset > file.length()) throw error
             }
         }
         prefs.edit().remove(stateKey).apply()
     }
-
-    private val RETRY_DELAYS = longArrayOf(0L, 3000L, 5000L, 10000L, 20000L)
 
     private fun endpoint(): String {
         val base = BuildConfig.SUPABASE_URL.trimEnd('/')
@@ -92,28 +108,23 @@ internal object TusVideoUploader {
         ).joinToString(",") { (key, value) ->
             "$key ${Base64.encodeToString(value.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)}"
         }
-        val connection = (URL(endpoint()).openConnection() as HttpURLConnection).apply {
-            requestMethod = "POST"
-            connectTimeout = 20000
-            readTimeout = 30000
-            doOutput = true
-            setFixedLengthStreamingMode(0)
-            setRequestProperty("Tus-Resumable", TUS_VERSION)
-            setRequestProperty("Upload-Length", file.length().toString())
-            setRequestProperty("Upload-Metadata", metadata)
-            setRequestProperty("Authorization", "Bearer $token")
-            setRequestProperty("apikey", apiKey)
-        }
-        try {
-            val code = connection.responseCode
-            if (code != HttpURLConnection.HTTP_CREATED) {
-                throw IOException("Не удалось начать TUS-загрузку (HTTP $code): ${readError(connection)}")
+        val request = Request.Builder()
+            .url(endpoint())
+            .header("Tus-Resumable", TUS_VERSION)
+            .header("Upload-Length", file.length().toString())
+            .header("Upload-Metadata", metadata)
+            .header("Authorization", "Bearer $token")
+            .header("apikey", apiKey)
+            .post(ByteArray(0).toRequestBody())
+            .build()
+
+        httpClient.newCall(request).execute().use { response ->
+            if (response.code != 201) {
+                throw IOException("Не удалось начать TUS-загрузку (HTTP ${response.code}): ${response.body?.string()?.take(400) ?: response.message}")
             }
-            val location = connection.getHeaderField("Location")
+            val location = response.header("Location")
                 ?: throw IOException("Storage не вернул адрес TUS-загрузки.")
             return URI(endpoint()).resolve(location).toString()
-        } finally {
-            connection.disconnect()
         }
     }
 
@@ -131,22 +142,21 @@ internal object TusVideoUploader {
     }
 
     private fun queryOffset(uploadUrl: String, token: String, apiKey: String): Long {
-        val connection = (URL(uploadUrl).openConnection() as HttpURLConnection).apply {
-            requestMethod = "HEAD"
-            connectTimeout = 20000
-            readTimeout = 30000
-            setRequestProperty("Tus-Resumable", TUS_VERSION)
-            setRequestProperty("Authorization", "Bearer $token")
-            setRequestProperty("apikey", apiKey)
-        }
-        try {
-            val code = connection.responseCode
-            if (code == HttpURLConnection.HTTP_NOT_FOUND || code == 410) return -1L
-            if (code !in 200..299) throw IOException("Не удалось проверить продолжение загрузки (HTTP $code).")
-            return connection.getHeaderField("Upload-Offset")?.toLongOrNull()
+        val request = Request.Builder()
+            .url(uploadUrl)
+            .header("Tus-Resumable", TUS_VERSION)
+            .header("Authorization", "Bearer $token")
+            .header("apikey", apiKey)
+            .head()
+            .build()
+
+        httpClient.newCall(request).execute().use { response ->
+            if (response.code == 404 || response.code == 410) return -1L
+            if (!response.isSuccessful) {
+                throw IOException("Не удалось проверить продолжение загрузки (HTTP ${response.code}).")
+            }
+            return response.header("Upload-Offset")?.toLongOrNull()
                 ?: throw IOException("Storage не вернул Upload-Offset.")
-        } finally {
-            connection.disconnect()
         }
     }
 
@@ -164,37 +174,23 @@ internal object TusVideoUploader {
             input.readFully(chunk)
         }
 
-        val connection = (URL(uploadUrl).openConnection() as HttpURLConnection).apply {
-            requestMethod = "PATCH"
-            connectTimeout = 20000
-            readTimeout = 60000
-            doOutput = true
-            setFixedLengthStreamingMode(count)
-            setRequestProperty("Tus-Resumable", TUS_VERSION)
-            setRequestProperty("Upload-Offset", offset.toString())
-            setRequestProperty("Content-Type", "application/offset+octet-stream")
-            setRequestProperty("Authorization", "Bearer $token")
-            setRequestProperty("apikey", apiKey)
-        }
-        try {
-            connection.outputStream.use { it.write(chunk) }
-            val code = connection.responseCode
-            if (code != HttpURLConnection.HTTP_NO_CONTENT) {
-                throw IOException("Ошибка передачи фрагмента видео (HTTP $code): ${readError(connection)}")
+        val request = Request.Builder()
+            .url(uploadUrl)
+            .header("Tus-Resumable", TUS_VERSION)
+            .header("Upload-Offset", offset.toString())
+            .header("Authorization", "Bearer $token")
+            .header("apikey", apiKey)
+            .patch(chunk.toRequestBody("application/offset+octet-stream".toMediaType()))
+            .build()
+
+        httpClient.newCall(request).execute().use { response ->
+            if (response.code != 204) {
+                throw IOException("Ошибка передачи фрагмента видео (HTTP ${response.code}): ${response.body?.string()?.take(400) ?: response.message}")
             }
-            val nextOffset = connection.getHeaderField("Upload-Offset")?.toLongOrNull()
+            val nextOffset = response.header("Upload-Offset")?.toLongOrNull()
             if (nextOffset != offset + count) {
                 throw IOException("Storage подтвердил неверную позицию фрагмента.")
             }
-        } finally {
-            connection.disconnect()
         }
     }
-
-    private fun readError(connection: HttpURLConnection): String =
-        try {
-            (connection.errorStream ?: connection.inputStream).bufferedReader().use { it.readText().take(400) }
-        } catch (_: Exception) {
-            connection.responseMessage ?: "неизвестная ошибка"
-        }
 }
