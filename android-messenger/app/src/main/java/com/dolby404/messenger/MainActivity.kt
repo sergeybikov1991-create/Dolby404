@@ -3101,64 +3101,70 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 }
             }
 
-            val channel = floustreamClient.channel("direct-chat:$currentUserId:${peer.id}")
-            // Keep the subscription compatible with Supabase Kotlin 3.5.0.
-            // Row-level security restricts events to rows visible to this account.
-            val messageChanges = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
-                table = "direct_messages"
-            }
-            val reactionChanges = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
-                table = "direct_message_reactions"
-            }
-            val messageCollector = launch {
-                try {
-                    messageChanges.collect { if (isResumed) refresh(silent = true) }
-                } catch (e: Exception) {
-                    if (e is kotlinx.coroutines.CancellationException) throw e
+            // Recreate the channel after transient socket failures instead of
+            // remaining in polling mode until the user leaves and reopens the chat.
+            var reconnectDelayMs = 5_000L
+            while (isResumed) {
+                val channel = floustreamClient.channel("direct-chat:$currentUserId:${peer.id}")
+                val messageChanges = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
+                    table = "direct_messages"
                 }
-            }
-            val reactionCollector = launch {
-                try {
-                    reactionChanges.collect { if (isResumed) refresh(silent = true) }
-                } catch (e: Exception) {
-                    if (e is kotlinx.coroutines.CancellationException) throw e
+                val reactionChanges = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
+                    table = "direct_message_reactions"
                 }
-            }
-
-            try {
-                val accessToken = floustreamClient.auth.currentSessionOrNull()?.accessToken
-                    ?: throw IllegalStateException("Нет активной сессии для синхронизации.")
-                floustreamClient.realtime.setAuth(accessToken)
-                floustreamClient.realtime.connect()
-                // Wait for the server to confirm the subscription before treating Realtime as active.
-                channel.subscribe(blockUntilSubscribed = true)
-
-                // Monitor collectors frequently so a silently-ended Flow switches to polling.
-                // Keep a slower safety refresh in case the socket misses an event.
-                var safetySyncElapsed = 0
-                while (isResumed) {
-                    delay(5_000)
-                    if (messageCollector.isCompleted || reactionCollector.isCompleted) {
-                        throw IllegalStateException("Realtime change stream stopped.")
+                val messageCollector = launch {
+                    try {
+                        messageChanges.collect { if (isResumed) refresh(silent = true) }
+                    } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
                     }
-                    safetySyncElapsed += 5
-                    if (safetySyncElapsed >= 30) {
+                }
+                val reactionCollector = launch {
+                    try {
+                        reactionChanges.collect { if (isResumed) refresh(silent = true) }
+                    } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
+                    }
+                }
+
+                try {
+                    val accessToken = floustreamClient.auth.currentSessionOrNull()?.accessToken
+                        ?: throw IllegalStateException("Нет активной сессии для синхронизации.")
+                    floustreamClient.realtime.setAuth(accessToken)
+                    floustreamClient.realtime.connect()
+                    // Wait for the server to confirm the subscription before treating Realtime as active.
+                    channel.subscribe(blockUntilSubscribed = true)
+                    reconnectDelayMs = 5_000L
+
+                    // Periodic safety refresh covers events missed during short socket interruptions.
+                    var safetySyncElapsed = 0
+                    while (isResumed) {
+                        delay(5_000)
+                        if (messageCollector.isCompleted || reactionCollector.isCompleted) {
+                            throw IllegalStateException("Realtime change stream stopped.")
+                        }
+                        safetySyncElapsed += 5
+                        if (safetySyncElapsed >= 30) {
+                            if (isResumed) refresh(silent = true)
+                            safetySyncElapsed = 0
+                        }
+                    }
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    // Keep messages current while waiting, then try to establish Realtime again.
+                    var waitedMs = 0L
+                    while (isResumed && waitedMs < reconnectDelayMs) {
+                        delay(5_000)
+                        waitedMs += 5_000
                         if (isResumed) refresh(silent = true)
-                        safetySyncElapsed = 0
                     }
+                    reconnectDelayMs = (reconnectDelayMs * 2).coerceAtMost(30_000L)
+                } finally {
+                    messageCollector.cancel()
+                    reactionCollector.cancel()
+                    try { floustreamClient.realtime.removeChannel(channel) } catch (_: Exception) { }
                 }
-            } catch (cancelled: kotlinx.coroutines.CancellationException) {
-                throw cancelled
-            } catch (_: Exception) {
-                // If Realtime is unavailable or its stream stops, keep the chat usable with polling.
-                while (isResumed) {
-                    delay(5_000)
-                    if (isResumed) refresh(silent = true)
-                }
-            } finally {
-                messageCollector.cancel()
-                reactionCollector.cancel()
-                try { floustreamClient.realtime.removeChannel(channel) } catch (_: Exception) { }
             }
         }
     }
