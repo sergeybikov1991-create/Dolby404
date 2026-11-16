@@ -308,25 +308,28 @@ internal fun RoundVideoRecorder(
                             Modifier.pointerInput(cameraReady, finalizing, recordingActive) {
                                 awaitEachGesture {
                                     if (!cameraReady || finalizing || recordingActive) return@awaitEachGesture
+                                    // A round video is a press-and-hold gesture: begin on DOWN.
+                                    // Waiting for a long-press timeout can consume the UP event
+                                    // on slower devices, leaving the preview open without ever
+                                    // calling RootEncoder.startRecord().
                                     val down = awaitFirstDown(requireUnconsumed = false)
+                                    if (!startRecording()) return@awaitEachGesture
                                     var cancel = false
-                                    val heldLongEnough = withTimeoutOrNull(350L) {
-                                        while (true) {
-                                            val event = awaitPointerEvent()
-                                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                                            if (!change.pressed) break
-                                            if (change.position.x < down.position.x - 70.dp.toPx()) { cancel = true; break }
-                                        }
-                                        false
-                                    } ?: true
-                                    if (!heldLongEnough || cancel || !startRecording()) return@awaitEachGesture
-                                    while (true) {
+                                    var finished = false
+                                    while (!finished) {
                                         val event = awaitPointerEvent()
-                                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                                        if (change.position.x < down.position.x - 70.dp.toPx()) cancel = true
-                                        if (!change.pressed) break
+                                        val change = event.changes.firstOrNull { it.id == down.id }
+                                        if (change == null) {
+                                            stopRecording(send = false)
+                                            finished = true
+                                        } else {
+                                            if (change.position.x < down.position.x - 70.dp.toPx()) cancel = true
+                                            if (!change.pressed) {
+                                                stopRecording(send = !cancel)
+                                                finished = true
+                                            }
+                                        }
                                     }
-                                    stopRecording(send = !cancel)
                                 }
                             }
                         }
