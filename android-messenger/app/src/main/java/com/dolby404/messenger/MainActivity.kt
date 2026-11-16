@@ -89,6 +89,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.abs
 import kotlin.time.Duration.Companion.minutes
 import coil.compose.AsyncImage
@@ -2540,6 +2541,23 @@ private fun ActionTile(icon: String, label: String, modifier: Modifier = Modifie
     }
 }
 
+private object MessageMediaUrlCache {
+    private data class Entry(val url: String, val expiresAtMillis: Long)
+    private val entries = ConcurrentHashMap<String, Entry>()
+
+    suspend fun get(path: String): String {
+        val now = System.currentTimeMillis()
+        entries[path]?.takeIf { it.expiresAtMillis > now }?.let { return it.url }
+        val url = floustreamClient.storage.from("message-media").createSignedUrl(path, 30.minutes)
+        entries[path] = Entry(url, now + 29L * 60L * 1000L)
+        return url
+    }
+
+    fun invalidate(path: String) {
+        entries.remove(path)
+    }
+}
+
 @Composable
 private fun MessageAttachment(message: DirectMessageDto) {
     val context = LocalContext.current
@@ -2553,7 +2571,8 @@ private fun MessageAttachment(message: DirectMessageDto) {
         signedUrl = null
         loadError = false
         try {
-            signedUrl = floustreamClient.storage.from("message-media").createSignedUrl(path, 30.minutes)
+            if (urlRefreshAttempt > 0) MessageMediaUrlCache.invalidate(path)
+            signedUrl = MessageMediaUrlCache.get(path)
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             loadError = true
@@ -2564,6 +2583,31 @@ private fun MessageAttachment(message: DirectMessageDto) {
     var imageLoadError by remember(path) { mutableStateOf(false) }
     val url = signedUrl
     when {
+        mime.startsWith("audio/") && url == null && !loadError -> Box(
+            Modifier.fillMaxWidth().height(64.dp),
+            contentAlignment = Alignment.Center
+        ) { CircularProgressIndicator(color = Blue) }
+        mime.startsWith("audio/") && loadError -> Row(
+            Modifier.fillMaxWidth().height(64.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Text("Не удалось загрузить аудио", color = Muted, fontSize = 11.sp)
+            TextButton(onClick = { urlRefreshAttempt++ }) { Text("Повторить", color = Blue) }
+        }
+        mime.startsWith("video/") && url == null && !loadError -> Box(
+            Modifier.size(190.dp).clip(CircleShape).background(Color.Black),
+            contentAlignment = Alignment.Center
+        ) { CircularProgressIndicator(color = Blue) }
+        mime.startsWith("video/") && loadError -> Box(
+            Modifier.size(190.dp).clip(CircleShape).background(Color.Black),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("Видео недоступно", color = White, fontSize = 11.sp)
+                TextButton(onClick = { urlRefreshAttempt++ }) { Text("Повторить", color = Blue) }
+            }
+        }
         mime.startsWith("image/") && url == null && !loadError -> Box(
             Modifier.fillMaxWidth().height(220.dp),
             contentAlignment = Alignment.Center
