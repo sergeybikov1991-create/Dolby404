@@ -1,6 +1,5 @@
 package com.dolby404.messenger
 
-import android.util.Log
 
 import android.os.Bundle
 import android.net.Uri
