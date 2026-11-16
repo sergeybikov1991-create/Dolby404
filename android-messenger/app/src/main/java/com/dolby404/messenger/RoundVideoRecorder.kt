@@ -64,7 +64,6 @@ internal fun RoundVideoRecorder(
     val latestOnRecordingFinishing = rememberUpdatedState(onRecordingFinishing)
     val latestOnRecorded = rememberUpdatedState(onRecorded)
     val latestOnError = rememberUpdatedState(onError)
-    val latestFinalizing = rememberUpdatedState(finalizing)
 
     var hasPermissions by remember {
         mutableStateOf(
@@ -77,6 +76,7 @@ internal fun RoundVideoRecorder(
     var finalizing by remember { mutableStateOf(false) }
     var elapsedSeconds by remember { mutableIntStateOf(0) }
     var startedAt by remember { mutableLongStateOf(0L) }
+    val latestFinalizing = rememberUpdatedState(finalizing)
     var previewView by remember { mutableStateOf<TextureView?>(null) }
 
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
