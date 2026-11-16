@@ -86,6 +86,10 @@ internal fun RoundVideoRecorder(
     }
 
     val shouldSend = remember { AtomicBoolean(false) }
+    // A very short press can be released before RootEncoder reports RECORDING.
+    // Queue the round-video stop until the encoder confirms that recording began.
+    val pendingRoundStop = remember { AtomicBoolean(false) }
+    val pendingRoundSend = remember { AtomicBoolean(false) }
     val disposed = remember { AtomicBoolean(false) }
     val recordingFile = remember { mutableStateOf<File?>(null) }
     val cameraSource = remember(context) { Camera2Source(context) }
@@ -104,7 +108,14 @@ internal fun RoundVideoRecorder(
     }
 
     fun stopRecording(send: Boolean) {
-        if (!stream.isRecording) return
+        if (!stream.isRecording) {
+            if (mode == VideoCaptureMode.ROUND_FRONT && recordingFile.value != null) {
+                pendingRoundSend.set(send)
+                pendingRoundStop.set(true)
+            }
+            return
+        }
+        pendingRoundStop.set(false)
         shouldSend.set(send)
         finalizing = true
         if (send) recordingFile.value?.let { file -> latestOnRecordingFinishing.value(file) }
@@ -169,8 +180,13 @@ internal fun RoundVideoRecorder(
                         startedAt = System.currentTimeMillis()
                         elapsedSeconds = 0
                         recordingActive = true
+                        if (mode == VideoCaptureMode.ROUND_FRONT && pendingRoundStop.getAndSet(false)) {
+                            stopRecording(send = pendingRoundSend.get())
+                        }
                     }
                     RecordController.Status.STOPPED -> {
+                        pendingRoundStop.set(false)
+                        pendingRoundSend.set(false)
                         recordingActive = false
                         startedAt = 0L
                         elapsedSeconds = 0
