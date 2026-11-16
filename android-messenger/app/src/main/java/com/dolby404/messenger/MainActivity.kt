@@ -278,7 +278,8 @@ private data class DirectMessageDto(
     @SerialName("attachment_path") val attachmentPath: String? = null,
     @SerialName("attachment_name") val attachmentName: String? = null,
     @SerialName("attachment_mime") val attachmentMime: String? = null,
-    @SerialName("reply_to_message_id") val replyToMessageId: String? = null
+    @SerialName("reply_to_message_id") val replyToMessageId: String? = null,
+    @SerialName("edited_at") val editedAt: String? = null
 )
 
 private data class ChatThread(
@@ -598,6 +599,35 @@ private suspend fun sendDirectMessage(userId: String, peerId: String, content: S
     floustreamClient.from("direct_messages").insert(
         NewDirectMessage(senderId = userId, recipientId = peerId, content = content, replyToMessageId = replyToMessageId)
     )
+}
+
+private suspend fun editDirectMessage(userId: String, messageId: String, content: String) = withContext(Dispatchers.IO) {
+    val token = floustreamClient.auth.currentSessionOrNull()?.accessToken
+        ?: throw IllegalStateException("Сессия истекла. Войди в аккаунт ещё раз.")
+    val encodedId = URLEncoder.encode(messageId, "UTF-8")
+    val connection = URL("${BuildConfig.SUPABASE_URL}/rest/v1/direct_messages?id=eq.$encodedId&sender_id=eq.$userId")
+        .openConnection() as HttpURLConnection
+    try {
+        val formatter = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US).apply {
+            timeZone = java.util.TimeZone.getTimeZone("UTC")
+        }
+        val body = JSONObject().put("content", content.trim()).put("edited_at", formatter.format(java.util.Date())).toString()
+        connection.requestMethod = "PATCH"
+        connection.doOutput = true
+        connection.connectTimeout = 10000
+        connection.readTimeout = 10000
+        connection.setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+        connection.setRequestProperty("Authorization", "Bearer $token")
+        connection.setRequestProperty("Content-Type", "application/json")
+        connection.setRequestProperty("Prefer", "return=representation")
+        connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+        val responseCode = connection.responseCode
+        if (responseCode !in 200..299) throw IllegalStateException("Не удалось изменить сообщение.")
+        val updated = JSONArray(connection.inputStream.bufferedReader().use { it.readText() })
+        if (updated.length() == 0) throw IllegalStateException("Сообщение не изменено: проверь права доступа.")
+    } finally {
+        connection.disconnect()
+    }
 }
 
 private suspend fun hideDirectMessage(userId: String, messageId: String) {
@@ -2477,6 +2507,9 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     var pendingDeleteMessage by remember { mutableStateOf<DirectMessageDto?>(null) }
     var pendingMessageActions by remember { mutableStateOf<DirectMessageDto?>(null) }
     var replyToMessage by remember { mutableStateOf<DirectMessageDto?>(null) }
+    var editingMessage by remember { mutableStateOf<DirectMessageDto?>(null) }
+    var editDraft by remember { mutableStateOf("") }
+    var savingEdit by remember { mutableStateOf(false) }
     var deletingMessage by remember { mutableStateOf(false) }
     var voiceRecordingStartedAt by remember { mutableLongStateOf(0L) }
     var voiceElapsedSeconds by remember { mutableIntStateOf(0) }
@@ -2750,6 +2783,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                                         Text(msg.content, color = White, fontSize = 13.sp)
                                     }
                                 } else Text(msg.content, color = White, fontSize = 14.sp)
+                                if (msg.editedAt != null) Text("изменено", color = Color(0xFFB4C7E5), fontSize = 9.sp)
                                 Text(
                                     msg.createdAt.substringAfter("T").take(5),
                                     Modifier.align(Alignment.End),
@@ -3002,6 +3036,11 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                             ) { Text(emoji, fontSize = 20.sp) }
                         }
                     }
+                    if (target.senderId == currentUserId && target.attachmentPath.isNullOrBlank()) TextButton(onClick = {
+                        editDraft = target.content
+                        editingMessage = target
+                        pendingMessageActions = null
+                    }) { Text("Изменить", color = White) }
                     TextButton(onClick = {
                         replyToMessage = target
                         pendingMessageActions = null
@@ -3013,6 +3052,52 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 }
             },
             confirmButton = { TextButton(onClick = { pendingMessageActions = null }) { Text("Закрыть", color = White) } }
+        )
+    }
+
+    if (editingMessage != null) {
+        AlertDialog(
+            onDismissRequest = { if (!savingEdit) editingMessage = null },
+            containerColor = Panel,
+            title = { Text("Изменить сообщение", color = White) },
+            text = {
+                OutlinedTextField(
+                    value = editDraft,
+                    onValueChange = { editDraft = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    maxLines = 6,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = White,
+                        unfocusedTextColor = White,
+                        focusedBorderColor = Blue,
+                        unfocusedBorderColor = Muted,
+                        cursorColor = Blue
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !savingEdit && editDraft.isNotBlank() && editDraft.trim() != editingMessage?.content,
+                    onClick = {
+                        val target = editingMessage ?: return@TextButton
+                        scope.launch {
+                            savingEdit = true
+                            try {
+                                editDirectMessage(currentUserId, target.id, editDraft)
+                                refresh(silent = true)
+                                editingMessage = null
+                            } catch (e: Exception) {
+                                errorText = e.message ?: "Не удалось изменить сообщение."
+                            } finally {
+                                savingEdit = false
+                            }
+                        }
+                    }
+                ) { Text(if (savingEdit) "Сохраняем…" else "Сохранить", color = White) }
+            },
+            dismissButton = {
+                TextButton(enabled = !savingEdit, onClick = { editingMessage = null }) { Text("Отмена", color = White) }
+            }
         )
     }
 
