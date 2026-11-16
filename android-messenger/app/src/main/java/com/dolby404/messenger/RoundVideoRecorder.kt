@@ -40,6 +40,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -201,7 +203,7 @@ internal fun RoundVideoRecorder(
                         is VideoRecordEvent.Finalize -> {
                             RoundVideoDiagnostics.record(
                                 context,
-                                "CameraX Finalize; error=${event.error}; fileExists=${file.exists()}; bytes=${file.length()}; shouldSend=${shouldSend.get()}; disposed=${disposed.get()}",
+                                "CameraX Finalize; error=${event.error}; errorName=${if (event.error == 8) "ERROR_NO_VALID_DATA" else "OTHER"}; cause=${event.cause?.javaClass?.name}:${event.cause?.message}; fileExists=${file.exists()}; bytes=${file.length()}; shouldSend=${shouldSend.get()}; disposed=${disposed.get()}",
                                 event.cause
                             )
                             recordingRef.set(null)
@@ -221,7 +223,11 @@ internal fun RoundVideoRecorder(
                                     file.delete()
                                     if (shouldSend.get() && !disposed.get()) {
                                         latestOnError.value(
-                                            "Камера не смогла завершить видеозапись (код ${event.error}). Попробуй ещё раз."
+                                            if (event.error == 8) {
+                                                "Камера не получила видеоданные (ERROR_NO_VALID_DATA). Подержи кнопку чуть дольше и попробуй ещё раз."
+                                            } else {
+                                                "Камера не смогла завершить видеозапись (код ${event.error}). Попробуй ещё раз."
+                                            }
                                         )
                                     }
                                 }
@@ -267,22 +273,34 @@ internal fun RoundVideoRecorder(
         if (!recordingActive) elapsedSeconds = 0
     }
 
-    DisposableEffect(Unit) {
+    DisposableEffect(lifecycleOwner) {
+        // Stop safely if Android backgrounds the Activity during a recording.
+        val lifecycleObserver = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_PAUSE) {
+                RoundVideoDiagnostics.record(context, "Activity ON_PAUSE; requesting safe recording stop")
+                stopRecording(send = false)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(lifecycleObserver)
+
         onDispose {
+            lifecycleOwner.lifecycle.removeObserver(lifecycleObserver)
             disposed.set(true)
             shouldSend.set(false)
 
-            // stop() is asynchronous: CameraX still needs its camera/encoder session
-            // to emit Finalize and close the MP4 container. Unbinding immediately here
-            // can interrupt that work and produce a failed or truncated recording.
+            // stop() is asynchronous. Use the same atomic guard as the normal stop path
+            // so ON_PAUSE, Cancel and disposal cannot stop the same Recording twice.
             val active = recordingRef.get()
             if (active != null) {
-                try {
-                    active.stop()
-                    // The Finalize callback above performs unbindAll after the file closes.
-                } catch (_: Exception) {
-                    recordingRef.compareAndSet(active, null)
-                    providerRef.getAndSet(null)?.unbindAll()
+                if (stopIssued.compareAndSet(false, true)) {
+                    try {
+                        active.stop()
+                        // Finalize performs unbindAll after the MP4 is closed.
+                    } catch (error: Exception) {
+                        RoundVideoDiagnostics.record(context, "stop during disposal failed", error)
+                        recordingRef.compareAndSet(active, null)
+                        providerRef.getAndSet(null)?.unbindAll()
+                    }
                 }
             } else {
                 providerRef.getAndSet(null)?.unbindAll()
