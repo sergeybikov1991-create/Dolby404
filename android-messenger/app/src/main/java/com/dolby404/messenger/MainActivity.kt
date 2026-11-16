@@ -2604,7 +2604,8 @@ private fun MessageAttachment(message: DirectMessageDto) {
             TextButton(onClick = { urlRefreshAttempt++ }) { Text("Повторить", color = Blue) }
         }
         mime.startsWith("video/") && url == null && !loadError -> Box(
-            Modifier.size(190.dp).clip(CircleShape).background(Color.Black),
+            Modifier.size(if (isRound) 190.dp else 250.dp, if (isRound) 190.dp else 150.dp)
+            .clip(if (isRound) CircleShape else RoundedCornerShape(18.dp)).background(Color.Black),
             contentAlignment = Alignment.Center
         ) { CircularProgressIndicator(color = Blue) }
         mime.startsWith("video/") && loadError -> Box(
@@ -2640,7 +2641,10 @@ private fun MessageAttachment(message: DirectMessageDto) {
             onError = { imageLoadError = true }
         )
         mime.startsWith("audio/") -> AudioMessagePlayer(url!!) { urlRefreshAttempt++ }
-        mime.startsWith("video/") -> VideoMessagePlayer(url!!) { urlRefreshAttempt++ }
+        mime.startsWith("video/") -> VideoMessagePlayer(
+            url!!,
+            isRound = !message.attachmentName.orEmpty().startsWith("normal_")
+        ) { urlRefreshAttempt++ }
         else -> Row(
             Modifier.fillMaxWidth().clickable {
                 try {
@@ -2687,7 +2691,7 @@ private fun MessageAttachment(message: DirectMessageDto) {
 }
 
 @Composable
-private fun VideoMessagePlayer(url: String, onRetry: () -> Unit) {
+private fun VideoMessagePlayer(url: String, isRound: Boolean = true, onRetry: () -> Unit) {
     val context = LocalContext.current
     val player = remember(url) {
         ExoPlayer.Builder(context).build().apply {
@@ -3192,7 +3196,8 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 RoundVideoDiagnostics.record(context, "video sender callback reached; persistentFile=${file.name}; exists=${file.exists()}; bytes=${file.length()}")
                 if (!file.exists() || file.length() < 1500L) error("Файл видеосообщения не сохранился.")
                 if (file.length() > 50L * 1024L * 1024L) error("Видео превышает лимит отправки 50 МБ. Файл сохранён в памяти приложения.")
-                val name = "video_" + System.currentTimeMillis() + ".mp4"
+                val name = (if (videoCaptureMode == VideoCaptureMode.ROUND_FRONT) "round_" else "normal_") +
+                    "video_" + System.currentTimeMillis() + ".mp4"
                 val path = currentUserId + "/" + UUID.randomUUID().toString() + "_" + name
                 RoundVideoDiagnostics.record(context, "resumable video upload starting; bytes=${file.length()}")
                 val videoUpload = floustreamClient.storage.from("message-media")
@@ -3703,7 +3708,10 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                             Modifier.widthIn(max = 290.dp).background(Color(0xFF254D91), RoundedCornerShape(12.dp)).padding(9.dp),
                             horizontalAlignment = Alignment.End
                         ) {
-                            VideoMessagePlayer(localFile.toURI().toString()) { }
+                            VideoMessagePlayer(
+                                localFile.toURI().toString(),
+                                isRound = videoCaptureMode == VideoCaptureMode.ROUND_FRONT
+                            ) { }
                             Spacer(Modifier.height(5.dp))
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 if (videoUploadInProgress) CircularProgressIndicator(Modifier.size(12.dp), color = White, strokeWidth = 1.5.dp)
