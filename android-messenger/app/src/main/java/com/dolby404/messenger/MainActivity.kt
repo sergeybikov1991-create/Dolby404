@@ -2961,12 +2961,20 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             val insertedMessages = refreshedMessages.count { incoming ->
                 messages.none { it.id == incoming.id }
             }
-            // Publish the refreshed conversation as one Compose snapshot. Mutating
-            // the backing list item-by-item exposed partial states to LazyColumn,
-            // which caused rows and media to jump while Realtime refreshes ran.
+            // Publish all message updates and insertions as one Compose snapshot.
+            // LazyColumn must never observe a half-merged conversation during Realtime refresh.
             Snapshot.withMutableSnapshot {
-                messages.clear()
-                messages.addAll(merged)
+                refreshedMessages.forEach { incoming ->
+                    val existingIndex = messages.indexOfFirst { it.id == incoming.id }
+                    if (existingIndex >= 0) {
+                        if (messages[existingIndex] != incoming) messages[existingIndex] = incoming
+                    } else {
+                        val insertAt = messages.indexOfFirst { existing ->
+                            compareValuesBy(incoming, existing, { it.createdAt }, { it.id }) < 0
+                        }
+                        if (insertAt >= 0) messages.add(insertAt, incoming) else messages.add(incoming)
+                    }
+                }
             }
             if (wasAtBottom && insertedMessages > 0) {
                 delay(50L)
