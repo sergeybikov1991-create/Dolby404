@@ -5,6 +5,8 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Handler
+import android.os.Looper
 import android.view.SurfaceView
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -142,6 +144,7 @@ internal fun RoundVideoRecorder(
             RoundVideoDiagnostics.record(context, "RootEncoder startRecord; cache MP4")
             stream.startRecord(file.absolutePath) { status ->
                 RoundVideoDiagnostics.record(context, "RootEncoder record status=$status; bytes=${file.length()}")
+                Handler(Looper.getMainLooper()).post {
                 when (status) {
                     RecordController.Status.RECORDING -> {
                         startedAt = System.currentTimeMillis()
@@ -169,6 +172,7 @@ internal fun RoundVideoRecorder(
                         }
                     }
                     else -> Unit
+                }
                 }
             }
             true
