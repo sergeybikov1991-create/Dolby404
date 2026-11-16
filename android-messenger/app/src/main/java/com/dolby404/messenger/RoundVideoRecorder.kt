@@ -12,10 +12,12 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -46,9 +48,12 @@ import java.io.File
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 
-/** Round video capture using RootEncoder + Camera2Source + MediaCodec. CameraX is not used. */
+internal enum class VideoCaptureMode { ROUND_FRONT, NORMAL_SWITCHABLE }
+
+/** Video capture using RootEncoder + Camera2Source + MediaCodec. CameraX is not used. */
 @Composable
 internal fun RoundVideoRecorder(
+    mode: VideoCaptureMode,
     onDismiss: () -> Unit,
     onRecorded: (File) -> Unit,
     onError: (String) -> Unit
@@ -122,7 +127,11 @@ internal fun RoundVideoRecorder(
         val view = previewView ?: return@LaunchedEffect
         if (!hasPermissions) return@LaunchedEffect
         try {
-            RoundVideoDiagnostics.record(context, "RootEncoder prepare; Camera2Source default camera; 640x480; rotation=90")
+            if (mode == VideoCaptureMode.ROUND_FRONT) {
+                runCatching { cameraSource.switchCamera() }
+                    .onFailure { RoundVideoDiagnostics.record(context, "Front camera selection failed", it) }
+            }
+            RoundVideoDiagnostics.record(context, "RootEncoder prepare; mode=$mode; 640x480; rotation=90")
             val videoPrepared = stream.prepareVideo(640, 480, 700_000, fps = 24, rotation = 90)
             val audioPrepared = stream.prepareAudio(32_000, true, 96_000)
             if (!videoPrepared || !audioPrepared) throw IllegalStateException("RootEncoder не смог подготовить видео- или аудиокодек.")
@@ -138,11 +147,16 @@ internal fun RoundVideoRecorder(
 
     fun startRecording(): Boolean {
         if (!cameraReady || stream.isRecording || finalizing || disposed.get()) return false
-        val file = File(context.cacheDir, "round_root_${UUID.randomUUID()}.mp4")
+        val draftsDir = File(context.filesDir, "video-drafts")
+        if (!draftsDir.exists() && !draftsDir.mkdirs()) {
+            latestOnError.value("Не удалось создать папку для сохранения видеозаписи.")
+            return false
+        }
+        val file = File(draftsDir, "video_${UUID.randomUUID()}.mp4")
         recordingFile.value = file
         shouldSend.set(false)
         return try {
-            RoundVideoDiagnostics.record(context, "RootEncoder startRecord; cache MP4")
+            RoundVideoDiagnostics.record(context, "RootEncoder startRecord; persistent filesDir MP4; mode=$mode")
             stream.startRecord(file.absolutePath) { status ->
                 RoundVideoDiagnostics.record(context, "RootEncoder record status=$status; bytes=${file.length()}")
                 Handler(Looper.getMainLooper()).post {
@@ -160,9 +174,8 @@ internal fun RoundVideoRecorder(
                         recordingFile.value = null
                         when {
                             shouldSend.get() && !disposed.get() && file.isFile && file.length() > 1500L -> {
-                                if (file.length() > 18L * 1024L * 1024L) {
-                                    file.delete()
-                                    latestOnError.value("Видео превышает временный лимит 18 МБ.")
+                                if (file.length() > 50L * 1024L * 1024L) {
+                                    latestOnError.value("Видео превышает лимит отправки 50 МБ. Файл сохранён в памяти приложения.")
                                 } else latestOnRecorded.value(file)
                             }
                             shouldSend.get() && !disposed.get() -> {
@@ -234,14 +247,17 @@ internal fun RoundVideoRecorder(
         ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = { stopRecording(false); onDismiss() }) { Text("Отмена", color = Color.White) }
-                Text("Видеосообщение", color = Color.White, fontSize = 17.sp)
-                TextButton(enabled = cameraReady && !recordingActive && !finalizing, onClick = {
-                    try { cameraSource.switchCamera(); RoundVideoDiagnostics.record(context, "RootEncoder camera switch requested while preview active") }
-                    catch (error: Exception) { RoundVideoDiagnostics.record(context, "RootEncoder camera switch failed", error); latestOnError.value(error.message ?: "Не удалось переключить камеру.") }
-                }) { Text("↻", color = Color.White, fontSize = 22.sp) }
+                Text(if (mode == VideoCaptureMode.ROUND_FRONT) "Видеокружок" else "Обычное видео", color = Color.White, fontSize = 17.sp)
+                if (mode == VideoCaptureMode.NORMAL_SWITCHABLE) {
+                    TextButton(enabled = cameraReady && !recordingActive && !finalizing, onClick = {
+                        try { cameraSource.switchCamera(); RoundVideoDiagnostics.record(context, "RootEncoder camera switch requested while preview active") }
+                        catch (error: Exception) { RoundVideoDiagnostics.record(context, "RootEncoder camera switch failed", error); latestOnError.value(error.message ?: "Не удалось переключить камеру.") }
+                    }) { Text("↻", color = Color.White, fontSize = 22.sp) }
+                } else Spacer(Modifier.width(48.dp))
             }
             Spacer(Modifier.height(24.dp))
-            Box(Modifier.size(280.dp).clip(CircleShape).background(Color.Black), contentAlignment = Alignment.Center) {
+            val previewShape = if (mode == VideoCaptureMode.ROUND_FRONT) CircleShape else RoundedCornerShape(22.dp)
+            Box(Modifier.size(280.dp).clip(previewShape).background(Color.Black), contentAlignment = Alignment.Center) {
                 AndroidView(factory = { TextureView(it).also { view -> previewView = view } }, modifier = Modifier.fillMaxSize())
                 if (!cameraReady) CircularProgressIndicator(color = Color.White)
             }
@@ -249,8 +265,10 @@ internal fun RoundVideoRecorder(
             Text(
                 when {
                     finalizing -> "Сохраняем видео…"
-                    recordingActive -> "● Запись 0:${String.format("%02d", elapsedSeconds)} — отпусти для отправки"
-                    else -> "Удерживай кнопку · свайп влево отменяет"
+                    recordingActive && mode == VideoCaptureMode.ROUND_FRONT -> "● Запись 0:${String.format("%02d", elapsedSeconds)} — отпусти для отправки"
+                    recordingActive -> "● Идёт запись обычного видео — нажми ■ для завершения"
+                    mode == VideoCaptureMode.ROUND_FRONT -> "Удерживай кнопку · свайп влево отменяет"
+                    else -> "Нажми ● чтобы начать запись · затем ■ для завершения"
                 },
                 color = Color(0xFFB7C4DA), fontSize = 12.sp
             )
@@ -264,30 +282,38 @@ internal fun RoundVideoRecorder(
             Spacer(Modifier.height(8.dp))
             Box(
                 Modifier.size(78.dp).clip(CircleShape).background(if (recordingActive) Color(0xFF9A65FF) else Color(0xFF548BFF))
-                    .pointerInput(cameraReady, finalizing, recordingActive) {
-                        awaitEachGesture {
-                            if (!cameraReady || finalizing || recordingActive) return@awaitEachGesture
-                            val down = awaitFirstDown(requireUnconsumed = false)
-                            var cancel = false
-                            val heldLongEnough = withTimeoutOrNull(350L) {
-                                while (true) {
-                                    val event = awaitPointerEvent()
-                                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                                    if (!change.pressed) break
-                                    if (change.position.x < down.position.x - 70.dp.toPx()) { cancel = true; break }
-                                }
-                                false
-                            } ?: true
-                            if (!heldLongEnough || cancel || !startRecording()) return@awaitEachGesture
-                            while (true) {
-                                val event = awaitPointerEvent()
-                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                                if (change.position.x < down.position.x - 70.dp.toPx()) cancel = true
-                                if (!change.pressed) break
+                    .then(
+                        if (mode == VideoCaptureMode.NORMAL_SWITCHABLE) {
+                            Modifier.clickable(enabled = cameraReady && !finalizing) {
+                                if (recordingActive) stopRecording(send = true) else startRecording()
                             }
-                            stopRecording(send = !cancel)
+                        } else {
+                            Modifier.pointerInput(cameraReady, finalizing, recordingActive) {
+                                awaitEachGesture {
+                                    if (!cameraReady || finalizing || recordingActive) return@awaitEachGesture
+                                    val down = awaitFirstDown(requireUnconsumed = false)
+                                    var cancel = false
+                                    val heldLongEnough = withTimeoutOrNull(350L) {
+                                        while (true) {
+                                            val event = awaitPointerEvent()
+                                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                            if (!change.pressed) break
+                                            if (change.position.x < down.position.x - 70.dp.toPx()) { cancel = true; break }
+                                        }
+                                        false
+                                    } ?: true
+                                    if (!heldLongEnough || cancel || !startRecording()) return@awaitEachGesture
+                                    while (true) {
+                                        val event = awaitPointerEvent()
+                                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                        if (change.position.x < down.position.x - 70.dp.toPx()) cancel = true
+                                        if (!change.pressed) break
+                                    }
+                                    stopRecording(send = !cancel)
+                                }
+                            }
                         }
-                    },
+                    ),
                 contentAlignment = Alignment.Center
             ) { Text(if (recordingActive) "■" else "●", color = Color.White, fontSize = 30.sp) }
         }
