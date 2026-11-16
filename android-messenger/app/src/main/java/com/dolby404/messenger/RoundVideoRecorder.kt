@@ -80,6 +80,19 @@ internal fun RoundVideoRecorder(
         if (recordingActive && recordingStartedAt > 0L) {
             while (recordingActive) {
                 elapsedSeconds = ((System.currentTimeMillis() - recordingStartedAt) / 1000L).toInt()
+                if (elapsedSeconds >= 30 && !finalizing) {
+                    shouldSend = true
+                    finalizing = true
+                    try { recording?.stop() } catch (_: Exception) {
+                        outputFile?.delete()
+                        outputFile = null
+                        recording = null
+                        recordingActive = false
+                        finalizing = false
+                        onError("Не удалось автоматически завершить видеозапись.")
+                    }
+                    break
+                }
                 kotlinx.coroutines.delay(250L)
             }
         } else {
@@ -157,7 +170,10 @@ internal fun RoundVideoRecorder(
                                 completed?.delete()
                                 onError("Не удалось завершить видеозапись. Попробуй ещё раз.")
                             } else if (shouldSend && completed != null && completed.exists()) {
-                                if (completed.length() > 1500L) {
+                                if (completed.length() > 45L * 1024L * 1024L) {
+                                    completed.delete()
+                                    onError("Видеосообщение получилось больше 45 МБ. Запиши более короткий кружок.")
+                                } else if (completed.length() > 1500L) {
                                     onRecorded(completed)
                                 } else {
                                     completed.delete()
