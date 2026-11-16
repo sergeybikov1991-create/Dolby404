@@ -3250,9 +3250,18 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                     currentUserId + "/" + UUID.randomUUID().toString() + "_" + name
                 ).also { draftPrefs.edit().putString(pathKey, it).apply() }
                 RoundVideoDiagnostics.record(context, "resumable video upload starting; bytes=${file.length()}; resumePathStored=true")
-                val videoUpload = floustreamClient.storage.from("message-media")
-                    .resumable.createOrContinueUpload(path, file)
-                videoUpload.startOrResumeUploading()
+                val accessToken = floustreamClient.auth.currentSessionOrNull()?.accessToken
+                    ?: error("Сессия истекла. Войди в аккаунт ещё раз.")
+                withContext(Dispatchers.IO) {
+                    TusVideoUploader.upload(
+                        context = context,
+                        bucket = "message-media",
+                        objectPath = path,
+                        file = file,
+                        accessToken = accessToken,
+                        apiKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY
+                    )
+                }
                 RoundVideoDiagnostics.record(context, "video upload completed; inserting direct message")
                 sendDirectAttachment(currentUserId, peer.id, path, name, "video/mp4")
                 messageCommitted = true
@@ -3295,6 +3304,30 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                             } else null
                         } ?: "attachment"
                         if (declaredSize > 50L * 1024L * 1024L) error("$name: размер превышает 50 МБ.")
+                        if (mime.startsWith("video/")) {
+                            val tempVideo = File(context.cacheDir, "picked_video_${UUID.randomUUID()}.mp4")
+                            try {
+                                withContext(Dispatchers.IO) {
+                                    resolver.openInputStream(uri)?.use { input ->
+                                        tempVideo.outputStream().use { output -> input.copyTo(output, 256 * 1024) }
+                                    } ?: error("Не удалось прочитать видео.")
+                                }
+                                if (tempVideo.length() <= 0L) error("$name: видео пустое или недоступно.")
+                                if (tempVideo.length() > 50L * 1024L * 1024L) error("$name: размер превышает 50 МБ.")
+                                val safeName = name.substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"), "_").take(100).ifBlank { "video.mp4" }
+                                val path = "$currentUserId/${UUID.randomUUID()}_$safeName"
+                                val accessToken = floustreamClient.auth.currentSessionOrNull()?.accessToken
+                                    ?: error("Сессия истекла. Войди в аккаунт ещё раз.")
+                                withContext(Dispatchers.IO) {
+                                    TusVideoUploader.upload(context, "message-media", path, tempVideo, accessToken, BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+                                }
+                                sendDirectAttachment(currentUserId, peer.id, path, name, mime)
+                                sentCount++
+                            } finally {
+                                tempVideo.delete()
+                            }
+                            return@forEach
+                        }
                         var bytes = withContext(Dispatchers.IO) {
                             resolver.openInputStream(uri)?.use { it.readBytes() } ?: error("Не удалось прочитать файл.")
                         }
