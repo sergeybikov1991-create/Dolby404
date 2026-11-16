@@ -904,18 +904,64 @@ private suspend fun deleteDirectMessage(userId: String, messageId: String) = wit
 }
 
 private suspend fun loadInboxThreads(userId: String): List<ChatThread> {
-    val sent = floustreamClient.from("direct_messages").select {
-        filter { eq("sender_id", userId) }
-    }.decodeList<DirectMessageDto>()
-    val received = floustreamClient.from("direct_messages").select {
-        filter { eq("recipient_id", userId) }
-    }.decodeList<DirectMessageDto>()
+    // PostgREST applies a server-side row cap to a normal select. Fetch both
+    // directions in stable pages so older conversations are not silently lost
+    // after an arbitrary 500-message slice.
+    val token = floustreamClient.auth.currentSessionOrNull()?.accessToken
+        ?: throw IllegalStateException("Сессия истекла.")
+    val encodedUserId = URLEncoder.encode(userId, "UTF-8")
+    val columns = "id,sender_id,recipient_id,content,created_at,read_at,attachment_path,attachment_name,attachment_mime,reply_to_message_id,edited_at"
 
-    val rows = (sent + received)
-        .distinctBy { it.id }
-        .sortedByDescending { it.createdAt }
-        .take(500)
+    suspend fun fetchDirection(column: String): List<DirectMessageDto> = withContext(Dispatchers.IO) {
+        val result = mutableListOf<DirectMessageDto>()
+        var offset = 0
+        val pageSize = 500
+        while (true) {
+            val url = "${BuildConfig.SUPABASE_URL}/rest/v1/direct_messages?select=$columns&$column=eq.$encodedUserId&order=created_at.desc,id.desc&limit=$pageSize&offset=$offset"
+            val connection = URL(url).openConnection() as HttpURLConnection
+            val rows = try {
+                connection.requestMethod = "GET"
+                connection.connectTimeout = 15000
+                connection.readTimeout = 20000
+                connection.setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+                connection.setRequestProperty("Authorization", "Bearer $token")
+                val code = connection.responseCode
+                if (code !in 200..299) {
+                    val detail = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                    throw IllegalStateException("Не удалось загрузить список чатов ($code). ${detail.take(180)}")
+                }
+                val payload = JSONArray(connection.inputStream.bufferedReader().use { it.readText() })
+                (0 until payload.length()).map { index ->
+                    val row = payload.getJSONObject(index)
+                    fun nullable(name: String): String? =
+                        if (row.isNull(name)) null else row.optString(name).takeIf { it.isNotBlank() }
+                    DirectMessageDto(
+                        id = row.getString("id"),
+                        senderId = row.getString("sender_id"),
+                        recipientId = row.getString("recipient_id"),
+                        content = row.optString("content"),
+                        createdAt = row.getString("created_at"),
+                        readAt = nullable("read_at"),
+                        attachmentPath = nullable("attachment_path"),
+                        attachmentName = nullable("attachment_name"),
+                        attachmentMime = nullable("attachment_mime"),
+                        replyToMessageId = nullable("reply_to_message_id"),
+                        editedAt = nullable("edited_at")
+                    )
+                }
+            } finally {
+                connection.disconnect()
+            }
+            result.addAll(rows)
+            if (rows.size < pageSize) break
+            offset += rows.size
+        }
+        result
+    }
 
+    val sent = fetchDirection("sender_id")
+    val received = fetchDirection("recipient_id")
+    val rows = (sent + received).distinctBy { it.id }
     val peerIds = rows.map {
         if (it.senderId == userId) it.recipientId else it.senderId
     }.distinct()
@@ -929,16 +975,19 @@ private suspend fun loadInboxThreads(userId: String): List<ChatThread> {
         val conversation = rows.filter {
             (it.senderId == userId && it.recipientId == peerId) ||
                 (it.senderId == peerId && it.recipientId == userId)
-        }.sortedBy { it.createdAt }
-
-        val latest = conversation.lastOrNull() ?: return@mapNotNull null
+        }
+        val latest = conversation.maxWithOrNull(
+            compareBy<DirectMessageDto> { it.createdAt }.thenBy { it.id }
+        ) ?: return@mapNotNull null
         val unread = conversation.count {
             it.senderId == peerId && it.recipientId == userId && it.readAt == null
         }
         ChatThread(profile, latest, unread)
-    }.sortedByDescending { it.lastMessage.createdAt }
+    }.sortedWith(
+        compareByDescending<ChatThread> { it.lastMessage.createdAt }
+            .thenByDescending { it.lastMessage.id }
+    )
 }
-
 private suspend fun checkRegistrationRisk(email: String): Pair<String, String> = withContext(Dispatchers.IO) {
     val connection = URL("${BuildConfig.SUPABASE_URL}/functions/v1/registration-risk")
         .openConnection() as HttpURLConnection
