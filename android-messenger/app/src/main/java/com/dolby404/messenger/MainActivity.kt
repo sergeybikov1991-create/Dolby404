@@ -4,6 +4,7 @@ package com.dolby404.messenger
 import android.os.Bundle
 import android.net.Uri
 import android.media.MediaRecorder
+import android.media.MediaExtractor
 import java.io.File
 import android.Manifest
 import android.content.Context
@@ -102,6 +103,22 @@ import coil.compose.AsyncImage
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.google.firebase.messaging.FirebaseMessaging
+
+private fun isFinalizedVideoFile(file: File): Boolean {
+    if (!file.isFile || file.length() <= 1500L) return false
+    val extractor = android.media.MediaExtractor()
+    return try {
+        extractor.setDataSource(file.absolutePath)
+        (0 until extractor.trackCount).any { index ->
+            val mime = extractor.getTrackFormat(index).getString(android.media.MediaFormat.KEY_MIME)
+            mime?.startsWith("video/") == true
+        }
+    } catch (_: Exception) {
+        false
+    } finally {
+        try { extractor.release() } catch (_: Exception) { }
+    }
+}
 
 private val Night = Color(0xFF080D1B)
 private val Panel = Color(0xFF111A2D)
@@ -3367,7 +3384,14 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 .mapNotNull { peerKey ->
                     val fileName = peerKey.removeSuffix("_peer")
                     val draftFile = File(draftsDir, fileName)
-                    if (draftFile.isFile && draftFile.length() > 1500L) fileName to draftFile else null
+                    val validMp4 = withContext(Dispatchers.IO) { isFinalizedVideoFile(draftFile) }
+                    if (validMp4) fileName to draftFile else {
+                        RoundVideoDiagnostics.record(
+                            context,
+                            "Skipped incomplete or invalid recovered video draft; file=$fileName; bytes=${draftFile.length()}"
+                        )
+                        null
+                    }
                 }
                 .maxByOrNull { it.second.lastModified() }
 
