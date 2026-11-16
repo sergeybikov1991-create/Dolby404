@@ -11,6 +11,7 @@ import androidx.camera.video.FileOutputOptions
 import androidx.camera.video.Quality
 import androidx.camera.video.QualitySelector
 import androidx.camera.video.Recorder
+import androidx.camera.video.Recording
 import androidx.camera.video.VideoCapture
 import androidx.camera.video.VideoRecordEvent
 import androidx.camera.view.PreviewView
@@ -19,7 +20,9 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.*
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,12 +37,22 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
+import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.resume
 
+/**
+ * Hold-to-record CameraX video message.
+ *
+ * CameraX writes directly to a cache file. The Finalize event is the only place
+ * that hands a completed file to the sender; cancellation and lifecycle teardown
+ * never expose a partially-written file.
+ */
 @Composable
 internal fun RoundVideoRecorder(
     onDismiss: () -> Unit,
@@ -48,193 +61,209 @@ internal fun RoundVideoRecorder(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val latestOnRecorded = rememberUpdatedState(onRecorded)
+    val latestOnError = rememberUpdatedState(onError)
+
     var hasPermissions by remember {
         mutableStateOf(
             context.checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED &&
                 context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
         )
     }
-    var permissionRequested by remember { mutableStateOf(false) }
-    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
-        hasPermissions = result[Manifest.permission.CAMERA] == true && result[Manifest.permission.RECORD_AUDIO] == true
-        if (!hasPermissions) onError("Для видеосообщений нужны разрешения камеры и микрофона.")
-    }
     var frontCamera by remember { mutableStateOf(true) }
     var previewView by remember { mutableStateOf<PreviewView?>(null) }
     var videoCapture by remember { mutableStateOf<VideoCapture<Recorder>?>(null) }
-    var recording by remember { mutableStateOf<androidx.camera.video.Recording?>(null) }
-    var recordingActive by remember { mutableStateOf(false) }
-    var recordingStartedAt by remember { mutableLongStateOf(0L) }
-    var elapsedSeconds by remember { mutableIntStateOf(0) }
-    var shouldSend by remember { mutableStateOf(false) }
-    var finalizing by remember { mutableStateOf(false) }
-    val stopIssued = remember { AtomicBoolean(false) }
-    var disposed by remember { mutableStateOf(false) }
     var cameraReady by remember { mutableStateOf(false) }
-    var cameraProvider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
-    var outputFile by remember { mutableStateOf<File?>(null) }
+    var recordingActive by remember { mutableStateOf(false) }
+    var finalizing by remember { mutableStateOf(false) }
+    var startedAt by remember { mutableLongStateOf(0L) }
+    var elapsedSeconds by remember { mutableIntStateOf(0) }
 
-    val recordingRef = remember { AtomicReference<androidx.camera.video.Recording?>(null) }
-    val outputFileRef = remember { AtomicReference<File?>(null) }
-    val latestCameraProvider = rememberUpdatedState(cameraProvider)
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { result ->
+        hasPermissions = result[Manifest.permission.CAMERA] == true &&
+            result[Manifest.permission.RECORD_AUDIO] == true
+        if (!hasPermissions) latestOnError.value("Для видеосообщений нужны разрешения камеры и микрофона.")
+    }
 
-    fun requestStop(send: Boolean) {
-        val activeRecording = recordingRef.get() ?: recording ?: return
-        if (finalizing || !stopIssued.compareAndSet(false, true)) return
-        shouldSend = send
+    val recordingRef = remember { AtomicReference<Recording?>(null) }
+    val providerRef = remember { AtomicReference<ProcessCameraProvider?>(null) }
+    val shouldSend = remember { AtomicBoolean(false) }
+    val stopIssued = remember { AtomicBoolean(false) }
+    val disposed = remember { AtomicBoolean(false) }
+
+    fun stopRecording(send: Boolean) {
+        val active = recordingRef.get() ?: return
+        if (!stopIssued.compareAndSet(false, true)) return
+        shouldSend.set(send)
         finalizing = true
         try {
-            activeRecording.stop()
-        } catch (_: Exception) {
-            recording = null
-            recordingRef.set(null)
+            active.stop()
+        } catch (error: Exception) {
+            recordingRef.compareAndSet(active, null)
             recordingActive = false
-            recordingStartedAt = 0L
+            startedAt = 0L
             finalizing = false
-            stopIssued.set(false)
-            outputFileRef.getAndSet(null)?.delete()
-            outputFile = null
-            if (!disposed) onError("Не удалось сохранить видеозапись.")
+            shouldSend.set(false)
+            latestOnError.value(error.message ?: "Не удалось завершить видеозапись.")
         }
     }
 
-    LaunchedEffect(recordingActive, recordingStartedAt) {
-        if (recordingActive && recordingStartedAt > 0L) {
-            while (recordingActive && !finalizing) {
-                elapsedSeconds = ((System.currentTimeMillis() - recordingStartedAt) / 1000L).toInt()
-                if (elapsedSeconds >= 20) {
-                    requestStop(true)
-                    break
-                }
-                kotlinx.coroutines.delay(250L)
-            }
-        } else {
-            elapsedSeconds = 0
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        if (!hasPermissions && !permissionRequested) {
-            permissionRequested = true
-            permissionLauncher.launch(arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO))
-        }
-    }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            disposed = true
-            shouldSend = false
-            val activeRecording = recordingRef.get()
-            if (activeRecording != null && stopIssued.compareAndSet(false, true)) {
-                finalizing = true
-                try {
-                    activeRecording.stop()
-                } catch (_: Exception) {
-                    outputFileRef.getAndSet(null)?.delete()
-                }
-            } else if (activeRecording == null) {
-                outputFileRef.getAndSet(null)?.delete()
-            }
-            // Do not delete an in-progress recording here. CameraX owns the file until
-            // its Finalize event; deleting it during stop was causing intermittent failures.
-            latestCameraProvider.value?.unbindAll()
+    LaunchedEffect(hasPermissions) {
+        if (!hasPermissions) {
+            permissionLauncher.launch(
+                arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
+            )
         }
     }
 
     LaunchedEffect(hasPermissions, frontCamera, previewView) {
-        val view = previewView
-        if (!hasPermissions || view == null) return@LaunchedEffect
+        val view = previewView ?: return@LaunchedEffect
+        if (!hasPermissions) return@LaunchedEffect
+
         cameraReady = false
+        videoCapture = null
         try {
             val future = ProcessCameraProvider.getInstance(context)
-            val provider = kotlinx.coroutines.suspendCancellableCoroutine<ProcessCameraProvider> { cont ->
-                future.addListener({
-                    try { cont.resume(future.get()) }
-                    catch (e: Exception) { cont.resumeWith(Result.failure(e)) }
-                }, ContextCompat.getMainExecutor(context))
+            val provider = suspendCancellableCoroutine<ProcessCameraProvider> { continuation ->
+                future.addListener(
+                    {
+                        try {
+                            continuation.resume(future.get())
+                        } catch (error: Exception) {
+                            continuation.resumeWith(Result.failure(error))
+                        }
+                    },
+                    ContextCompat.getMainExecutor(context)
+                )
             }
-            cameraProvider = provider
-            val preview = Preview.Builder().build().also { it.surfaceProvider = view.surfaceProvider }
-            val recorder = Recorder.Builder().setQualitySelector(QualitySelector.from(Quality.SD)).setTargetVideoEncodingBitRate(600_000).build()
+            providerRef.set(provider)
+
+            val preview = Preview.Builder().build().also {
+                it.surfaceProvider = view.surfaceProvider
+            }
+            val recorder = Recorder.Builder()
+                .setQualitySelector(QualitySelector.from(Quality.SD))
+                .setTargetVideoEncodingBitRate(600_000)
+                .build()
             val capture = VideoCapture.withOutput(recorder)
-            val selector = if (frontCamera) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
+            val selector = if (frontCamera) {
+                CameraSelector.DEFAULT_FRONT_CAMERA
+            } else {
+                CameraSelector.DEFAULT_BACK_CAMERA
+            }
+
             provider.unbindAll()
             provider.bindToLifecycle(lifecycleOwner, selector, preview, capture)
             videoCapture = capture
             cameraReady = true
-        } catch (_: Exception) {
+        } catch (error: Exception) {
             cameraReady = false
-            if (!disposed) onError("Не удалось открыть камеру. Проверь разрешения и попробуй ещё раз.")
+            videoCapture = null
+            latestOnError.value(
+                error.message?.takeIf { it.isNotBlank() }
+                    ?: "Не удалось открыть камеру. Проверь разрешения и попробуй ещё раз."
+            )
         }
     }
 
-    fun startRecording() {
-        val capture = videoCapture ?: return
-        if (!cameraReady || recording != null || recordingActive || finalizing || disposed) return
-        val file = File(context.cacheDir, "round_" + System.currentTimeMillis() + ".mp4")
-        outputFile = file
-        outputFileRef.set(file)
-        shouldSend = false
-        finalizing = false
+    fun startRecording(): Boolean {
+        val capture = videoCapture ?: return false
+        if (!cameraReady || recordingRef.get() != null || finalizing || disposed.get()) return false
+
+        val file = File(context.cacheDir, "round_${UUID.randomUUID()}.mp4")
+        shouldSend.set(false)
         stopIssued.set(false)
-        try {
-            val startedRecording = capture.output.prepareRecording(context, FileOutputOptions.Builder(file).build())
+
+        return try {
+            val active = capture.output
+                .prepareRecording(context, FileOutputOptions.Builder(file).build())
                 .withAudioEnabled()
                 .start(ContextCompat.getMainExecutor(context)) { event ->
                     when (event) {
                         is VideoRecordEvent.Start -> {
-                            recordingStartedAt = System.currentTimeMillis()
+                            startedAt = System.currentTimeMillis()
                             elapsedSeconds = 0
                             recordingActive = true
                         }
+
                         is VideoRecordEvent.Finalize -> {
-                            recordingActive = false
-                            recordingStartedAt = 0L
-                            elapsedSeconds = 0
-                            recording = null
                             recordingRef.set(null)
-                            outputFileRef.set(null)
+                            recordingActive = false
+                            startedAt = 0L
+                            elapsedSeconds = 0
                             finalizing = false
-                            stopIssued.set(false)
-                            outputFile = null
-                            if (event.hasError()) {
-                                file.delete()
-                                if (shouldSend && !disposed) {
-                                    onError("Не удалось завершить видеозапись. Попробуй ещё раз.")
-                                }
-                            } else if (shouldSend && !disposed && file.exists()) {
-                                when {
-                                    file.length() > 18L * 1024L * 1024L -> {
-                                        file.delete()
-                                        onError("Видеосообщение получилось больше 18 МБ. Запиши более короткий кружок.")
-                                    }
-                                    file.length() > 1500L -> onRecorded(file)
-                                    else -> {
-                                        file.delete()
-                                        onError("Видео слишком короткое. Удерживай кнопку хотя бы секунду.")
+
+                            when {
+                                event.hasError() -> {
+                                    file.delete()
+                                    if (shouldSend.get() && !disposed.get()) {
+                                        latestOnError.value(
+                                            "Камера не смогла завершить видеозапись (код ${event.error}). Попробуй ещё раз."
+                                        )
                                     }
                                 }
-                            } else {
-                                file.delete()
+
+                                shouldSend.get() && !disposed.get() && file.isFile && file.length() > 1500L -> {
+                                    if (file.length() > 18L * 1024L * 1024L) {
+                                        file.delete()
+                                        latestOnError.value("Видео превышает временный лимит 18 МБ.")
+                                    } else {
+                                        latestOnRecorded.value(file)
+                                    }
+                                }
+
+                                else -> file.delete()
                             }
                         }
                     }
                 }
-            recording = startedRecording
-            recordingRef.set(startedRecording)
-        } catch (_: Exception) {
-            recording = null
-            recordingRef.set(null)
-            recordingActive = false
-            outputFileRef.set(null)
-            outputFile = null
+
+            recordingRef.set(active)
+            true
+        } catch (error: Exception) {
             file.delete()
-            if (!disposed) onError("Не удалось начать видеозапись.")
+            shouldSend.set(false)
+            latestOnError.value(
+                error.message?.takeIf { it.isNotBlank() } ?: "Не удалось начать видеозапись."
+            )
+            false
+        }
+    }
+
+    LaunchedEffect(recordingActive, startedAt) {
+        while (recordingActive && startedAt > 0L) {
+            elapsedSeconds = ((System.currentTimeMillis() - startedAt) / 1000L).toInt()
+            if (elapsedSeconds >= 20) {
+                stopRecording(send = true)
+                break
+            }
+            delay(200L)
+        }
+        if (!recordingActive) elapsedSeconds = 0
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            disposed.set(true)
+            shouldSend.set(false)
+            recordingRef.getAndSet(null)?.let { active ->
+                try {
+                    active.stop()
+                } catch (_: Exception) {
+                    // The file is not sent after disposal; CameraX owns final cleanup.
+                }
+            }
+            providerRef.getAndSet(null)?.unbindAll()
         }
     }
 
     Dialog(
-        onDismissRequest = { requestStop(false); onDismiss() },
+        onDismissRequest = {
+            stopRecording(send = false)
+            onDismiss()
+        },
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Column(
@@ -242,38 +271,68 @@ internal fun RoundVideoRecorder(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                TextButton(onClick = { requestStop(false); onDismiss() }) { Text("Отмена", color = Color.White) }
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = {
+                    stopRecording(send = false)
+                    onDismiss()
+                }) {
+                    Text("Отмена", color = Color.White)
+                }
                 Text("Видеосообщение", color = Color.White, fontSize = 17.sp)
-                TextButton(onClick = { if (!recordingActive && recording == null && !finalizing) frontCamera = !frontCamera }) {
+                TextButton(
+                    enabled = !recordingActive && !finalizing,
+                    onClick = { frontCamera = !frontCamera }
+                ) {
                     Text("↻", color = Color.White, fontSize = 22.sp)
                 }
             }
+
             Spacer(Modifier.height(24.dp))
-            Box(Modifier.size(280.dp).clip(CircleShape).background(Color.Black), contentAlignment = Alignment.Center) {
-                AndroidView(factory = { ctx ->
-                    PreviewView(ctx).also { it.scaleType = PreviewView.ScaleType.FILL_CENTER; previewView = it }
-                }, modifier = Modifier.fillMaxSize())
+            Box(
+                Modifier.size(280.dp).clip(CircleShape).background(Color.Black),
+                contentAlignment = Alignment.Center
+            ) {
+                AndroidView(
+                    factory = { viewContext ->
+                        PreviewView(viewContext).also {
+                            it.scaleType = PreviewView.ScaleType.FILL_CENTER
+                            previewView = it
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
                 if (!cameraReady) CircularProgressIndicator(color = Color.White)
             }
+
             Spacer(Modifier.height(28.dp))
             Text(
                 when {
                     finalizing -> "Сохраняем видео…"
-                    recordingActive -> "● Запись ${elapsedSeconds / 60}:" + String.format("%02d", elapsedSeconds % 60) + " — отпусти для отправки"
+                    recordingActive -> "● Запись 0:${String.format("%02d", elapsedSeconds)} — отпусти для отправки"
                     else -> "Удерживай кнопку · свайп влево отменяет"
-                }, color = Color(0xFFB7C4DA), fontSize = 12.sp
+                },
+                color = Color(0xFFB7C4DA),
+                fontSize = 12.sp
             )
             Spacer(Modifier.height(16.dp))
+
             Box(
-                Modifier.size(78.dp).clip(CircleShape)
+                Modifier.size(78.dp)
+                    .clip(CircleShape)
                     .background(if (recordingActive) Color(0xFF9A65FF) else Color(0xFF548BFF))
                     .pointerInput(cameraReady, finalizing) {
                         awaitEachGesture {
-                            if (!cameraReady || recordingActive || finalizing) return@awaitEachGesture
+                            if (!cameraReady || finalizing || recordingActive) {
+                                return@awaitEachGesture
+                            }
+
                             val down = awaitFirstDown(requireUnconsumed = false)
                             var cancel = false
-                            val held = withTimeoutOrNull(350L) {
+                            val heldLongEnough = withTimeoutOrNull(350L) {
                                 while (true) {
                                     val event = awaitPointerEvent()
                                     val change = event.changes.firstOrNull { it.id == down.id } ?: break
@@ -285,25 +344,27 @@ internal fun RoundVideoRecorder(
                                 }
                                 false
                             } ?: true
-                            if (held && !cancel && cameraReady) {
-                                startRecording()
-                                // Do not read Compose state captured when pointerInput was
-                                // created: recording was null in that snapshot, so the old loop
-                                // could stop immediately after starting. Wait for the actual
-                                // pointer-up event, then stop the CameraX recording exactly once.
-                                while (true) {
-                                    val event = awaitPointerEvent()
-                                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                                    if (change.position.x < down.position.x - 70.dp.toPx()) cancel = true
-                                    if (!change.pressed) break
-                                }
-                                requestStop(!cancel)
+
+                            if (!heldLongEnough || cancel || !startRecording()) {
+                                return@awaitEachGesture
                             }
+
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                if (change.position.x < down.position.x - 70.dp.toPx()) cancel = true
+                                if (!change.pressed) break
+                            }
+                            stopRecording(send = !cancel)
                         }
                     },
                 contentAlignment = Alignment.Center
             ) {
-                Text(if (recordingActive) "■" else "●", color = Color.White, fontSize = 30.sp)
+                Text(
+                    if (recordingActive) "■" else "●",
+                    color = Color.White,
+                    fontSize = 30.sp
+                )
             }
         }
     }
