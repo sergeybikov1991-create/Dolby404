@@ -860,30 +860,54 @@ private suspend fun sendDirectMessage(userId: String, peerId: String, content: S
     )
 }
 
-private suspend fun forwardDirectMessage(userId: String, peerId: String, message: DirectMessageDto) = withContext(Dispatchers.IO) {
-    val forwardedText = "Переслано:\n" + message.content
+private suspend fun forwardDirectMessage(context: Context, userId: String, peerId: String, message: DirectMessageDto) = withContext(Dispatchers.IO) {
+    val forwardedText = "Переслано:\\n" + message.content
     val sourcePath = message.attachmentPath
     if (sourcePath.isNullOrBlank()) {
         sendDirectMessage(userId, peerId, forwardedText)
         return@withContext
     }
-    val signedUrl = floustreamClient.storage.from("message-media").createSignedUrl(sourcePath, 10.minutes)
-    val connection = URL(signedUrl).openConnection() as HttpURLConnection
-    val bytes = try {
-        connection.connectTimeout = 15000
-        connection.readTimeout = 60000
-        connection.inputStream.use { it.readBytes() }
-    } finally {
-        connection.disconnect()
-    }
-    if (bytes.size > 50 * 1024 * 1024) error("Вложение больше 50 МБ — пересылка отменена.")
     val originalName = message.attachmentName ?: "attachment"
+    val mime = message.attachmentMime ?: "application/octet-stream"
+    val signedUrl = floustreamClient.storage.from("message-media").createSignedUrl(sourcePath, 10.minutes)
     val safeName = originalName.replace(Regex("[^A-Za-z0-9._-]"), "_").take(100).ifBlank { "attachment" }
     val targetPath = "$userId/${UUID.randomUUID()}_forwarded_$safeName"
-    floustreamClient.storage.from("message-media").upload(targetPath, bytes) {
-        contentType = ContentType.parse(message.attachmentMime?.ifBlank { "application/octet-stream" } ?: "application/octet-stream")
+    if (mime.startsWith("video/")) {
+        val tempFile = File.createTempFile("dolby404_forward_video_", ".mp4", context.cacheDir)
+        try {
+            val connection = URL(signedUrl).openConnection() as HttpURLConnection
+            try {
+                connection.connectTimeout = 15000
+                connection.readTimeout = 60000
+                connection.inputStream.use { input ->
+                    tempFile.outputStream().use { output -> input.copyTo(output, 256 * 1024) }
+                }
+            } finally {
+                connection.disconnect()
+            }
+            if (tempFile.length() <= 0L) error("Пересылаемое видео пустое или недоступно.")
+            if (tempFile.length() > 50L * 1024L * 1024L) error("Вложение больше 50 МБ — пересылка отменена.")
+            val token = floustreamClient.auth.currentSessionOrNull()?.accessToken
+                ?: error("Сессия истекла. Войди в аккаунт ещё раз.")
+            TusVideoUploader.upload(context, "message-media", targetPath, tempFile, token, BuildConfig.SUPABASE_PUBLISHABLE_KEY, mime)
+        } finally {
+            tempFile.delete()
+        }
+    } else {
+        val connection = URL(signedUrl).openConnection() as HttpURLConnection
+        val bytes = try {
+            connection.connectTimeout = 15000
+            connection.readTimeout = 60000
+            connection.inputStream.use { it.readBytes() }
+        } finally {
+            connection.disconnect()
+        }
+        if (bytes.size > 50 * 1024 * 1024) error("Вложение больше 50 МБ — пересылка отменена.")
+        floustreamClient.storage.from("message-media").upload(targetPath, bytes) {
+            contentType = ContentType.parse(mime.ifBlank { "application/octet-stream" })
+        }
     }
-    sendDirectAttachment(userId, peerId, targetPath, originalName, message.attachmentMime ?: "application/octet-stream")
+    sendDirectAttachment(userId, peerId, targetPath, originalName, mime)
 }
 
 private suspend fun editDirectMessage(userId: String, messageId: String, content: String) = withContext(Dispatchers.IO) {
@@ -4219,7 +4243,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                                         scope.launch {
                                             forwarding = true
                                             try {
-                                                forwardDirectMessage(currentUserId, candidate.id, target)
+                                                forwardDirectMessage(context, currentUserId, candidate.id, target)
                                                 forwardingMessage = null
                                                 forwardCandidates = emptyList()
                                                 Toast.makeText(context, "Сообщение переслано пользователю ${candidate.username ?: candidate.displayName ?: "FLOUSTREAM"}", Toast.LENGTH_SHORT).show()
