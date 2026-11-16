@@ -35,6 +35,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
@@ -817,10 +818,9 @@ private suspend fun respondToFriendRequest(userId: String, requestId: String, ac
 }
 
 private suspend fun sendDirectAttachment(userId: String, peerId: String, path: String, name: String, mime: String) {
-    // Verify the uploaded object can be signed before publishing a chat row.
-    // This prevents a visible "sent" message with a broken/missing media object.
-    val verifiedUrl = floustreamClient.storage.from("message-media").createSignedUrl(path, 10.minutes)
-    check(verifiedUrl.isNotBlank()) { "Файл загружен, но ссылка на него не создаётся. Сообщение не отправлено." }
+    // A successful Storage upload is the authoritative upload result. Do not
+    // make sending depend on an extra signed-URL request: URL signing is only
+    // needed when the recipient renders the attachment.
     floustreamClient.from("direct_messages").insert(
         NewDirectMessage(senderId = userId, recipientId = peerId, content = name, attachmentPath = path, attachmentName = name, attachmentMime = mime)
     )
@@ -2566,14 +2566,22 @@ private fun MessageAttachment(message: DirectMessageDto) {
     when {
         url == null && !loadError -> CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Blue)
         loadError -> Text("Не удалось получить ссылку на вложение", color = Muted, fontSize = 12.sp)
-        mime.startsWith("image/") && imageLoadError -> Row(verticalAlignment = Alignment.CenterVertically) {
+        mime.startsWith("image/") && url == null && !loadError -> Box(
+            Modifier.fillMaxWidth().height(220.dp),
+            contentAlignment = Alignment.Center
+        ) { CircularProgressIndicator(color = Blue) }
+        mime.startsWith("image/") && (loadError || imageLoadError) -> Row(
+            Modifier.fillMaxWidth().height(220.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
             Text("Не удалось отобразить фото", color = Muted, fontSize = 12.sp)
-            TextButton(onClick = { urlRefreshAttempt++; imageLoadError = false }) { Text("Повторить", color = Blue) }
+            TextButton(onClick = { urlRefreshAttempt++; imageLoadError = false; loadError = false }) { Text("Повторить", color = Blue) }
         }
         mime.startsWith("image/") -> AsyncImage(
             model = url,
             contentDescription = message.attachmentName ?: "Изображение",
-            modifier = Modifier.fillMaxWidth().heightIn(max = 280.dp)
+            modifier = Modifier.fillMaxWidth().height(220.dp)
                 .clip(RoundedCornerShape(5.dp)).clickable { showFullScreen = true },
             contentScale = ContentScale.Fit,
             onLoading = { imageLoadError = false },
@@ -2906,18 +2914,15 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             pinnedMessageIds = loadedPinnedIds.intersect(allIds)
             favoriteMessageIds = loadedFavoriteIds.intersect(allIds)
             // Keep previously loaded older pages and all favorited messages; merge by stable ID.
-            var insertedMessages = 0
-            refreshedMessages.forEach { incoming ->
-                val existingIndex = messages.indexOfFirst { it.id == incoming.id }
-                if (existingIndex >= 0) {
-                    if (messages[existingIndex] != incoming) messages[existingIndex] = incoming
-                } else {
-                    val insertAt = messages.indexOfFirst { existing ->
-                        compareValuesBy(incoming, existing, { it.createdAt }, { it.id }) < 0
-                    }
-                    if (insertAt >= 0) messages.add(insertAt, incoming) else messages.add(incoming)
-                    insertedMessages++
-                }
+            val insertedMessages = refreshedMessages.count { incoming ->
+                messages.none { it.id == incoming.id }
+            }
+            // Publish the refreshed conversation as one Compose snapshot. Mutating
+            // the backing list item-by-item exposed partial states to LazyColumn,
+            // which caused rows and media to jump while Realtime refreshes ran.
+            Snapshot.withMutableSnapshot {
+                messages.clear()
+                messages.addAll(merged)
             }
             if (wasAtBottom && insertedMessages > 0) {
                 delay(50L)
@@ -3092,7 +3097,8 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             errorText = ""
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
-            errorText = "Не удалось отправить голосовое сообщение. Проверь интернет и попробуй ещё раз."
+            errorText = "Не удалось отправить голосовое сообщение: " +
+                (e.message?.takeIf { it.isNotBlank() } ?: "проверь интернет и попробуй ещё раз.")
         } finally {
             file.delete()
             uploadingAttachment = false
@@ -3397,8 +3403,6 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                         onClick = {
                             scope.launch {
                                 loadingOlderMessages = true
-                                val oldIndex = messageListState.firstVisibleItemIndex
-                                val oldOffset = messageListState.firstVisibleItemScrollOffset
                                 try {
                                     val oldestMessage = messages.firstOrNull()
                                     val oldestTimestamp = oldestMessage?.createdAt
@@ -3410,7 +3414,8 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                                         val existingIds = messages.mapTo(hashSetOf()) { it.id }
                                         val additions = older.filterNot { it.id in existingIds }
                                         if (additions.isNotEmpty()) {
-                                            messages.addAll(0, additions)
+                                            // Keep the prepend atomic; stable LazyColumn keys preserve the visible anchor.
+                                            Snapshot.withMutableSnapshot { messages.addAll(0, additions) }
                                             val olderReactions = try {
                                                 loadDirectMessageReactions(additions.map { it.id })
                                             } catch (e: Exception) {
@@ -3433,8 +3438,6 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                                                 favoriteMessageIds
                                             }
                                             favoriteMessageIds = loadedFavorites.intersect(allIds)
-                                            val anchorIndex = if (oldIndex == 0) additions.size + 1 else oldIndex + additions.size
-                                            messageListState.scrollToItem(anchorIndex, oldOffset)
                                         }
                                         hasMoreOlderMessages = older.size >= 100 && additions.isNotEmpty()
                                     }
