@@ -103,7 +103,7 @@ jobs:
           retention-days: 30
 
       - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish_release) || github.ref == 'refs/heads/feature/android-0.4.2-fixes' || github.ref == 'refs/heads/feature/android-0.4.3-whatsapp-chat' || github.ref == 'refs/heads/feature/android-0.4.4-chat-stability' || github.ref == 'refs/heads/feature/android-0.4.5-chat-media-fix' || github.ref == 'refs/heads/feature/android-0.4.6-media-playback-video-fix' || github.ref == 'refs/heads/feature/android-0.4.8-round-video-rebuild' || github.ref == 'refs/heads/feature/android-0.4.9-camera-finalize-fix' || github.ref == 'refs/heads/feature/android-0.4.10-round-video-diagnostics'
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish_release) || github.ref == 'refs/heads/feature/android-0.4.2-fixes' || github.ref == 'refs/heads/feature/android-0.4.3-whatsapp-chat' || github.ref == 'refs/heads/feature/android-0.4.4-chat-stability' || github.ref == 'refs/heads/feature/android-0.4.5-chat-media-fix' || github.ref == 'refs/heads/feature/android-0.4.6-media-playback-video-fix' || github.ref == 'refs/heads/feature/android-0.4.8-round-video-rebuild' || github.ref == 'refs/heads/feature/android-0.4.9-camera-finalize-fix' || github.ref == 'refs/heads/feature/android-0.4.10-round-video-diagnostics' || github.ref == 'refs/heads/feature/android-0.4.11-video-upload-file-api'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || (startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.4.11') }}
