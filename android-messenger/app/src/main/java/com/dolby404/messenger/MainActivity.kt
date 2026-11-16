@@ -2619,6 +2619,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     var recordingVoice by remember { mutableStateOf(false) }
     var pendingDeleteMessage by remember { mutableStateOf<DirectMessageDto?>(null) }
     var pendingMessageActions by remember { mutableStateOf<DirectMessageDto?>(null) }
+    var messageInfoTarget by remember { mutableStateOf<DirectMessageDto?>(null) }
     var replyToMessage by remember { mutableStateOf<DirectMessageDto?>(null) }
     var editingMessage by remember { mutableStateOf<DirectMessageDto?>(null) }
     var forwardingMessage by remember { mutableStateOf<DirectMessageDto?>(null) }
@@ -3023,11 +3024,24 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                                     }
                                 } else Text(msg.content, color = White, fontSize = 14.sp)
                                 if (msg.editedAt != null) Text("изменено", color = Color(0xFFB4C7E5), fontSize = 9.sp)
-                                Text(
-                                    msg.createdAt.substringAfter("T").take(5),
+                                Row(
                                     Modifier.align(Alignment.End),
-                                    color = Color(0xFFB4C7E5), fontSize = 9.sp
-                                )
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                ) {
+                                    Text(
+                                        msg.createdAt.substringAfter("T").take(5),
+                                        color = Color(0xFFB4C7E5), fontSize = 9.sp
+                                    )
+                                    if (mine) {
+                                        Text(
+                                            if (msg.readAt != null) "✓✓" else "✓",
+                                            color = if (msg.readAt != null) Color(0xFF72C8FF) else Color(0xFFB4C7E5),
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
                             }
                         }
                         val messageReactions = reactions[msg.id].orEmpty().groupBy { it.emoji }
@@ -3291,6 +3305,10 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                         }
                     ) { Text(if (target.id in pinnedMessageIds) "Открепить" else "Закрепить", color = White) }
                     TextButton(onClick = {
+                        messageInfoTarget = target
+                        pendingMessageActions = null
+                    }) { Text("Информация", color = White) }
+                    TextButton(onClick = {
                         forwardingMessage = target
                         forwardTargetQuery = ""
                         forwardCandidates = emptyList()
@@ -3312,6 +3330,33 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 }
             },
             confirmButton = { TextButton(onClick = { pendingMessageActions = null }) { Text("Закрыть", color = White) } }
+        )
+    }
+
+    if (messageInfoTarget != null) {
+        val info = messageInfoTarget!!
+        AlertDialog(
+            onDismissRequest = { messageInfoTarget = null },
+            containerColor = Panel,
+            title = { Text("Информация о сообщении", color = White) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Отправлено: ${info.createdAt.replace("T", " ").take(16)}", color = Muted, fontSize = 13.sp)
+                    if (info.senderId == currentUserId) {
+                        Text(
+                            if (info.readAt != null) "Прочитано: ${info.readAt.replace("T", " ").take(16)}"
+                            else "Пока не прочитано",
+                            color = if (info.readAt != null) Color(0xFF72C8FF) else Muted,
+                            fontSize = 13.sp
+                        )
+                    } else {
+                        Text("Сообщение получено от собеседника", color = Muted, fontSize = 13.sp)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { messageInfoTarget = null }) { Text("Закрыть", color = White) }
+            }
         )
     }
 
