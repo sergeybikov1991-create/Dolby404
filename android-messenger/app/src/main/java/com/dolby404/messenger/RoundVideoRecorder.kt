@@ -76,8 +76,6 @@ internal fun RoundVideoRecorder(
     val latestRecording = rememberUpdatedState(recording)
     val latestCameraProvider = rememberUpdatedState(cameraProvider)
     val latestOutputFile = rememberUpdatedState(outputFile)
-    val latestShouldSend = rememberUpdatedState(shouldSend)
-    val latestDisposed = rememberUpdatedState(disposed)
 
     fun requestStop(send: Boolean) {
         val activeRecording = recording ?: return
@@ -196,10 +194,10 @@ internal fun RoundVideoRecorder(
                             outputFile = null
                             if (event.hasError()) {
                                 file.delete()
-                                if (latestShouldSend.value && !latestDisposed.value) {
+                                if (shouldSend && !disposed) {
                                     onError("Не удалось завершить видеозапись. Попробуй ещё раз.")
                                 }
-                            } else if (latestShouldSend.value && !latestDisposed.value && file.exists()) {
+                            } else if (shouldSend && !disposed && file.exists()) {
                                 when {
                                     file.length() > 45L * 1024L * 1024L -> {
                                         file.delete()
