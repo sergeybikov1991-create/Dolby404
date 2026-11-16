@@ -2916,15 +2916,27 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             }
 
             val channel = floustreamClient.channel("direct-chat:$currentUserId:${peer.id}")
-            val messageChanges = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
+            // RLS limits visible rows to this account. Filter by the peer on the
+            // sender side for incoming messages and recipient side for outgoing ones.
+            val incomingMessageChanges = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
                 table = "direct_messages"
+                filter = "sender_id=eq.\u0024{peer.id}"
+            }
+            val outgoingMessageChanges = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
+                table = "direct_messages"
+                filter = "recipient_id=eq.\u0024{peer.id}"
             }
             val reactionChanges = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
                 table = "direct_message_reactions"
             }
-            val messageCollector = launch {
+            val incomingMessageCollector = launch {
                 try {
-                    messageChanges.collect { if (isResumed) refresh(silent = true) }
+                    incomingMessageChanges.collect { if (isResumed) refresh(silent = true) }
+                } catch (_: Exception) { }
+            }
+            val outgoingMessageCollector = launch {
+                try {
+                    outgoingMessageChanges.collect { if (isResumed) refresh(silent = true) }
                 } catch (_: Exception) { }
             }
             val reactionCollector = launch {
@@ -2946,7 +2958,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 var safetySyncElapsed = 0
                 while (isResumed) {
                     delay(5_000)
-                    if (messageCollector.isCompleted || reactionCollector.isCompleted) {
+                    if (incomingMessageCollector.isCompleted || outgoingMessageCollector.isCompleted || reactionCollector.isCompleted) {
                         throw IllegalStateException("Realtime change stream stopped.")
                     }
                     safetySyncElapsed += 5
@@ -2964,7 +2976,8 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                     if (isResumed) refresh(silent = true)
                 }
             } finally {
-                messageCollector.cancel()
+                incomingMessageCollector.cancel()
+                outgoingMessageCollector.cancel()
                 reactionCollector.cancel()
                 try { floustreamClient.realtime.removeChannel(channel) } catch (_: Exception) { }
             }
