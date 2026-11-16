@@ -2759,9 +2759,12 @@ private fun AudioMessagePlayer(url: String, onRetry: () -> Unit) {
                     playbackError = false
                 }
                 if (playbackState == Player.STATE_ENDED) {
+                    // ExoPlayer keeps playWhenReady=true after reaching the end.
+                    // Pause before rewinding, otherwise seekTo(0) starts the voice note again.
+                    player.pause()
+                    player.seekTo(0L)
                     isPlaying = false
                     positionMs = 0L
-                    player.seekTo(0L)
                 }
             }
             override fun onIsPlayingChanged(playing: Boolean) {
@@ -3174,7 +3177,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                     var name = "attachment"
                     try {
                         val resolver = context.contentResolver
-                        val mime = (resolver.getType(uri)?.substringBefore(';')?.trim()?.lowercase())
+                        var mime = (resolver.getType(uri)?.substringBefore(';')?.trim()?.lowercase())
                             ?.takeIf { it.contains('/') } ?: if (phoneMediaPickerVideo) "video/mp4" else "image/jpeg"
                         var declaredSize = -1L
                         name = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { cursor ->
@@ -3184,8 +3187,38 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                             } else null
                         } ?: "attachment"
                         if (declaredSize > 50L * 1024L * 1024L) error("$name: размер превышает 50 МБ.")
-                        val bytes = withContext(Dispatchers.IO) {
+                        var bytes = withContext(Dispatchers.IO) {
                             resolver.openInputStream(uri)?.use { it.readBytes() } ?: error("Не удалось прочитать файл.")
+                        }
+                        // Android gallery providers may return HEIC/HEIF/AVIF images.
+                        // The chat renderer reliably supports JPEG, so normalize these formats
+                        // before upload instead of storing an image the recipient cannot decode.
+                        val lowerName = name.lowercase()
+                        val needsImageNormalization = mime in setOf("image/heic", "image/heif", "image/avif") ||
+                            lowerName.endsWith(".heic") || lowerName.endsWith(".heif") || lowerName.endsWith(".avif")
+                        if (needsImageNormalization && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                            val normalized = withContext(Dispatchers.IO) {
+                                try {
+                                    val source = android.graphics.ImageDecoder.createSource(resolver, uri)
+                                    val bitmap = android.graphics.ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+                                        val maxDimension = 2048
+                                        val scale = minOf(1f, maxDimension.toFloat() / maxOf(info.size.width, info.size.height).toFloat())
+                                        decoder.setTargetSize(
+                                            (info.size.width * scale).toInt().coerceAtLeast(1),
+                                            (info.size.height * scale).toInt().coerceAtLeast(1)
+                                        )
+                                    }
+                                    val output = java.io.ByteArrayOutputStream()
+                                    val saved = bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 92, output)
+                                    bitmap.recycle()
+                                    if (saved) output.toByteArray() else null
+                                } catch (_: Exception) { null }
+                            }
+                            if (normalized != null && normalized.isNotEmpty()) {
+                                bytes = normalized
+                                mime = "image/jpeg"
+                                name = name.substringBeforeLast('.', name) + ".jpg"
+                            }
                         }
                         if (bytes.isEmpty()) error("$name: файл пустой или недоступен.")
                         if (bytes.size > 50 * 1024 * 1024) error("$name: размер превышает 50 МБ.")
@@ -3773,8 +3806,10 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 scope.launch {
                     uploadingAttachment = true
                     try {
+                        if (!file.exists() || file.length() < 1500L) error("Файл видеосообщения не сохранился.")
+                        if (file.length() > 18L * 1024L * 1024L) error("Видео превышает лимит 18 МБ. Запиши более короткий кружок.")
                         val bytes = withContext(Dispatchers.IO) { file.readBytes() }
-                        if (bytes.size > 50 * 1024 * 1024) error("Видео превышает допустимый размер 50 МБ.")
+                        if (bytes.isEmpty()) error("Файл видеосообщения пустой.")
                         val name = "video_" + System.currentTimeMillis() + ".mp4"
                         val path = currentUserId + "/" + UUID.randomUUID().toString() + "_" + name
                         withContext(Dispatchers.IO) {
