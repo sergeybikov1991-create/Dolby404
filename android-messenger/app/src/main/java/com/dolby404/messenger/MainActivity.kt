@@ -372,7 +372,7 @@ private suspend fun sendLibraryMedia(context: Context, userId: String, peerId: S
             if (tempFile.length() > 50L * 1024L * 1024L) error("Видеоальбом: файл больше 50 МБ.")
             val token = floustreamClient.auth.currentSessionOrNull()?.accessToken
                 ?: error("Сессия истекла. Войди в аккаунт ещё раз.")
-            TusVideoUploader.upload(context, "message-media", targetPath, tempFile, token, BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+            TusVideoUploader.upload(context, "message-media", targetPath, tempFile, token, BuildConfig.SUPABASE_PUBLISHABLE_KEY, item.mime.ifBlank { "video/mp4" })
         } finally {
             connection.disconnect()
             tempFile.delete()
@@ -3338,7 +3338,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                                 val accessToken = floustreamClient.auth.currentSessionOrNull()?.accessToken
                                     ?: error("Сессия истекла. Войди в аккаунт ещё раз.")
                                 withContext(Dispatchers.IO) {
-                                    TusVideoUploader.upload(context, "message-media", path, tempVideo, accessToken, BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+                                    TusVideoUploader.upload(context, "message-media", path, tempVideo, accessToken, BuildConfig.SUPABASE_PUBLISHABLE_KEY, mime)
                                 }
                                 sendDirectAttachment(currentUserId, peer.id, path, name, mime)
                                 sentCount++
