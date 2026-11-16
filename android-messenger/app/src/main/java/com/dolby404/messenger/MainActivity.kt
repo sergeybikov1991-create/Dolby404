@@ -3295,20 +3295,24 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 RoundVideoDiagnostics.record(context, "resumable video upload starting; bytes=${file.length()}; resumePathStored=true")
                 val accessToken = floustreamClient.auth.currentSessionOrNull()?.accessToken
                     ?: error("Сессия истекла. Войди в аккаунт ещё раз.")
-                withContext(Dispatchers.IO) {
-                    TusVideoUploader.upload(
-                        context = context,
-                        bucket = "message-media",
-                        objectPath = path,
-                        file = file,
-                        accessToken = accessToken,
-                        apiKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY
-                    )
+                val uploadedKey = "${pathKey}_uploaded"
+                if (!draftPrefs.getBoolean(uploadedKey, false)) {
+                    withContext(Dispatchers.IO) {
+                        TusVideoUploader.upload(
+                            context = context,
+                            bucket = "message-media",
+                            objectPath = path,
+                            file = file,
+                            accessToken = accessToken,
+                            apiKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY
+                        )
+                    }
+                    draftPrefs.edit().putBoolean(uploadedKey, true).apply()
                 }
                 RoundVideoDiagnostics.record(context, "video upload completed; inserting direct message")
                 sendDirectAttachment(currentUserId, peer.id, path, name, "video/mp4")
                 messageCommitted = true
-                draftPrefs.edit().remove(pathKey).apply()
+                draftPrefs.edit().remove(pathKey).remove("${pathKey}_uploaded").apply()
                 pendingLocalVideo = null
                 RoundVideoDiagnostics.record(context, "video direct message inserted successfully")
                 refresh()
