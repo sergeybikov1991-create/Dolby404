@@ -3859,13 +3859,14 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 showVideoRecorder = false
             },
             onRecorded = { file ->
-                showRoundVideoRecorder = false
+                showVideoRecorder = false
                 scope.launch {
                     uploadingAttachment = true
+                    var messageCommitted = false
                     try {
                         RoundVideoDiagnostics.record(context, "video sender callback reached; fileExists=${file.exists()}; bytes=${file.length()}")
                         if (!file.exists() || file.length() < 1500L) error("Файл видеосообщения не сохранился.")
-                        if (file.length() > 18L * 1024L * 1024L) error("Видео превышает лимит 18 МБ. Запиши более короткий кружок.")
+                        if (file.length() > 50L * 1024L * 1024L) error("Видео превышает лимит отправки 50 МБ. Файл оставлен в памяти приложения.")
                         val name = "video_" + System.currentTimeMillis() + ".mp4"
                         val path = currentUserId + "/" + UUID.randomUUID().toString() + "_" + name
                         // Use the SDK's JVM File overload: it owns file seeking/stream lifecycle
@@ -3876,6 +3877,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                         videoUpload.startOrResumeUploading()
                         RoundVideoDiagnostics.record(context, "video upload completed; inserting direct message")
                         sendDirectAttachment(currentUserId, peer.id, path, name, "video/mp4")
+                        messageCommitted = true
                         RoundVideoDiagnostics.record(context, "video direct message inserted successfully")
                         refresh()
                         errorText = ""
@@ -3885,7 +3887,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                         val reason = e.message?.takeIf { it.isNotBlank() } ?: "ошибка загрузки или сохранения сообщения"
                         errorText = "Не удалось отправить видеосообщение: $reason"
                     } finally {
-                        file.delete()
+                        if (messageCommitted) file.delete()
                         uploadingAttachment = false
                     }
                 }
