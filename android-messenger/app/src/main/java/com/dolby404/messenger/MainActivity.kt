@@ -3560,12 +3560,18 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 val mine = msg.senderId == currentUserId
                 val isImageAttachment = !msg.attachmentPath.isNullOrBlank() &&
                     msg.attachmentMime.orEmpty().startsWith("image/")
+                val isVoiceAttachment = !msg.attachmentPath.isNullOrBlank() &&
+                    msg.attachmentMime.orEmpty().startsWith("audio/")
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
                     Column(horizontalAlignment = if (mine) Alignment.End else Alignment.Start) {
                         Surface(
                             color = if (isImageAttachment) Color.Transparent
+                                else if (isVoiceAttachment) PanelSoft
                                 else if (mine) Color(0xFF254D91) else PanelSoft,
                             shape = RoundedCornerShape(12.dp),
+                            border = if (isVoiceAttachment) androidx.compose.foundation.BorderStroke(
+                                0.5.dp, Color(0x334D8BFF)
+                            ) else null,
                             modifier = Modifier.widthIn(max = 290.dp)
                                 .combinedClickable(
                                     onClick = { },
@@ -3809,12 +3815,12 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                     try {
                         if (!file.exists() || file.length() < 1500L) error("Файл видеосообщения не сохранился.")
                         if (file.length() > 18L * 1024L * 1024L) error("Видео превышает лимит 18 МБ. Запиши более короткий кружок.")
-                        val bytes = withContext(Dispatchers.IO) { file.readBytes() }
-                        if (bytes.isEmpty()) error("Файл видеосообщения пустой.")
                         val name = "video_" + System.currentTimeMillis() + ".mp4"
                         val path = currentUserId + "/" + UUID.randomUUID().toString() + "_" + name
+                        // Supabase Kotlin Storage streams File uploads from disk on Android/JVM.
+                        // Keep the recording out of a full-size ByteArray to avoid memory spikes.
                         withContext(Dispatchers.IO) {
-                            floustreamClient.storage.from("message-media").upload(path, bytes) {
+                            floustreamClient.storage.from("message-media").upload(path, file) {
                                 contentType = ContentType.parse("video/mp4")
                             }
                         }
