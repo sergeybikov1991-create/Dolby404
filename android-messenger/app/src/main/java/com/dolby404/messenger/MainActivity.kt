@@ -817,6 +817,10 @@ private suspend fun respondToFriendRequest(userId: String, requestId: String, ac
 }
 
 private suspend fun sendDirectAttachment(userId: String, peerId: String, path: String, name: String, mime: String) {
+    // Verify the uploaded object can be signed before publishing a chat row.
+    // This prevents a visible "sent" message with a broken/missing media object.
+    val verifiedUrl = floustreamClient.storage.from("message-media").createSignedUrl(path, 10.minutes)
+    check(verifiedUrl.isNotBlank()) { "Файл загружен, но ссылка на него не создаётся. Сообщение не отправлено." }
     floustreamClient.from("direct_messages").insert(
         NewDirectMessage(senderId = userId, recipientId = peerId, content = name, attachmentPath = path, attachmentName = name, attachmentMime = mime)
     )
