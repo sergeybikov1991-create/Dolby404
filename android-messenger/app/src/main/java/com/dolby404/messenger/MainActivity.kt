@@ -3243,11 +3243,28 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                                         val additions = older.filterNot { it.id in existingIds }
                                         if (additions.isNotEmpty()) {
                                             messages.addAll(0, additions)
-                                            val olderReactions = loadDirectMessageReactions(additions.map { it.id })
+                                            val olderReactions = try {
+                                                loadDirectMessageReactions(additions.map { it.id })
+                                            } catch (e: Exception) {
+                                                if (e is kotlinx.coroutines.CancellationException) throw e
+                                                emptyMap()
+                                            }
                                             reactions = reactions + olderReactions
                                             val allIds = messages.map { it.id }.toSet()
-                                            pinnedMessageIds = loadDirectMessagePins(currentUserId).intersect(allIds)
-                                            favoriteMessageIds = loadDirectMessageFavorites(currentUserId).intersect(allIds)
+                                            val loadedPins = try {
+                                                loadDirectMessagePins(currentUserId)
+                                            } catch (e: Exception) {
+                                                if (e is kotlinx.coroutines.CancellationException) throw e
+                                                pinnedMessageIds
+                                            }
+                                            pinnedMessageIds = loadedPins.intersect(allIds)
+                                            val loadedFavorites = try {
+                                                loadDirectMessageFavorites(currentUserId)
+                                            } catch (e: Exception) {
+                                                if (e is kotlinx.coroutines.CancellationException) throw e
+                                                favoriteMessageIds
+                                            }
+                                            favoriteMessageIds = loadedFavorites.intersect(allIds)
                                             val anchorIndex = if (oldIndex == 0) additions.size + 1 else oldIndex + additions.size
                                             messageListState.scrollToItem(anchorIndex, oldOffset)
                                         }
