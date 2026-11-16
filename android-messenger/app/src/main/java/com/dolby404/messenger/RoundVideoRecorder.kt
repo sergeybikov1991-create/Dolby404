@@ -192,7 +192,7 @@ internal fun RoundVideoRecorder(
                             elapsedSeconds = 0
                             recording = null
                             finalizing = false
-                            stopIssued = false
+                            stopIssued.set(false)
                             outputFile = null
                             if (event.hasError()) {
                                 file.delete()
