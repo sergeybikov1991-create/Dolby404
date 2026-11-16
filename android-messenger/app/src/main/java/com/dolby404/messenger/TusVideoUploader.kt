@@ -23,13 +23,14 @@ internal object TusVideoUploader {
         objectPath: String,
         file: File,
         accessToken: String,
-        apiKey: String
+        apiKey: String,
+        contentType: String = "video/mp4"
     ) {
         require(file.isFile && file.length() > 0L) { "Файл видео пустой или недоступен." }
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val stateKey = objectPath
         var uploadUrl: String = prefs.getString(stateKey, null)?.takeIf { it.isNotBlank() }
-            ?: createUpload(bucket, objectPath, file, accessToken, apiKey).also {
+            ?: createUpload(bucket, objectPath, file, accessToken, apiKey, contentType).also {
                 prefs.edit().putString(stateKey, it).apply()
             }
 
@@ -79,12 +80,13 @@ internal object TusVideoUploader {
         objectPath: String,
         file: File,
         token: String,
-        apiKey: String
+        apiKey: String,
+        contentType: String
     ): String {
         val metadata = listOf(
             "bucketName" to bucket,
             "objectName" to objectPath,
-            "contentType" to "video/mp4",
+            "contentType" to contentType,
             "cacheControl" to "3600"
         ).joinToString(",") { (key, value) ->
             "$key ${Base64.encodeToString(value.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)}"
