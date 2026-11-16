@@ -2941,7 +2941,8 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             sendDirectAttachment(currentUserId, peer.id, path, name, "audio/mp4")
             refresh()
             errorText = ""
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             errorText = "Не удалось отправить голосовое сообщение. Проверь интернет и попробуй ещё раз."
         } finally {
             file.delete()
@@ -3469,6 +3470,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                                 replyToMessage = null
                                 refresh()
                             } catch (e: Exception) {
+                                if (e is kotlinx.coroutines.CancellationException) throw e
                                 errorText = e.message ?: "Не удалось отправить сообщение."
                             } finally { sending = false }
                         }
@@ -3514,7 +3516,8 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                                         draft = ""
                                         replyToMessage = null
                                         refresh()
-                                    } catch (_: Exception) {
+                                    } catch (e: Exception) {
+                                        if (e is kotlinx.coroutines.CancellationException) throw e
                                         errorText = "Не удалось отправить сообщение. Проверь интернет и попробуй ещё раз."
                                     } finally { sending = false }
                                 }
@@ -3565,6 +3568,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                         refresh()
                         errorText = ""
                     } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
                         val reason = e.message?.takeIf { it.isNotBlank() } ?: "ошибка загрузки или сохранения сообщения"
                         errorText = "Не удалось отправить видеосообщение: $reason"
                     } finally {
@@ -3605,6 +3609,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                                             setDirectMessageReaction(currentUserId, target.id, emoji, current)
                                             refresh(silent = true)
                                         } catch (e: Exception) {
+                                            if (e is kotlinx.coroutines.CancellationException) throw e
                                             errorText = e.message ?: "Не удалось сохранить реакцию."
                                         }
                                     }
@@ -3623,6 +3628,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                                     favoriteMessageIds = if (shouldFavorite) favoriteMessageIds + target.id else favoriteMessageIds - target.id
                                     Toast.makeText(context, if (shouldFavorite) "Добавлено в избранное" else "Убрано из избранного", Toast.LENGTH_SHORT).show()
                                 } catch (e: Exception) {
+                                    if (e is kotlinx.coroutines.CancellationException) throw e
                                     errorText = e.message ?: "Не удалось изменить избранное."
                                 }
                             }
@@ -3638,6 +3644,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                                     pinnedMessageIds = if (shouldPin) pinnedMessageIds + target.id else pinnedMessageIds - target.id
                                     Toast.makeText(context, if (shouldPin) "Сообщение закреплено" else "Закрепление снято", Toast.LENGTH_SHORT).show()
                                 } catch (e: Exception) {
+                                    if (e is kotlinx.coroutines.CancellationException) throw e
                                     errorText = e.message ?: "Не удалось изменить закрепление."
                                 }
                             }
@@ -3729,6 +3736,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                                 try {
                                     forwardCandidates = findFloustreamUsers(forwardTargetQuery)
                                 } catch (e: Exception) {
+                                    if (e is kotlinx.coroutines.CancellationException) throw e
                                     errorText = e.message ?: "Не удалось найти пользователя."
                                 } finally {
                                     searchingForwardTargets = false
@@ -3754,6 +3762,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                                                 Toast.makeText(context, "Сообщение переслано пользователю ${candidate.username ?: candidate.displayName ?: "FLOUSTREAM"}", Toast.LENGTH_SHORT).show()
                                                 if (candidate.id == peer.id) refresh(silent = true)
                                             } catch (e: Exception) {
+                                                if (e is kotlinx.coroutines.CancellationException) throw e
                                                 errorText = e.message ?: "Не удалось переслать сообщение."
                                             } finally {
                                                 forwarding = false
@@ -3807,6 +3816,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                                 refresh(silent = true)
                                 editingMessage = null
                             } catch (e: Exception) {
+                                if (e is kotlinx.coroutines.CancellationException) throw e
                                 errorText = e.message ?: "Не удалось изменить сообщение."
                             } finally {
                                 savingEdit = false
@@ -3846,6 +3856,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                                 messages.removeAll { it.id == target.id }
                                 pendingDeleteMessage = null
                             } catch (e: Exception) {
+                                if (e is kotlinx.coroutines.CancellationException) throw e
                                 errorText = e.message ?: "Не удалось удалить сообщение."
                             } finally {
                                 deletingMessage = false
@@ -3918,6 +3929,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                                         sendLibraryMedia(currentUserId, peer.id, item)
                                         sentCount++
                                     } catch (e: Exception) {
+                                        if (e is kotlinx.coroutines.CancellationException) throw e
                                         failures += e.message ?: "Не удалось отправить файл."
                                     }
                                 }
