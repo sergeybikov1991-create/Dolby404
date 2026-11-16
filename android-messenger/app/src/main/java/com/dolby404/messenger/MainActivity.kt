@@ -74,6 +74,8 @@ import io.github.jan.supabase.realtime.channel
 import io.github.jan.supabase.storage.Storage
 import io.github.jan.supabase.storage.storage
 import io.ktor.http.ContentType
+import io.ktor.utils.io.jvm.javaio.toByteReadChannel
+import java.io.FileInputStream
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.buildJsonObject
@@ -3820,7 +3822,15 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                         // Supabase resumable upload reads the recording from disk in chunks.
                         // Do not allocate a second video-sized ByteArray in app memory.
                         val videoUpload = floustreamClient.storage.from("message-media")
-                            .resumable.createOrContinueUpload(path, file)
+                            .resumable.createOrContinueUpload(
+                                channel = { offset ->
+                                    FileInputStream(file).apply { channel.position(offset) }
+                                        .toByteReadChannel(Dispatchers.IO)
+                                },
+                                source = file.absolutePath,
+                                size = file.length(),
+                                path = path
+                            )
                         videoUpload.startOrResumeUploading()
                         sendDirectAttachment(currentUserId, peer.id, path, name, "video/mp4")
                         refresh()
