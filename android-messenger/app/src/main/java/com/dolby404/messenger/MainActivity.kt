@@ -2920,11 +2920,11 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             // sender side for incoming messages and recipient side for outgoing ones.
             val incomingMessageChanges = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
                 table = "direct_messages"
-                filter = "sender_id=eq.\u0024{peer.id}"
+                filter = "sender_id=eq.${peer.id}"
             }
             val outgoingMessageChanges = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
                 table = "direct_messages"
-                filter = "recipient_id=eq.\u0024{peer.id}"
+                filter = "recipient_id=eq.${peer.id}"
             }
             val reactionChanges = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
                 table = "direct_message_reactions"
