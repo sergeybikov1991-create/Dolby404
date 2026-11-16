@@ -28,6 +28,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -2364,8 +2365,18 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
         try {
             try { markIncomingMessagesRead(currentUserId, peer.id) } catch (_: Exception) { }
             val latest = loadDirectMessages(currentUserId, peer.id)
-            messages.clear()
-            messages.addAll(latest)
+            // Reconcile by stable message ID instead of clearing the whole list.
+            // This keeps LazyColumn item identity and scroll position during polling.
+            val latestIds = latest.mapTo(hashSetOf()) { it.id }
+            messages.removeAll { it.id !in latestIds }
+            latest.forEachIndexed { index, incoming ->
+                val existingIndex = messages.indexOfFirst { it.id == incoming.id }
+                if (existingIndex >= 0) {
+                    if (messages[existingIndex] != incoming) messages[existingIndex] = incoming
+                } else {
+                    messages.add(index.coerceAtMost(messages.size), incoming)
+                }
+            }
             errorText = ""
             loaded = true
         } catch (e: Exception) {
@@ -2581,6 +2592,12 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 Text(peer.displayName ?: peer.username ?: "Пользователь", color = White, fontWeight = FontWeight.Bold, maxLines = 1)
                 Text(if (peer.isDeleted) "История переписки сохранена" else peer.username?.let { "@$it" } ?: "FLOUSTREAM", color = Muted, fontSize = 10.sp)
             }
+            Text("☎", Modifier.clickable {
+                Toast.makeText(context, "Аудиозвонки появятся в следующем этапе", Toast.LENGTH_SHORT).show()
+            }.padding(horizontal = 7.dp, vertical = 6.dp), color = White, fontSize = 21.sp)
+            Text("▣", Modifier.clickable {
+                Toast.makeText(context, "Видеозвонки появятся в следующем этапе", Toast.LENGTH_SHORT).show()
+            }.padding(horizontal = 7.dp, vertical = 6.dp), color = White, fontSize = 20.sp)
         }
         if (peer.isDeleted) {
             Text("Этот аккаунт удалён. История сообщений сохранена, отправка новых сообщений недоступна.", Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp), color = Muted, fontSize = 12.sp)
@@ -2595,7 +2612,9 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 color = Color(0xFFFF8EAD), fontSize = 12.sp, fontWeight = FontWeight.SemiBold
             )
         }
+        val messageListState = rememberLazyListState()
         LazyColumn(
+            state = messageListState,
             modifier = Modifier.weight(1f).fillMaxWidth(),
             contentPadding = PaddingValues(14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -2605,7 +2624,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             } else if (messages.isEmpty()) {
                 item { Text("Это начало вашей переписки. Отправь первое сообщение!", Modifier.fillMaxWidth().padding(20.dp), color = Muted, fontSize = 13.sp) }
             }
-            items(messages) { msg ->
+            items(messages, key = { it.id }) { msg ->
                 val mine = msg.senderId == currentUserId
                 val isImageAttachment = !msg.attachmentPath.isNullOrBlank() &&
                     msg.attachmentMime.orEmpty().startsWith("image/")
@@ -2616,25 +2635,12 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.widthIn(max = 290.dp)
                             .combinedClickable(
-                                // Let the image's own click target open the full-screen viewer.
-                                // Taps on text/audio/video bubbles still open delete confirmation.
-                                onClick = { if (!isImageAttachment) pendingDeleteMessage = msg },
+                                // A normal tap must never trigger destructive actions.
+                                // Long press remains the temporary entry point until
+                                // the full message action sheet is implemented.
+                                onClick = { },
                                 onLongClick = { pendingDeleteMessage = msg }
                             )
-                            .pointerInput(msg.id, mine) {
-                                var dragTotal = 0f
-                                detectHorizontalDragGestures(
-                                    onHorizontalDrag = { change, amount ->
-                                        dragTotal += amount
-                                        change.consume()
-                                    },
-                                    onDragEnd = {
-                                        if (abs(dragTotal) > 84.dp.toPx()) pendingDeleteMessage = msg
-                                        dragTotal = 0f
-                                    },
-                                    onDragCancel = { dragTotal = 0f }
-                                )
-                            }
                     ) {
                         Column(
                             Modifier.padding(
