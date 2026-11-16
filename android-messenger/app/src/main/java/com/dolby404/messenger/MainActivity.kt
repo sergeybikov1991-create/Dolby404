@@ -3218,7 +3218,6 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     }
     var showAttachmentMenu by remember { mutableStateOf(false) }
     var showVideoRecorder by remember { mutableStateOf(false) }
-    var showVideoModeMenu by remember { mutableStateOf(false) }
     var videoCaptureMode by remember { mutableStateOf(VideoCaptureMode.ROUND_FRONT) }
     var showMediaLibrary by remember { mutableStateOf(false) }
     var mediaLibrary by remember { mutableStateOf<List<MediaLibraryItem>>(emptyList()) }
@@ -3834,7 +3833,6 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             }
             VideoModeButton { selectedMode ->
                 videoCaptureMode = selectedMode
-                showVideoModeMenu = false
                 showVideoRecorder = true
             }
             OutlinedTextField(
@@ -3948,6 +3946,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 uploadVideoDraft(file)
             }
         )
+    }
 
     if (pendingMessageActions != null) {
         val target = pendingMessageActions!!
