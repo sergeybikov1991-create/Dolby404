@@ -1,6 +1,10 @@
 package com.dolby404.messenger
 
 import android.Manifest
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -95,6 +99,7 @@ internal fun RoundVideoRecorder(
 
     fun stopRecording(send: Boolean) {
         val active = recordingRef.get() ?: return
+        RoundVideoDiagnostics.record(context, "stop requested; send=$send")
         if (!stopIssued.compareAndSet(false, true)) return
         shouldSend.set(send)
         finalizing = true
@@ -125,6 +130,7 @@ internal fun RoundVideoRecorder(
         cameraReady = false
         videoCapture = null
         try {
+            RoundVideoDiagnostics.record(context, "camera bind requested; frontCamera=$frontCamera")
             val future = ProcessCameraProvider.getInstance(context)
             val provider = suspendCancellableCoroutine<ProcessCameraProvider> { continuation ->
                 future.addListener(
@@ -156,9 +162,11 @@ internal fun RoundVideoRecorder(
 
             provider.unbindAll()
             provider.bindToLifecycle(lifecycleOwner, selector, preview, capture)
+            RoundVideoDiagnostics.record(context, "camera bound successfully; quality=SD; audio permission granted")
             videoCapture = capture
             cameraReady = true
         } catch (error: Exception) {
+            RoundVideoDiagnostics.record(context, "camera initialization failed", error)
             cameraReady = false
             videoCapture = null
             latestOnError.value(
@@ -173,6 +181,7 @@ internal fun RoundVideoRecorder(
         if (!cameraReady || recordingRef.get() != null || finalizing || disposed.get()) return false
 
         val file = File(context.cacheDir, "round_${UUID.randomUUID()}.mp4")
+        RoundVideoDiagnostics.record(context, "recording start requested; output=cache mp4")
         shouldSend.set(false)
         stopIssued.set(false)
 
@@ -183,12 +192,18 @@ internal fun RoundVideoRecorder(
                 .start(ContextCompat.getMainExecutor(context)) { event ->
                     when (event) {
                         is VideoRecordEvent.Start -> {
+                            RoundVideoDiagnostics.record(context, "CameraX Start event")
                             startedAt = System.currentTimeMillis()
                             elapsedSeconds = 0
                             recordingActive = true
                         }
 
                         is VideoRecordEvent.Finalize -> {
+                            RoundVideoDiagnostics.record(
+                                context,
+                                "CameraX Finalize; error=${event.error}; fileExists=${file.exists()}; bytes=${file.length()}; shouldSend=${shouldSend.get()}; disposed=${disposed.get()}",
+                                event.cause
+                            )
                             recordingRef.set(null)
                             recordingActive = false
                             startedAt = 0L
@@ -227,8 +242,10 @@ internal fun RoundVideoRecorder(
                 }
 
             recordingRef.set(active)
+            RoundVideoDiagnostics.record(context, "CameraX recording object created")
             true
         } catch (error: Exception) {
+            RoundVideoDiagnostics.record(context, "recording start failed", error)
             file.delete()
             shouldSend.set(false)
             latestOnError.value(
@@ -332,7 +349,16 @@ internal fun RoundVideoRecorder(
                 color = Color(0xFFB7C4DA),
                 fontSize = 12.sp
             )
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(8.dp))
+            TextButton(onClick = {
+                val log = RoundVideoDiagnostics.read(context)
+                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(ClipData.newPlainText("FLOUSTREAM diagnostics", log))
+                Toast.makeText(context, "Диагностика скопирована. Вставь её сюда.", Toast.LENGTH_LONG).show()
+            }) {
+                Text("Скопировать диагностику", color = Color(0xFF9FCBFF), fontSize = 12.sp)
+            }
+            Spacer(Modifier.height(8.dp))
 
             Box(
                 Modifier.size(78.dp)
