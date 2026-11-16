@@ -2183,18 +2183,19 @@ private fun MessageAttachment(message: DirectMessageDto) {
 @Composable
 private fun AudioMessagePlayer(url: String) {
     val context = LocalContext.current
-    val player = remember(url) {
+    var playbackAttempt by remember(url) { mutableIntStateOf(0) }
+    val player = remember(url, playbackAttempt) {
         ExoPlayer.Builder(context).build().apply {
             setMediaItem(MediaItem.fromUri(url))
             playWhenReady = false
             prepare()
         }
     }
-    var isPlaying by remember(url) { mutableStateOf(false) }
-    var isBuffering by remember(url) { mutableStateOf(true) }
-    var playbackError by remember(url) { mutableStateOf(false) }
-    var durationMs by remember(url) { mutableLongStateOf(0L) }
-    var positionMs by remember(url) { mutableLongStateOf(0L) }
+    var isPlaying by remember(url, playbackAttempt) { mutableStateOf(false) }
+    var isBuffering by remember(url, playbackAttempt) { mutableStateOf(true) }
+    var playbackError by remember(url, playbackAttempt) { mutableStateOf(false) }
+    var durationMs by remember(url, playbackAttempt) { mutableLongStateOf(0L) }
+    var positionMs by remember(url, playbackAttempt) { mutableLongStateOf(0L) }
 
     DisposableEffect(player) {
         val listener = object : Player.Listener {
@@ -2245,10 +2246,16 @@ private fun AudioMessagePlayer(url: String) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Surface(
-            modifier = Modifier.size(42.dp).clickable(enabled = !playbackError) {
-                if (player.isPlaying) player.pause() else player.play()
+            modifier = Modifier.size(42.dp).clickable {
+                if (playbackError) {
+                    playbackAttempt++
+                } else if (player.isPlaying) {
+                    player.pause()
+                } else {
+                    player.play()
+                }
             },
-            color = if (playbackError) Muted else Blue,
+            color = if (playbackError) Violet else Blue,
             shape = CircleShape
         ) {
             Box(contentAlignment = Alignment.Center) {
@@ -2258,6 +2265,7 @@ private fun AudioMessagePlayer(url: String) {
                         color = White,
                         strokeWidth = 2.dp
                     )
+                    playbackError -> Text("↻", color = White, fontSize = 22.sp)
                     isPlaying -> Text("Ⅱ", color = White, fontSize = 19.sp)
                     else -> Text("▶", color = White, fontSize = 19.sp)
                 }
@@ -2272,7 +2280,7 @@ private fun AudioMessagePlayer(url: String) {
                 fontWeight = FontWeight.SemiBold
             )
             Text(
-                if (playbackError) "Файл повреждён или недоступен"
+                if (playbackError) "Нажми ↻, чтобы попробовать снова"
                 else String.format(
                     "%d:%02d / %d:%02d",
                     positionMs / 60000L,
