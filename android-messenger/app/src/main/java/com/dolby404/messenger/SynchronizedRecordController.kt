@@ -1,9 +1,6 @@
 package com.dolby404.messenger
 
 import android.media.MediaCodec
-import android.media.MediaFormat
-import com.pedro.common.AudioCodec
-import com.pedro.common.VideoCodec
 import com.pedro.library.base.recording.RecordController
 import com.pedro.library.util.AndroidMuxerRecordController
 import java.io.FileDescriptor
