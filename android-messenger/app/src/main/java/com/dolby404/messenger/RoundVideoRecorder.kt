@@ -4,21 +4,11 @@ import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.widget.Toast
 import android.content.pm.PackageManager
+import android.view.SurfaceView
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.camera.core.CameraSelector
-import androidx.camera.core.Preview
-import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.camera.video.FileOutputOptions
-import androidx.camera.video.Quality
-import androidx.camera.video.QualitySelector
-import androidx.camera.video.Recorder
-import androidx.camera.video.Recording
-import androidx.camera.video.VideoCapture
-import androidx.camera.video.VideoRecordEvent
-import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -43,22 +33,18 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.pedro.common.ConnectChecker
+import com.pedro.encoder.input.sources.audio.MicrophoneSource
+import com.pedro.encoder.input.sources.video.Camera2Source
+import com.pedro.library.base.recording.RecordController
+import com.pedro.library.generic.GenericStream
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicReference
-import kotlin.coroutines.resume
 
-/**
- * Hold-to-record CameraX video message.
- *
- * CameraX writes directly to a cache file. The Finalize event is the only place
- * that hands a completed file to the sender; cancellation and lifecycle teardown
- * never expose a partially-written file.
- */
+/** Round video capture using RootEncoder + Camera2Source + MediaCodec. CameraX is not used. */
 @Composable
 internal fun RoundVideoRecorder(
     onDismiss: () -> Unit,
@@ -72,191 +58,125 @@ internal fun RoundVideoRecorder(
 
     var hasPermissions by remember {
         mutableStateOf(
-            context.checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED &&
-                context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED &&
+                ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
         )
     }
-    var frontCamera by remember { mutableStateOf(true) }
-    var previewView by remember { mutableStateOf<PreviewView?>(null) }
-    var videoCapture by remember { mutableStateOf<VideoCapture<Recorder>?>(null) }
     var cameraReady by remember { mutableStateOf(false) }
     var recordingActive by remember { mutableStateOf(false) }
     var finalizing by remember { mutableStateOf(false) }
-    var startedAt by remember { mutableLongStateOf(0L) }
     var elapsedSeconds by remember { mutableIntStateOf(0) }
+    var startedAt by remember { mutableLongStateOf(0L) }
+    var previewView by remember { mutableStateOf<SurfaceView?>(null) }
 
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { result ->
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
         hasPermissions = result[Manifest.permission.CAMERA] == true &&
             result[Manifest.permission.RECORD_AUDIO] == true
         if (!hasPermissions) latestOnError.value("Для видеосообщений нужны разрешения камеры и микрофона.")
     }
 
-    val recordingRef = remember { AtomicReference<Recording?>(null) }
-    val providerRef = remember { AtomicReference<ProcessCameraProvider?>(null) }
     val shouldSend = remember { AtomicBoolean(false) }
-    val stopIssued = remember { AtomicBoolean(false) }
     val disposed = remember { AtomicBoolean(false) }
+    val recordingFile = remember { mutableStateOf<File?>(null) }
+    val cameraSource = remember(context) { Camera2Source(context).also { it.switchCamera() } }
+    val stream = remember(context) {
+        val checker = object : ConnectChecker {
+            override fun onConnectionStarted(url: String) {}
+            override fun onConnectionSuccess() {}
+            override fun onConnectionFailed(reason: String) {}
+            override fun onDisconnect() {}
+            override fun onAuthError() {}
+            override fun onAuthSuccess() {}
+        }
+        GenericStream(context.applicationContext, checker, cameraSource, MicrophoneSource())
+    }
 
     fun stopRecording(send: Boolean) {
-        val active = recordingRef.get() ?: return
-        RoundVideoDiagnostics.record(context, "stop requested; send=$send")
-        if (!stopIssued.compareAndSet(false, true)) return
+        if (!stream.isRecording) return
         shouldSend.set(send)
         finalizing = true
+        RoundVideoDiagnostics.record(context, "RootEncoder stopRecord requested; send=$send")
         try {
-            active.stop()
+            stream.stopRecord()
         } catch (error: Exception) {
-            recordingRef.compareAndSet(active, null)
+            RoundVideoDiagnostics.record(context, "RootEncoder stopRecord failed", error)
+            recordingFile.value?.delete()
+            recordingFile.value = null
             recordingActive = false
-            startedAt = 0L
             finalizing = false
+            startedAt = 0L
             shouldSend.set(false)
             latestOnError.value(error.message ?: "Не удалось завершить видеозапись.")
         }
     }
 
     LaunchedEffect(hasPermissions) {
-        if (!hasPermissions) {
-            permissionLauncher.launch(
-                arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
-            )
-        }
+        if (!hasPermissions) permissionLauncher.launch(arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO))
     }
 
-    LaunchedEffect(hasPermissions, frontCamera, previewView) {
+    LaunchedEffect(hasPermissions, previewView) {
         val view = previewView ?: return@LaunchedEffect
         if (!hasPermissions) return@LaunchedEffect
-
-        cameraReady = false
-        videoCapture = null
         try {
-            RoundVideoDiagnostics.record(context, "camera bind requested; frontCamera=$frontCamera")
-            val future = ProcessCameraProvider.getInstance(context)
-            val provider = suspendCancellableCoroutine<ProcessCameraProvider> { continuation ->
-                future.addListener(
-                    {
-                        try {
-                            continuation.resume(future.get())
-                        } catch (error: Exception) {
-                            continuation.resumeWith(Result.failure(error))
-                        }
-                    },
-                    ContextCompat.getMainExecutor(context)
-                )
-            }
-            providerRef.set(provider)
-
-            val preview = Preview.Builder().build().also {
-                it.surfaceProvider = view.surfaceProvider
-            }
-            val recorder = Recorder.Builder()
-                .setQualitySelector(QualitySelector.from(Quality.SD))
-                .setTargetVideoEncodingBitRate(600_000)
-                .build()
-            val capture = VideoCapture.withOutput(recorder)
-            val selector = if (frontCamera) {
-                CameraSelector.DEFAULT_FRONT_CAMERA
-            } else {
-                CameraSelector.DEFAULT_BACK_CAMERA
-            }
-
-            provider.unbindAll()
-            provider.bindToLifecycle(lifecycleOwner, selector, preview, capture)
-            RoundVideoDiagnostics.record(context, "camera bound successfully; quality=SD; frontCamera=$frontCamera; previewMode=COMPATIBLE; audio permission granted")
-            videoCapture = capture
+            RoundVideoDiagnostics.record(context, "RootEncoder prepare; Camera2Source front camera; 640x480; rotation=90")
+            val videoPrepared = stream.prepareVideo(640, 480, 700_000, fps = 24, rotation = 90)
+            val audioPrepared = stream.prepareAudio(32_000, true, 96_000)
+            if (!videoPrepared || !audioPrepared) throw IllegalStateException("RootEncoder не смог подготовить видео- или аудиокодек.")
+            stream.startPreview(view, true)
             cameraReady = true
+            RoundVideoDiagnostics.record(context, "RootEncoder preview started")
         } catch (error: Exception) {
-            RoundVideoDiagnostics.record(context, "camera initialization failed", error)
+            RoundVideoDiagnostics.record(context, "RootEncoder initialization failed", error)
             cameraReady = false
-            videoCapture = null
-            latestOnError.value(
-                error.message?.takeIf { it.isNotBlank() }
-                    ?: "Не удалось открыть камеру. Проверь разрешения и попробуй ещё раз."
-            )
+            latestOnError.value(error.message ?: "Не удалось запустить камеру через RootEncoder.")
         }
     }
 
     fun startRecording(): Boolean {
-        val capture = videoCapture ?: return false
-        if (!cameraReady || recordingRef.get() != null || finalizing || disposed.get()) return false
-
-        val file = File(context.cacheDir, "round_${UUID.randomUUID()}.mp4")
-        RoundVideoDiagnostics.record(context, "recording start requested; output=cache mp4")
+        if (!cameraReady || stream.isRecording || finalizing || disposed.get()) return false
+        val file = File(context.cacheDir, "round_root_${UUID.randomUUID()}.mp4")
+        recordingFile.value = file
         shouldSend.set(false)
-        stopIssued.set(false)
-
         return try {
-            val active = capture.output
-                .prepareRecording(context, FileOutputOptions.Builder(file).build())
-                .withAudioEnabled()
-                .start(ContextCompat.getMainExecutor(context)) { event ->
-                    when (event) {
-                        is VideoRecordEvent.Start -> {
-                            RoundVideoDiagnostics.record(context, "CameraX Start event")
-                            startedAt = System.currentTimeMillis()
-                            elapsedSeconds = 0
-                            recordingActive = true
-                        }
-
-                        is VideoRecordEvent.Finalize -> {
-                            RoundVideoDiagnostics.record(
-                                context,
-                                "CameraX Finalize; error=${event.error}; errorName=${if (event.error == 8) "ERROR_NO_VALID_DATA" else "OTHER"}; cause=${event.cause?.javaClass?.name}:${event.cause?.message}; fileExists=${file.exists()}; bytes=${file.length()}; shouldSend=${shouldSend.get()}; disposed=${disposed.get()}",
-                                event.cause
-                            )
-                            recordingRef.set(null)
-                            recordingActive = false
-                            startedAt = 0L
-                            elapsedSeconds = 0
-                            finalizing = false
-
-                            // Do not tear down the camera while CameraX is still finalizing
-                            // the output file. If the dialog was disposed, release it now.
-                            if (disposed.get()) {
-                                providerRef.getAndSet(null)?.unbindAll()
-                            }
-
-                            when {
-                                event.hasError() -> {
+            RoundVideoDiagnostics.record(context, "RootEncoder startRecord; cache MP4")
+            stream.startRecord(file.absolutePath) { status ->
+                RoundVideoDiagnostics.record(context, "RootEncoder record status=$status; bytes=${file.length()}")
+                when (status) {
+                    RecordController.Status.RECORDING -> {
+                        startedAt = System.currentTimeMillis()
+                        elapsedSeconds = 0
+                        recordingActive = true
+                    }
+                    RecordController.Status.STOPPED -> {
+                        recordingActive = false
+                        startedAt = 0L
+                        elapsedSeconds = 0
+                        finalizing = false
+                        recordingFile.value = null
+                        when {
+                            shouldSend.get() && !disposed.get() && file.isFile && file.length() > 1500L -> {
+                                if (file.length() > 18L * 1024L * 1024L) {
                                     file.delete()
-                                    if (shouldSend.get() && !disposed.get()) {
-                                        latestOnError.value(
-                                            if (event.error == 8) {
-                                                "Камера не получила видеоданные (ERROR_NO_VALID_DATA). Подержи кнопку чуть дольше и попробуй ещё раз."
-                                            } else {
-                                                "Камера не смогла завершить видеозапись (код ${event.error}). Попробуй ещё раз."
-                                            }
-                                        )
-                                    }
-                                }
-
-                                shouldSend.get() && !disposed.get() && file.isFile && file.length() > 1500L -> {
-                                    if (file.length() > 18L * 1024L * 1024L) {
-                                        file.delete()
-                                        latestOnError.value("Видео превышает временный лимит 18 МБ.")
-                                    } else {
-                                        latestOnRecorded.value(file)
-                                    }
-                                }
-
-                                else -> file.delete()
+                                    latestOnError.value("Видео превышает временный лимит 18 МБ.")
+                                } else latestOnRecorded.value(file)
                             }
+                            shouldSend.get() && !disposed.get() -> {
+                                file.delete()
+                                latestOnError.value("RootEncoder завершил запись без видеоданных. Попробуй ещё раз.")
+                            }
+                            else -> file.delete()
                         }
                     }
+                    else -> Unit
                 }
-
-            recordingRef.set(active)
-            RoundVideoDiagnostics.record(context, "CameraX recording object created")
+            }
             true
         } catch (error: Exception) {
-            RoundVideoDiagnostics.record(context, "recording start failed", error)
+            RoundVideoDiagnostics.record(context, "RootEncoder startRecord failed", error)
             file.delete()
+            recordingFile.value = null
             shouldSend.set(false)
-            latestOnError.value(
-                error.message?.takeIf { it.isNotBlank() } ?: "Не удалось начать видеозапись."
-            )
+            latestOnError.value(error.message ?: "Не удалось начать видеозапись.")
             false
         }
     }
@@ -273,91 +193,49 @@ internal fun RoundVideoRecorder(
         if (!recordingActive) elapsedSeconds = 0
     }
 
-    DisposableEffect(lifecycleOwner) {
-        // Stop safely if Android backgrounds the Activity during a recording.
-        val lifecycleObserver = LifecycleEventObserver { _, event ->
+    DisposableEffect(lifecycleOwner, stream) {
+        val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_PAUSE) {
-                RoundVideoDiagnostics.record(context, "Activity ON_PAUSE; requesting safe recording stop")
+                RoundVideoDiagnostics.record(context, "Activity ON_PAUSE; stop RootEncoder without sending")
                 stopRecording(send = false)
+                if (stream.isOnPreview) stream.stopPreview()
+            } else if (event == Lifecycle.Event.ON_RESUME && hasPermissions && previewView != null && !stream.isOnPreview) {
+                runCatching { stream.startPreview(previewView!!, true) }
+                    .onFailure { RoundVideoDiagnostics.record(context, "RootEncoder preview resume failed", it) }
             }
         }
-        lifecycleOwner.lifecycle.addObserver(lifecycleObserver)
-
+        lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
-            lifecycleOwner.lifecycle.removeObserver(lifecycleObserver)
+            lifecycleOwner.lifecycle.removeObserver(observer)
             disposed.set(true)
             shouldSend.set(false)
-
-            // stop() is asynchronous. Use the same atomic guard as the normal stop path
-            // so ON_PAUSE, Cancel and disposal cannot stop the same Recording twice.
-            val active = recordingRef.get()
-            if (active != null) {
-                if (stopIssued.compareAndSet(false, true)) {
-                    try {
-                        active.stop()
-                        // Finalize performs unbindAll after the MP4 is closed.
-                    } catch (error: Exception) {
-                        RoundVideoDiagnostics.record(context, "stop during disposal failed", error)
-                        recordingRef.compareAndSet(active, null)
-                        providerRef.getAndSet(null)?.unbindAll()
-                    }
-                }
-            } else {
-                providerRef.getAndSet(null)?.unbindAll()
-            }
+            runCatching {
+                if (stream.isRecording) stream.stopRecord()
+                if (stream.isOnPreview) stream.stopPreview(true)
+                stream.release()
+            }.onFailure { RoundVideoDiagnostics.record(context, "RootEncoder release failed", it) }
+            recordingFile.value?.delete()
+            recordingFile.value = null
+            RoundVideoDiagnostics.record(context, "RootEncoder recorder disposed")
         }
     }
 
-    Dialog(
-        onDismissRequest = {
-            stopRecording(send = false)
-            onDismiss()
-        },
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
+    Dialog(onDismissRequest = { stopRecording(false); onDismiss() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
             Modifier.fillMaxSize().background(Color(0xFF080D1B)).padding(18.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                TextButton(onClick = {
-                    stopRecording(send = false)
-                    onDismiss()
-                }) {
-                    Text("Отмена", color = Color.White)
-                }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = { stopRecording(false); onDismiss() }) { Text("Отмена", color = Color.White) }
                 Text("Видеосообщение", color = Color.White, fontSize = 17.sp)
-                TextButton(
-                    enabled = !recordingActive && !finalizing,
-                    onClick = { frontCamera = !frontCamera }
-                ) {
-                    Text("↻", color = Color.White, fontSize = 22.sp)
-                }
+                Text(" ", color = Color.White)
             }
-
             Spacer(Modifier.height(24.dp))
-            Box(
-                Modifier.size(280.dp).clip(CircleShape).background(Color.Black),
-                contentAlignment = Alignment.Center
-            ) {
-                AndroidView(
-                    factory = { viewContext ->
-                        PreviewView(viewContext).also {
-                            it.implementationMode = PreviewView.ImplementationMode.COMPATIBLE
-                            it.scaleType = PreviewView.ScaleType.FILL_CENTER
-                            previewView = it
-                        }
-                    },
-                    modifier = Modifier.fillMaxSize()
-                )
+            Box(Modifier.size(280.dp).clip(CircleShape).background(Color.Black), contentAlignment = Alignment.Center) {
+                AndroidView(factory = { SurfaceView(it).also { view -> previewView = view } }, modifier = Modifier.fillMaxSize())
                 if (!cameraReady) CircularProgressIndicator(color = Color.White)
             }
-
             Spacer(Modifier.height(28.dp))
             Text(
                 when {
@@ -365,8 +243,7 @@ internal fun RoundVideoRecorder(
                     recordingActive -> "● Запись 0:${String.format("%02d", elapsedSeconds)} — отпусти для отправки"
                     else -> "Удерживай кнопку · свайп влево отменяет"
                 },
-                color = Color(0xFFB7C4DA),
-                fontSize = 12.sp
+                color = Color(0xFFB7C4DA), fontSize = 12.sp
             )
             Spacer(Modifier.height(8.dp))
             TextButton(onClick = {
@@ -374,21 +251,13 @@ internal fun RoundVideoRecorder(
                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 clipboard.setPrimaryClip(ClipData.newPlainText("FLOUSTREAM diagnostics", log))
                 Toast.makeText(context, "Диагностика скопирована. Вставь её сюда.", Toast.LENGTH_LONG).show()
-            }) {
-                Text("Скопировать диагностику", color = Color(0xFF9FCBFF), fontSize = 12.sp)
-            }
+            }) { Text("Скопировать диагностику", color = Color(0xFF9FCBFF), fontSize = 12.sp) }
             Spacer(Modifier.height(8.dp))
-
             Box(
-                Modifier.size(78.dp)
-                    .clip(CircleShape)
-                    .background(if (recordingActive) Color(0xFF9A65FF) else Color(0xFF548BFF))
-                    .pointerInput(cameraReady, finalizing) {
+                Modifier.size(78.dp).clip(CircleShape).background(if (recordingActive) Color(0xFF9A65FF) else Color(0xFF548BFF))
+                    .pointerInput(cameraReady, finalizing, recordingActive) {
                         awaitEachGesture {
-                            if (!cameraReady || finalizing || recordingActive) {
-                                return@awaitEachGesture
-                            }
-
+                            if (!cameraReady || finalizing || recordingActive) return@awaitEachGesture
                             val down = awaitFirstDown(requireUnconsumed = false)
                             var cancel = false
                             val heldLongEnough = withTimeoutOrNull(350L) {
@@ -396,18 +265,11 @@ internal fun RoundVideoRecorder(
                                     val event = awaitPointerEvent()
                                     val change = event.changes.firstOrNull { it.id == down.id } ?: break
                                     if (!change.pressed) break
-                                    if (change.position.x < down.position.x - 70.dp.toPx()) {
-                                        cancel = true
-                                        break
-                                    }
+                                    if (change.position.x < down.position.x - 70.dp.toPx()) { cancel = true; break }
                                 }
                                 false
                             } ?: true
-
-                            if (!heldLongEnough || cancel || !startRecording()) {
-                                return@awaitEachGesture
-                            }
-
+                            if (!heldLongEnough || cancel || !startRecording()) return@awaitEachGesture
                             while (true) {
                                 val event = awaitPointerEvent()
                                 val change = event.changes.firstOrNull { it.id == down.id } ?: break
@@ -418,13 +280,7 @@ internal fun RoundVideoRecorder(
                         }
                     },
                 contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    if (recordingActive) "■" else "●",
-                    color = Color.White,
-                    fontSize = 30.sp
-                )
-            }
+            ) { Text(if (recordingActive) "■" else "●", color = Color.White, fontSize = 30.sp) }
         }
     }
 }
