@@ -2116,28 +2116,7 @@ private fun MessageAttachment(message: DirectMessageDto) {
             contentScale = ContentScale.Fit
         )
         mime.startsWith("audio/") -> AudioMessagePlayer(url!!) { urlRefreshAttempt++ }
-        mime.startsWith("video/") -> {
-            val player = remember(url) {
-                ExoPlayer.Builder(context).build().apply {
-                    setMediaItem(MediaItem.fromUri(url!!))
-                    prepare()
-                }
-            }
-            DisposableEffect(player) {
-                onDispose { player.release() }
-            }
-            AndroidView(
-                factory = { viewContext ->
-                    PlayerView(viewContext).apply {
-                        this.player = player
-                        useController = true
-                        resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                    }
-                },
-                update = { it.player = player },
-                modifier = Modifier.size(190.dp).clip(CircleShape)
-            )
-        }
+        mime.startsWith("video/") -> VideoMessagePlayer(url!!) { urlRefreshAttempt++ }
         else -> Row(
             Modifier.fillMaxWidth().clickable {
                 try {
@@ -2178,6 +2157,62 @@ private fun MessageAttachment(message: DirectMessageDto) {
                     color = Color.White,
                     fontSize = 34.sp
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun VideoMessagePlayer(url: String, onRetry: () -> Unit) {
+    val context = LocalContext.current
+    val player = remember(url) {
+        ExoPlayer.Builder(context).build().apply {
+            setMediaItem(MediaItem.fromUri(url))
+            playWhenReady = false
+            prepare()
+        }
+    }
+    var playbackError by remember(url) { mutableStateOf(false) }
+    DisposableEffect(player) {
+        val listener = object : Player.Listener {
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                playbackError = true
+                player.pause()
+            }
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_READY) playbackError = false
+            }
+        }
+        player.addListener(listener)
+        onDispose {
+            player.removeListener(listener)
+            player.release()
+        }
+    }
+    Box(
+        Modifier.size(190.dp).clip(CircleShape).background(Color.Black),
+        contentAlignment = Alignment.Center
+    ) {
+        AndroidView(
+            factory = { viewContext ->
+                PlayerView(viewContext).apply {
+                    this.player = player
+                    useController = true
+                    resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                }
+            },
+            update = { it.player = player },
+            modifier = Modifier.fillMaxSize()
+        )
+        if (playbackError) {
+            Column(
+                Modifier.fillMaxSize().background(Color(0xCC080D1B)).clickable { onRetry() }.padding(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text("Не удалось воспроизвести видео", color = White, fontSize = 11.sp)
+                Spacer(Modifier.height(6.dp))
+                Text("↻ Повторить", color = Color(0xFFB99AFF), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             }
         }
     }
