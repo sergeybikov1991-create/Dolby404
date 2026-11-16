@@ -78,7 +78,6 @@ import io.github.jan.supabase.realtime.postgresChangeFlow
 import io.github.jan.supabase.realtime.realtime
 import io.github.jan.supabase.realtime.channel
 import io.github.jan.supabase.storage.Storage
-import io.github.jan.supabase.storage.createOrContinueUpload
 import io.github.jan.supabase.storage.storage
 import io.ktor.http.ContentType
 import kotlinx.serialization.SerialName
