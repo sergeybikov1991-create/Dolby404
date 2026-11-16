@@ -1,4 +1,4 @@
-name: Build and publish FLOUSTREAM Messenger 0.4.8 - resumable video upload
+name: Build and publish FLOUSTREAM Messenger 0.4.8 - streaming upload fix
 
 on:
   workflow_dispatch:
