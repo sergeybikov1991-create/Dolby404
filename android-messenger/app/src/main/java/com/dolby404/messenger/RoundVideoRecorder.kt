@@ -195,6 +195,12 @@ internal fun RoundVideoRecorder(
                             elapsedSeconds = 0
                             finalizing = false
 
+                            // Do not tear down the camera while CameraX is still finalizing
+                            // the output file. If the dialog was disposed, release it now.
+                            if (disposed.get()) {
+                                providerRef.getAndSet(null)?.unbindAll()
+                            }
+
                             when {
                                 event.hasError() -> {
                                     file.delete()
@@ -248,14 +254,22 @@ internal fun RoundVideoRecorder(
         onDispose {
             disposed.set(true)
             shouldSend.set(false)
-            recordingRef.getAndSet(null)?.let { active ->
+
+            // stop() is asynchronous: CameraX still needs its camera/encoder session
+            // to emit Finalize and close the MP4 container. Unbinding immediately here
+            // can interrupt that work and produce a failed or truncated recording.
+            val active = recordingRef.get()
+            if (active != null) {
                 try {
                     active.stop()
+                    // The Finalize callback above performs unbindAll after the file closes.
                 } catch (_: Exception) {
-                    // The file is not sent after disposal; CameraX owns final cleanup.
+                    recordingRef.compareAndSet(active, null)
+                    providerRef.getAndSet(null)?.unbindAll()
                 }
+            } else {
+                providerRef.getAndSet(null)?.unbindAll()
             }
-            providerRef.getAndSet(null)?.unbindAll()
         }
     }
 
