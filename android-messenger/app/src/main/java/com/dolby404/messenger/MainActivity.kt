@@ -2532,13 +2532,40 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     var pinnedMessageIds by remember(peer.id) { mutableStateOf<Set<String>>(emptySet()) }
     var chatSearchOpen by remember(peer.id) { mutableStateOf(false) }
     var chatSearchQuery by remember(peer.id) { mutableStateOf("") }
-    var chatSearchIndex by remember(peer.id) { mutableIntStateOf(0) }
+    var chatSearchDate by remember(peer.id) { mutableStateOf("") }
+    var chatSearchMediaFilter by remember(peer.id) { mutableStateOf("Все") }
+    var chatSearchIndex by remember(peer.id) { mutableIntStateOf(-1) }
     var draft by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(true) }
     var sending by remember { mutableStateOf(false) }
     var errorText by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     val messageListState = rememberLazyListState()
+    val normalizedSearchDate = chatSearchDate.trim().let { date ->
+        when {
+            Regex("\\d{2}\\.\\d{2}\\.\\d{4}").matches(date) ->
+                date.substring(6, 10) + "-" + date.substring(3, 5) + "-" + date.substring(0, 2)
+            Regex("\\d{4}-\\d{2}-\\d{2}").matches(date) -> date
+            else -> ""
+        }
+    }
+    val filteredMessages = messages.filter { msg ->
+        val query = chatSearchQuery.trim()
+        val textMatches = query.isBlank() ||
+            msg.content.contains(query, ignoreCase = true) ||
+            msg.attachmentName.orEmpty().contains(query, ignoreCase = true)
+        val mime = msg.attachmentMime.orEmpty().lowercase()
+        val mediaMatches = when (chatSearchMediaFilter) {
+            "Фото" -> mime.startsWith("image/")
+            "Видео" -> mime.startsWith("video/")
+            "Аудио" -> mime.startsWith("audio/")
+            "Файлы" -> !msg.attachmentPath.isNullOrBlank() &&
+                !mime.startsWith("image/") && !mime.startsWith("video/") && !mime.startsWith("audio/")
+            else -> true
+        }
+        val dateMatches = normalizedSearchDate.isBlank() || msg.createdAt.startsWith(normalizedSearchDate)
+        textMatches && mediaMatches && dateMatches
+    }
     val lifecycleOwner = LocalLifecycleOwner.current
     var isResumed by remember { mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) }
 
@@ -2808,7 +2835,9 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 chatSearchOpen = !chatSearchOpen
                 if (!chatSearchOpen) {
                     chatSearchQuery = ""
-                    chatSearchIndex = 0
+                    chatSearchDate = ""
+                    chatSearchMediaFilter = "Все"
+                    chatSearchIndex = -1
                 }
             }.padding(horizontal = 8.dp, vertical = 6.dp), color = White, fontSize = 25.sp)
             Text("▣", Modifier.clickable {
@@ -2816,61 +2845,82 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             }.padding(horizontal = 7.dp, vertical = 6.dp), color = White, fontSize = 20.sp)
         }
         if (chatSearchOpen) {
-            val matchingCount = messages.count { msg ->
-                val q = chatSearchQuery.trim()
-                q.isNotEmpty() && (msg.content.contains(q, ignoreCase = true) ||
-                    msg.attachmentName.orEmpty().contains(q, ignoreCase = true))
-            }
-            Row(
+            Column(
                 Modifier.fillMaxWidth().background(PanelSoft).padding(horizontal = 10.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalArrangement = Arrangement.spacedBy(5.dp)
             ) {
-                OutlinedTextField(
-                    value = chatSearchQuery,
-                    onValueChange = { chatSearchQuery = it; chatSearchIndex = 0 },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
-                    placeholder = { Text("Поиск в переписке", color = Muted) },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = White,
-                        unfocusedTextColor = White,
-                        focusedBorderColor = Blue,
-                        unfocusedBorderColor = Muted,
-                        cursorColor = Blue
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = chatSearchQuery,
+                        onValueChange = { chatSearchQuery = it; chatSearchIndex = -1 },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        placeholder = { Text("Поиск в переписке", color = Muted) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = White,
+                            unfocusedTextColor = White,
+                            focusedBorderColor = Blue,
+                            unfocusedBorderColor = Muted,
+                            cursorColor = Blue
+                        )
                     )
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(if (chatSearchQuery.isBlank()) "—" else "$matchingCount", color = Muted, fontSize = 11.sp)
-                TextButton(
-                    enabled = matchingCount > 0,
-                    onClick = {
-                        val matches = messages.filter { msg ->
-                            msg.content.contains(chatSearchQuery.trim(), ignoreCase = true) ||
-                                msg.attachmentName.orEmpty().contains(chatSearchQuery.trim(), ignoreCase = true)
+                    Spacer(Modifier.width(6.dp))
+                    Text(if (chatSearchQuery.isBlank() && chatSearchDate.isBlank() && chatSearchMediaFilter == "Все") "—" else "${filteredMessages.size}", color = Muted, fontSize = 11.sp)
+                    TextButton(
+                        enabled = filteredMessages.isNotEmpty(),
+                        onClick = {
+                            if (filteredMessages.isNotEmpty()) {
+                                chatSearchIndex = if (chatSearchIndex < 0) filteredMessages.lastIndex
+                                    else (chatSearchIndex - 1 + filteredMessages.size) % filteredMessages.size
+                                val targetIndex = filteredMessages.indexOfFirst { it.id == filteredMessages[chatSearchIndex].id }
+                                if (targetIndex >= 0) scope.launch { messageListState.animateScrollToItem(targetIndex) }
+                            }
+                        },
+                        contentPadding = PaddingValues(horizontal = 2.dp)
+                    ) { Text("↑", color = White) }
+                    TextButton(
+                        enabled = filteredMessages.isNotEmpty(),
+                        onClick = {
+                            if (filteredMessages.isNotEmpty()) {
+                                chatSearchIndex = (chatSearchIndex + 1).mod(filteredMessages.size)
+                                val targetIndex = filteredMessages.indexOfFirst { it.id == filteredMessages[chatSearchIndex].id }
+                                if (targetIndex >= 0) scope.launch { messageListState.animateScrollToItem(targetIndex) }
+                            }
+                        },
+                        contentPadding = PaddingValues(horizontal = 2.dp)
+                    ) { Text("↓", color = White) }
+                }
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    listOf("Все", "Фото", "Видео", "Аудио", "Файлы").forEach { filter ->
+                        TextButton(
+                            onClick = { chatSearchMediaFilter = filter; chatSearchIndex = -1 },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                        ) {
+                            Text(filter, color = if (chatSearchMediaFilter == filter) Blue else Muted, fontSize = 11.sp)
                         }
-                        if (matches.isNotEmpty()) {
-                            chatSearchIndex = (chatSearchIndex - 1 + matches.size) % matches.size
-                            val targetIndex = messages.indexOfFirst { it.id == matches[chatSearchIndex].id }
-                            if (targetIndex >= 0) scope.launch { messageListState.animateScrollToItem(targetIndex) }
-                        }
-                    },
-                    contentPadding = PaddingValues(horizontal = 2.dp)
-                ) { Text("↑", color = White) }
-                TextButton(
-                    enabled = matchingCount > 0,
-                    onClick = {
-                        val matches = messages.filter { msg ->
-                            msg.content.contains(chatSearchQuery.trim(), ignoreCase = true) ||
-                                msg.attachmentName.orEmpty().contains(chatSearchQuery.trim(), ignoreCase = true)
-                        }
-                        if (matches.isNotEmpty()) {
-                            chatSearchIndex = (chatSearchIndex + 1) % matches.size
-                            val targetIndex = messages.indexOfFirst { it.id == matches[chatSearchIndex].id }
-                            if (targetIndex >= 0) scope.launch { messageListState.animateScrollToItem(targetIndex) }
-                        }
-                    },
-                    contentPadding = PaddingValues(horizontal = 2.dp)
-                ) { Text("↓", color = White) }
+                    }
+                    OutlinedTextField(
+                        value = chatSearchDate,
+                        onValueChange = { value -> chatSearchDate = value.take(10); chatSearchIndex = -1 },
+                        modifier = Modifier.width(150.dp),
+                        singleLine = true,
+                        placeholder = { Text("ДД.ММ.ГГГГ", color = Muted, fontSize = 11.sp) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = White,
+                            unfocusedTextColor = White,
+                            focusedBorderColor = Blue,
+                            unfocusedBorderColor = Muted,
+                            cursorColor = Blue
+                        )
+                    )
+                }
+                if (chatSearchDate.isNotBlank() && normalizedSearchDate.isBlank()) {
+                    Text("Дата: ДД.ММ.ГГГГ или ГГГГ-ММ-ДД", color = Muted, fontSize = 10.sp)
+                }
             }
         }
         if (peer.isDeleted) {
@@ -2918,8 +2968,17 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 item { Text("Загружаем переписку…", color = Muted) }
             } else if (messages.isEmpty()) {
                 item { Text("Это начало вашей переписки. Отправь первое сообщение!", Modifier.fillMaxWidth().padding(20.dp), color = Muted, fontSize = 13.sp) }
+            } else if (filteredMessages.isEmpty() && chatSearchOpen) {
+                item {
+                    Text(
+                        "По этим условиям ничего не найдено.",
+                        Modifier.fillMaxWidth().padding(20.dp),
+                        color = Muted,
+                        fontSize = 13.sp
+                    )
+                }
             }
-            items(messages, key = { it.id }) { msg ->
+            items(if (chatSearchOpen) filteredMessages else messages, key = { it.id }) { msg ->
                 val mine = msg.senderId == currentUserId
                 val isImageAttachment = !msg.attachmentPath.isNullOrBlank() &&
                     msg.attachmentMime.orEmpty().startsWith("image/")
