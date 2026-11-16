@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Base64
 import java.io.File
 import java.io.IOException
+import java.io.RandomAccessFile
 import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URL
@@ -144,19 +145,9 @@ internal object TusVideoUploader {
         apiKey: String
     ) {
         val chunk = ByteArray(count)
-        file.inputStream().use { input ->
-            var skipped = 0L
-            while (skipped < offset) {
-                val amount = input.skip(offset - skipped)
-                if (amount <= 0L) throw IOException("Не удалось перейти к фрагменту видео.")
-                skipped += amount
-            }
-            var read = 0
-            while (read < count) {
-                val amount = input.read(chunk, read, count - read)
-                if (amount < 0) throw IOException("Файл видео изменился во время загрузки.")
-                read += amount
-            }
+        RandomAccessFile(file, "r").use { input ->
+            input.seek(offset)
+            input.readFully(chunk)
         }
 
         val connection = (URL(uploadUrl).openConnection() as HttpURLConnection).apply {
