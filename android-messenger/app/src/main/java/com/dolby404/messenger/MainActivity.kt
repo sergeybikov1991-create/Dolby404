@@ -2571,6 +2571,7 @@ private fun MessageAttachment(message: DirectMessageDto) {
     val context = LocalContext.current
     val path = message.attachmentPath ?: return
     val mime = message.attachmentMime.orEmpty().lowercase()
+    val isRoundVideo = !message.attachmentName.orEmpty().startsWith("normal_")
     var signedUrl by remember(path) { mutableStateOf<String?>(null) }
     var loadError by remember(path) { mutableStateOf(false) }
     var urlRefreshAttempt by remember(path) { mutableIntStateOf(0) }
@@ -2604,12 +2605,13 @@ private fun MessageAttachment(message: DirectMessageDto) {
             TextButton(onClick = { urlRefreshAttempt++ }) { Text("Повторить", color = Blue) }
         }
         mime.startsWith("video/") && url == null && !loadError -> Box(
-            Modifier.size(if (isRound) 190.dp else 250.dp, if (isRound) 190.dp else 150.dp)
-            .clip(if (isRound) CircleShape else RoundedCornerShape(18.dp)).background(Color.Black),
+            Modifier.size(if (isRoundVideo) 190.dp else 250.dp, if (isRoundVideo) 190.dp else 150.dp)
+                .clip(if (isRoundVideo) CircleShape else RoundedCornerShape(18.dp)).background(Color.Black),
             contentAlignment = Alignment.Center
         ) { CircularProgressIndicator(color = Blue) }
         mime.startsWith("video/") && loadError -> Box(
-            Modifier.size(190.dp).clip(CircleShape).background(Color.Black),
+            Modifier.size(if (isRoundVideo) 190.dp else 250.dp, if (isRoundVideo) 190.dp else 150.dp)
+                .clip(if (isRoundVideo) CircleShape else RoundedCornerShape(18.dp)).background(Color.Black),
             contentAlignment = Alignment.Center
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -2760,7 +2762,8 @@ private fun VideoMessagePlayer(url: String, isRound: Boolean = true, onRetry: ()
         }
     }
     Box(
-        Modifier.size(190.dp).clip(CircleShape).background(Color.Black),
+        Modifier.size(if (isRound) 190.dp else 250.dp, if (isRound) 190.dp else 150.dp)
+            .clip(if (isRound) CircleShape else RoundedCornerShape(18.dp)).background(Color.Black),
         contentAlignment = Alignment.Center
     ) {
         AndroidView(
