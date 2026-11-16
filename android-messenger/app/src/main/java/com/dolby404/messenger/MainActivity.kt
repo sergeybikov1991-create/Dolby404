@@ -2564,8 +2564,6 @@ private fun MessageAttachment(message: DirectMessageDto) {
     var imageLoadError by remember(path) { mutableStateOf(false) }
     val url = signedUrl
     when {
-        url == null && !loadError -> CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Blue)
-        loadError -> Text("Не удалось получить ссылку на вложение", color = Muted, fontSize = 12.sp)
         mime.startsWith("image/") && url == null && !loadError -> Box(
             Modifier.fillMaxWidth().height(220.dp),
             contentAlignment = Alignment.Center
@@ -2578,6 +2576,8 @@ private fun MessageAttachment(message: DirectMessageDto) {
             Text("Не удалось отобразить фото", color = Muted, fontSize = 12.sp)
             TextButton(onClick = { urlRefreshAttempt++; imageLoadError = false; loadError = false }) { Text("Повторить", color = Blue) }
         }
+        url == null && !loadError -> CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Blue)
+        loadError -> Text("Не удалось получить ссылку на вложение", color = Muted, fontSize = 12.sp)
         mime.startsWith("image/") -> AsyncImage(
             model = url,
             contentDescription = message.attachmentName ?: "Изображение",
