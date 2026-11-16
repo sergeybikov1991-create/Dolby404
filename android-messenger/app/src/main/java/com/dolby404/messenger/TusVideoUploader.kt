@@ -55,7 +55,7 @@ internal object TusVideoUploader {
                     offset = queryOffset(uploadUrl, accessToken, apiKey)
                     if (offset < 0L) {
                         prefs.edit().remove(stateKey).apply()
-                        uploadUrl = createUpload(bucket, objectPath, file, accessToken, apiKey)
+                        uploadUrl = createUpload(bucket, objectPath, file, accessToken, apiKey, contentType)
                         prefs.edit().putString(stateKey, uploadUrl).apply()
                         offset = 0L
                     }
