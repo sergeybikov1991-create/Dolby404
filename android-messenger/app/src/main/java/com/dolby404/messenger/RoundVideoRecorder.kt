@@ -66,31 +66,45 @@ internal fun RoundVideoRecorder(
     var elapsedSeconds by remember { mutableIntStateOf(0) }
     var shouldSend by remember { mutableStateOf(false) }
     var finalizing by remember { mutableStateOf(false) }
+    var stopIssued by remember { mutableStateOf(false) }
+    var disposed by remember { mutableStateOf(false) }
     var cameraReady by remember { mutableStateOf(false) }
     var cameraProvider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
     var outputFile by remember { mutableStateOf<File?>(null) }
 
-    // DisposableEffect(Unit) is intentionally stable, so keep its cleanup pointed
-    // at the latest camera/recording/file instead of the initial null values.
     val latestRecording = rememberUpdatedState(recording)
     val latestCameraProvider = rememberUpdatedState(cameraProvider)
     val latestOutputFile = rememberUpdatedState(outputFile)
+    val latestShouldSend = rememberUpdatedState(shouldSend)
+    val latestDisposed = rememberUpdatedState(disposed)
+    val latestStopIssued = rememberUpdatedState(stopIssued)
+
+    fun requestStop(send: Boolean) {
+        val activeRecording = recording ?: return
+        if (stopIssued || finalizing) return
+        shouldSend = send
+        stopIssued = true
+        finalizing = true
+        try {
+            activeRecording.stop()
+        } catch (_: Exception) {
+            recording = null
+            recordingActive = false
+            recordingStartedAt = 0L
+            finalizing = false
+            stopIssued = false
+            outputFile?.delete()
+            outputFile = null
+            if (!disposed) onError("Не удалось сохранить видеозапись.")
+        }
+    }
 
     LaunchedEffect(recordingActive, recordingStartedAt) {
         if (recordingActive && recordingStartedAt > 0L) {
-            while (recordingActive) {
+            while (recordingActive && !finalizing) {
                 elapsedSeconds = ((System.currentTimeMillis() - recordingStartedAt) / 1000L).toInt()
-                if (elapsedSeconds >= 30 && !finalizing) {
-                    shouldSend = true
-                    finalizing = true
-                    try { recording?.stop() } catch (_: Exception) {
-                        outputFile?.delete()
-                        outputFile = null
-                        recording = null
-                        recordingActive = false
-                        finalizing = false
-                        onError("Не удалось автоматически завершить видеозапись.")
-                    }
+                if (elapsedSeconds >= 30) {
+                    requestStop(true)
                     break
                 }
                 kotlinx.coroutines.delay(250L)
@@ -106,14 +120,29 @@ internal fun RoundVideoRecorder(
             permissionLauncher.launch(arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO))
         }
     }
+
     DisposableEffect(Unit) {
         onDispose {
+            disposed = true
             shouldSend = false
-            try { latestRecording.value?.stop() } catch (_: Exception) { }
+            val activeRecording = latestRecording.value
+            if (activeRecording != null && !latestStopIssued.value) {
+                stopIssued = true
+                finalizing = true
+                try {
+                    activeRecording.stop()
+                } catch (_: Exception) {
+                    latestOutputFile.value?.delete()
+                }
+            } else if (activeRecording == null) {
+                latestOutputFile.value?.delete()
+            }
+            // Do not delete an in-progress recording here. CameraX owns the file until
+            // its Finalize event; deleting it during stop was causing intermittent failures.
             latestCameraProvider.value?.unbindAll()
-            latestOutputFile.value?.delete()
         }
     }
+
     LaunchedEffect(hasPermissions, frontCamera, previewView) {
         val view = previewView
         if (!hasPermissions || view == null) return@LaunchedEffect
@@ -137,17 +166,18 @@ internal fun RoundVideoRecorder(
             cameraReady = true
         } catch (_: Exception) {
             cameraReady = false
-            onError("Не удалось открыть камеру. Проверь разрешения и попробуй ещё раз.")
+            if (!disposed) onError("Не удалось открыть камеру. Проверь разрешения и попробуй ещё раз.")
         }
     }
 
     fun startRecording() {
         val capture = videoCapture ?: return
-        if (!cameraReady || recordingActive || finalizing) return
+        if (!cameraReady || recording != null || recordingActive || finalizing || disposed) return
         val file = File(context.cacheDir, "round_" + System.currentTimeMillis() + ".mp4")
         outputFile = file
         shouldSend = false
         finalizing = false
+        stopIssued = false
         try {
             recording = capture.output.prepareRecording(context, FileOutputOptions.Builder(file).build())
                 .withAudioEnabled()
@@ -164,59 +194,55 @@ internal fun RoundVideoRecorder(
                             elapsedSeconds = 0
                             recording = null
                             finalizing = false
-                            val completed = outputFile
+                            stopIssued = false
                             outputFile = null
                             if (event.hasError()) {
-                                completed?.delete()
-                                onError("Не удалось завершить видеозапись. Попробуй ещё раз.")
-                            } else if (shouldSend && completed != null && completed.exists()) {
-                                if (completed.length() > 45L * 1024L * 1024L) {
-                                    completed.delete()
-                                    onError("Видеосообщение получилось больше 45 МБ. Запиши более короткий кружок.")
-                                } else if (completed.length() > 1500L) {
-                                    onRecorded(completed)
-                                } else {
-                                    completed.delete()
-                                    onError("Видео слишком короткое. Удерживай кнопку хотя бы секунду.")
+                                file.delete()
+                                if (latestShouldSend.value && !latestDisposed.value) {
+                                    onError("Не удалось завершить видеозапись. Попробуй ещё раз.")
+                                }
+                            } else if (latestShouldSend.value && !latestDisposed.value && file.exists()) {
+                                when {
+                                    file.length() > 45L * 1024L * 1024L -> {
+                                        file.delete()
+                                        onError("Видеосообщение получилось больше 45 МБ. Запиши более короткий кружок.")
+                                    }
+                                    file.length() > 1500L -> onRecorded(file)
+                                    else -> {
+                                        file.delete()
+                                        onError("Видео слишком короткое. Удерживай кнопку хотя бы секунду.")
+                                    }
                                 }
                             } else {
-                                completed?.delete()
-                                if (shouldSend) onError("Не удалось сохранить видеосообщение. Попробуй записать ещё раз.")
+                                file.delete()
                             }
                         }
                     }
                 }
         } catch (_: Exception) {
-            recordingActive = false
-            outputFile?.delete()
-            outputFile = null
-            onError("Не удалось начать видеозапись.")
-        }
-    }
-    fun stopRecording(send: Boolean) {
-        if (recording == null) return
-        shouldSend = send
-        finalizing = true
-        try { recording?.stop() } catch (_: Exception) {
-            outputFile?.delete()
-            outputFile = null
             recording = null
             recordingActive = false
-            finalizing = false
-            onError("Не удалось сохранить видеозапись.")
+            outputFile = null
+            file.delete()
+            if (!disposed) onError("Не удалось начать видеозапись.")
         }
     }
 
-    Dialog(onDismissRequest = { stopRecording(false); onDismiss() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    Dialog(
+        onDismissRequest = { requestStop(false); onDismiss() },
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
         Column(
             Modifier.fillMaxSize().background(Color(0xFF080D1B)).padding(18.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                TextButton(onClick = { stopRecording(false); onDismiss() }) { Text("Отмена", color = Color.White) }
+                TextButton(onClick = { requestStop(false); onDismiss() }) { Text("Отмена", color = Color.White) }
                 Text("Видеосообщение", color = Color.White, fontSize = 17.sp)
-                TextButton(onClick = { if (!recordingActive && !finalizing) frontCamera = !frontCamera }) { Text("↻", color = Color.White, fontSize = 22.sp) }
+                TextButton(onClick = { if (!recordingActive && recording == null && !finalizing) frontCamera = !frontCamera }) {
+                    Text("↻", color = Color.White, fontSize = 22.sp)
+                }
             }
             Spacer(Modifier.height(24.dp))
             Box(Modifier.size(280.dp).clip(CircleShape).background(Color.Black), contentAlignment = Alignment.Center) {
@@ -237,8 +263,7 @@ internal fun RoundVideoRecorder(
             Box(
                 Modifier.size(78.dp).clip(CircleShape)
                     .background(if (recordingActive) Color(0xFF9A65FF) else Color(0xFF548BFF))
-                    // Keep this gesture alive while recordingActive changes on Start.
-                    .pointerInput(cameraReady, finalizing) {
+                    .pointerInput(cameraReady, recordingActive, finalizing) {
                         awaitEachGesture {
                             if (!cameraReady || recordingActive || finalizing) return@awaitEachGesture
                             val down = awaitFirstDown(requireUnconsumed = false)
@@ -248,23 +273,29 @@ internal fun RoundVideoRecorder(
                                     val event = awaitPointerEvent()
                                     val change = event.changes.firstOrNull { it.id == down.id } ?: break
                                     if (!change.pressed) break
-                                    if (change.position.x < down.position.x - 70.dp.toPx()) { cancel = true; break }
+                                    if (change.position.x < down.position.x - 70.dp.toPx()) {
+                                        cancel = true
+                                        break
+                                    }
                                 }
                                 false
                             } ?: true
                             if (held && !cancel && cameraReady) {
                                 startRecording()
-                                while (true) {
+                                while (recording != null && !finalizing) {
                                     val event = awaitPointerEvent()
                                     val change = event.changes.firstOrNull { it.id == down.id } ?: break
                                     if (change.position.x < down.position.x - 70.dp.toPx()) cancel = true
                                     if (!change.pressed) break
                                 }
-                                stopRecording(!cancel)
+                                requestStop(!cancel)
                             }
                         }
-                    }, contentAlignment = Alignment.Center
-            ) { Text(if (recordingActive) "■" else "●", color = Color.White, fontSize = 30.sp) }
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(if (recordingActive) "■" else "●", color = Color.White, fontSize = 30.sp)
+            }
         }
     }
 }
