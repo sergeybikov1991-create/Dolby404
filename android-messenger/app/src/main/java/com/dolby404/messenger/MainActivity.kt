@@ -3815,30 +3815,30 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 showRoundVideoRecorder = false
                 scope.launch {
                     uploadingAttachment = true
+                    var messageCommitted = false
                     try {
-                        RoundVideoDiagnostics.record(context, "video sender callback reached; fileExists=${file.exists()}; bytes=${file.length()}")
-                        if (!file.exists() || file.length() < 1500L) error("Файл видеосообщения не сохранился.")
+                        RoundVideoDiagnostics.record(context, "video sender callback reached; localFile=${file.name}; fileExists=${file.exists()}; bytes=${file.length()}")
+                        if (!file.exists() || file.length() < 1500L) error("Локальный файл видеосообщения не сохранился.")
                         if (file.length() > 18L * 1024L * 1024L) error("Видео превышает лимит 18 МБ. Запиши более короткий кружок.")
                         val name = "video_" + System.currentTimeMillis() + ".mp4"
                         val path = currentUserId + "/" + UUID.randomUUID().toString() + "_" + name
-                        // Use the SDK's JVM File overload: it owns file seeking/stream lifecycle
-                        // and is the documented Android/JVM path for resumable uploads.
-                        RoundVideoDiagnostics.record(context, "video upload starting; path generated; bytes=${file.length()}")
+                        RoundVideoDiagnostics.record(context, "video upload starting from local persistent file; bytes=${file.length()}")
                         val videoUpload = floustreamClient.storage.from("message-media")
                             .resumable.createOrContinueUpload(path, file)
                         videoUpload.startOrResumeUploading()
                         RoundVideoDiagnostics.record(context, "video upload completed; inserting direct message")
                         sendDirectAttachment(currentUserId, peer.id, path, name, "video/mp4")
-                        RoundVideoDiagnostics.record(context, "video direct message inserted successfully")
+                        messageCommitted = true
+                        RoundVideoDiagnostics.record(context, "video direct message inserted successfully; local file can be removed")
                         refresh()
                         errorText = ""
                     } catch (e: Exception) {
                         if (e is kotlinx.coroutines.CancellationException) throw e
-                        RoundVideoDiagnostics.record(context, "video send failed; type=${e.javaClass.name}; message=${e.message}", e)
+                        RoundVideoDiagnostics.record(context, "video send failed; local draft preserved at ${file.name}; type=${e.javaClass.name}; message=${e.message}", e)
                         val reason = e.message?.takeIf { it.isNotBlank() } ?: "ошибка загрузки или сохранения сообщения"
-                        errorText = "Не удалось отправить видеосообщение: $reason"
+                        errorText = "Не удалось отправить видео. Запись сохранена в памяти телефона (${file.name}). $reason"
                     } finally {
-                        file.delete()
+                        if (messageCommitted) file.delete()
                         uploadingAttachment = false
                     }
                 }
