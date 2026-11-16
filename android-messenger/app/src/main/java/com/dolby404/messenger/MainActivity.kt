@@ -3026,6 +3026,8 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     }
 }
 
+}
+
 @Composable
 private fun ConversationScreen(name: String, onBack: () -> Unit, onInfo: () -> Unit) {
     val messages = remember(name) {
