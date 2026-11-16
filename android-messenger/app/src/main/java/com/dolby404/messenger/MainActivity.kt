@@ -3293,10 +3293,10 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                     currentUserId + "/" + UUID.randomUUID().toString() + "_" + name
                 ).also { draftPrefs.edit().putString(pathKey, it).apply() }
                 RoundVideoDiagnostics.record(context, "resumable video upload starting; bytes=${file.length()}; resumePathStored=true")
-                val accessToken = floustreamClient.auth.currentSessionOrNull()?.accessToken
-                    ?: error("Сессия истекла. Войди в аккаунт ещё раз.")
                 val uploadedKey = "${pathKey}_uploaded"
                 if (!draftPrefs.getBoolean(uploadedKey, false)) {
+                    val accessToken = floustreamClient.auth.currentSessionOrNull()?.accessToken
+                        ?: error("Сессия истекла. Войди в аккаунт ещё раз.")
                     withContext(Dispatchers.IO) {
                         TusVideoUploader.upload(
                             context = context,
