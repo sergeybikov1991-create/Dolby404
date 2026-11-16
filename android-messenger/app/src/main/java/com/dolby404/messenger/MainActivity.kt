@@ -1,5 +1,7 @@
 package com.dolby404.messenger
 
+import android.util.Log
+
 import android.os.Bundle
 import android.net.Uri
 import android.media.MediaRecorder
@@ -135,6 +137,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        RoundVideoDiagnostics.installCrashHandler(applicationContext)
         pendingLifecycleAction = lifecycleActionFromIntent(intent)
         pendingNotificationPeerId = intent.getStringExtra("sender_id")?.takeIf { it.isNotBlank() }
         floustreamClient.handleDeeplinks(intent)
