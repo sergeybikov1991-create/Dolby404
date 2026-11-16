@@ -818,6 +818,43 @@ private suspend fun respondToFriendRequest(userId: String, requestId: String, ac
     }
 }
 
+private suspend fun uploadRoundVideoFile(file: File, objectPath: String) {
+    require(file.exists() && file.isFile && file.length() > 0L) { "Файл видеосообщения не найден или пустой." }
+    val accessToken = floustreamClient.auth.currentSessionOrNull()?.accessToken
+        ?: throw IllegalStateException("Сессия истекла. Войди в аккаунт ещё раз.")
+    withContext(Dispatchers.IO) {
+        val encodedPath = objectPath.split('/').joinToString("/") { segment ->
+            URLEncoder.encode(segment, "UTF-8").replace("+", "%20")
+        }
+        val connection = URL("${BuildConfig.SUPABASE_URL}/storage/v1/object/message-media/$encodedPath")
+            .openConnection() as HttpURLConnection
+        try {
+            connection.requestMethod = "POST"
+            connection.doOutput = true
+            connection.connectTimeout = 15000
+            connection.readTimeout = 120000
+            connection.setFixedLengthStreamingMode(file.length())
+            connection.setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+            connection.setRequestProperty("Authorization", "Bearer $accessToken")
+            connection.setRequestProperty("Content-Type", "video/mp4")
+            connection.setRequestProperty("Cache-Control", "max-age=3600")
+            // Stream from disk in small chunks; never allocate a second full video-sized ByteArray.
+            file.inputStream().buffered(64 * 1024).use { input ->
+                connection.outputStream.buffered(64 * 1024).use { output ->
+                    input.copyTo(output, 64 * 1024)
+                }
+            }
+            val responseCode = connection.responseCode
+            if (responseCode !in 200..299) {
+                val detail = (connection.errorStream ?: connection.inputStream)
+                    .bufferedReader().use { it.readText() }.take(240)
+                throw IllegalStateException("Хранилище отклонило видео ($responseCode). ${detail.ifBlank { "Проверь подключение и повтори отправку." }}")
+            }
+        } finally {
+            connection.disconnect()
+        }
+    }
+}
 private suspend fun sendDirectAttachment(userId: String, peerId: String, path: String, name: String, mime: String) {
     // A successful Storage upload is the authoritative upload result. Do not
     // make sending depend on an extra signed-URL request: URL signing is only
@@ -3829,15 +3866,9 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                     try {
                         if (!file.exists() || file.length() < 1500L) error("Файл видеосообщения не сохранился.")
                         if (file.length() > 18L * 1024L * 1024L) error("Видео превышает лимит 18 МБ. Запиши более короткий кружок.")
-                        val bytes = withContext(Dispatchers.IO) { file.readBytes() }
-                        if (bytes.isEmpty()) error("Файл видеосообщения пустой.")
                         val name = "video_" + System.currentTimeMillis() + ".mp4"
                         val path = currentUserId + "/" + UUID.randomUUID().toString() + "_" + name
-                        withContext(Dispatchers.IO) {
-                            floustreamClient.storage.from("message-media").upload(path, bytes) {
-                                contentType = ContentType.parse("video/mp4")
-                            }
-                        }
+                        uploadRoundVideoFile(file, path)
                         sendDirectAttachment(currentUserId, peer.id, path, name, "video/mp4")
                         refresh()
                         errorText = ""
