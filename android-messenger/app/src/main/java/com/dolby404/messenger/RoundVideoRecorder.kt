@@ -55,9 +55,9 @@ import kotlin.coroutines.resume
 /**
  * Hold-to-record CameraX video message.
  *
- * CameraX writes directly to a cache file. The Finalize event is the only place
- * that hands a completed file to the sender; cancellation and lifecycle teardown
- * never expose a partially-written file.
+ * CameraX writes directly to app-private persistent storage. The Finalize event is
+ * the only place that hands a completed, closed MP4 to the sender. A send failure
+ * leaves the file on disk instead of discarding the user's recording.
  */
 @Composable
 internal fun RoundVideoRecorder(
@@ -182,8 +182,13 @@ internal fun RoundVideoRecorder(
         val capture = videoCapture ?: return false
         if (!cameraReady || recordingRef.get() != null || finalizing || disposed.get()) return false
 
-        val file = File(context.cacheDir, "round_${UUID.randomUUID()}.mp4")
-        RoundVideoDiagnostics.record(context, "recording start requested; output=cache mp4")
+        val draftsDir = File(context.filesDir, "pending_video_messages")
+        if (!draftsDir.exists() && !draftsDir.mkdirs()) {
+            latestOnError.value("Не удалось подготовить память телефона для видеозаписи.")
+            return false
+        }
+        val file = File(draftsDir, "round_${UUID.randomUUID()}.mp4")
+        RoundVideoDiagnostics.record(context, "recording start requested; output=app-private persistent file; path=${file.name}")
         shouldSend.set(false)
         stopIssued.set(false)
 
