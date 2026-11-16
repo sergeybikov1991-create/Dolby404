@@ -601,6 +601,32 @@ private suspend fun sendDirectMessage(userId: String, peerId: String, content: S
     )
 }
 
+private suspend fun forwardDirectMessage(userId: String, peerId: String, message: DirectMessageDto) = withContext(Dispatchers.IO) {
+    val forwardedText = "Переслано:\n" + message.content
+    val sourcePath = message.attachmentPath
+    if (sourcePath.isNullOrBlank()) {
+        sendDirectMessage(userId, peerId, forwardedText)
+        return@withContext
+    }
+    val signedUrl = floustreamClient.storage.from("message-media").createSignedUrl(sourcePath, 10.minutes)
+    val connection = URL(signedUrl).openConnection() as HttpURLConnection
+    val bytes = try {
+        connection.connectTimeout = 15000
+        connection.readTimeout = 60000
+        connection.inputStream.use { it.readBytes() }
+    } finally {
+        connection.disconnect()
+    }
+    if (bytes.size > 50 * 1024 * 1024) error("Вложение больше 50 МБ — пересылка отменена.")
+    val originalName = message.attachmentName ?: "attachment"
+    val safeName = originalName.replace(Regex("[^A-Za-z0-9._-]"), "_").take(100).ifBlank { "attachment" }
+    val targetPath = "$userId/${UUID.randomUUID()}_forwarded_$safeName"
+    floustreamClient.storage.from("message-media").upload(targetPath, bytes) {
+        contentType = ContentType.parse(message.attachmentMime?.ifBlank { "application/octet-stream" } ?: "application/octet-stream")
+    }
+    sendDirectAttachment(userId, peerId, targetPath, originalName, message.attachmentMime ?: "application/octet-stream")
+}
+
 private suspend fun editDirectMessage(userId: String, messageId: String, content: String) = withContext(Dispatchers.IO) {
     val token = floustreamClient.auth.currentSessionOrNull()?.accessToken
         ?: throw IllegalStateException("Сессия истекла. Войди в аккаунт ещё раз.")
@@ -2508,6 +2534,11 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     var pendingMessageActions by remember { mutableStateOf<DirectMessageDto?>(null) }
     var replyToMessage by remember { mutableStateOf<DirectMessageDto?>(null) }
     var editingMessage by remember { mutableStateOf<DirectMessageDto?>(null) }
+    var forwardingMessage by remember { mutableStateOf<DirectMessageDto?>(null) }
+    var forwardTargetQuery by remember { mutableStateOf("") }
+    var forwardCandidates by remember { mutableStateOf<List<ProfileDto>>(emptyList()) }
+    var searchingForwardTargets by remember { mutableStateOf(false) }
+    var forwarding by remember { mutableStateOf(false) }
     var editDraft by remember { mutableStateOf("") }
     var savingEdit by remember { mutableStateOf(false) }
     var deletingMessage by remember { mutableStateOf(false) }
@@ -3036,6 +3067,12 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                             ) { Text(emoji, fontSize = 20.sp) }
                         }
                     }
+                    TextButton(onClick = {
+                        forwardingMessage = target
+                        forwardTargetQuery = ""
+                        forwardCandidates = emptyList()
+                        pendingMessageActions = null
+                    }) { Text("Переслать", color = White) }
                     if (target.senderId == currentUserId && target.attachmentPath.isNullOrBlank()) TextButton(onClick = {
                         editDraft = target.content
                         editingMessage = target
@@ -3052,6 +3089,81 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 }
             },
             confirmButton = { TextButton(onClick = { pendingMessageActions = null }) { Text("Закрыть", color = White) } }
+        )
+    }
+
+    if (forwardingMessage != null) {
+        AlertDialog(
+            onDismissRequest = { if (!forwarding) forwardingMessage = null },
+            containerColor = Panel,
+            title = { Text("Переслать сообщение", color = White) },
+            text = {
+                Column(Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = forwardTargetQuery,
+                        onValueChange = { forwardTargetQuery = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("Имя пользователя") },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = White,
+                            unfocusedTextColor = White,
+                            focusedBorderColor = Blue,
+                            unfocusedBorderColor = Muted,
+                            cursorColor = Blue
+                        )
+                    )
+                    TextButton(
+                        enabled = !searchingForwardTargets && forwardTargetQuery.trim().length >= 2,
+                        onClick = {
+                            scope.launch {
+                                searchingForwardTargets = true
+                                try {
+                                    forwardCandidates = findFloustreamUsers(forwardTargetQuery)
+                                } catch (e: Exception) {
+                                    errorText = e.message ?: "Не удалось найти пользователя."
+                                } finally {
+                                    searchingForwardTargets = false
+                                }
+                            }
+                        }
+                    ) { Text(if (searchingForwardTargets) "Ищем…" else "Найти", color = White) }
+                    if (forwardCandidates.isEmpty()) {
+                        Text("Введи минимум 2 символа имени пользователя и нажми «Найти».", color = Muted, fontSize = 12.sp)
+                    } else {
+                        Column(Modifier.heightIn(max = 240.dp).verticalScroll(rememberScrollState())) {
+                            forwardCandidates.forEach { candidate ->
+                                TextButton(
+                                    enabled = !forwarding,
+                                    onClick = {
+                                        val target = forwardingMessage ?: return@TextButton
+                                        scope.launch {
+                                            forwarding = true
+                                            try {
+                                                forwardDirectMessage(currentUserId, candidate.id, target)
+                                                forwardingMessage = null
+                                                forwardCandidates = emptyList()
+                                                Toast.makeText(context, "Сообщение переслано пользователю ${candidate.username ?: candidate.displayName ?: "FLOUSTREAM"}", Toast.LENGTH_SHORT).show()
+                                                if (candidate.id == peer.id) refresh(silent = true)
+                                            } catch (e: Exception) {
+                                                errorText = e.message ?: "Не удалось переслать сообщение."
+                                            } finally {
+                                                forwarding = false
+                                            }
+                                        }
+                                    }
+                                ) {
+                                    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.Start) {
+                                        Text(candidate.displayName?.takeIf { it.isNotBlank() } ?: candidate.username ?: "Пользователь", color = White)
+                                        candidate.username?.let { Text("@$it", color = Muted, fontSize = 11.sp) }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(enabled = !forwarding, onClick = { forwardingMessage = null }) { Text("Закрыть", color = White) } }
         )
     }
 
