@@ -23,6 +23,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -1744,10 +1745,13 @@ private fun ChatsScreen(
         }
     }
 
+    var chatFilter by remember(currentUserId) { mutableStateOf("Все") }
     val filtered = threads.filter { thread ->
         val name = thread.peer.displayName ?: thread.peer.username ?: ""
         val preview = thread.lastMessage.content
-        name.contains(searchQuery, true) || preview.contains(searchQuery, true)
+        val matchesSearch = name.contains(searchQuery, true) || preview.contains(searchQuery, true)
+        val matchesFilter = chatFilter == "Все" || (chatFilter == "Непрочитанные" && thread.unread > 0)
+        matchesSearch && matchesFilter
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -1761,6 +1765,28 @@ private fun ChatsScreen(
             }
             Surface(color = PanelSoft, shape = RoundedCornerShape(20.dp)) {
                 Text("● синхронизация", Modifier.padding(horizontal = 12.dp, vertical = 7.dp), color = Color(0xFF69DDA8), fontSize = 10.sp)
+            }
+        }
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            listOf("Все", "Непрочитанные").forEach { filter ->
+                val selected = chatFilter == filter
+                Surface(
+                    modifier = Modifier.clickable { chatFilter = filter },
+                    color = if (selected) Color(0xFF263B68) else PanelSoft,
+                    shape = RoundedCornerShape(18.dp),
+                    border = if (selected) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF548BFF)) else null
+                ) {
+                    Text(
+                        filter,
+                        Modifier.padding(horizontal = 17.dp, vertical = 9.dp),
+                        color = if (selected) White else Muted,
+                        fontSize = 12.sp,
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+                    )
+                }
             }
         }
         if (error.isNotBlank()) {
@@ -1816,15 +1842,24 @@ private fun ChatsScreen(
 
 @Composable
 private fun Avatar(initials: String, online: Boolean = false, avatarUrl: String? = null) {
+    val context = LocalContext.current
+    val avatarRequest = remember(avatarUrl) {
+        if (avatarUrl.isNullOrBlank()) null else coil.request.ImageRequest.Builder(context)
+            .data(avatarUrl)
+            .crossfade(true)
+            // Software bitmaps avoid GPU texture artefacts on some Android devices.
+            .allowHardware(false)
+            .build()
+    }
     Box {
         Surface(
             modifier = Modifier.size(54.dp),
             shape = CircleShape,
-            color = Brush.linearGradient(listOf(Color(0xFF326DCE), Color(0xFF7B45BD))).let { PanelSoft }
+            color = PanelSoft
         ) {
             Box(contentAlignment = Alignment.Center) {
-                if (!avatarUrl.isNullOrBlank()) {
-                    AsyncImage(model = avatarUrl, contentDescription = "Фото профиля", modifier = Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
+                if (avatarRequest != null) {
+                    AsyncImage(model = avatarRequest, contentDescription = "Фото профиля", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                 } else {
                     Text(initials, color = White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
                 }
