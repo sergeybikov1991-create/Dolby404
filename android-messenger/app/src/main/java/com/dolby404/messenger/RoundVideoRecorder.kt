@@ -162,7 +162,7 @@ internal fun RoundVideoRecorder(
 
             provider.unbindAll()
             provider.bindToLifecycle(lifecycleOwner, selector, preview, capture)
-            RoundVideoDiagnostics.record(context, "camera bound successfully; quality=SD; audio permission granted")
+            RoundVideoDiagnostics.record(context, "camera bound successfully; quality=SD; frontCamera=$frontCamera; previewMode=COMPATIBLE; audio permission granted")
             videoCapture = capture
             cameraReady = true
         } catch (error: Exception) {
@@ -258,7 +258,7 @@ internal fun RoundVideoRecorder(
     LaunchedEffect(recordingActive, startedAt) {
         while (recordingActive && startedAt > 0L) {
             elapsedSeconds = ((System.currentTimeMillis() - startedAt) / 1000L).toInt()
-            if (elapsedSeconds >= 20) {
+            if (elapsedSeconds >= 60) {
                 stopRecording(send = true)
                 break
             }
@@ -330,6 +330,7 @@ internal fun RoundVideoRecorder(
                 AndroidView(
                     factory = { viewContext ->
                         PreviewView(viewContext).also {
+                            it.implementationMode = PreviewView.ImplementationMode.COMPATIBLE
                             it.scaleType = PreviewView.ScaleType.FILL_CENTER
                             previewView = it
                         }
