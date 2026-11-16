@@ -3031,6 +3031,9 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     }
 
     var uploadingAttachment by remember { mutableStateOf(false) }
+    var pendingLocalVideo by remember(peer.id) { mutableStateOf<File?>(null) }
+    var pendingVideoUploadFailed by remember { mutableStateOf(false) }
+    var videoUploadInProgress by remember { mutableStateOf(false) }
     var voiceRecorder by remember { mutableStateOf<MediaRecorder?>(null) }
     var voiceFile by remember { mutableStateOf<File?>(null) }
     var recordingVoice by remember { mutableStateOf(false) }
@@ -3176,6 +3179,45 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     var selectedMediaIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var showPhoneMediaPicker by remember { mutableStateOf(false) }
     var phoneMediaPickerVideo by remember { mutableStateOf(false) }
+
+    fun uploadVideoDraft(file: File) {
+        if (videoUploadInProgress) return
+        pendingLocalVideo = file
+        pendingVideoUploadFailed = false
+        scope.launch {
+            videoUploadInProgress = true
+            uploadingAttachment = true
+            var messageCommitted = false
+            try {
+                RoundVideoDiagnostics.record(context, "video sender callback reached; persistentFile=${file.name}; exists=${file.exists()}; bytes=${file.length()}")
+                if (!file.exists() || file.length() < 1500L) error("Файл видеосообщения не сохранился.")
+                if (file.length() > 50L * 1024L * 1024L) error("Видео превышает лимит отправки 50 МБ. Файл сохранён в памяти приложения.")
+                val name = "video_" + System.currentTimeMillis() + ".mp4"
+                val path = currentUserId + "/" + UUID.randomUUID().toString() + "_" + name
+                RoundVideoDiagnostics.record(context, "resumable video upload starting; bytes=${file.length()}")
+                val videoUpload = floustreamClient.storage.from("message-media")
+                    .resumable.createOrContinueUpload(path, file)
+                videoUpload.startOrResumeUploading()
+                RoundVideoDiagnostics.record(context, "video upload completed; inserting direct message")
+                sendDirectAttachment(currentUserId, peer.id, path, name, "video/mp4")
+                messageCommitted = true
+                pendingLocalVideo = null
+                RoundVideoDiagnostics.record(context, "video direct message inserted successfully")
+                refresh()
+                errorText = ""
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                pendingVideoUploadFailed = true
+                RoundVideoDiagnostics.record(context, "video send failed; type=${e.javaClass.name}; message=${e.message}", e)
+                val reason = e.message?.takeIf { it.isNotBlank() } ?: "ошибка загрузки или сохранения сообщения"
+                errorText = "Не удалось отправить видео. Запись сохранена в памяти телефона (${file.name}). $reason"
+            } finally {
+                if (messageCommitted) file.delete()
+                videoUploadInProgress = false
+                uploadingAttachment = false
+            }
+        }
+    }
 
     fun uploadPickedAttachments(uris: List<Uri>) {
         if (uris.isNotEmpty() && !uploadingAttachment) scope.launch {
@@ -3654,6 +3696,32 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                     }
                 }
             }
+            pendingLocalVideo?.let { localFile ->
+                item(key = "pending-local-video") {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        Column(
+                            Modifier.widthIn(max = 290.dp).background(Color(0xFF254D91), RoundedCornerShape(12.dp)).padding(9.dp),
+                            horizontalAlignment = Alignment.End
+                        ) {
+                            VideoMessagePlayer(localFile.toURI().toString()) { }
+                            Spacer(Modifier.height(5.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                if (videoUploadInProgress) CircularProgressIndicator(Modifier.size(12.dp), color = White, strokeWidth = 1.5.dp)
+                                Text(
+                                    if (pendingVideoUploadFailed) "Сохранено · отправка не удалась" else "Отправляется…",
+                                    color = Color(0xFFB4C7E5), fontSize = 10.sp
+                                )
+                                if (pendingVideoUploadFailed) {
+                                    TextButton(
+                                        onClick = { uploadVideoDraft(localFile) },
+                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                                    ) { Text("Повторить", color = Color(0xFF9FCBFF), fontSize = 10.sp) }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
         if (!peer.isDeleted) Column(
             Modifier.fillMaxWidth().background(Panel)
@@ -3860,40 +3928,16 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             },
             onRecorded = { file ->
                 showVideoRecorder = false
+                pendingLocalVideo = file
+                pendingVideoUploadFailed = false
                 scope.launch {
-                    uploadingAttachment = true
-                    var messageCommitted = false
-                    try {
-                        RoundVideoDiagnostics.record(context, "video sender callback reached; fileExists=${file.exists()}; bytes=${file.length()}")
-                        if (!file.exists() || file.length() < 1500L) error("Файл видеосообщения не сохранился.")
-                        if (file.length() > 50L * 1024L * 1024L) error("Видео превышает лимит отправки 50 МБ. Файл оставлен в памяти приложения.")
-                        val name = "video_" + System.currentTimeMillis() + ".mp4"
-                        val path = currentUserId + "/" + UUID.randomUUID().toString() + "_" + name
-                        // Use the SDK's JVM File overload: it owns file seeking/stream lifecycle
-                        // and is the documented Android/JVM path for resumable uploads.
-                        RoundVideoDiagnostics.record(context, "video upload starting; path generated; bytes=${file.length()}")
-                        val videoUpload = floustreamClient.storage.from("message-media")
-                            .resumable.createOrContinueUpload(path, file)
-                        videoUpload.startOrResumeUploading()
-                        RoundVideoDiagnostics.record(context, "video upload completed; inserting direct message")
-                        sendDirectAttachment(currentUserId, peer.id, path, name, "video/mp4")
-                        messageCommitted = true
-                        RoundVideoDiagnostics.record(context, "video direct message inserted successfully")
-                        refresh()
-                        errorText = ""
-                    } catch (e: Exception) {
-                        if (e is kotlinx.coroutines.CancellationException) throw e
-                        RoundVideoDiagnostics.record(context, "video send failed; type=${e.javaClass.name}; message=${e.message}", e)
-                        val reason = e.message?.takeIf { it.isNotBlank() } ?: "ошибка загрузки или сохранения сообщения"
-                        errorText = "Не удалось отправить видеосообщение: $reason"
-                    } finally {
-                        if (messageCommitted) file.delete()
-                        uploadingAttachment = false
-                    }
+                    delay(60L)
+                    val lastIndex = messageListState.layoutInfo.totalItemsCount - 1
+                    if (lastIndex >= 0) messageListState.animateScrollToItem(lastIndex)
                 }
+                uploadVideoDraft(file)
             }
         )
-    }
 
     if (pendingMessageActions != null) {
         val target = pendingMessageActions!!
