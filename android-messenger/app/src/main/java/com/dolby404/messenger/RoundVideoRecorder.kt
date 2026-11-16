@@ -7,7 +7,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Handler
 import android.os.Looper
-import android.view.SurfaceView
+import android.view.TextureView
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -70,7 +70,7 @@ internal fun RoundVideoRecorder(
     var finalizing by remember { mutableStateOf(false) }
     var elapsedSeconds by remember { mutableIntStateOf(0) }
     var startedAt by remember { mutableLongStateOf(0L) }
-    var previewView by remember { mutableStateOf<SurfaceView?>(null) }
+    var previewView by remember { mutableStateOf<TextureView?>(null) }
 
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
         hasPermissions = result[Manifest.permission.CAMERA] == true &&
@@ -241,7 +241,7 @@ internal fun RoundVideoRecorder(
             }
             Spacer(Modifier.height(24.dp))
             Box(Modifier.size(280.dp).clip(CircleShape).background(Color.Black), contentAlignment = Alignment.Center) {
-                AndroidView(factory = { SurfaceView(it).also { view -> previewView = view } }, modifier = Modifier.fillMaxSize())
+                AndroidView(factory = { TextureView(it).also { view -> previewView = view } }, modifier = Modifier.fillMaxSize())
                 if (!cameraReady) CircularProgressIndicator(color = Color.White)
             }
             Spacer(Modifier.height(28.dp))
