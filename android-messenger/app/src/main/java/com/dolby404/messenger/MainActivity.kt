@@ -268,6 +268,14 @@ private data class DirectMessageReactionDto(
 )
 
 @Serializable
+private data class DirectMessagePinDto(
+    @SerialName("id") val id: String,
+    @SerialName("message_id") val messageId: String,
+    @SerialName("user_id") val userId: String,
+    @SerialName("created_at") val createdAt: String
+)
+
+@Serializable
 private data class DirectMessageDto(
     @SerialName("id") val id: String,
     @SerialName("sender_id") val senderId: String,
@@ -407,6 +415,52 @@ private suspend fun loadDirectMessageReactions(messageIds: List<String>): Map<St
             result.getOrPut(item.messageId) { mutableListOf() }.add(item)
         }
         result.mapValues { it.value.toList() }
+    } finally { connection.disconnect() }
+}
+
+private suspend fun loadDirectMessagePins(userId: String): Set<String> = withContext(Dispatchers.IO) {
+    val token = floustreamClient.auth.currentSessionOrNull()?.accessToken
+        ?: throw IllegalStateException("Сессия истекла.")
+    val encodedUser = URLEncoder.encode(userId, "UTF-8")
+    val connection = URL("${BuildConfig.SUPABASE_URL}/rest/v1/direct_message_pins?select=message_id&user_id=eq.$encodedUser")
+        .openConnection() as HttpURLConnection
+    try {
+        connection.requestMethod = "GET"
+        connection.connectTimeout = 10000
+        connection.readTimeout = 10000
+        connection.setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+        connection.setRequestProperty("Authorization", "Bearer $token")
+        if (connection.responseCode !in 200..299) throw IllegalStateException("Не удалось загрузить закреплённые сообщения.")
+        val rows = JSONArray(connection.inputStream.bufferedReader().use { it.readText() })
+        buildSet { for (i in 0 until rows.length()) add(rows.getJSONObject(i).getString("message_id")) }
+    } finally { connection.disconnect() }
+}
+
+private suspend fun setDirectMessagePin(userId: String, messageId: String, pinned: Boolean) = withContext(Dispatchers.IO) {
+    val token = floustreamClient.auth.currentSessionOrNull()?.accessToken
+        ?: throw IllegalStateException("Сессия истекла.")
+    val encodedUser = URLEncoder.encode(userId, "UTF-8")
+    val encodedMessage = URLEncoder.encode(messageId, "UTF-8")
+    val url = if (pinned) {
+        "${BuildConfig.SUPABASE_URL}/rest/v1/direct_message_pins"
+    } else {
+        "${BuildConfig.SUPABASE_URL}/rest/v1/direct_message_pins?user_id=eq.$encodedUser&message_id=eq.$encodedMessage"
+    }
+    val connection = URL(url).openConnection() as HttpURLConnection
+    try {
+        connection.requestMethod = if (pinned) "POST" else "DELETE"
+        connection.connectTimeout = 10000
+        connection.readTimeout = 10000
+        connection.setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+        connection.setRequestProperty("Authorization", "Bearer $token")
+        connection.setRequestProperty("Content-Type", "application/json")
+        connection.setRequestProperty("Prefer", "return=minimal")
+        if (pinned) {
+            connection.doOutput = true
+            val body = JSONObject().put("message_id", messageId).put("user_id", userId).toString()
+            connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+        }
+        if (connection.responseCode !in 200..299) throw IllegalStateException("Не удалось изменить закрепление сообщения.")
     } finally { connection.disconnect() }
 }
 
@@ -2475,6 +2529,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     val context = LocalContext.current
     val messages = remember(peer.id) { mutableStateListOf<DirectMessageDto>() }
     var reactions by remember(peer.id) { mutableStateOf<Map<String, List<DirectMessageReactionDto>>>(emptyMap()) }
+    var pinnedMessageIds by remember(peer.id) { mutableStateOf<Set<String>>(emptySet()) }
     var draft by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(true) }
     var sending by remember { mutableStateOf(false) }
@@ -2504,6 +2559,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             try { markIncomingMessagesRead(currentUserId, peer.id) } catch (_: Exception) { }
             val latest = loadDirectMessages(currentUserId, peer.id)
             reactions = loadDirectMessageReactions(latest.map { it.id })
+            pinnedMessageIds = loadDirectMessagePins(currentUserId).intersect(latest.map { it.id }.toSet())
             // Reconcile by stable message ID instead of clearing the whole list.
             // This keeps LazyColumn item identity and scroll position during polling.
             val latestIds = latest.mapTo(hashSetOf()) { it.id }
@@ -2762,6 +2818,28 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             )
         }
         val messageListState = rememberLazyListState()
+        val firstPinnedMessage = messages.firstOrNull { it.id in pinnedMessageIds }
+        if (firstPinnedMessage != null) {
+            Surface(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)
+                    .clickable {
+                        val index = messages.indexOfFirst { it.id == firstPinnedMessage.id }
+                        if (index >= 0) scope.launch { messageListState.animateScrollToItem(index) }
+                    },
+                color = PanelSoft,
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Row(Modifier.padding(horizontal = 12.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("📌", fontSize = 16.sp)
+                    Spacer(Modifier.width(8.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Закреплённое сообщение", color = Color(0xFF9FCBFF), fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                        Text((firstPinnedMessage.content.ifBlank { firstPinnedMessage.attachmentName ?: "Вложение" }).take(90), color = White, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    Text("Перейти", color = Muted, fontSize = 10.sp)
+                }
+            }
+        }
         LazyColumn(
             state = messageListState,
             modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -2797,6 +2875,9 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                                         msg.attachmentMime.orEmpty().startsWith("image/")) 2.dp else 9.dp
                                 )
                             ) {
+                                if (msg.id in pinnedMessageIds) {
+                                    Text("📌 Закреплено", color = Color(0xFF9FCBFF), fontSize = 9.sp, fontWeight = FontWeight.SemiBold)
+                                }
                                 msg.replyToMessageId?.let { replyId ->
                                     messages.firstOrNull { it.id == replyId }?.let { quoted ->
                                         Text(
@@ -3067,6 +3148,21 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                             ) { Text(emoji, fontSize = 20.sp) }
                         }
                     }
+                    TextButton(
+                        onClick = {
+                            val shouldPin = target.id !in pinnedMessageIds
+                            scope.launch {
+                                try {
+                                    setDirectMessagePin(currentUserId, target.id, shouldPin)
+                                    pinnedMessageIds = if (shouldPin) pinnedMessageIds + target.id else pinnedMessageIds - target.id
+                                    Toast.makeText(context, if (shouldPin) "Сообщение закреплено" else "Закрепление снято", Toast.LENGTH_SHORT).show()
+                                } catch (e: Exception) {
+                                    errorText = e.message ?: "Не удалось изменить закрепление."
+                                }
+                            }
+                            pendingMessageActions = null
+                        }
+                    ) { Text(if (target.id in pinnedMessageIds) "Открепить" else "Закрепить", color = White) }
                     TextButton(onClick = {
                         forwardingMessage = target
                         forwardTargetQuery = ""
