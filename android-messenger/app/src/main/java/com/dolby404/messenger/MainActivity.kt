@@ -2533,8 +2533,9 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                         }
                         sendDirectAttachment(currentUserId, peer.id, path, name, mime)
                         sentCount++
-                    } catch (_: Exception) {
-                        failures += "Не удалось отправить один из файлов. Проверьте интернет и попробуйте ещё раз."
+                    } catch (e: Exception) {
+                        val reason = e.message?.takeIf { it.isNotBlank() } ?: "ошибка загрузки или сохранения сообщения"
+                        failures += "$name: $reason"
                     }
                 }
                 if (sentCount > 0) refresh()
@@ -2818,8 +2819,9 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                         sendDirectAttachment(currentUserId, peer.id, path, name, "video/mp4")
                         refresh()
                         errorText = ""
-                    } catch (_: Exception) {
-                        errorText = "Не удалось отправить видеосообщение. Проверь интернет и попробуй ещё раз."
+                    } catch (e: Exception) {
+                        val reason = e.message?.takeIf { it.isNotBlank() } ?: "ошибка загрузки или сохранения сообщения"
+                        errorText = "Не удалось отправить видеосообщение: $reason"
                     } finally {
                         file.delete()
                         uploadingAttachment = false
