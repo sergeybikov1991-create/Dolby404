@@ -2514,10 +2514,11 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             val failures = mutableListOf<String>()
             try {
                 uris.forEach { uri ->
+                    var name = "attachment"
                     try {
                         val resolver = context.contentResolver
                         val mime = resolver.getType(uri) ?: if (phoneMediaPickerVideo) "video/mp4" else "image/jpeg"
-                        val name = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                        name = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
                             if (cursor.moveToFirst()) cursor.getString(0) else null
                         } ?: "attachment"
                         val bytes = withContext(Dispatchers.IO) {
