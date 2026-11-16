@@ -3850,8 +3850,12 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 }
             }
             VideoModeButton { selectedMode ->
-                videoCaptureMode = selectedMode
-                showVideoRecorder = true
+                if (pendingLocalVideo != null) {
+                    errorText = "Сначала отправь сохранённое видео или нажми «Повторить» в его сообщении."
+                } else {
+                    videoCaptureMode = selectedMode
+                    showVideoRecorder = true
+                }
             }
             OutlinedTextField(
                 value = draft, onValueChange = { draft = it },
