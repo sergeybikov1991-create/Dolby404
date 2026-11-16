@@ -903,10 +903,14 @@ private suspend fun deleteDirectMessage(userId: String, messageId: String) = wit
     }
 }
 
-private suspend fun loadInboxThreads(userId: String): List<ChatThread> {
-    // PostgREST applies a server-side row cap to a normal select. Fetch both
-    // directions in stable pages so older conversations are not silently lost
-    // after an arbitrary 500-message slice.
+private suspend fun loadInboxThreads(
+    userId: String,
+    existingThreads: List<ChatThread> = emptyList(),
+    fullHistory: Boolean = true
+): List<ChatThread> {
+    // Do a complete paged scan on first load / returning to the inbox. During
+    // foreground polling fetch only the newest page and merge it into the cache.
+    // This avoids downloading a user's entire message history every five seconds.
     val token = floustreamClient.auth.currentSessionOrNull()?.accessToken
         ?: throw IllegalStateException("Сессия истекла.")
     val encodedUserId = URLEncoder.encode(userId, "UTF-8")
@@ -953,7 +957,7 @@ private suspend fun loadInboxThreads(userId: String): List<ChatThread> {
                 connection.disconnect()
             }
             result.addAll(rows)
-            if (rows.size < pageSize) break
+            if (!fullHistory || rows.size < pageSize) break
             offset += rows.size
         }
         result
@@ -962,25 +966,41 @@ private suspend fun loadInboxThreads(userId: String): List<ChatThread> {
     val sent = fetchDirection("sender_id")
     val received = fetchDirection("recipient_id")
     val rows = (sent + received).distinctBy { it.id }
-    val peerIds = rows.map {
+    val existingByPeer = existingThreads.associateBy { it.peer.id }
+    val peerIds = (rows.map {
         if (it.senderId == userId) it.recipientId else it.senderId
-    }.distinct()
+    } + if (fullHistory) emptyList() else existingThreads.map { it.peer.id }).distinct()
 
     return peerIds.mapNotNull { peerId ->
-        val profile = floustreamClient.from("profiles").select {
+        val existing = existingByPeer[peerId]
+        val profile = existing?.peer ?: (floustreamClient.from("profiles").select {
             filter { eq("id", peerId) }
         }.decodeList<ProfileDto>().firstOrNull()
-            ?: ProfileDto(id = peerId, displayName = "Удалённый аккаунт", isDeleted = true)
+            ?: ProfileDto(id = peerId, displayName = "Удалённый аккаунт", isDeleted = true))
 
         val conversation = rows.filter {
             (it.senderId == userId && it.recipientId == peerId) ||
                 (it.senderId == peerId && it.recipientId == userId)
         }
-        val latest = conversation.maxWithOrNull(
+        val fetchedLatest = conversation.maxWithOrNull(
+            compareBy<DirectMessageDto> { it.createdAt }.thenBy { it.id }
+        )
+        if (fetchedLatest == null && existing != null) return@mapNotNull existing
+        val latest = listOfNotNull(existing?.lastMessage, fetchedLatest).maxWithOrNull(
             compareBy<DirectMessageDto> { it.createdAt }.thenBy { it.id }
         ) ?: return@mapNotNull null
-        val unread = conversation.count {
-            it.senderId == peerId && it.recipientId == userId && it.readAt == null
+
+        val unread = if (fullHistory || existing == null) {
+            conversation.count {
+                it.senderId == peerId && it.recipientId == userId && it.readAt == null
+            }
+        } else {
+            val previousLatest = existing.lastMessage
+            val unreadDelta = conversation.count {
+                it.senderId == peerId && it.recipientId == userId && it.readAt == null &&
+                    compareValuesBy(it, previousLatest, { message -> message.createdAt }, { message -> message.id }) > 0
+            }
+            existing.unread + unreadDelta
         }
         ChatThread(profile, latest, unread)
     }.sortedWith(
@@ -2136,9 +2156,14 @@ private fun ChatsScreen(
 
     LaunchedEffect(currentUserId, isInboxResumed) {
         if (isInboxResumed) {
+            var firstSyncAfterResume = true
             do {
                 try {
-                    val latest = loadInboxThreads(currentUserId)
+                    val latest = loadInboxThreads(
+                        currentUserId,
+                        existingThreads = threads.toList(),
+                        fullHistory = firstSyncAfterResume
+                    )
                     threads.clear()
                     threads.addAll(latest)
                     error = ""
@@ -2149,6 +2174,7 @@ private fun ChatsScreen(
                     loading = false
                     hasLoadedInbox = true
                 }
+                firstSyncAfterResume = false
                 if (isInboxResumed) delay(5000)
             } while (isInboxResumed)
         }
