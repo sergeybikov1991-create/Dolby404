@@ -2091,8 +2091,11 @@ private fun MessageAttachment(message: DirectMessageDto) {
     val mime = message.attachmentMime.orEmpty().lowercase()
     var signedUrl by remember(path) { mutableStateOf<String?>(null) }
     var loadError by remember(path) { mutableStateOf(false) }
+    var urlRefreshAttempt by remember(path) { mutableIntStateOf(0) }
 
-    LaunchedEffect(path) {
+    LaunchedEffect(path, urlRefreshAttempt) {
+        signedUrl = null
+        loadError = false
         try {
             signedUrl = floustreamClient.storage.from("message-media").createSignedUrl(path, 30.minutes)
         } catch (_: Exception) {
@@ -2112,7 +2115,7 @@ private fun MessageAttachment(message: DirectMessageDto) {
                 .clip(RoundedCornerShape(5.dp)).clickable { showFullScreen = true },
             contentScale = ContentScale.Fit
         )
-        mime.startsWith("audio/") -> AudioMessagePlayer(url!!)
+        mime.startsWith("audio/") -> AudioMessagePlayer(url!!) { urlRefreshAttempt++ }
         mime.startsWith("video/") -> {
             val player = remember(url) {
                 ExoPlayer.Builder(context).build().apply {
@@ -2181,21 +2184,20 @@ private fun MessageAttachment(message: DirectMessageDto) {
 }
 
 @Composable
-private fun AudioMessagePlayer(url: String) {
+private fun AudioMessagePlayer(url: String, onRetry: () -> Unit) {
     val context = LocalContext.current
-    var playbackAttempt by remember(url) { mutableIntStateOf(0) }
-    val player = remember(url, playbackAttempt) {
+    val player = remember(url) {
         ExoPlayer.Builder(context).build().apply {
             setMediaItem(MediaItem.fromUri(url))
             playWhenReady = false
             prepare()
         }
     }
-    var isPlaying by remember(url, playbackAttempt) { mutableStateOf(false) }
-    var isBuffering by remember(url, playbackAttempt) { mutableStateOf(true) }
-    var playbackError by remember(url, playbackAttempt) { mutableStateOf(false) }
-    var durationMs by remember(url, playbackAttempt) { mutableLongStateOf(0L) }
-    var positionMs by remember(url, playbackAttempt) { mutableLongStateOf(0L) }
+    var isPlaying by remember(url) { mutableStateOf(false) }
+    var isBuffering by remember(url) { mutableStateOf(true) }
+    var playbackError by remember(url) { mutableStateOf(false) }
+    var durationMs by remember(url) { mutableLongStateOf(0L) }
+    var positionMs by remember(url) { mutableLongStateOf(0L) }
 
     DisposableEffect(player) {
         val listener = object : Player.Listener {
@@ -2248,7 +2250,7 @@ private fun AudioMessagePlayer(url: String) {
         Surface(
             modifier = Modifier.size(42.dp).clickable {
                 if (playbackError) {
-                    playbackAttempt++
+                    onRetry()
                 } else if (player.isPlaying) {
                     player.pause()
                 } else {
