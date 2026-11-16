@@ -3244,14 +3244,19 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 if (file.length() > 50L * 1024L * 1024L) error("Видео превышает лимит отправки 50 МБ. Файл сохранён в памяти приложения.")
                 val name = (if (videoCaptureMode == VideoCaptureMode.ROUND_FRONT) "round_" else "normal_") +
                     "video_" + System.currentTimeMillis() + ".mp4"
-                val path = currentUserId + "/" + UUID.randomUUID().toString() + "_" + name
-                RoundVideoDiagnostics.record(context, "resumable video upload starting; bytes=${file.length()}")
+                val draftPrefs = context.getSharedPreferences("floustream_video_drafts", Context.MODE_PRIVATE)
+                val pathKey = file.name
+                val path = draftPrefs.getString(pathKey, null) ?: (
+                    currentUserId + "/" + UUID.randomUUID().toString() + "_" + name
+                ).also { draftPrefs.edit().putString(pathKey, it).apply() }
+                RoundVideoDiagnostics.record(context, "resumable video upload starting; bytes=${file.length()}; resumePathStored=true")
                 val videoUpload = floustreamClient.storage.from("message-media")
                     .resumable.createOrContinueUpload(path, file)
                 videoUpload.startOrResumeUploading()
                 RoundVideoDiagnostics.record(context, "video upload completed; inserting direct message")
                 sendDirectAttachment(currentUserId, peer.id, path, name, "video/mp4")
                 messageCommitted = true
+                draftPrefs.edit().remove(pathKey).apply()
                 pendingLocalVideo = null
                 RoundVideoDiagnostics.record(context, "video direct message inserted successfully")
                 refresh()
