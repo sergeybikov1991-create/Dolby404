@@ -2752,7 +2752,11 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     suspend fun refresh(silent: Boolean = false): Boolean {
         var loaded = false
         try {
-            try { markIncomingMessagesRead(currentUserId, peer.id) } catch (_: Exception) { }
+            try {
+                markIncomingMessagesRead(currentUserId, peer.id)
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+            }
             val latest = loadDirectMessagesPage(currentUserId, peer.id)
             hasMoreOlderMessages = latest.size >= 100
             // Favorites are supplementary: their endpoint must never prevent the conversation from opening.
@@ -2790,6 +2794,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             errorText = ""
             loaded = true
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             if (!silent) errorText = e.message ?: "Не удалось загрузить переписку."
         } finally {
             loading = false
