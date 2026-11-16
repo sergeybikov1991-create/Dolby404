@@ -3379,21 +3379,24 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
         if (pendingLocalVideo == null && currentUserId.isNotBlank()) {
             val draftPrefs = context.getSharedPreferences("floustream_video_drafts", Context.MODE_PRIVATE)
             val draftsDir = File(context.filesDir, "video-drafts")
-            val recoverable = draftPrefs.all.keys
-                .filter { it.endsWith("_peer") && draftPrefs.getString(it, null) == peer.id }
-                .mapNotNull { peerKey ->
-                    val fileName = peerKey.removeSuffix("_peer")
-                    val draftFile = File(draftsDir, fileName)
-                    val validMp4 = withContext(Dispatchers.IO) { isFinalizedVideoFile(draftFile) }
-                    if (validMp4) fileName to draftFile else {
-                        RoundVideoDiagnostics.record(
-                            context,
-                            "Skipped incomplete or invalid recovered video draft; file=$fileName; bytes=${draftFile.length()}"
-                        )
-                        null
+            val recoverable = withContext(Dispatchers.IO) {
+                draftPrefs.all.keys
+                    .filter { it.endsWith("_peer") && draftPrefs.getString(it, null) == peer.id }
+                    .mapNotNull { peerKey ->
+                        val fileName = peerKey.removeSuffix("_peer")
+                        val draftFile = File(draftsDir, fileName)
+                        if (isFinalizedVideoFile(draftFile)) {
+                            fileName to draftFile
+                        } else {
+                            RoundVideoDiagnostics.record(
+                                context,
+                                "Skipped incomplete or invalid recovered video draft; file=$fileName; bytes=${draftFile.length()}"
+                            )
+                            null
+                        }
                     }
-                }
-                .maxByOrNull { it.second.lastModified() }
+                    .maxByOrNull { it.second.lastModified() }
+            }
 
             recoverable?.let { (fileName, draftFile) ->
                 val isRound = draftPrefs.getBoolean("${fileName}_round", true)
