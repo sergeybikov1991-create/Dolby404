@@ -37,6 +37,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.resume
 
 @Composable
@@ -73,12 +74,12 @@ internal fun RoundVideoRecorder(
     var cameraProvider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
     var outputFile by remember { mutableStateOf<File?>(null) }
 
-    val latestRecording = rememberUpdatedState(recording)
+    val recordingRef = remember { AtomicReference<androidx.camera.video.Recording?>(null) }
+    val outputFileRef = remember { AtomicReference<File?>(null) }
     val latestCameraProvider = rememberUpdatedState(cameraProvider)
-    val latestOutputFile = rememberUpdatedState(outputFile)
 
     fun requestStop(send: Boolean) {
-        val activeRecording = recording ?: return
+        val activeRecording = recordingRef.get() ?: recording ?: return
         if (finalizing || !stopIssued.compareAndSet(false, true)) return
         shouldSend = send
         finalizing = true
@@ -86,11 +87,12 @@ internal fun RoundVideoRecorder(
             activeRecording.stop()
         } catch (_: Exception) {
             recording = null
+            recordingRef.set(null)
             recordingActive = false
             recordingStartedAt = 0L
             finalizing = false
             stopIssued.set(false)
-            outputFile?.delete()
+            outputFileRef.getAndSet(null)?.delete()
             outputFile = null
             if (!disposed) onError("Не удалось сохранить видеозапись.")
         }
@@ -122,16 +124,16 @@ internal fun RoundVideoRecorder(
         onDispose {
             disposed = true
             shouldSend = false
-            val activeRecording = latestRecording.value
+            val activeRecording = recordingRef.get()
             if (activeRecording != null && stopIssued.compareAndSet(false, true)) {
                 finalizing = true
                 try {
                     activeRecording.stop()
                 } catch (_: Exception) {
-                    latestOutputFile.value?.delete()
+                    outputFileRef.getAndSet(null)?.delete()
                 }
             } else if (activeRecording == null) {
-                latestOutputFile.value?.delete()
+                outputFileRef.getAndSet(null)?.delete()
             }
             // Do not delete an in-progress recording here. CameraX owns the file until
             // its Finalize event; deleting it during stop was causing intermittent failures.
@@ -171,6 +173,7 @@ internal fun RoundVideoRecorder(
         if (!cameraReady || recording != null || recordingActive || finalizing || disposed) return
         val file = File(context.cacheDir, "round_" + System.currentTimeMillis() + ".mp4")
         outputFile = file
+        outputFileRef.set(file)
         shouldSend = false
         finalizing = false
         stopIssued.set(false)
@@ -189,6 +192,8 @@ internal fun RoundVideoRecorder(
                             recordingStartedAt = 0L
                             elapsedSeconds = 0
                             recording = null
+                            recordingRef.set(null)
+                            outputFileRef.set(null)
                             finalizing = false
                             stopIssued.set(false)
                             outputFile = null
@@ -215,9 +220,13 @@ internal fun RoundVideoRecorder(
                         }
                     }
                 }
+            recording = startedRecording
+            recordingRef.set(startedRecording)
         } catch (_: Exception) {
             recording = null
+            recordingRef.set(null)
             recordingActive = false
+            outputFileRef.set(null)
             outputFile = null
             file.delete()
             if (!disposed) onError("Не удалось начать видеозапись.")
