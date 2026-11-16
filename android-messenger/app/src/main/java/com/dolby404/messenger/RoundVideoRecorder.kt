@@ -36,6 +36,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.resume
 
 @Composable
@@ -66,7 +67,7 @@ internal fun RoundVideoRecorder(
     var elapsedSeconds by remember { mutableIntStateOf(0) }
     var shouldSend by remember { mutableStateOf(false) }
     var finalizing by remember { mutableStateOf(false) }
-    var stopIssued by remember { mutableStateOf(false) }
+    val stopIssued = remember { AtomicBoolean(false) }
     var disposed by remember { mutableStateOf(false) }
     var cameraReady by remember { mutableStateOf(false) }
     var cameraProvider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
@@ -77,13 +78,11 @@ internal fun RoundVideoRecorder(
     val latestOutputFile = rememberUpdatedState(outputFile)
     val latestShouldSend = rememberUpdatedState(shouldSend)
     val latestDisposed = rememberUpdatedState(disposed)
-    val latestStopIssued = rememberUpdatedState(stopIssued)
 
     fun requestStop(send: Boolean) {
         val activeRecording = recording ?: return
-        if (stopIssued || finalizing) return
+        if (finalizing || !stopIssued.compareAndSet(false, true)) return
         shouldSend = send
-        stopIssued = true
         finalizing = true
         try {
             activeRecording.stop()
@@ -92,7 +91,7 @@ internal fun RoundVideoRecorder(
             recordingActive = false
             recordingStartedAt = 0L
             finalizing = false
-            stopIssued = false
+            stopIssued.set(false)
             outputFile?.delete()
             outputFile = null
             if (!disposed) onError("Не удалось сохранить видеозапись.")
@@ -126,8 +125,7 @@ internal fun RoundVideoRecorder(
             disposed = true
             shouldSend = false
             val activeRecording = latestRecording.value
-            if (activeRecording != null && !latestStopIssued.value) {
-                stopIssued = true
+            if (activeRecording != null && stopIssued.compareAndSet(false, true)) {
                 finalizing = true
                 try {
                     activeRecording.stop()
@@ -177,7 +175,7 @@ internal fun RoundVideoRecorder(
         outputFile = file
         shouldSend = false
         finalizing = false
-        stopIssued = false
+        stopIssued.set(false)
         try {
             recording = capture.output.prepareRecording(context, FileOutputOptions.Builder(file).build())
                 .withAudioEnabled()
@@ -263,7 +261,7 @@ internal fun RoundVideoRecorder(
             Box(
                 Modifier.size(78.dp).clip(CircleShape)
                     .background(if (recordingActive) Color(0xFF9A65FF) else Color(0xFF548BFF))
-                    .pointerInput(cameraReady, recordingActive, finalizing) {
+                    .pointerInput(cameraReady, finalizing) {
                         awaitEachGesture {
                             if (!cameraReady || recordingActive || finalizing) return@awaitEachGesture
                             val down = awaitFirstDown(requireUnconsumed = false)
