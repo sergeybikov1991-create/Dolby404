@@ -91,7 +91,9 @@ internal fun RoundVideoRecorder(
             override fun onAuthError() {}
             override fun onAuthSuccess() {}
         }
-        GenericStream(context.applicationContext, checker, cameraSource, MicrophoneSource())
+        GenericStream(context.applicationContext, checker, cameraSource, MicrophoneSource()).also {
+            it.setRecordController(SynchronizedRecordController())
+        }
     }
 
     fun stopRecording(send: Boolean) {
