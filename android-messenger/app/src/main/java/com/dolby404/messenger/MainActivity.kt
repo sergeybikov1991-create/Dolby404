@@ -376,6 +376,7 @@ private suspend fun loadDirectMessagesPage(
     userId: String,
     peerId: String,
     beforeCreatedAt: String? = null,
+    beforeId: String? = null,
     pageSize: Int = 100
 ): List<DirectMessageDto> = withContext(Dispatchers.IO) {
     val token = floustreamClient.auth.currentSessionOrNull()?.accessToken
@@ -385,7 +386,10 @@ private suspend fun loadDirectMessagesPage(
         val filters = buildString {
             append("sender_id=eq.").append(URLEncoder.encode(senderId, "UTF-8"))
             append("&recipient_id=eq.").append(URLEncoder.encode(recipientId, "UTF-8"))
-            if (beforeCreatedAt != null) {
+            if (beforeCreatedAt != null && beforeId != null) {
+                val cursor = "(created_at.lt.$beforeCreatedAt,and(created_at.eq.$beforeCreatedAt,id.lt.$beforeId))"
+                append("&or=").append(URLEncoder.encode(cursor, "UTF-8"))
+            } else if (beforeCreatedAt != null) {
                 append("&created_at=lt.").append(URLEncoder.encode(beforeCreatedAt, "UTF-8"))
             }
             append("&order=created_at.desc,id.desc&limit=").append(pageSize)
@@ -427,7 +431,7 @@ private suspend fun loadDirectMessagesPage(
     }
     val sent = fetchDirection(userId, peerId)
     val received = fetchDirection(peerId, userId)
-    val page = (sent + received).distinctBy { it.id }.sortedBy { it.createdAt }
+    val page = (sent + received).distinctBy { it.id }.sortedWith(compareBy<DirectMessageDto> { it.createdAt }.thenBy { it.id })
     if (page.isEmpty()) return@withContext emptyList()
     val hiddenIds = floustreamClient.from("direct_message_hidden").select {
         filter { eq("user_id", userId) }
@@ -3136,11 +3140,13 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                                 val oldIndex = messageListState.firstVisibleItemIndex
                                 val oldOffset = messageListState.firstVisibleItemScrollOffset
                                 try {
-                                    val oldestTimestamp = messages.firstOrNull()?.createdAt
-                                    if (oldestTimestamp.isNullOrBlank()) {
+                                    val oldestMessage = messages.firstOrNull()
+                                    val oldestTimestamp = oldestMessage?.createdAt
+                                    val oldestId = oldestMessage?.id
+                                    if (oldestTimestamp.isNullOrBlank() || oldestId.isNullOrBlank()) {
                                         hasMoreOlderMessages = false
                                     } else {
-                                        val older = loadDirectMessagesPage(currentUserId, peer.id, oldestTimestamp)
+                                        val older = loadDirectMessagesPage(currentUserId, peer.id, oldestTimestamp, oldestId)
                                         val existingIds = messages.mapTo(hashSetOf()) { it.id }
                                         val additions = older.filterNot { it.id in existingIds }
                                         if (additions.isNotEmpty()) {
