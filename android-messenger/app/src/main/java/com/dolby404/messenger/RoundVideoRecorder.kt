@@ -176,16 +176,22 @@ internal fun RoundVideoRecorder(
                         finalizing = false
                         recordingFile.value = null
                         when {
-                            shouldSend.get() && !disposed.get() && file.isFile && file.length() > 1500L -> {
+                            shouldSend.get() && file.isFile && file.length() > 1500L -> {
                                 // Hand the finalized draft to the chat immediately. The sender
                                 // owns the size check and retains the file if upload is rejected.
                                 latestOnRecorded.value(file)
                             }
-                            shouldSend.get() && !disposed.get() -> {
+                            shouldSend.get() -> {
                                 file.delete()
                                 latestOnError.value("RootEncoder завершил запись без видеоданных. Попробуй ещё раз.")
                             }
                             else -> file.delete()
+                        }
+                        if (disposed.get()) {
+                            runCatching {
+                                if (stream.isOnPreview) stream.stopPreview(true)
+                                stream.release()
+                            }.onFailure { RoundVideoDiagnostics.record(context, "RootEncoder deferred release failed", it) }
                         }
                     }
                     else -> Unit
@@ -230,15 +236,21 @@ internal fun RoundVideoRecorder(
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
             disposed.set(true)
-            shouldSend.set(false)
-            runCatching {
-                if (stream.isRecording) stream.stopRecord()
-                if (stream.isOnPreview) stream.stopPreview(true)
-                stream.release()
-            }.onFailure { RoundVideoDiagnostics.record(context, "RootEncoder release failed", it) }
-            recordingFile.value?.delete()
-            recordingFile.value = null
-            RoundVideoDiagnostics.record(context, "RootEncoder recorder disposed")
+            if (finalizing && shouldSend.get()) {
+                // The chat now owns the pending bubble. Let the muxer finish closing
+                // the MP4 before releasing RootEncoder or deleting the persistent draft.
+                RoundVideoDiagnostics.record(context, "Recorder UI disposed during send finalization; deferring stream release")
+            } else {
+                shouldSend.set(false)
+                runCatching {
+                    if (stream.isRecording) stream.stopRecord()
+                    if (stream.isOnPreview) stream.stopPreview(true)
+                    stream.release()
+                }.onFailure { RoundVideoDiagnostics.record(context, "RootEncoder release failed", it) }
+                recordingFile.value?.delete()
+                recordingFile.value = null
+                RoundVideoDiagnostics.record(context, "RootEncoder recorder disposed")
+            }
         }
     }
 
