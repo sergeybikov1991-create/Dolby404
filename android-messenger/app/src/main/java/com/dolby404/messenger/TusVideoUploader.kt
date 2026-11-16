@@ -35,7 +35,7 @@ internal object TusVideoUploader {
                 prefs.edit().putString(stateKey, it).apply()
             }
 
-        var offset = queryOffset(uploadUrl, accessToken, apiKey)
+        var offset = queryOffsetWithRetry(uploadUrl, accessToken, apiKey)
         if (offset < 0L || offset > file.length()) {
             prefs.edit().remove(stateKey).apply()
             uploadUrl = createUpload(bucket, objectPath, file, accessToken, apiKey, contentType)
@@ -53,7 +53,7 @@ internal object TusVideoUploader {
             } catch (e: Exception) {
                 if (e is IOException && retry < RETRY_DELAYS.size) {
                     Thread.sleep(RETRY_DELAYS[retry++])
-                    offset = queryOffset(uploadUrl, accessToken, apiKey)
+                    offset = queryOffsetWithRetry(uploadUrl, accessToken, apiKey)
                     if (offset < 0L) {
                         prefs.edit().remove(stateKey).apply()
                         uploadUrl = createUpload(bucket, objectPath, file, accessToken, apiKey, contentType)
@@ -97,6 +97,7 @@ internal object TusVideoUploader {
             connectTimeout = 20000
             readTimeout = 30000
             doOutput = true
+            setFixedLengthStreamingMode(0)
             setRequestProperty("Tus-Resumable", TUS_VERSION)
             setRequestProperty("Upload-Length", file.length().toString())
             setRequestProperty("Upload-Metadata", metadata)
@@ -114,6 +115,19 @@ internal object TusVideoUploader {
         } finally {
             connection.disconnect()
         }
+    }
+
+    private fun queryOffsetWithRetry(uploadUrl: String, token: String, apiKey: String): Long {
+        var lastError: IOException? = null
+        for (delayMs in RETRY_DELAYS) {
+            try {
+                if (delayMs > 0L) Thread.sleep(delayMs)
+                return queryOffset(uploadUrl, token, apiKey)
+            } catch (error: IOException) {
+                lastError = error
+            }
+        }
+        throw lastError ?: IOException("Не удалось проверить состояние TUS-загрузки.")
     }
 
     private fun queryOffset(uploadUrl: String, token: String, apiKey: String): Long {
