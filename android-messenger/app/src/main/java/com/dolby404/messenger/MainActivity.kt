@@ -269,7 +269,8 @@ private data class DirectMessageDto(
     @SerialName("read_at") val readAt: String? = null,
     @SerialName("attachment_path") val attachmentPath: String? = null,
     @SerialName("attachment_name") val attachmentName: String? = null,
-    @SerialName("attachment_mime") val attachmentMime: String? = null
+    @SerialName("attachment_mime") val attachmentMime: String? = null,
+    @SerialName("reply_to_message_id") val replyToMessageId: String? = null
 )
 
 private data class ChatThread(
@@ -285,7 +286,8 @@ private data class NewDirectMessage(
     @SerialName("content") val content: String,
     @SerialName("attachment_path") val attachmentPath: String? = null,
     @SerialName("attachment_name") val attachmentName: String? = null,
-    @SerialName("attachment_mime") val attachmentMime: String? = null
+    @SerialName("attachment_mime") val attachmentMime: String? = null,
+    @SerialName("reply_to_message_id") val replyToMessageId: String? = null
 )
 
 @Serializable
@@ -513,9 +515,9 @@ private suspend fun sendDirectAttachment(userId: String, peerId: String, path: S
     )
 }
 
-private suspend fun sendDirectMessage(userId: String, peerId: String, content: String) {
+private suspend fun sendDirectMessage(userId: String, peerId: String, content: String, replyToMessageId: String? = null) {
     floustreamClient.from("direct_messages").insert(
-        NewDirectMessage(senderId = userId, recipientId = peerId, content = content)
+        NewDirectMessage(senderId = userId, recipientId = peerId, content = content, replyToMessageId = replyToMessageId)
     )
 }
 
@@ -2392,6 +2394,8 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     var voiceFile by remember { mutableStateOf<File?>(null) }
     var recordingVoice by remember { mutableStateOf(false) }
     var pendingDeleteMessage by remember { mutableStateOf<DirectMessageDto?>(null) }
+    var pendingMessageActions by remember { mutableStateOf<DirectMessageDto?>(null) }
+    var replyToMessage by remember { mutableStateOf<DirectMessageDto?>(null) }
     var deletingMessage by remember { mutableStateOf(false) }
     var voiceRecordingStartedAt by remember { mutableLongStateOf(0L) }
     var voiceElapsedSeconds by remember { mutableIntStateOf(0) }
@@ -2639,7 +2643,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                                 // Long press remains the temporary entry point until
                                 // the full message action sheet is implemented.
                                 onClick = { },
-                                onLongClick = { pendingDeleteMessage = msg }
+                                onLongClick = { pendingMessageActions = msg }
                             )
                     ) {
                         Column(
@@ -2650,6 +2654,17 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                                     msg.attachmentMime.orEmpty().startsWith("image/")) 2.dp else 9.dp
                             )
                         ) {
+                            msg.replyToMessageId?.let { replyId ->
+                                messages.firstOrNull { it.id == replyId }?.let { quoted ->
+                                    Text(
+                                        "↪ " + (quoted.content.ifBlank { quoted.attachmentName ?: "Вложение" }).take(90),
+                                        color = Color(0xFFBBD5FF),
+                                        fontSize = 11.sp,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
                             if (!msg.attachmentPath.isNullOrBlank()) {
                                 MessageAttachment(msg)
                                 if (!msg.content.isNullOrBlank() && msg.content != msg.attachmentName) {
@@ -2666,8 +2681,23 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 }
             }
         }
-        if (!peer.isDeleted) Row(
-            Modifier.fillMaxWidth().background(Panel).padding(horizontal = 8.dp, vertical = 9.dp),
+        if (!peer.isDeleted) Column(
+            Modifier.fillMaxWidth().background(Panel)
+        ) {
+            replyToMessage?.let { quoted ->
+                Row(
+                    Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Ответ на сообщение", color = Color(0xFF9FCBFF), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                        Text((quoted.content.ifBlank { quoted.attachmentName ?: "Вложение" }).take(100), color = Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    Text("×", Modifier.clickable { replyToMessage = null }.padding(8.dp), color = White, fontSize = 20.sp)
+                }
+            }
+            Row(
+            Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box {
@@ -2728,8 +2758,9 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                         scope.launch {
                             sending = true
                             try {
-                                sendDirectMessage(currentUserId, peer.id, text)
+                                sendDirectMessage(currentUserId, peer.id, text, replyToMessage?.id)
                                 draft = ""
+                                replyToMessage = null
                                 refresh()
                             } catch (e: Exception) {
                                 errorText = e.message ?: "Не удалось отправить сообщение."
@@ -2773,8 +2804,9 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                                 scope.launch {
                                     sending = true
                                     try {
-                                        sendDirectMessage(currentUserId, peer.id, text)
+                                        sendDirectMessage(currentUserId, peer.id, text, replyToMessage?.id)
                                         draft = ""
+                                        replyToMessage = null
                                         refresh()
                                     } catch (_: Exception) {
                                         errorText = "Не удалось отправить сообщение. Проверь интернет и попробуй ещё раз."
@@ -2835,6 +2867,37 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                     }
                 }
             }
+        )
+    }
+
+    if (pendingMessageActions != null) {
+        val target = pendingMessageActions!!
+        AlertDialog(
+            onDismissRequest = { pendingMessageActions = null },
+            containerColor = Panel,
+            title = { Text("Действия с сообщением", color = White) },
+            text = {
+                Column {
+                    Text((target.content.ifBlank { target.attachmentName ?: "Вложение" }).take(180), color = Muted, fontSize = 12.sp)
+                    Spacer(Modifier.height(8.dp))
+                    TextButton(onClick = {
+                        val textToCopy = target.content.takeIf { it.isNotBlank() } ?: target.attachmentName.orEmpty()
+                        val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)
+                        clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("FLOUSTREAM message", textToCopy))
+                        pendingMessageActions = null
+                        Toast.makeText(context, "Скопировано", Toast.LENGTH_SHORT).show()
+                    }) { Text("Копировать", color = White) }
+                    TextButton(onClick = {
+                        replyToMessage = target
+                        pendingMessageActions = null
+                    }) { Text("Ответить", color = White) }
+                    TextButton(onClick = {
+                        pendingMessageActions = null
+                        pendingDeleteMessage = target
+                    }) { Text("Удалить", color = Color(0xFFFF9AAA)) }
+                }
+            },
+            confirmButton = { TextButton(onClick = { pendingMessageActions = null }) { Text("Закрыть", color = White) } }
         )
     }
 
