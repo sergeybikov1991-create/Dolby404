@@ -1,4 +1,4 @@
-name: Build and publish FLOUSTREAM Messenger 0.4.2
+name: Build and publish FLOUSTREAM Messenger 0.4.3
 
 on:
   workflow_dispatch:
@@ -13,6 +13,9 @@ on:
       - "feature/messenger-0.4.0-foundation"
       - "feature/android-0.4.1-no-calls"
       - "feature/android-0.4.2-fixes"
+      - "feature/android-0.4.3-whatsapp-chat"
+    paths:
+      - ".github/workflows/android-messenger-release.yml"
     tags:
       - "v*"
 
@@ -90,10 +93,10 @@ jobs:
           retention-days: 30
 
       - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/feature/android-0.4.2-fixes'
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/feature/android-0.4.2-fixes' || github.ref == 'refs/heads/feature/android-0.4.3-whatsapp-chat'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || (startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.4.2') }}
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || (startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.4.3') }}
           target_commitish: ${{ github.sha }}
           name: FLOUSTREAM Messenger ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || (startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.4.2') }}
           overwrite_files: true
