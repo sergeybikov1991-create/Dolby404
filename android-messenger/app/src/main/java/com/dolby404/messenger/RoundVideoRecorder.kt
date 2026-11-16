@@ -178,7 +178,7 @@ internal fun RoundVideoRecorder(
         finalizing = false
         stopIssued.set(false)
         try {
-            recording = capture.output.prepareRecording(context, FileOutputOptions.Builder(file).build())
+            val startedRecording = capture.output.prepareRecording(context, FileOutputOptions.Builder(file).build())
                 .withAudioEnabled()
                 .start(ContextCompat.getMainExecutor(context)) { event ->
                     when (event) {
