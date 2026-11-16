@@ -68,6 +68,8 @@ import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.realtime.Realtime
 import io.github.jan.supabase.realtime.PostgresAction
 import io.github.jan.supabase.realtime.postgresChangeFlow
+import io.github.jan.supabase.realtime.realtime
+import io.github.jan.supabase.realtime.channel
 import io.github.jan.supabase.storage.Storage
 import io.github.jan.supabase.storage.storage
 import io.ktor.http.ContentType
@@ -2913,7 +2915,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 }
             }
 
-            val channel = floustreamClient.realtime.createChannel("direct-chat:$currentUserId:${peer.id}")
+            val channel = floustreamClient.channel("direct-chat:$currentUserId:${peer.id}")
             val messageChanges = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
                 table = "direct_messages"
             }
@@ -2934,9 +2936,9 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             try {
                 val accessToken = floustreamClient.auth.currentSessionOrNull()?.accessToken
                     ?: throw IllegalStateException("Нет активной сессии для синхронизации.")
-                channel.updateAuth(accessToken)
+                floustreamClient.realtime.setAuth(accessToken)
                 floustreamClient.realtime.connect()
-                channel.join(blockUntilJoined = true)
+                channel.subscribe()
 
                 // Safety sync remains as a fallback for missed websocket events or reconnects.
                 while (isResumed) {
