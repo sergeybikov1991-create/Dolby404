@@ -102,7 +102,7 @@ internal fun RoundVideoRecorder(
         if (recordingActive && recordingStartedAt > 0L) {
             while (recordingActive && !finalizing) {
                 elapsedSeconds = ((System.currentTimeMillis() - recordingStartedAt) / 1000L).toInt()
-                if (elapsedSeconds >= 30) {
+                if (elapsedSeconds >= 20) {
                     requestStop(true)
                     break
                 }
@@ -155,7 +155,7 @@ internal fun RoundVideoRecorder(
             }
             cameraProvider = provider
             val preview = Preview.Builder().build().also { it.surfaceProvider = view.surfaceProvider }
-            val recorder = Recorder.Builder().setQualitySelector(QualitySelector.from(Quality.SD)).build()
+            val recorder = Recorder.Builder().setQualitySelector(QualitySelector.from(Quality.SD)).setTargetVideoEncodingBitRate(600_000).build()
             val capture = VideoCapture.withOutput(recorder)
             val selector = if (frontCamera) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
             provider.unbindAll()
@@ -204,9 +204,9 @@ internal fun RoundVideoRecorder(
                                 }
                             } else if (shouldSend && !disposed && file.exists()) {
                                 when {
-                                    file.length() > 45L * 1024L * 1024L -> {
+                                    file.length() > 18L * 1024L * 1024L -> {
                                         file.delete()
-                                        onError("Видеосообщение получилось больше 45 МБ. Запиши более короткий кружок.")
+                                        onError("Видеосообщение получилось больше 18 МБ. Запиши более короткий кружок.")
                                     }
                                     file.length() > 1500L -> onRecorded(file)
                                     else -> {
