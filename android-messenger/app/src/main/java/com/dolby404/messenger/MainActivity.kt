@@ -3201,6 +3201,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                                 try {
                                     val source = android.graphics.ImageDecoder.createSource(resolver, uri)
                                     val bitmap = android.graphics.ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+                                        decoder.allocator = android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE
                                         val maxDimension = 2048
                                         val scale = minOf(1f, maxDimension.toFloat() / maxOf(info.size.width, info.size.height).toFloat())
                                         decoder.setTargetSize(
