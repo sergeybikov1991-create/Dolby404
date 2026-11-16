@@ -1,0 +1,48 @@
+name: FLOUSTREAM Android 0.4.17 video drafts Debug
+
+on:
+  push:
+    branches:
+      - "feature/android-0.4.17-video-drafts-dual-camera"
+    paths:
+      - "android-messenger/**"
+      - ".github/workflows/android-messenger-video-drafts-debug.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.13"
+
+      - name: Assemble Debug APK
+        working-directory: android-messenger
+        run: gradle --no-daemon :app:assembleDebug
+
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: FLOUSTREAM-Messenger-0.4.17-video-drafts-debug
+          path: android-messenger/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
