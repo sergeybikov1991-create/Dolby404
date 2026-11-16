@@ -7,7 +7,6 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URL
-import java.util.UUID
 
 /**
  * Supabase Storage TUS uploader. The remote object remains one ordinary file;
@@ -29,11 +28,10 @@ internal object TusVideoUploader {
         require(file.isFile && file.length() > 0L) { "Файл видео пустой или недоступен." }
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val stateKey = objectPath
-        var uploadUrl = prefs.getString(stateKey, null)
-        if (uploadUrl.isNullOrBlank()) {
-            uploadUrl = createUpload(bucket, objectPath, file, accessToken, apiKey)
-            prefs.edit().putString(stateKey, uploadUrl).apply()
-        }
+        var uploadUrl: String = prefs.getString(stateKey, null)?.takeIf { it.isNotBlank() }
+            ?: createUpload(bucket, objectPath, file, accessToken, apiKey).also {
+                prefs.edit().putString(stateKey, it).apply()
+            }
 
         var offset = queryOffset(uploadUrl, accessToken, apiKey)
         if (offset < 0L || offset > file.length()) {
