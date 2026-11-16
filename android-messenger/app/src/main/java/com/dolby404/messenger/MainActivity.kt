@@ -75,8 +75,6 @@ import io.github.jan.supabase.realtime.channel
 import io.github.jan.supabase.storage.Storage
 import io.github.jan.supabase.storage.storage
 import io.ktor.http.ContentType
-import io.ktor.utils.io.jvm.javaio.toByteReadChannel
-import java.io.FileInputStream
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.buildJsonObject
@@ -3821,24 +3819,25 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                         if (file.length() > 18L * 1024L * 1024L) error("Видео превышает лимит 18 МБ. Запиши более короткий кружок.")
                         val name = "video_" + System.currentTimeMillis() + ".mp4"
                         val path = currentUserId + "/" + UUID.randomUUID().toString() + "_" + name
-                        // Supabase resumable upload reads the recording from disk in chunks.
-                        // Do not allocate a second video-sized ByteArray in app memory.
+                        RoundVideoDiagnostics.record(context, "video sender callback reached; fileExists=${file.exists()}; bytes=${file.length()}")
+                        if (!file.exists() || file.length() < 1500L) error("Файл видеосообщения не сохранился.")
+                        if (file.length() > 18L * 1024L * 1024L) error("Видео превышает лимит 18 МБ. Запиши более короткий кружок.")
+                        val name = "video_" + System.currentTimeMillis() + ".mp4"
+                        val path = currentUserId + "/" + UUID.randomUUID().toString() + "_" + name
+                        // Use the SDK's JVM File overload: it owns file seeking/stream lifecycle
+                        // and is the documented Android/JVM path for resumable uploads.
+                        RoundVideoDiagnostics.record(context, "video upload starting; path generated; bytes=${file.length()}")
                         val videoUpload = floustreamClient.storage.from("message-media")
-                            .resumable.createOrContinueUpload(
-                                channel = { offset ->
-                                    FileInputStream(file).apply { channel.position(offset) }
-                                        .toByteReadChannel(Dispatchers.IO)
-                                },
-                                source = file.absolutePath,
-                                size = file.length(),
-                                path = path
-                            )
+                            .resumable.createOrContinueUpload(path, file)
                         videoUpload.startOrResumeUploading()
+                        RoundVideoDiagnostics.record(context, "video upload completed; inserting direct message")
                         sendDirectAttachment(currentUserId, peer.id, path, name, "video/mp4")
+                        RoundVideoDiagnostics.record(context, "video direct message inserted successfully")
                         refresh()
                         errorText = ""
                     } catch (e: Exception) {
                         if (e is kotlinx.coroutines.CancellationException) throw e
+                        RoundVideoDiagnostics.record(context, "video send failed; type=${e.javaClass.name}; message=${e.message}", e)
                         val reason = e.message?.takeIf { it.isNotBlank() } ?: "ошибка загрузки или сохранения сообщения"
                         errorText = "Не удалось отправить видеосообщение: $reason"
                     } finally {
