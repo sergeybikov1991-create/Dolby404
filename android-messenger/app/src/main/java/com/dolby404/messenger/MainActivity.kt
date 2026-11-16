@@ -424,10 +424,7 @@ private suspend fun loadDirectMessagesPage(
     val page = (sent + received).distinctBy { it.id }.sortedBy { it.createdAt }
     if (page.isEmpty()) return@withContext emptyList()
     val hiddenIds = floustreamClient.from("direct_message_hidden").select {
-        filter {
-            eq("user_id", userId)
-            isIn("message_id", page.map { it.id })
-        }
+        filter { eq("user_id", userId) }
     }.decodeList<HiddenDirectMessageDto>().map { it.messageId }.toSet()
     page.filterNot { it.id in hiddenIds }
 }
@@ -2626,6 +2623,8 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     var pinnedMessageIds by remember(peer.id) { mutableStateOf<Set<String>>(emptySet()) }
     var favoriteMessageIds by remember(peer.id) { mutableStateOf<Set<String>>(emptySet()) }
     var showFavoritesOnly by remember(peer.id) { mutableStateOf(false) }
+    var hasMoreOlderMessages by remember(peer.id) { mutableStateOf(true) }
+    var loadingOlderMessages by remember(peer.id) { mutableStateOf(false) }
     var chatSearchOpen by remember(peer.id) { mutableStateOf(false) }
     var chatSearchQuery by remember(peer.id) { mutableStateOf("") }
     var chatSearchDate by remember(peer.id) { mutableStateOf("") }
@@ -2686,20 +2685,21 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
         var loaded = false
         try {
             try { markIncomingMessagesRead(currentUserId, peer.id) } catch (_: Exception) { }
-            val latest = loadDirectMessages(currentUserId, peer.id)
-            reactions = loadDirectMessageReactions(latest.map { it.id })
-            pinnedMessageIds = loadDirectMessagePins(currentUserId).intersect(latest.map { it.id }.toSet())
-            favoriteMessageIds = loadDirectMessageFavorites(currentUserId).intersect(latest.map { it.id }.toSet())
-            // Reconcile by stable message ID instead of clearing the whole list.
-            // This keeps LazyColumn item identity and scroll position during polling.
-            val latestIds = latest.mapTo(hashSetOf()) { it.id }
-            messages.removeAll { it.id !in latestIds }
-            latest.forEachIndexed { index, incoming ->
+            val latest = loadDirectMessagesPage(currentUserId, peer.id)
+            hasMoreOlderMessages = latest.size >= 100
+            val merged = (messages.toList() + latest).distinctBy { it.id }.sortedBy { it.createdAt }
+            reactions = loadDirectMessageReactions(merged.map { it.id })
+            val allIds = merged.map { it.id }.toSet()
+            pinnedMessageIds = loadDirectMessagePins(currentUserId).intersect(allIds)
+            favoriteMessageIds = loadDirectMessageFavorites(currentUserId).intersect(allIds)
+            // Keep previously loaded older pages; only merge fresh messages by stable ID.
+            latest.forEach { incoming ->
                 val existingIndex = messages.indexOfFirst { it.id == incoming.id }
                 if (existingIndex >= 0) {
                     if (messages[existingIndex] != incoming) messages[existingIndex] = incoming
                 } else {
-                    messages.add(index.coerceAtMost(messages.size), incoming)
+                    val insertAt = messages.indexOfFirst { it.createdAt > incoming.createdAt }
+                    if (insertAt >= 0) messages.add(insertAt, incoming) else messages.add(incoming)
                 }
             }
             errorText = ""
