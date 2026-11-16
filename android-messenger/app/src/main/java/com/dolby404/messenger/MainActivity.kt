@@ -65,6 +65,9 @@ import io.github.jan.supabase.auth.handleDeeplinks
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.realtime.Realtime
+import io.github.jan.supabase.realtime.PostgresAction
+import io.github.jan.supabase.realtime.postgresChangeFlow
 import io.github.jan.supabase.storage.Storage
 import io.github.jan.supabase.storage.storage
 import io.ktor.http.ContentType
@@ -103,6 +106,7 @@ private val floustreamClient = createSupabaseClient(
     supabaseKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY
 ) {
     install(Postgrest)
+    install(Realtime)
     install(Storage)
     install(Auth) {
         scheme = "dolby404"
@@ -2894,14 +2898,13 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
         }
     }
 
-    LaunchedEffect(peer.id, isResumed) {
+    LaunchedEffect(peer.id, currentUserId, isResumed) {
         if (isResumed) {
             // Notification/deep-link launches can race session restoration or a brief
             // network wake-up. Retry once before showing a red error to the user.
             var loaded = refresh(silent = true)
             if (!loaded && messages.isEmpty() && isResumed) {
                 loading = true
-                // Give Android time to restore the network after opening from a push.
                 delay(900)
                 if (isResumed) loaded = refresh(silent = true)
                 if (!loaded && messages.isEmpty() && isResumed) {
@@ -2909,9 +2912,47 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                     if (isResumed) refresh(silent = false)
                 }
             }
-            while (isResumed) {
-                delay(5000)
-                if (isResumed) refresh(silent = true)
+
+            val channel = floustreamClient.realtime.createChannel("direct-chat:$currentUserId:${peer.id}")
+            val messageChanges = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
+                table = "direct_messages"
+            }
+            val reactionChanges = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
+                table = "direct_message_reactions"
+            }
+            val messageCollector = launch {
+                try {
+                    messageChanges.collect { if (isResumed) refresh(silent = true) }
+                } catch (_: Exception) { }
+            }
+            val reactionCollector = launch {
+                try {
+                    reactionChanges.collect { if (isResumed) refresh(silent = true) }
+                } catch (_: Exception) { }
+            }
+
+            try {
+                val accessToken = floustreamClient.auth.currentSessionOrNull()?.accessToken
+                    ?: throw IllegalStateException("Нет активной сессии для синхронизации.")
+                channel.updateAuth(accessToken)
+                floustreamClient.realtime.connect()
+                channel.join(blockUntilJoined = true)
+
+                // Safety sync remains as a fallback for missed websocket events or reconnects.
+                while (isResumed) {
+                    delay(30_000)
+                    if (isResumed) refresh(silent = true)
+                }
+            } catch (_: Exception) {
+                // If Realtime is unavailable, keep the conversation usable with polling.
+                while (isResumed) {
+                    delay(5_000)
+                    if (isResumed) refresh(silent = true)
+                }
+            } finally {
+                messageCollector.cancel()
+                reactionCollector.cancel()
+                try { floustreamClient.realtime.removeChannel(channel) } catch (_: Exception) { }
             }
         }
     }
