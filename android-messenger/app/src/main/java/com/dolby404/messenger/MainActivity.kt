@@ -358,16 +358,35 @@ private suspend fun loadPublicMediaLibrary(userId: String): List<MediaLibraryIte
 private suspend fun sendLibraryMedia(userId: String, peerId: String, item: MediaLibraryItem) = withContext(Dispatchers.IO) {
     val signedUrl = floustreamClient.storage.from(item.bucket).createSignedUrl(item.path, 10.minutes)
     val connection = URL(signedUrl).openConnection() as HttpURLConnection
-    val bytes = try {
-        connection.connectTimeout = 15000
-        connection.readTimeout = 60000
-        connection.inputStream.use { it.readBytes() }
-    } finally { connection.disconnect() }
-    if (bytes.size > 50 * 1024 * 1024) error("Файл больше 50 МБ.")
     val safeName = item.name.replace(Regex("[^A-Za-z0-9._-]"), "_").take(100).ifBlank { "attachment" }
     val targetPath = userId + "/" + UUID.randomUUID().toString() + "_" + safeName
-    floustreamClient.storage.from("message-media").upload(targetPath, bytes) {
-        contentType = ContentType.parse(item.mime.ifBlank { "application/octet-stream" })
+    if (item.mime.startsWith("video/")) {
+        val tempFile = File.createTempFile("dolby404_album_video_", ".mp4", context.cacheDir)
+        try {
+            connection.connectTimeout = 15000
+            connection.readTimeout = 60000
+            connection.inputStream.use { input ->
+                tempFile.outputStream().use { output -> input.copyTo(output, 256 * 1024) }
+            }
+            if (tempFile.length() <= 0L) error("Видеоальбом: файл пустой или недоступен.")
+            if (tempFile.length() > 50L * 1024L * 1024L) error("Видеоальбом: файл больше 50 МБ.")
+            val token = floustreamClient.auth.currentSessionOrNull()?.accessToken
+                ?: error("Сессия истекла. Войди в аккаунт ещё раз.")
+            TusVideoUploader.upload(context, "message-media", targetPath, tempFile, token, BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+        } finally {
+            connection.disconnect()
+            tempFile.delete()
+        }
+    } else {
+        val bytes = try {
+            connection.connectTimeout = 15000
+            connection.readTimeout = 60000
+            connection.inputStream.use { it.readBytes() }
+        } finally { connection.disconnect() }
+        if (bytes.size > 50 * 1024 * 1024) error("Файл больше 50 МБ.")
+        floustreamClient.storage.from("message-media").upload(targetPath, bytes) {
+            contentType = ContentType.parse(item.mime.ifBlank { "application/octet-stream" })
+        }
     }
     sendDirectAttachment(userId, peerId, targetPath, item.name, item.mime)
 }
