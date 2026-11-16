@@ -1,4 +1,4 @@
-name: Build and publish FLOUSTREAM Messenger 0.4.4
+name: Build and publish FLOUSTREAM Messenger 0.4.5
 
 on:
   workflow_dispatch:
@@ -6,7 +6,7 @@ on:
       release_tag:
         description: "Release version tag"
         required: true
-        default: "v0.4.4"
+        default: "v0.4.5"
   push:
     branches:
       - "release/floustream-0.3.2"
@@ -15,6 +15,7 @@ on:
       - "feature/android-0.4.2-fixes"
       - "feature/android-0.4.3-whatsapp-chat"
       - "feature/android-0.4.4-chat-stability"
+      - "feature/android-0.4.5-chat-media-fix"
     paths:
       - ".github/workflows/android-messenger-release.yml"
     tags:
@@ -94,10 +95,10 @@ jobs:
           retention-days: 30
 
       - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/feature/android-0.4.2-fixes' || github.ref == 'refs/heads/feature/android-0.4.3-whatsapp-chat' || github.ref == 'refs/heads/feature/android-0.4.4-chat-stability'
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/feature/android-0.4.2-fixes' || github.ref == 'refs/heads/feature/android-0.4.3-whatsapp-chat' || github.ref == 'refs/heads/feature/android-0.4.4-chat-stability' || github.ref == 'refs/heads/feature/android-0.4.5-chat-media-fix'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || (startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.4.4') }}
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || (startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.4.5') }}
           target_commitish: ${{ github.sha }}
           name: FLOUSTREAM Messenger ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || (startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.4.4') }}
           overwrite_files: true
