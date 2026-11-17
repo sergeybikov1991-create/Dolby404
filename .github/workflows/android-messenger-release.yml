@@ -104,6 +104,13 @@ jobs:
           test -n "$DOLBY404_KEY_PASSWORD" || { echo "Missing DOLBY404_KEY_PASSWORD"; exit 1; }
           gradle --no-daemon :app:assembleRelease
 
+      - name: Verify APK package and version metadata
+        run: |
+          set -euo pipefail
+          APK="android-messenger/app/build/outputs/apk/release/app-release.apk"
+          BADGING="$("$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK")"
+          echo "$BADGING" | grep -F "package: name='com.dolby404.messenger' versionCode='36' versionName='0.4.28'"
+
       - name: Verify APK signature
         run: |
           set -euo pipefail
