@@ -339,13 +339,17 @@ private data class DirectMessageDto(
     @SerialName("edited_at") val editedAt: String? = null
 )
 
-private fun chatMessageCacheKey(userId: String, peerId: String) = "chat_messages_${userId}_${peerId}"
+private fun chatMessageCacheFile(context: Context, userId: String, peerId: String): File {
+    val stableId = UUID.nameUUIDFromBytes("$userId:$peerId".toByteArray(Charsets.UTF_8)).toString()
+    val directory = File(context.filesDir, "conversation-cache").apply { mkdirs() }
+    return File(directory, "$stableId.json")
+}
 
 private fun readCachedChatMessages(context: Context, userId: String, peerId: String): List<DirectMessageDto> {
-    val raw = context.getSharedPreferences("floustream_chat_cache", Context.MODE_PRIVATE)
-        .getString(chatMessageCacheKey(userId, peerId), null) ?: return emptyList()
+    val file = chatMessageCacheFile(context, userId, peerId)
+    if (!file.isFile) return emptyList()
     return try {
-        val array = JSONArray(raw)
+        val array = JSONArray(file.readText(Charsets.UTF_8))
         (0 until array.length()).mapNotNull { index ->
             val row = array.optJSONObject(index) ?: return@mapNotNull null
             fun nullable(name: String): String? = if (row.isNull(name)) null else row.optString(name).takeIf { it.isNotBlank() && it != "null" }
@@ -362,7 +366,8 @@ private fun readCachedChatMessages(context: Context, userId: String, peerId: Str
 }
 
 private fun writeCachedChatMessages(context: Context, userId: String, peerId: String, messages: List<DirectMessageDto>) {
-    val recent = messages.distinctBy { it.id }.sortedWith(compareBy<DirectMessageDto> { it.createdAt }.thenBy { it.id }).takeLast(500)
+    val recent = messages.distinctBy { it.id }
+        .sortedWith(compareBy<DirectMessageDto> { it.createdAt }.thenBy { it.id }).takeLast(1500)
     val array = JSONArray()
     recent.forEach { message ->
         array.put(JSONObject()
@@ -375,8 +380,13 @@ private fun writeCachedChatMessages(context: Context, userId: String, peerId: St
             .put("reply_to_message_id", message.replyToMessageId ?: JSONObject.NULL)
             .put("edited_at", message.editedAt ?: JSONObject.NULL))
     }
-    context.getSharedPreferences("floustream_chat_cache", Context.MODE_PRIVATE).edit()
-        .putString(chatMessageCacheKey(userId, peerId), array.toString()).apply()
+    val target = chatMessageCacheFile(context, userId, peerId)
+    val temporary = File(target.parentFile, target.name + ".tmp")
+    temporary.writeText(array.toString(), Charsets.UTF_8)
+    if (!temporary.renameTo(target)) {
+        target.writeText(temporary.readText(Charsets.UTF_8), Charsets.UTF_8)
+        temporary.delete()
+    }
 }
 
 private data class ChatThread(
