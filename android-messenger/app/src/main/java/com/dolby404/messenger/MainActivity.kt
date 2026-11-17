@@ -156,6 +156,8 @@ import java.net.URLEncoder
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.abs
+import kotlin.time.Clock
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Duration.Companion.minutes
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -5185,12 +5187,16 @@ internal class FloustreamVideoUploadWorker(
         try {
             setForeground(createForegroundInfo(notificationId, name, 0))
             val prefs = applicationContext.getSharedPreferences("floustream_video_drafts", Context.MODE_PRIVATE)
-            var accessToken = floustreamClient.auth.currentSessionOrNull()?.accessToken
-            if (accessToken.isNullOrBlank()) {
+            val currentSession = floustreamClient.auth.currentSessionOrNull()
+            val session = if (
+                currentSession == null ||
+                currentSession.expiresAt <= Clock.System.now() + 60.seconds
+            ) {
                 floustreamClient.auth.refreshCurrentSession()
-                accessToken = floustreamClient.auth.currentSessionOrNull()?.accessToken
+            } else {
+                currentSession
             }
-            if (accessToken.isNullOrBlank()) error("Сессия недоступна. Открой FLOUSTREAM и повтори отправку.")
+            val accessToken = session.accessToken
 
             if (!prefs.getBoolean("${draftKey}_uploaded", false)) {
                 withContext(Dispatchers.IO) {
@@ -5199,7 +5205,7 @@ internal class FloustreamVideoUploadWorker(
                         bucket = "message-media",
                         objectPath = objectPath,
                         file = file,
-                        accessToken = accessToken!!,
+                        accessToken = accessToken,
                         apiKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY,
                         contentType = mime,
                         onProgress = { uploaded, total ->
