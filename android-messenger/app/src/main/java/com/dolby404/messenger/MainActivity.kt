@@ -3704,6 +3704,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             val name = draftPrefs.getString("${draftKey}_name", null) ?: (
                 (if (roundDraft) "round_" else "normal_") + "video_" + System.currentTimeMillis() + ".mp4"
             )
+            val mime = draftPrefs.getString("${draftKey}_mime", "video/mp4") ?: "video/mp4"
             val objectPath = draftPrefs.getString(draftKey, null) ?: (
                 currentUserId + "/" + UUID.randomUUID().toString() + "_" + name
             )
@@ -3715,7 +3716,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 .putBoolean("${draftKey}_round", roundDraft)
                 .commit()
             if (!saved) error("Не удалось сохранить очередь отправки видео.")
-            enqueueVideoUploadWorker(context, currentUserId, peer.id, file, draftKey, objectPath, name, "video/mp4")
+            enqueueVideoUploadWorker(context, currentUserId, peer.id, file, draftKey, objectPath, name, mime)
             RoundVideoDiagnostics.record(context, "video draft queued in WorkManager; objectPathStored=true")
             errorText = "Видео отправляется в фоне. Можно выйти из чата."
         } catch (e: Exception) {
