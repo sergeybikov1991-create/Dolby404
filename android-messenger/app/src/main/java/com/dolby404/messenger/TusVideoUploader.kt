@@ -52,30 +52,37 @@ internal object TusVideoUploader {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val stateKey = objectPath
         var activeToken = accessToken
-        var uploadUrl: String = prefs.getString(stateKey, null)?.takeIf { it.isNotBlank() }
-            ?: try {
-                createUpload(bucket, objectPath, file, activeToken, apiKey, contentType).also {
-                    check(prefs.edit().putString(stateKey, it).commit()) { "Не удалось сохранить состояние загрузки видео." }
-                }
+
+        suspend fun createUploadWithRefresh(): String {
+            return try {
+                createUpload(bucket, objectPath, file, activeToken, apiKey, contentType)
             } catch (error: TusHttpException) {
                 if (error.statusCode != 401) throw error
                 activeToken = refreshAccessToken()
-                createUpload(bucket, objectPath, file, activeToken, apiKey, contentType).also {
-                    check(prefs.edit().putString(stateKey, it).commit()) { "Не удалось сохранить состояние загрузки видео." }
+                createUpload(bucket, objectPath, file, activeToken, apiKey, contentType)
+            }.also {
+                check(prefs.edit().putString(stateKey, it).commit()) {
+                    "Не удалось сохранить состояние загрузки видео."
                 }
             }
-
-        var offset = try {
-            queryOffsetWithRetry(uploadUrl, activeToken, apiKey)
-        } catch (error: TusHttpException) {
-            if (error.statusCode != 401) throw error
-            activeToken = refreshAccessToken()
-            queryOffsetWithRetry(uploadUrl, activeToken, apiKey)
         }
+
+        suspend fun queryOffsetWithRefresh(uploadUrl: String): Long {
+            return try {
+                queryOffsetWithRetry(uploadUrl, activeToken, apiKey)
+            } catch (error: TusHttpException) {
+                if (error.statusCode != 401) throw error
+                activeToken = refreshAccessToken()
+                queryOffsetWithRetry(uploadUrl, activeToken, apiKey)
+            }
+        }
+
+        var uploadUrl = prefs.getString(stateKey, null)?.takeIf { it.isNotBlank() }
+            ?: createUploadWithRefresh()
+        var offset = queryOffsetWithRefresh(uploadUrl)
         if (offset < 0L || offset > file.length()) {
-            prefs.edit().remove(stateKey).apply()
-            uploadUrl = createUpload(bucket, objectPath, file, accessToken, apiKey, contentType)
-            check(prefs.edit().putString(stateKey, uploadUrl).commit()) { "Не удалось сохранить состояние загрузки видео." }
+            prefs.edit().remove(stateKey).commit()
+            uploadUrl = createUploadWithRefresh()
             offset = 0L
         }
 
@@ -83,6 +90,8 @@ internal object TusVideoUploader {
         var retry = 0
         while (offset < file.length()) {
             try {
+                // Every PATCH transfers at most exactly 6 MiB. TUS keeps one
+                // remote object and one chat row for the complete video.
                 val count = minOf(CHUNK_SIZE.toLong(), file.length() - offset).toInt()
                 patchChunk(uploadUrl, file, offset, count, activeToken, apiKey)
                 offset += count
@@ -91,7 +100,7 @@ internal object TusVideoUploader {
             } catch (error: IOException) {
                 if (error is TusHttpException && error.statusCode == 401) {
                     activeToken = refreshAccessToken()
-                    offset = queryOffsetWithRetry(uploadUrl, activeToken, apiKey)
+                    offset = queryOffsetWithRefresh(uploadUrl)
                     onProgress(offset, file.length())
                     retry = 0
                     continue
@@ -100,20 +109,19 @@ internal object TusVideoUploader {
                 val delayMs = RETRY_DELAYS[retry++]
                 if (delayMs > 0L) Thread.sleep(delayMs)
 
-                // The server may have accepted a chunk even if the response was
-                // lost. Always reconcile the authoritative offset before retrying.
-                offset = queryOffsetWithRetry(uploadUrl, activeToken, apiKey)
+                // A lost PATCH response does not tell us whether the server
+                // accepted the chunk. Ask TUS for its authoritative offset.
+                offset = queryOffsetWithRefresh(uploadUrl)
                 if (offset < 0L) {
-                    prefs.edit().remove(stateKey).apply()
-                    uploadUrl = createUpload(bucket, objectPath, file, accessToken, apiKey, contentType)
-                    prefs.edit().putString(stateKey, uploadUrl).apply()
+                    prefs.edit().remove(stateKey).commit()
+                    uploadUrl = createUploadWithRefresh()
                     offset = 0L
                 }
                 onProgress(offset, file.length())
                 if (offset > file.length()) throw error
             }
         }
-        prefs.edit().remove(stateKey).apply()
+        prefs.edit().remove(stateKey).commit()
     }
 
     private fun endpoint(): String {
