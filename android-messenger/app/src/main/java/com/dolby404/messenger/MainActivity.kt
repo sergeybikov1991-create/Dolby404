@@ -2765,7 +2765,7 @@ private fun MessageAttachment(message: DirectMessageDto) {
                 .diskCacheKey("floustream-media-$path")
                 .crossfade(false).build(),
             contentDescription = message.attachmentName ?: "Изображение",
-            modifier = Modifier.widthIn(max = 280.dp).fillMaxWidth().height(300.dp)
+            modifier = Modifier.widthIn(max = 240.dp).fillMaxWidth().aspectRatio(9f / 16f)
                 .clip(RoundedCornerShape(12.dp)).clickable { showFullScreen = true },
             contentScale = ContentScale.Crop,
             onLoading = { imageLoadError = false },
@@ -2823,75 +2823,40 @@ private fun MessageAttachment(message: DirectMessageDto) {
 
 @Composable
 private fun ChatAtmosphereBackground() {
-    val transition = rememberInfiniteTransition(label = "floustream-chat-atmosphere")
-    val drift by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 36000, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "haze-drift"
-    )
-    val metallicPhase by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 82000, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "metallic-color-cycle"
-    )
-
-    fun blend(from: Color, to: Color, amount: Float): Color {
-        val t = amount.coerceIn(0f, 1f)
-        return Color(
-            red = from.red + (to.red - from.red) * t,
-            green = from.green + (to.green - from.green) * t,
-            blue = from.blue + (to.blue - from.blue) * t,
-            alpha = from.alpha + (to.alpha - from.alpha) * t
-        )
-    }
-
-    val blueAccent = blend(Color(0xFF426FF0), Color(0xFF4D947C), metallicPhase)
-    val violetAccent = blend(Color(0xFF8957E8), Color(0xFF89969B), metallicPhase)
-    val cyanAccent = blend(Color(0xFF4BCBFF), Color(0xFF9BA8A7), metallicPhase)
-
+    // A calm, continuous background: no hard bands, stripes, or abrupt color transitions.
     Box(
-        Modifier.fillMaxSize().background(
-            Brush.linearGradient(
-                listOf(
-                    Color(0xFF101B35),
-                    Color(0xFF1A193A),
-                    Color(0xFF102536),
-                    Color(0xFF0D172C)
-                )
-            )
-        )
+        Modifier
+            .fillMaxSize()
+            .background(Color(0xFF101827))
     ) {
         Box(
             Modifier
-                .size(720.dp)
-                .offset(x = (-270f + drift * 105f).dp, y = (-250f).dp)
-                .blur(86.dp)
-                .background(Brush.radialGradient(listOf(blueAccent.copy(alpha = 0.62f), Color.Transparent)))
+                .fillMaxSize()
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(
+                            Color(0xFF24395C).copy(alpha = 0.42f),
+                            Color(0xFF1B2944).copy(alpha = 0.20f),
+                            Color.Transparent
+                        ),
+                        radius = 1250f
+                    )
+                )
         )
         Box(
             Modifier
-                .size(700.dp)
-                .offset(x = (90f - drift * 115f).dp, y = (280f - drift * 90f).dp)
-                .blur(92.dp)
-                .background(Brush.radialGradient(listOf(violetAccent.copy(alpha = 0.54f), Color.Transparent)))
+                .fillMaxSize()
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(
+                            Color(0xFF35264F).copy(alpha = 0.20f),
+                            Color.Transparent
+                        ),
+                        radius = 1050f
+                    )
+                )
         )
-        Box(
-            Modifier
-                .size(560.dp)
-                .offset(x = (130f + drift * 70f).dp, y = (20f + drift * 55f).dp)
-                .blur(100.dp)
-                .background(Brush.radialGradient(listOf(cyanAccent.copy(alpha = 0.24f), Color.Transparent)))
-        )
-        // A subtle translucent veil gives message cards a little visual distance from the moving haze.
-        Box(Modifier.fillMaxSize().background(Color(0x18060B18)))
+        Box(Modifier.fillMaxSize().background(Color(0x12060B18)))
     }
 }
 
