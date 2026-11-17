@@ -2752,14 +2752,14 @@ private fun MessageAttachment(message: DirectMessageDto) {
 }
 
 @Composable
-private fun VideoModeButton(onModeSelected: (VideoCaptureMode) -> Unit) {
+private fun PhotoVideoModeButton(onPhoto: () -> Unit, onVideo: () -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Box {
         Surface(
             modifier = Modifier.size(42.dp).clickable { expanded = !expanded },
             color = PanelSoft, shape = CircleShape
         ) {
-            Box(contentAlignment = Alignment.Center) { Text("📹", fontSize = 19.sp) }
+            Box(contentAlignment = Alignment.Center) { Text("📷", fontSize = 20.sp) }
         }
         AnimatedVisibility(
             visible = expanded,
@@ -2769,17 +2769,17 @@ private fun VideoModeButton(onModeSelected: (VideoCaptureMode) -> Unit) {
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Surface(
-                    modifier = Modifier.width(132.dp).clickable { expanded = false; onModeSelected(VideoCaptureMode.ROUND_FRONT) },
+                    modifier = Modifier.width(132.dp).clickable { expanded = false; onPhoto() },
                     color = PanelSoft, shape = RoundedCornerShape(14.dp), shadowElevation = 8.dp
                 ) {
                     Row(Modifier.padding(horizontal = 12.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("◉", color = Color(0xFFFF7C9B), fontSize = 18.sp)
+                        Text("📷", color = Color(0xFF9FCBFF), fontSize = 18.sp)
                         Spacer(Modifier.width(8.dp))
-                        Text("Кружок", color = White, fontSize = 13.sp)
+                        Text("Фото", color = White, fontSize = 13.sp)
                     }
                 }
                 Surface(
-                    modifier = Modifier.width(132.dp).clickable { expanded = false; onModeSelected(VideoCaptureMode.NORMAL_SWITCHABLE) },
+                    modifier = Modifier.width(132.dp).clickable { expanded = false; onVideo() },
                     color = PanelSoft, shape = RoundedCornerShape(14.dp), shadowElevation = 8.dp
                 ) {
                     Row(Modifier.padding(horizontal = 12.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -3281,7 +3281,8 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     }
     var showAttachmentMenu by remember { mutableStateOf(false) }
     var showVideoRecorder by remember { mutableStateOf(false) }
-    var videoCaptureMode by remember { mutableStateOf(VideoCaptureMode.ROUND_FRONT) }
+    var videoCaptureMode by remember { mutableStateOf(VideoCaptureMode.NORMAL_SWITCHABLE) }
+    var showPhotoCamera by remember { mutableStateOf(false) }
     var showMediaLibrary by remember { mutableStateOf(false) }
     var mediaLibrary by remember { mutableStateOf<List<MediaLibraryItem>>(emptyList()) }
     var selectedMediaIds by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -4016,14 +4017,13 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                     )
                 }
             }
-            VideoModeButton { selectedMode ->
-                if (pendingLocalVideo != null) {
-                    errorText = "Сначала отправь сохранённое видео или нажми «Повторить» в его сообщении."
-                } else {
-                    videoCaptureMode = selectedMode
-                    showVideoRecorder = true
+            PhotoVideoModeButton(
+                onPhoto = { if (uploadingAttachment) errorText = "Дождись завершения текущей отправки." else showPhotoCamera = true },
+                onVideo = {
+                    if (pendingLocalVideo != null) errorText = "Сначала отправь сохранённое видео или нажми «Повторить» в его сообщении."
+                    else { videoCaptureMode = VideoCaptureMode.NORMAL_SWITCHABLE; showVideoRecorder = true }
                 }
-            }
+            )
             OutlinedTextField(
                 value = draft, onValueChange = { draft = it },
                 modifier = Modifier.weight(1f).padding(horizontal = 7.dp),
