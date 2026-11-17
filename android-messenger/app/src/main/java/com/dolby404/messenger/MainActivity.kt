@@ -2981,63 +2981,22 @@ private fun MessageAttachment(message: DirectMessageDto) {
 }
 
 @Composable
+@Composable
 private fun ChatAtmosphereBackground() {
-    // Full-screen layered gradient: no repeated bands or hard color boundaries.
+    // One static gradient only: no animated state, blur layers, or radial overlays.
     Box(
-        Modifier
-            .fillMaxSize()
-            .background(
-                Brush.linearGradient(
-                    colors = listOf(
-                        Color(0xFF071326),
-                        Color(0xFF10284A),
-                        Color(0xFF172747),
-                        Color(0xFF211B3D),
-                        Color(0xFF101827)
-                    ),
-                    start = androidx.compose.ui.geometry.Offset.Zero,
-                    end = androidx.compose.ui.geometry.Offset(1500f, 2400f)
-                )
-            )
-    ) {
-        Box(
-            Modifier.fillMaxSize().background(
-                Brush.radialGradient(
-                    colors = listOf(
-                        Color(0x6654A8FF),
-                        Color(0x302F70B9),
-                        Color.Transparent
-                    ),
-                    center = androidx.compose.ui.geometry.Offset(120f, 180f),
-                    radius = 1500f
+        Modifier.fillMaxSize().background(
+            Brush.linearGradient(
+                colors = listOf(
+                    Color(0xFF291747),
+                    Color(0xFF244B86),
+                    Color(0xFF3C4B5C),
+                    Color(0xFF192536)
                 )
             )
         )
-        Box(
-            Modifier.fillMaxSize().background(
-                Brush.radialGradient(
-                    colors = listOf(
-                        Color(0x553F2C78),
-                        Color(0x252B2358),
-                        Color.Transparent
-                    ),
-                    center = androidx.compose.ui.geometry.Offset(1050f, 1750f),
-                    radius = 1450f
-                )
-            )
-        )
-        Box(
-            Modifier.fillMaxSize().background(
-                Brush.radialGradient(
-                    colors = listOf(Color(0x1A7DE8FF), Color.Transparent),
-                    center = androidx.compose.ui.geometry.Offset(900f, 350f),
-                    radius = 950f
-                )
-            )
-        )
-    }
+    )
 }
-
 @Composable
 private fun FanActionButton(icon: String, label: String, onClick: () -> Unit) {
     Surface(
