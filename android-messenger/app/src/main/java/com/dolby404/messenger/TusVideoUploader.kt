@@ -98,6 +98,9 @@ internal object TusVideoUploader {
                 onProgress(offset, file.length())
                 retry = 0
             } catch (error: IOException) {
+                if (error is TusHttpException && error.statusCode !in setOf(401, 404, 408, 409, 410, 425, 429, 500, 502, 503, 504)) {
+                    throw error
+                }
                 if (error is TusHttpException && error.statusCode == 401) {
                     activeToken = refreshAccessToken()
                     offset = queryOffsetWithRefresh(uploadUrl)
