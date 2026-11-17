@@ -2981,7 +2981,6 @@ private fun MessageAttachment(message: DirectMessageDto) {
 }
 
 @Composable
-@Composable
 private fun ChatAtmosphereBackground() {
     // One static gradient only: no animated state, blur layers, or radial overlays.
     Box(
