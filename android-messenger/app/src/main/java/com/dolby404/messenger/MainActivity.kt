@@ -3015,7 +3015,6 @@ private fun FanMediaButton(
     }
 }
 
-@Composable
 private object FloustreamVideoDiskCache {
     @Volatile private var instance: SimpleCache? = null
     fun get(context: Context): SimpleCache = instance ?: synchronized(this) {
