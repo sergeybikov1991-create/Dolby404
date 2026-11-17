@@ -20,6 +20,7 @@ The commit SHA is technical provenance only. Folder names and solution identitie
 - [FIX-005 — Video from the media fan](FIX-005-video-from-fan/README.md)
 - [FIX-006 — Chat photo sizing](FIX-006-chat-photo-sizing/README.md)
 - [FIX-007 — Delivery and read receipts](FIX-007-message-receipts/README.md)
+- [FIX-008 — Photo capture from the media fan](FIX-008-photo-from-fan/README.md)
 
 ## Evidence and release safety
 
