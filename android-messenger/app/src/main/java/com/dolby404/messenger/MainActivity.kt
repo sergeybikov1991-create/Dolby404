@@ -192,8 +192,10 @@ private fun isTransientNetworkFailure(error: Throwable): Boolean {
         if (listOf(
                 "connection closed", "connection reset", "unexpected end",
                 "network is unreachable", "failed to connect", "timed out",
-                "timeout", "eof", "temporarily unavailable", "http 500",
-                "http 502", "http 503", "http 504"
+                "timeout", "eof", "temporarily unavailable", "service unavailable",
+                "gateway timeout", "http 408", "http 425", "http 429",
+                "http 500", "http 502", "http 503", "http 504",
+                "too many requests", "rate limit"
             ).any { it in message }
         ) return true
         current = current.cause
@@ -202,7 +204,7 @@ private fun isTransientNetworkFailure(error: Throwable): Boolean {
 }
 
 private suspend fun <T> withTransientNetworkRetry(
-    maxAttempts: Int = 3,
+    maxAttempts: Int = 4,
     operation: suspend () -> T
 ): T {
     var lastError: Exception? = null
@@ -213,7 +215,7 @@ private suspend fun <T> withTransientNetworkRetry(
             if (error is CancellationException) throw error
             if (!isTransientNetworkFailure(error)) throw error
             lastError = error
-            if (attempt < maxAttempts - 1) delay(700L * (1L shl attempt))
+            if (attempt < maxAttempts - 1) delay(900L * (1L shl attempt))
         }
     }
     throw lastError ?: IOException("Сетевой запрос не выполнен.")
@@ -1520,6 +1522,8 @@ private fun MessengerApp(
                         "Это имя пользователя уже занято. Выбери другое."
                     errorText.contains("username_invalid_format", ignoreCase = true) ->
                         "Имя пользователя должно содержать 3–24 символа: латинские буквы, цифры или _."
+                    !isRegistering && isTransientNetworkFailure(e) ->
+                        "Не удалось связаться с сервером входа. Проверь интернет или попробуй другую сеть. Повторные попытки уже выполнены; пароль и аккаунт не изменены."
                     else -> e.message ?: if (isRegistering) "Не удалось зарегистрироваться." else "Не удалось войти. Проверь данные."
                 }
             } finally {
@@ -2978,40 +2982,59 @@ private fun MessageAttachment(message: DirectMessageDto) {
 
 @Composable
 private fun ChatAtmosphereBackground() {
-    // A calm, continuous background: no hard bands, stripes, or abrupt color transitions.
+    // Full-screen layered gradient: no repeated bands or hard color boundaries.
     Box(
         Modifier
             .fillMaxSize()
-            .background(Color(0xFF101827))
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(
+                        Color(0xFF071326),
+                        Color(0xFF10284A),
+                        Color(0xFF172747),
+                        Color(0xFF211B3D),
+                        Color(0xFF101827)
+                    ),
+                    start = androidx.compose.ui.geometry.Offset.Zero,
+                    end = androidx.compose.ui.geometry.Offset(1500f, 2400f)
+                )
+            )
     ) {
         Box(
-            Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.radialGradient(
-                        colors = listOf(
-                            Color(0xFF24395C).copy(alpha = 0.42f),
-                            Color(0xFF1B2944).copy(alpha = 0.20f),
-                            Color.Transparent
-                        ),
-                        radius = 1250f
-                    )
+            Modifier.fillMaxSize().background(
+                Brush.radialGradient(
+                    colors = listOf(
+                        Color(0x6654A8FF),
+                        Color(0x302F70B9),
+                        Color.Transparent
+                    ),
+                    center = androidx.compose.ui.geometry.Offset(120f, 180f),
+                    radius = 1500f
                 )
+            )
         )
         Box(
-            Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.radialGradient(
-                        colors = listOf(
-                            Color(0xFF35264F).copy(alpha = 0.20f),
-                            Color.Transparent
-                        ),
-                        radius = 1050f
-                    )
+            Modifier.fillMaxSize().background(
+                Brush.radialGradient(
+                    colors = listOf(
+                        Color(0x553F2C78),
+                        Color(0x252B2358),
+                        Color.Transparent
+                    ),
+                    center = androidx.compose.ui.geometry.Offset(1050f, 1750f),
+                    radius = 1450f
                 )
+            )
         )
-        Box(Modifier.fillMaxSize().background(Color(0x12060B18)))
+        Box(
+            Modifier.fillMaxSize().background(
+                Brush.radialGradient(
+                    colors = listOf(Color(0x1A7DE8FF), Color.Transparent),
+                    center = androidx.compose.ui.geometry.Offset(900f, 350f),
+                    radius = 950f
+                )
+            )
+        )
     }
 }
 
