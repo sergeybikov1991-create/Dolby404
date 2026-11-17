@@ -3966,7 +3966,12 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                             val detectedMime = withContext(Dispatchers.IO) {
                                 resolver.openInputStream(uri)?.use { input ->
                                     val header = ByteArray(32)
-                                    val count = input.read(header)
+                                    var count = 0
+                                    while (count < header.size) {
+                                        val read = input.read(header, count, header.size - count)
+                                        if (read <= 0) break
+                                        count += read
+                                    }
                                     if (count > 0) detectMediaMimeFromHeader(header, count) else null
                                 }
                             }
