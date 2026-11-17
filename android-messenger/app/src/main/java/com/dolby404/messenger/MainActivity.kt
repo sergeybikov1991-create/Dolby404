@@ -5184,7 +5184,7 @@ internal class FloustreamVideoUploadWorker(
             val currentSession = floustreamClient.auth.currentSessionOrNull()
             if (
                 currentSession == null ||
-                currentSession.expiresAt <= kotlin.time.Instant.fromEpochMilliseconds(System.currentTimeMillis()) + 60.seconds
+                java.time.Instant.parse(currentSession.expiresAt.toString()) <= java.time.Instant.now().plusSeconds(60)
             ) {
                 floustreamClient.auth.refreshCurrentSession()
             }
