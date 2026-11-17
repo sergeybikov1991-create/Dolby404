@@ -599,7 +599,7 @@ private suspend fun loadDirectMessagesPage(
     val token = floustreamClient.auth.currentSessionOrNull()?.accessToken
         ?: throw IllegalStateException("Сессия истекла.")
     val columns = "id,sender_id,recipient_id,content,created_at,read_at,attachment_path,attachment_name,attachment_mime,reply_to_message_id,edited_at"
-    fun fetchDirection(senderId: String, recipientId: String): List<DirectMessageDto> {
+    suspend fun fetchDirection(senderId: String, recipientId: String): List<DirectMessageDto> {
         val filters = buildString {
             append("sender_id=eq.").append(URLEncoder.encode(senderId, "UTF-8"))
             append("&recipient_id=eq.").append(URLEncoder.encode(recipientId, "UTF-8"))
@@ -611,39 +611,43 @@ private suspend fun loadDirectMessagesPage(
             }
             append("&order=created_at.desc,id.desc&limit=").append(pageSize)
         }
-        val connection = URL("${BuildConfig.SUPABASE_URL}/rest/v1/direct_messages?select=$columns&$filters")
-            .openConnection() as HttpURLConnection
-        try {
-            connection.requestMethod = "GET"
-            connection.connectTimeout = 15000
-            connection.readTimeout = 20000
-            connection.setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
-            connection.setRequestProperty("Authorization", "Bearer $token")
-            val code = connection.responseCode
-            if (code !in 200..299) {
-                val detail = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
-                throw IllegalStateException("Не удалось загрузить сообщения ($code). ${detail.take(180)}")
+        return withTransientNetworkRetry {
+            val connection = URL("${BuildConfig.SUPABASE_URL}/rest/v1/direct_messages?select=$columns&$filters")
+                .openConnection() as HttpURLConnection
+            try {
+                connection.requestMethod = "GET"
+                connection.connectTimeout = 20000
+                connection.readTimeout = 30000
+                connection.setRequestProperty("Connection", "close")
+                connection.setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+                connection.setRequestProperty("Authorization", "Bearer $token")
+                val code = connection.responseCode
+                if (code !in 200..299) {
+                    val detail = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                    if (code in 500..599) throw IOException("Не удалось загрузить сообщения (HTTP $code). ${detail.take(180)}")
+                    throw IllegalStateException("Не удалось загрузить сообщения ($code). ${detail.take(180)}")
+                }
+                val rows = JSONArray(connection.inputStream.bufferedReader().use { it.readText() })
+                (0 until rows.length()).map { index ->
+                    val row = rows.getJSONObject(index)
+                    fun nullable(name: String): String? = if (row.isNull(name)) null else row.optString(name).takeIf { it.isNotBlank() }
+                    DirectMessageDto(
+                        id = row.getString("id"),
+                        senderId = row.getString("sender_id"),
+                        recipientId = row.getString("recipient_id"),
+                        content = row.optString("content"),
+                        createdAt = row.getString("created_at"),
+                        readAt = nullable("read_at"),
+                        attachmentPath = nullable("attachment_path"),
+                        attachmentName = nullable("attachment_name"),
+                        attachmentMime = nullable("attachment_mime"),
+                        replyToMessageId = nullable("reply_to_message_id"),
+                        editedAt = nullable("edited_at")
+                    )
+                }
+            } finally {
+                connection.disconnect()
             }
-            val rows = JSONArray(connection.inputStream.bufferedReader().use { it.readText() })
-            return (0 until rows.length()).map { index ->
-                val row = rows.getJSONObject(index)
-                fun nullable(name: String): String? = if (row.isNull(name)) null else row.optString(name).takeIf { it.isNotBlank() }
-                DirectMessageDto(
-                    id = row.getString("id"),
-                    senderId = row.getString("sender_id"),
-                    recipientId = row.getString("recipient_id"),
-                    content = row.optString("content"),
-                    createdAt = row.getString("created_at"),
-                    readAt = nullable("read_at"),
-                    attachmentPath = nullable("attachment_path"),
-                    attachmentName = nullable("attachment_name"),
-                    attachmentMime = nullable("attachment_mime"),
-                    replyToMessageId = nullable("reply_to_message_id"),
-                    editedAt = nullable("edited_at")
-                )
-            }
-        } finally {
-            connection.disconnect()
         }
     }
     val sent = fetchDirection(userId, peerId)
