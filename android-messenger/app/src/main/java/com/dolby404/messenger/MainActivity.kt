@@ -3674,9 +3674,11 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                         pendingLocalVideo = null
                         pendingVideoReady = false
                         pendingVideoUploadFailed = false
+                        uploadingAttachment = false
                         errorText = ""
                         refresh(silent = true)
                     } else if (currentFailed != null) {
+                        uploadingAttachment = false
                         pendingVideoUploadFailed = true
                         errorText = currentFailed.outputData.getString("error")
                             ?: "Не удалось отправить видео. Файл сохранён — можно повторить отправку."
@@ -3709,13 +3711,26 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             }
 
             recoverable?.let { (fileName, draftFile) ->
+                val workInfos = withContext(Dispatchers.IO) {
+                    WorkManager.getInstance(context).getWorkInfosForUniqueWork("floustream-video-$fileName").get()
+                }
+                val queued = workInfos.any {
+                    it.state == androidx.work.WorkInfo.State.ENQUEUED ||
+                        it.state == androidx.work.WorkInfo.State.RUNNING ||
+                        it.state == androidx.work.WorkInfo.State.BLOCKED
+                }
                 val isRound = draftPrefs.getBoolean("${fileName}_round", true)
                 videoCaptureMode = if (isRound) VideoCaptureMode.ROUND_FRONT else VideoCaptureMode.NORMAL_SWITCHABLE
                 pendingLocalVideo = draftFile
                 pendingVideoReady = true
-                pendingVideoUploadFailed = true
-                errorText = "Найдено несохранённое видео. Нажми «Повторить», чтобы продолжить отправку."
-                RoundVideoDiagnostics.record(context, "Recovered pending video draft for current chat; file=$fileName; bytes=${draftFile.length()}")
+                pendingVideoUploadFailed = !queued
+                videoUploadInProgress = queued
+                errorText = if (queued) {
+                    "Видео уже отправляется в фоне. Можно выйти из чата."
+                } else {
+                    "Найдено несохранённое видео. Нажми «Повторить», чтобы продолжить отправку."
+                }
+                RoundVideoDiagnostics.record(context, "Recovered pending video draft for current chat; queued=$queued; file=$fileName; bytes=${draftFile.length()}")
             }
         }
     }
