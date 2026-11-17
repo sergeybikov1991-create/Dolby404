@@ -290,7 +290,11 @@ internal fun RoundVideoRecorder(
             }
             Spacer(Modifier.height(24.dp))
             val previewShape = if (mode == VideoCaptureMode.ROUND_FRONT) CircleShape else RoundedCornerShape(22.dp)
-            Box(Modifier.size(280.dp).clip(previewShape).background(Color.Black), contentAlignment = Alignment.Center) {
+            Box(
+                Modifier.fillMaxWidth().weight(1f)
+                    .clip(previewShape).background(Color.Black),
+                contentAlignment = Alignment.Center
+            ) {
                 AndroidView(factory = { TextureView(it).also { view -> previewView = view } }, modifier = Modifier.fillMaxSize())
                 if (!cameraReady) CircularProgressIndicator(color = Color.White)
             }
