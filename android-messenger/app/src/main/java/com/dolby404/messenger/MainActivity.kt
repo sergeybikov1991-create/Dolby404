@@ -2757,12 +2757,15 @@ private fun PhotoVideoModeButton(onPhoto: () -> Unit, onVideo: () -> Unit) {
     Box {
         Surface(
             modifier = Modifier.size(44.dp).clickable { expanded = !expanded },
-            color = Brush.linearGradient(listOf(Blue, Violet)),
+            color = PanelSoft,
             shape = CircleShape,
             border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x668FB8FF)),
             shadowElevation = 7.dp
         ) {
-            Box(contentAlignment = Alignment.Center) { Text("📷", fontSize = 21.sp) }
+            Box(
+                Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Blue, Violet)), CircleShape),
+                contentAlignment = Alignment.Center
+            ) { Text("📷", fontSize = 21.sp) }
         }
         AnimatedVisibility(
             visible = expanded,
