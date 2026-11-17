@@ -35,14 +35,15 @@ internal object TusVideoUploader {
             .build()
     }
 
-    fun upload(
+    suspend fun upload(
         context: Context,
         bucket: String,
         objectPath: String,
         file: File,
         accessToken: String,
         apiKey: String,
-        contentType: String = "video/mp4"
+        contentType: String = "video/mp4",
+        onProgress: suspend (uploadedBytes: Long, totalBytes: Long) -> Unit = { _, _ -> }
     ) {
         require(file.isFile && file.length() > 0L) { "Файл видео пустой или недоступен." }
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -60,12 +61,14 @@ internal object TusVideoUploader {
             offset = 0L
         }
 
+        onProgress(offset, file.length())
         var retry = 0
         while (offset < file.length()) {
             try {
                 val count = minOf(CHUNK_SIZE.toLong(), file.length() - offset).toInt()
                 patchChunk(uploadUrl, file, offset, count, accessToken, apiKey)
                 offset += count
+                onProgress(offset, file.length())
                 retry = 0
             } catch (error: IOException) {
                 if (retry >= RETRY_DELAYS.size) throw error
@@ -81,6 +84,7 @@ internal object TusVideoUploader {
                     prefs.edit().putString(stateKey, uploadUrl).apply()
                     offset = 0L
                 }
+                onProgress(offset, file.length())
                 if (offset > file.length()) throw error
             }
         }
