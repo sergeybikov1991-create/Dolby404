@@ -5243,6 +5243,11 @@ internal class FloustreamVideoUploadWorker(
                         file = file,
                         accessToken = accessToken,
                         apiKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY,
+                        refreshAccessToken = {
+                            floustreamClient.auth.refreshCurrentSession()
+                            floustreamClient.auth.currentSessionOrNull()?.accessToken
+                                ?: error("Не удалось обновить сессию для продолжения загрузки видео.")
+                        },
                         contentType = mime,
                         onProgress = { uploaded, total ->
                             val percent = if (total > 0L) ((uploaded * 100L) / total).toInt().coerceIn(0, 100) else 0
