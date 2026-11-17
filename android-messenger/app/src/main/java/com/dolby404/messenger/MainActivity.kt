@@ -43,6 +43,11 @@ import android.net.Uri
 import android.media.MediaRecorder
 import android.media.MediaExtractor
 import java.io.File
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
+import java.net.SocketException
+import java.io.EOFException
+import java.io.IOException
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
@@ -172,6 +177,45 @@ private fun isFinalizedVideoFile(file: File): Boolean {
     } finally {
         try { extractor.release() } catch (_: Exception) { }
     }
+}
+
+
+private fun isTransientNetworkFailure(error: Throwable): Boolean {
+    var current: Throwable? = error
+    while (current != null) {
+        if (current is IOException || current is EOFException ||
+            current is SocketException || current is SocketTimeoutException ||
+            current is UnknownHostException
+        ) return true
+        val message = current.message.orEmpty().lowercase()
+        if (listOf(
+                "connection closed", "connection reset", "unexpected end",
+                "network is unreachable", "failed to connect", "timed out",
+                "timeout", "eof", "temporarily unavailable", "http 500",
+                "http 502", "http 503", "http 504"
+            ).any { it in message }
+        ) return true
+        current = current.cause
+    }
+    return false
+}
+
+private suspend fun <T> withTransientNetworkRetry(
+    maxAttempts: Int = 3,
+    operation: suspend () -> T
+): T {
+    var lastError: Exception? = null
+    repeat(maxAttempts) { attempt ->
+        try {
+            return operation()
+        } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            if (!isTransientNetworkFailure(error)) throw error
+            lastError = error
+            if (attempt < maxAttempts - 1) delay(700L * (1L shl attempt))
+        }
+    }
+    throw lastError ?: IOException("Сетевой запрос не выполнен.")
 }
 
 private val Night = Color(0xFF080D1B)
@@ -536,11 +580,13 @@ private suspend fun sendLibraryMedia(context: Context, userId: String, peerId: S
 private suspend fun findFloustreamUsers(query: String): List<ProfileDto> {
     val term = query.trim().removePrefix("@")
     if (term.length < 2) return emptyList()
-    return floustreamClient.from("profiles").select {
-        filter { ilike("username", "%$term%") }
-    }.decodeList<ProfileDto>().filter {
-        it.id != floustreamClient.auth.currentUserOrNull()?.id && !it.isDeleted
-    }.take(30)
+    return withTransientNetworkRetry {
+        floustreamClient.from("profiles").select {
+            filter { ilike("username", "%$term%") }
+        }.decodeList<ProfileDto>().filter {
+            it.id != floustreamClient.auth.currentUserOrNull()?.id && !it.isDeleted
+        }.take(30)
+    }
 }
 
 private suspend fun loadDirectMessagesPage(
@@ -1154,38 +1200,43 @@ private suspend fun loadInboxThreads(
         while (true) {
             val url = "${BuildConfig.SUPABASE_URL}/rest/v1/direct_messages?select=$columns&$column=eq.$encodedUserId&order=created_at.desc,id.desc&limit=$pageSize&offset=$offset"
             val connection = URL(url).openConnection() as HttpURLConnection
-            val rows = try {
-                connection.requestMethod = "GET"
-                connection.connectTimeout = 15000
-                connection.readTimeout = 20000
-                connection.setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
-                connection.setRequestProperty("Authorization", "Bearer $token")
-                val code = connection.responseCode
-                if (code !in 200..299) {
-                    val detail = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
-                    throw IllegalStateException("Не удалось загрузить список чатов ($code). ${detail.take(180)}")
+            val rows = withTransientNetworkRetry {
+                val connection = URL(url).openConnection() as HttpURLConnection
+                try {
+                    connection.requestMethod = "GET"
+                    connection.connectTimeout = 20000
+                    connection.readTimeout = 30000
+                    connection.setRequestProperty("Connection", "close")
+                    connection.setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+                    connection.setRequestProperty("Authorization", "Bearer $token")
+                    val code = connection.responseCode
+                    if (code !in 200..299) {
+                        val detail = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                        if (code in 500..599) throw IOException("Не удалось загрузить список чатов (HTTP $code). ${detail.take(180)}")
+                        throw IllegalStateException("Не удалось загрузить список чатов ($code). ${detail.take(180)}")
+                    }
+                    val payload = JSONArray(connection.inputStream.bufferedReader().use { it.readText() })
+                    (0 until payload.length()).map { index ->
+                        val row = payload.getJSONObject(index)
+                        fun nullable(name: String): String? =
+                            if (row.isNull(name)) null else row.optString(name).takeIf { it.isNotBlank() }
+                        DirectMessageDto(
+                            id = row.getString("id"),
+                            senderId = row.getString("sender_id"),
+                            recipientId = row.getString("recipient_id"),
+                            content = row.optString("content"),
+                            createdAt = row.getString("created_at"),
+                            readAt = nullable("read_at"),
+                            attachmentPath = nullable("attachment_path"),
+                            attachmentName = nullable("attachment_name"),
+                            attachmentMime = nullable("attachment_mime"),
+                            replyToMessageId = nullable("reply_to_message_id"),
+                            editedAt = nullable("edited_at")
+                        )
+                    }
+                } finally {
+                    connection.disconnect()
                 }
-                val payload = JSONArray(connection.inputStream.bufferedReader().use { it.readText() })
-                (0 until payload.length()).map { index ->
-                    val row = payload.getJSONObject(index)
-                    fun nullable(name: String): String? =
-                        if (row.isNull(name)) null else row.optString(name).takeIf { it.isNotBlank() }
-                    DirectMessageDto(
-                        id = row.getString("id"),
-                        senderId = row.getString("sender_id"),
-                        recipientId = row.getString("recipient_id"),
-                        content = row.optString("content"),
-                        createdAt = row.getString("created_at"),
-                        readAt = nullable("read_at"),
-                        attachmentPath = nullable("attachment_path"),
-                        attachmentName = nullable("attachment_name"),
-                        attachmentMime = nullable("attachment_mime"),
-                        replyToMessageId = nullable("reply_to_message_id"),
-                        editedAt = nullable("edited_at")
-                    )
-                }
-            } finally {
-                connection.disconnect()
             }
             result.addAll(rows)
             if (!fullHistory || rows.size < pageSize) break
