@@ -8,32 +8,21 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 
 /**
- * Opens Android's native Photo Picker instead of a document/file browser.
- * The system picker grants temporary read access to the selected media,
- * so the app does not need broad photo-library permissions for attachments.
+ * Opens the system Photo Picker with both photos and videos in one gallery.
+ * Android grants temporary read access only to the selected media.
  */
 @Composable
 internal fun PhoneMediaPickerDialog(
-    isVideo: Boolean,
     onDismiss: () -> Unit,
     onSelected: (List<Uri>) -> Unit
 ) {
     val picker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickMultipleVisualMedia(20)
     ) { uris ->
-        if (uris.isEmpty()) {
-            onDismiss()
-        } else {
-            onSelected(uris)
-        }
+        if (uris.isEmpty()) onDismiss() else onSelected(uris)
     }
 
-    LaunchedEffect(isVideo) {
-        val mediaType = if (isVideo) {
-            ActivityResultContracts.PickVisualMedia.VideoOnly
-        } else {
-            ActivityResultContracts.PickVisualMedia.ImageOnly
-        }
-        picker.launch(PickVisualMediaRequest(mediaType))
+    LaunchedEffect(Unit) {
+        picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))
     }
 }
