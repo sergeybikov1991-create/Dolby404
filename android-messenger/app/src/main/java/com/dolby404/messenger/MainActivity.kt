@@ -74,6 +74,12 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.cache.CacheDataSource
+import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
+import androidx.media3.datasource.cache.SimpleCache
+import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.ui.PlayerView
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.auth.Auth
@@ -3000,10 +3006,28 @@ private fun FanMediaButton(
 }
 
 @Composable
+private object FloustreamVideoDiskCache {
+    @Volatile private var instance: SimpleCache? = null
+    fun get(context: Context): SimpleCache = instance ?: synchronized(this) {
+        instance ?: SimpleCache(
+            File(context.cacheDir, "floustream-video-cache"),
+            LeastRecentlyUsedCacheEvictor(250L * 1024L * 1024L),
+            StandaloneDatabaseProvider(context.applicationContext)
+        ).also { instance = it }
+    }
+}
+
+@Composable
 private fun VideoMessagePlayer(url: String, isRound: Boolean = true, onRetry: () -> Unit) {
     val context = LocalContext.current
     val player = remember(url) {
-        ExoPlayer.Builder(context).build().apply {
+        val cachedDataSource = CacheDataSource.Factory()
+            .setCache(FloustreamVideoDiskCache.get(context))
+            .setUpstreamDataSourceFactory(DefaultDataSource.Factory(context))
+            .setCacheKeyFactory { dataSpec -> dataSpec.uri.encodedPath ?: dataSpec.uri.toString() }
+            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+        val mediaSourceFactory = DefaultMediaSourceFactory(context).setDataSourceFactory(cachedDataSource)
+        ExoPlayer.Builder(context).setMediaSourceFactory(mediaSourceFactory).build().apply {
             setMediaItem(MediaItem.fromUri(url))
             playWhenReady = false
             prepare()
