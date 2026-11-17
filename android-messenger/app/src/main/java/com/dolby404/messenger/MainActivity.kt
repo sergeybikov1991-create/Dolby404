@@ -4115,6 +4115,39 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
         }
     }
 
+    if (showPhotoCamera) {
+        PhotoCameraCapture(
+            onDismiss = { showPhotoCamera = false },
+            onPhotoCaptured = { file ->
+                showPhotoCamera = false
+                scope.launch {
+                    uploadingAttachment = true
+                    try {
+                        if (!file.isFile || file.length() <= 0L) error("Снимок не сохранился.")
+                        if (file.length() > 50L * 1024L * 1024L) error("Фото превышает допустимый размер 50 МБ.")
+                        val name = "photo_${System.currentTimeMillis()}.jpg"
+                        val path = "$currentUserId/${UUID.randomUUID()}_$name"
+                        val bytes = withContext(Dispatchers.IO) { file.readBytes() }
+                        withContext(Dispatchers.IO) {
+                            floustreamClient.storage.from("message-media").upload(path, bytes) {
+                                contentType = ContentType.parse("image/jpeg")
+                            }
+                        }
+                        sendDirectAttachment(currentUserId, peer.id, path, name, "image/jpeg")
+                        refresh()
+                        errorText = ""
+                    } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
+                        errorText = "Не удалось отправить фото: " + (e.message ?: "попробуй ещё раз.")
+                    } finally {
+                        file.delete()
+                        uploadingAttachment = false
+                    }
+                }
+            }
+        )
+    }
+
     if (showVideoRecorder) {
         RoundVideoRecorder(
             mode = videoCaptureMode,
