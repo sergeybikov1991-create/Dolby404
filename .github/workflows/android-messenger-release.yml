@@ -53,6 +53,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Checkout immutable v0.4.24 source baseline
+        uses: actions/checkout@v4
+        with:
+          ref: v0.4.24
+          path: baseline-source
+
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
@@ -106,6 +112,9 @@ jobs:
           cp "$APK" FLOUSTREAM-Messenger.apk
           sha256sum FLOUSTREAM-Messenger.apk > FLOUSTREAM-Messenger.apk.sha256
 
+      - name: Package immutable baseline source snapshot
+        run: git -C baseline-source archive --format=zip --prefix=FLOUSTREAM-v0.4.24/ HEAD > FLOUSTREAM-source-v0.4.24.zip
+
       - name: Upload install package
         uses: actions/upload-artifact@v4
         with:
@@ -113,6 +122,7 @@ jobs:
           path: |
             FLOUSTREAM-Messenger.apk
             FLOUSTREAM-Messenger.apk.sha256
+            FLOUSTREAM-source-v0.4.24.zip
           if-no-files-found: error
           retention-days: 30
 
