@@ -2679,11 +2679,11 @@ private fun MessageAttachment(message: DirectMessageDto) {
             }
         }
         mime.startsWith("image/") && url == null && !loadError -> Box(
-            Modifier.fillMaxWidth().height(220.dp),
+            Modifier.fillMaxWidth().height(240.dp),
             contentAlignment = Alignment.Center
         ) { CircularProgressIndicator(color = Blue) }
         mime.startsWith("image/") && (loadError || imageLoadError) -> Row(
-            Modifier.fillMaxWidth().height(220.dp),
+            Modifier.fillMaxWidth().height(240.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
@@ -2695,9 +2695,9 @@ private fun MessageAttachment(message: DirectMessageDto) {
         mime.startsWith("image/") -> AsyncImage(
             model = url,
             contentDescription = message.attachmentName ?: "Изображение",
-            modifier = Modifier.fillMaxWidth().height(220.dp)
-                .clip(RoundedCornerShape(5.dp)).clickable { showFullScreen = true },
-            contentScale = ContentScale.Fit,
+            modifier = Modifier.fillMaxWidth().height(240.dp)
+                .clip(RoundedCornerShape(16.dp)).clickable { showFullScreen = true },
+            contentScale = ContentScale.Crop,
             onLoading = { imageLoadError = false },
             onError = { imageLoadError = true }
         )
@@ -2756,10 +2756,13 @@ private fun PhotoVideoModeButton(onPhoto: () -> Unit, onVideo: () -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Box {
         Surface(
-            modifier = Modifier.size(42.dp).clickable { expanded = !expanded },
-            color = PanelSoft, shape = CircleShape
+            modifier = Modifier.size(44.dp).clickable { expanded = !expanded },
+            color = Brush.linearGradient(listOf(Blue, Violet)),
+            shape = CircleShape,
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x668FB8FF)),
+            shadowElevation = 7.dp
         ) {
-            Box(contentAlignment = Alignment.Center) { Text("📷", fontSize = 20.sp) }
+            Box(contentAlignment = Alignment.Center) { Text("📷", fontSize = 21.sp) }
         }
         AnimatedVisibility(
             visible = expanded,
@@ -2820,12 +2823,13 @@ private fun VideoMessagePlayer(url: String, isRound: Boolean = true, onRetry: ()
             player.release()
         }
     }
+    var showFullScreen by remember(url) { mutableStateOf(false) }
     Box(
-        Modifier.size(if (isRound) 190.dp else 250.dp, if (isRound) 190.dp else 150.dp)
+        Modifier.size(if (isRound) 190.dp else 340.dp, if (isRound) 190.dp else 210.dp)
             .clip(if (isRound) CircleShape else RoundedCornerShape(18.dp)).background(Color.Black),
         contentAlignment = Alignment.Center
     ) {
-        AndroidView(
+        if (!showFullScreen) AndroidView(
             factory = { viewContext ->
                 PlayerView(viewContext).apply {
                     this.player = player
@@ -2836,6 +2840,16 @@ private fun VideoMessagePlayer(url: String, isRound: Boolean = true, onRetry: ()
             update = { it.player = player },
             modifier = Modifier.fillMaxSize()
         )
+        if (!isRound && !showFullScreen) {
+            Text(
+                "⛶",
+                Modifier.align(Alignment.TopEnd).padding(8.dp)
+                    .clip(CircleShape).background(Color(0x99080D1B))
+                    .clickable { showFullScreen = true }.padding(horizontal = 11.dp, vertical = 6.dp),
+                color = White,
+                fontSize = 21.sp
+            )
+        }
         if (playbackError) {
             Column(
                 Modifier.fillMaxSize().background(Color(0xCC080D1B)).clickable { onRetry() }.padding(12.dp),
@@ -2845,6 +2859,33 @@ private fun VideoMessagePlayer(url: String, isRound: Boolean = true, onRetry: ()
                 Text("Не удалось воспроизвести видео", color = White, fontSize = 11.sp)
                 Spacer(Modifier.height(6.dp))
                 Text("↻ Повторить", color = Color(0xFFB99AFF), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
+    }
+    if (showFullScreen) {
+        Dialog(
+            onDismissRequest = { showFullScreen = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Box(Modifier.fillMaxSize().background(Color.Black)) {
+                AndroidView(
+                    factory = { viewContext ->
+                        PlayerView(viewContext).apply {
+                            this.player = player
+                            useController = true
+                            resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        }
+                    },
+                    update = { it.player = player },
+                    modifier = Modifier.fillMaxSize()
+                )
+                Text(
+                    "×",
+                    Modifier.align(Alignment.TopEnd).clickable { showFullScreen = false }
+                        .padding(18.dp),
+                    color = White,
+                    fontSize = 34.sp
+                )
             }
         }
     }
@@ -2914,7 +2955,8 @@ private fun AudioMessagePlayer(url: String, onRetry: () -> Unit) {
     }
 
     Row(
-        Modifier.fillMaxWidth().background(PanelSoft, RoundedCornerShape(13.dp)).padding(10.dp),
+        Modifier.widthIn(max = 145.dp).fillMaxWidth()
+            .background(PanelSoft, RoundedCornerShape(13.dp)).padding(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Surface(
@@ -3287,7 +3329,6 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     var mediaLibrary by remember { mutableStateOf<List<MediaLibraryItem>>(emptyList()) }
     var selectedMediaIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var showPhoneMediaPicker by remember { mutableStateOf(false) }
-    var phoneMediaPickerVideo by remember { mutableStateOf(false) }
 
     fun uploadVideoDraft(file: File) {
         if (videoUploadInProgress) return
@@ -3422,7 +3463,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                     try {
                         val resolver = context.contentResolver
                         var mime = (resolver.getType(uri)?.substringBefore(';')?.trim()?.lowercase())
-                            ?.takeIf { it.contains('/') } ?: if (phoneMediaPickerVideo) "video/mp4" else "image/jpeg"
+                            ?.takeIf { it.contains('/') } ?: "application/octet-stream"
                         var declaredSize = -1L
                         name = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { cursor ->
                             if (cursor.moveToFirst()) {
@@ -3830,8 +3871,12 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                     msg.attachmentMime.orEmpty().startsWith("image/")
                 val isVoiceAttachment = !msg.attachmentPath.isNullOrBlank() &&
                     msg.attachmentMime.orEmpty().startsWith("audio/")
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
-                    Column(horizontalAlignment = if (mine) Alignment.End else Alignment.Start) {
+                val hasAttachment = !msg.attachmentPath.isNullOrBlank()
+                Row(
+                    Modifier.fillMaxWidth().padding(start = if (hasAttachment) 7.dp else 0.dp),
+                    horizontalArrangement = if (hasAttachment) Arrangement.Start else if (mine) Arrangement.End else Arrangement.Start
+                ) {
+                    Column(horizontalAlignment = if (hasAttachment) Alignment.Start else if (mine) Alignment.End else Alignment.Start) {
                         Surface(
                             color = if (isImageAttachment) Color.Transparent
                                 else if (isVoiceAttachment) PanelSoft
@@ -3840,7 +3885,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                             border = if (isVoiceAttachment) androidx.compose.foundation.BorderStroke(
                                 0.5.dp, Color(0x334D8BFF)
                             ) else null,
-                            modifier = Modifier.widthIn(max = 290.dp)
+                            modifier = Modifier.widthIn(max = if (isImageAttachment || msg.attachmentMime.orEmpty().startsWith("video/")) 360.dp else 290.dp)
                                 .combinedClickable(
                                     onClick = { },
                                     onLongClick = { pendingMessageActions = msg }
@@ -3986,17 +4031,10 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 }
                 DropdownMenu(expanded = showAttachmentMenu, onDismissRequest = { showAttachmentMenu = false }) {
                     DropdownMenuItem(
-                        text = { Text("Фото из галереи") },
+                        text = { Text("Галерея") },
                         onClick = {
                             showAttachmentMenu = false
-                            phoneMediaPickerVideo = false; showPhoneMediaPicker = true
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Видео из галереи") },
-                        onClick = {
-                            showAttachmentMenu = false
-                            phoneMediaPickerVideo = true; showPhoneMediaPicker = true
+                            showPhoneMediaPicker = true
                         }
                     )
                     DropdownMenuItem(
@@ -4555,7 +4593,6 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
 
     if (showPhoneMediaPicker) {
         PhoneMediaPickerDialog(
-            isVideo = phoneMediaPickerVideo,
             onDismiss = { showPhoneMediaPicker = false },
             onSelected = { uris ->
                 showPhoneMediaPicker = false
