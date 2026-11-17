@@ -121,7 +121,7 @@ jobs:
         with:
           tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || (startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.4.24') }}
           target_commitish: ${{ github.sha }}
-          name: FLOUSTREAM Messenger ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || (startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.4.23') }}
+          name: FLOUSTREAM Messenger ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || (startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.4.24') }}
           overwrite_files: true
           files: |
             FLOUSTREAM-Messenger.apk
