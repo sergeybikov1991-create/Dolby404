@@ -78,6 +78,7 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -2855,7 +2856,6 @@ private fun MessageAttachment(message: DirectMessageDto) {
     val context = LocalContext.current
     val path = message.attachmentPath ?: return
     val mime = message.attachmentMime.orEmpty().lowercase()
-    val isRoundVideo = !message.attachmentName.orEmpty().startsWith("normal_")
     var signedUrl by remember(path) { mutableStateOf<String?>(null) }
     var loadError by remember(path) { mutableStateOf(false) }
     var urlRefreshAttempt by remember(path) { mutableIntStateOf(0) }
@@ -2889,13 +2889,13 @@ private fun MessageAttachment(message: DirectMessageDto) {
             TextButton(onClick = { urlRefreshAttempt++ }) { Text("Повторить", color = Blue) }
         }
         mime.startsWith("video/") && url == null && !loadError -> Box(
-            Modifier.size(if (isRoundVideo) 190.dp else 340.dp, if (isRoundVideo) 190.dp else 210.dp)
-                .clip(if (isRoundVideo) CircleShape else RoundedCornerShape(18.dp)).background(Color.Black),
+            Modifier.widthIn(max = 240.dp).fillMaxWidth().aspectRatio(9f / 16f)
+                .clip(RoundedCornerShape(6.dp)).background(Color.Black),
             contentAlignment = Alignment.Center
         ) { CircularProgressIndicator(color = Blue) }
         mime.startsWith("video/") && loadError -> Box(
-            Modifier.size(if (isRoundVideo) 190.dp else 340.dp, if (isRoundVideo) 190.dp else 210.dp)
-                .clip(if (isRoundVideo) CircleShape else RoundedCornerShape(18.dp)).background(Color.Black),
+            Modifier.widthIn(max = 240.dp).fillMaxWidth().aspectRatio(9f / 16f)
+                .clip(RoundedCornerShape(6.dp)).background(Color.Black),
             contentAlignment = Alignment.Center
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -2930,10 +2930,7 @@ private fun MessageAttachment(message: DirectMessageDto) {
             onError = { imageLoadError = true }
         )
         mime.startsWith("audio/") -> AudioMessagePlayer(url!!) { urlRefreshAttempt++ }
-        mime.startsWith("video/") -> VideoMessagePlayer(
-            url!!,
-            isRound = !message.attachmentName.orEmpty().startsWith("normal_")
-        ) { urlRefreshAttempt++ }
+        mime.startsWith("video/") -> VideoMessagePlayer(url!!, isRound = false) { urlRefreshAttempt++ }
         else -> Row(
             Modifier.fillMaxWidth().clickable {
                 try {
@@ -3127,7 +3124,7 @@ private object FloustreamVideoDiskCache {
 }
 
 @Composable
-private fun VideoMessagePlayer(url: String, isRound: Boolean = true, onRetry: () -> Unit) {
+private fun VideoMessagePlayer(url: String, isRound: Boolean = false, onRetry: () -> Unit) {
     val context = LocalContext.current
     val player = remember(url) {
         val cachedDataSource = CacheDataSource.Factory()
@@ -3143,6 +3140,9 @@ private fun VideoMessagePlayer(url: String, isRound: Boolean = true, onRetry: ()
         }
     }
     var playbackError by remember(url) { mutableStateOf(false) }
+    var isPlaying by remember(url) { mutableStateOf(false) }
+    var positionMs by remember(url) { mutableLongStateOf(0L) }
+    var durationMs by remember(url) { mutableLongStateOf(0L) }
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
@@ -3150,7 +3150,13 @@ private fun VideoMessagePlayer(url: String, isRound: Boolean = true, onRetry: ()
                 player.pause()
             }
             override fun onPlaybackStateChanged(playbackState: Int) {
-                if (playbackState == Player.STATE_READY) playbackError = false
+                if (playbackState == Player.STATE_READY) {
+                    playbackError = false
+                    durationMs = player.duration.coerceAtLeast(0L)
+                }
+            }
+            override fun onIsPlayingChanged(playing: Boolean) {
+                isPlaying = playing
             }
         }
         player.addListener(listener)
@@ -3159,42 +3165,53 @@ private fun VideoMessagePlayer(url: String, isRound: Boolean = true, onRetry: ()
             player.release()
         }
     }
+    LaunchedEffect(player) {
+        while (true) {
+            positionMs = player.currentPosition.coerceAtLeast(0L)
+            durationMs = player.duration.takeIf { it > 0L && it != androidx.media3.common.C.TIME_UNSET } ?: 0L
+            delay(200L)
+        }
+    }
     var showFullScreen by remember(url) { mutableStateOf(false) }
     Box(
-        Modifier.size(if (isRound) 190.dp else 340.dp, if (isRound) 190.dp else 210.dp)
-            .clip(if (isRound) CircleShape else RoundedCornerShape(18.dp)).background(Color.Black),
+        Modifier.widthIn(max = 240.dp).fillMaxWidth().aspectRatio(9f / 16f)
+            .clip(RoundedCornerShape(6.dp)).background(Color.Black),
         contentAlignment = Alignment.Center
     ) {
-        if (!showFullScreen) AndroidView(
-            factory = { viewContext ->
-                PlayerView(viewContext).apply {
-                    this.player = player
-                    useController = true
-                    resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
-                }
-            },
-            update = { it.player = player },
-            modifier = Modifier.fillMaxSize()
-        )
-        if (!isRound && !showFullScreen) {
-            Text(
-                "⛶",
-                Modifier.align(Alignment.TopEnd).padding(8.dp)
-                    .clip(CircleShape).background(Color(0x99080D1B))
-                    .clickable { showFullScreen = true }.padding(horizontal = 11.dp, vertical = 6.dp),
-                color = White,
-                fontSize = 21.sp
+        if (!showFullScreen) {
+            AndroidView(
+                factory = { viewContext ->
+                    PlayerView(viewContext).apply {
+                        this.player = player
+                        useController = false
+                        resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
+                    }
+                },
+                update = { it.player = player },
+                modifier = Modifier.fillMaxSize()
             )
-        }
-        if (playbackError) {
-            Column(
-                Modifier.fillMaxSize().background(Color(0xCC080D1B)).clickable { onRetry() }.padding(12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text("Не удалось воспроизвести видео", color = White, fontSize = 11.sp)
-                Spacer(Modifier.height(6.dp))
-                Text("↻ Повторить", color = Color(0xFFB99AFF), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            if (playbackError) {
+                Column(
+                    Modifier.align(Alignment.Center).background(Color(0x99080D1B), RoundedCornerShape(8.dp))
+                        .clickable { playbackError = false; onRetry() }.padding(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text("Видео недоступно", color = White, fontSize = 11.sp)
+                    Text("↻ Повторить", color = Color(0xFFB99AFF), fontSize = 12.sp)
+                }
+            } else {
+                VideoPlaybackControls(
+                    player = player,
+                    isPlaying = isPlaying,
+                    positionMs = positionMs,
+                    durationMs = durationMs,
+                    onTogglePlay = {
+                        if (player.isPlaying) player.pause() else player.play()
+                    },
+                    onFullscreen = { showFullScreen = true },
+                    modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                )
             }
         }
     }
@@ -3208,21 +3225,81 @@ private fun VideoMessagePlayer(url: String, isRound: Boolean = true, onRetry: ()
                     factory = { viewContext ->
                         PlayerView(viewContext).apply {
                             this.player = player
-                            useController = true
+                            useController = false
                             resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
                         }
                     },
                     update = { it.player = player },
                     modifier = Modifier.fillMaxSize()
                 )
+                VideoPlaybackControls(
+                    player = player,
+                    isPlaying = isPlaying,
+                    positionMs = positionMs,
+                    durationMs = durationMs,
+                    onTogglePlay = {
+                        if (player.isPlaying) player.pause() else player.play()
+                    },
+                    onFullscreen = { showFullScreen = false },
+                    modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                )
                 Text(
                     "×",
-                    Modifier.align(Alignment.TopEnd).clickable { showFullScreen = false }
-                        .padding(18.dp),
+                    Modifier.align(Alignment.TopEnd).clickable { showFullScreen = false }.padding(18.dp),
                     color = White,
                     fontSize = 34.sp
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun VideoPlaybackControls(
+    player: ExoPlayer,
+    isPlaying: Boolean,
+    positionMs: Long,
+    durationMs: Long,
+    onTogglePlay: () -> Unit,
+    onFullscreen: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val progress = if (durationMs > 0L) (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f) else 0f
+    Row(
+        modifier.background(Color(0x88070B13)).padding(horizontal = 7.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(7.dp)
+    ) {
+        Text(
+            if (isPlaying) "Ⅱ" else "▶",
+            Modifier.size(25.dp).clickable { onTogglePlay() },
+            color = Color.White.copy(alpha = 0.82f),
+            fontSize = 14.sp,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
+        Box(
+            Modifier.weight(1f).height(14.dp).pointerInput(durationMs) {
+                detectTapGestures { offset ->
+                    if (durationMs > 0L && size.width > 0) {
+                        val fraction = (offset.x / size.width.toFloat()).coerceIn(0f, 1f)
+                        player.seekTo((durationMs * fraction).toLong())
+                    }
+                }
+            },
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Box(Modifier.fillMaxWidth().height(2.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.22f)))
+            Box(
+                Modifier.fillMaxWidth(progress).height(2.dp).clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.72f))
+            )
+        }
+        Box(
+            Modifier.size(25.dp).clip(RoundedCornerShape(4.dp))
+                .background(Color.White.copy(alpha = 0.13f)).clickable { onFullscreen() },
+            contentAlignment = Alignment.Center
+        ) {
+            Text("⛶", color = Color.White.copy(alpha = 0.86f), fontSize = 15.sp)
         }
     }
 }
@@ -3836,15 +3913,20 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                     var name = "attachment"
                     try {
                         val resolver = context.contentResolver
-                        var mime = (resolver.getType(uri)?.substringBefore(';')?.trim()?.lowercase())
-                            ?.takeIf { it.contains('/') } ?: "application/octet-stream"
                         var declaredSize = -1L
                         name = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { cursor ->
                             if (cursor.moveToFirst()) {
-                                declaredSize = cursor.getLong(cursor.getColumnIndexOrThrow(OpenableColumns.SIZE))
-                                cursor.getString(cursor.getColumnIndexOrThrow(OpenableColumns.DISPLAY_NAME))
+                                val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                                if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) declaredSize = cursor.getLong(sizeIndex)
+                                val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                                if (nameIndex >= 0) cursor.getString(nameIndex) else null
                             } else null
-                        } ?: "attachment"
+                        }?.takeIf { it.isNotBlank() } ?: uri.lastPathSegment?.substringAfterLast('/')?.takeIf { it.isNotBlank() } ?: "attachment"
+                        val extension = name.substringAfterLast('.', "").lowercase()
+                        val providerMime = resolver.getType(uri)?.substringBefore(';')?.trim()?.lowercase()
+                        var mime = providerMime?.takeIf { it.contains('/') && it != "application/octet-stream" }
+                            ?: android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension)
+                            ?: "application/octet-stream"
                         if (declaredSize > 50L * 1024L * 1024L) error("$name: размер превышает 50 МБ.")
                         if (mime.startsWith("video/")) {
                             val safeName = name.substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"), "_").take(100).ifBlank { "video.mp4" }
@@ -4279,6 +4361,9 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 val mine = msg.senderId == currentUserId
                 val isImageAttachment = !msg.attachmentPath.isNullOrBlank() &&
                     msg.attachmentMime.orEmpty().startsWith("image/")
+                val isVideoAttachment = !msg.attachmentPath.isNullOrBlank() &&
+                    msg.attachmentMime.orEmpty().startsWith("video/")
+                val isMediaAttachment = isImageAttachment || isVideoAttachment
                 val isVoiceAttachment = !msg.attachmentPath.isNullOrBlank() &&
                     msg.attachmentMime.orEmpty().startsWith("audio/")
                 val hasAttachment = !msg.attachmentPath.isNullOrBlank()
@@ -4288,15 +4373,15 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 ) {
                     Column(horizontalAlignment = if (hasAttachment) Alignment.Start else if (mine) Alignment.End else Alignment.Start) {
                         Surface(
-                            color = if (isImageAttachment) Color.Transparent
+                            color = if (isMediaAttachment) Color.Transparent
                                 else if (isVoiceAttachment) Color(0xD918243B)
                                 else if (mine) Color(0xD9254D91) else Color(0xD918243B),
-                            shape = RoundedCornerShape(12.dp),
-                            shadowElevation = if (isImageAttachment) 0.dp else 5.dp,
+                            shape = RoundedCornerShape(8.dp),
+                            shadowElevation = if (isMediaAttachment) 0.dp else 5.dp,
                             border = if (isVoiceAttachment) androidx.compose.foundation.BorderStroke(
                                 0.5.dp, Color(0x334D8BFF)
                             ) else null,
-                            modifier = Modifier.widthIn(max = if (isImageAttachment || msg.attachmentMime.orEmpty().startsWith("video/")) 360.dp else 290.dp)
+                            modifier = Modifier.widthIn(max = if (isMediaAttachment) 240.dp else 290.dp)
                                 .combinedClickable(
                                     onClick = { },
                                     onLongClick = { pendingMessageActions = msg }
@@ -4304,10 +4389,8 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                         ) {
                             Column(
                                 Modifier.padding(
-                                    horizontal = if (!msg.attachmentPath.isNullOrBlank() &&
-                                        msg.attachmentMime.orEmpty().startsWith("image/")) 2.dp else 13.dp,
-                                    vertical = if (!msg.attachmentPath.isNullOrBlank() &&
-                                        msg.attachmentMime.orEmpty().startsWith("image/")) 2.dp else 9.dp
+                                    horizontal = if (isMediaAttachment) 0.dp else 13.dp,
+                                    vertical = if (isMediaAttachment) 0.dp else 9.dp
                                 )
                             ) {
                                 if (msg.id in pinnedMessageIds) {
