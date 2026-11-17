@@ -164,6 +164,37 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.google.firebase.messaging.FirebaseMessaging
 
+private fun detectMediaMimeFromHeader(header: ByteArray, count: Int): String? {
+    if (count >= 12) {
+        fun ascii(start: Int, length: Int) = String(header, start, length, Charsets.US_ASCII)
+        if (ascii(4, 4) == "ftyp") {
+            val brand = ascii(8, 4).lowercase()
+            return when {
+                brand in setOf("avif", "avis") -> "image/avif"
+                brand in setOf("heic", "heix", "hevc", "hevx", "mif1", "msf1") -> "image/heic"
+                else -> "video/mp4"
+            }
+        }
+        if (ascii(0, 4) == "RIFF" && ascii(8, 4) == "WEBP") return "image/webp"
+        if (ascii(0, 4) == "RIFF" && ascii(8, 4) == "AVI ") return "video/x-msvideo"
+    }
+    if (count >= 4 && header[0] == 0x1A.toByte() && header[1] == 0x45.toByte() &&
+        header[2] == 0xDF.toByte() && header[3] == 0xA3.toByte()
+    ) return "video/webm"
+    if (count >= 3 && header[0] == 0xFF.toByte() && header[1] == 0xD8.toByte() &&
+        header[2] == 0xFF.toByte()
+    ) return "image/jpeg"
+    if (count >= 8 && header.copyOfRange(0, 8).contentEquals(
+            byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)
+        )
+    ) return "image/png"
+    if (count >= 6 && (String(header, 0, 6, Charsets.US_ASCII) == "GIF87a" ||
+            String(header, 0, 6, Charsets.US_ASCII) == "GIF89a")
+    ) return "image/gif"
+    if (count >= 2 && header[0] == 0x42.toByte() && header[1] == 0x4D.toByte()) return "image/bmp"
+    return null
+}
+
 private fun isFinalizedVideoFile(file: File): Boolean {
     if (!file.isFile || file.length() <= 1500L) return false
     val extractor = MediaExtractor()
@@ -3927,6 +3958,20 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                         var mime = providerMime?.takeIf { it.contains('/') && it != "application/octet-stream" }
                             ?: android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension)
                             ?: "application/octet-stream"
+                        // Some gallery/cloud providers return neither a useful MIME type nor
+                        // a filename extension. Sniff a small header before choosing the upload
+                        // path, so an unknown video is not accidentally read into memory as an
+                        // ordinary attachment and sent with application/octet-stream.
+                        if (mime == "application/octet-stream") {
+                            val detectedMime = withContext(Dispatchers.IO) {
+                                resolver.openInputStream(uri)?.use { input ->
+                                    val header = ByteArray(32)
+                                    val count = input.read(header)
+                                    if (count > 0) detectMediaMimeFromHeader(header, count) else null
+                                }
+                            }
+                            if (detectedMime != null) mime = detectedMime
+                        }
                         if (declaredSize > 50L * 1024L * 1024L) error("$name: размер превышает 50 МБ.")
                         if (mime.startsWith("video/")) {
                             val safeName = name.substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"), "_").take(100).ifBlank { "video.mp4" }
