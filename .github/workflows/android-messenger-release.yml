@@ -6,7 +6,7 @@ on:
       release_tag:
         description: "Release version tag"
         required: true
-        default: "v0.4.26"
+        default: "v0.4.27"
       publish_release:
         description: "Publish a GitHub Release after a successful build"
         required: true
@@ -130,7 +130,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish_release)
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || (startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.4.26') }}
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || (startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.4.27') }}
           target_commitish: ${{ github.sha }}
           name: FLOUSTREAM Messenger ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || (startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.4.26') }}
           overwrite_files: true
