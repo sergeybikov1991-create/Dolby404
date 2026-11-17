@@ -6,7 +6,7 @@ on:
       release_tag:
         description: "Release version tag"
         required: true
-        default: "v0.4.24"
+        default: "v0.4.25"
       publish_release:
         description: "Publish a GitHub Release after a successful build"
         required: true
@@ -33,7 +33,7 @@ on:
       - "feature/android-0.4.16-rootencoder-default-recorder"
       - "feature/android-0.4.17-video-drafts-dual-camera"
       - "feature/android-0.4.23-fan-chat-visual"
-      - "feature/android-0.4.24-f-chat-cache"
+      - "feature/android-0.4.25-f-chat-cache"
     tags:
       - "v*"
 
@@ -116,12 +116,12 @@ jobs:
           retention-days: 30
 
       - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish_release) || github.ref == 'refs/heads/feature/android-0.4.2-fixes' || github.ref == 'refs/heads/feature/android-0.4.3-whatsapp-chat' || github.ref == 'refs/heads/feature/android-0.4.4-chat-stability' || github.ref == 'refs/heads/feature/android-0.4.5-chat-media-fix' || github.ref == 'refs/heads/feature/android-0.4.6-media-playback-video-fix' || github.ref == 'refs/heads/feature/android-0.4.8-round-video-rebuild' || github.ref == 'refs/heads/feature/android-0.4.9-camera-finalize-fix' || github.ref == 'refs/heads/feature/android-0.4.10-round-video-diagnostics' || github.ref == 'refs/heads/feature/android-0.4.11-video-upload-file-api' || github.ref == 'refs/heads/feature/android-0.4.12-camera-preview-fix' || github.ref == 'refs/heads/feature/android-0.4.13-camera-lifecycle-fix' || github.ref == 'refs/heads/feature/android-0.4.15-rootencoder-video' || github.ref == 'refs/heads/feature/android-0.4.14-rootencoder-video' || github.ref == 'refs/heads/feature/android-0.4.16-rootencoder-default-recorder' || github.ref == 'refs/heads/feature/android-0.4.17-video-drafts-dual-camera' || github.ref == 'refs/heads/feature/android-0.4.23-fan-chat-visual' || github.ref == 'refs/heads/feature/android-0.4.24-f-chat-cache'
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish_release) || github.ref == 'refs/heads/feature/android-0.4.2-fixes' || github.ref == 'refs/heads/feature/android-0.4.3-whatsapp-chat' || github.ref == 'refs/heads/feature/android-0.4.4-chat-stability' || github.ref == 'refs/heads/feature/android-0.4.5-chat-media-fix' || github.ref == 'refs/heads/feature/android-0.4.6-media-playback-video-fix' || github.ref == 'refs/heads/feature/android-0.4.8-round-video-rebuild' || github.ref == 'refs/heads/feature/android-0.4.9-camera-finalize-fix' || github.ref == 'refs/heads/feature/android-0.4.10-round-video-diagnostics' || github.ref == 'refs/heads/feature/android-0.4.11-video-upload-file-api' || github.ref == 'refs/heads/feature/android-0.4.12-camera-preview-fix' || github.ref == 'refs/heads/feature/android-0.4.13-camera-lifecycle-fix' || github.ref == 'refs/heads/feature/android-0.4.15-rootencoder-video' || github.ref == 'refs/heads/feature/android-0.4.14-rootencoder-video' || github.ref == 'refs/heads/feature/android-0.4.16-rootencoder-default-recorder' || github.ref == 'refs/heads/feature/android-0.4.17-video-drafts-dual-camera' || github.ref == 'refs/heads/feature/android-0.4.23-fan-chat-visual' || github.ref == 'refs/heads/feature/android-0.4.25-f-chat-cache'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || (startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.4.24') }}
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || (startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.4.25') }}
           target_commitish: ${{ github.sha }}
-          name: FLOUSTREAM Messenger ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || (startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.4.24') }}
+          name: FLOUSTREAM Messenger ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || (startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.4.25') }}
           overwrite_files: true
           files: |
             FLOUSTREAM-Messenger.apk
