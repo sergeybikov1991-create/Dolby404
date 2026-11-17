@@ -9,7 +9,6 @@ import kotlinx.coroutines.NonCancellable
 
 import androidx.work.workDataOf
 
-import androidx.work.getWorkInfosByTagFlow
 
 import androidx.work.WorkerParameters
 
@@ -3729,59 +3728,72 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     }
 
     LaunchedEffect(peer.id, currentUserId) {
-        WorkManager.getInstance(context)
-            .getWorkInfosByTagFlow("floustream-video-peer-${peer.id}")
-            .collect { infos ->
-                val active = infos.any {
-                    it.state == androidx.work.WorkInfo.State.ENQUEUED ||
-                        it.state == androidx.work.WorkInfo.State.RUNNING ||
-                        it.state == androidx.work.WorkInfo.State.BLOCKED
+        val workManager = WorkManager.getInstance(context)
+        val workTag = "floustream-video-peer-${peer.id}"
+        var lastSuccessCount = 0
+        while (true) {
+            val infos = withContext(Dispatchers.IO) {
+                workManager.getWorkInfosByTag(workTag).get()
+            }
+            val active = infos.any {
+                it.state == androidx.work.WorkInfo.State.ENQUEUED ||
+                    it.state == androidx.work.WorkInfo.State.RUNNING ||
+                    it.state == androidx.work.WorkInfo.State.BLOCKED
+            }
+            videoUploadInProgress = active
+
+            val currentDraftPath = pendingLocalVideo?.absolutePath
+            if (!active && currentDraftPath.isNullOrBlank()) {
+                val failedBackgroundVideo = infos.firstOrNull { info ->
+                    info.state == androidx.work.WorkInfo.State.FAILED &&
+                        info.outputData.getString("file_path")?.let { File(it).isFile } == true
                 }
-                videoUploadInProgress = active
-                val currentDraftPath = pendingLocalVideo?.absolutePath
-                if (!active && currentDraftPath.isNullOrBlank()) {
-                    val failedBackgroundVideo = infos.firstOrNull { info ->
-                        info.state == androidx.work.WorkInfo.State.FAILED &&
-                            info.inputData.getString("file_path")?.let { File(it).isFile } == true
-                    }
-                    if (failedBackgroundVideo != null) {
-                        val failedPath = failedBackgroundVideo.inputData.getString("file_path")
-                        if (!failedPath.isNullOrBlank()) {
-                            pendingLocalVideo = File(failedPath)
-                            pendingVideoReady = true
-                            pendingVideoUploadFailed = true
-                            uploadingAttachment = false
-                            errorText = failedBackgroundVideo.outputData.getString("error")
-                                ?: "Видео не отправлено. Файл сохранён — нажми «Повторить»."
-                        }
-                    }
-                }
-                val currentDraftPathAfterRestore = pendingLocalVideo?.absolutePath
-                if (!active && !currentDraftPathAfterRestore.isNullOrBlank()) {
-                    val currentDraftPath = currentDraftPathAfterRestore
-                    val currentSucceeded = infos.any {
-                        it.state == androidx.work.WorkInfo.State.SUCCEEDED &&
-                            it.inputData.getString("file_path") == currentDraftPath
-                    }
-                    val currentFailed = infos.firstOrNull {
-                        it.state == androidx.work.WorkInfo.State.FAILED &&
-                            it.inputData.getString("file_path") == currentDraftPath
-                    }
-                    if (currentSucceeded) {
-                        pendingLocalVideo = null
-                        pendingVideoReady = false
-                        pendingVideoUploadFailed = false
-                        uploadingAttachment = false
-                        errorText = ""
-                        refresh(silent = true)
-                    } else if (currentFailed != null) {
-                        uploadingAttachment = false
-                        pendingVideoUploadFailed = true
-                        errorText = currentFailed.outputData.getString("error")
-                            ?: "Не удалось отправить видео. Файл сохранён — можно повторить отправку."
-                    }
+                val failedPath = failedBackgroundVideo?.outputData?.getString("file_path")
+                if (!failedPath.isNullOrBlank()) {
+                    pendingLocalVideo = File(failedPath)
+                    pendingVideoReady = true
+                    pendingVideoUploadFailed = true
+                    uploadingAttachment = false
+                    errorText = failedBackgroundVideo.outputData.getString("error")
+                        ?: "Видео не отправлено. Файл сохранён — нажми «Повторить»."
                 }
             }
+
+            val currentPath = pendingLocalVideo?.absolutePath
+            if (!active && !currentPath.isNullOrBlank()) {
+                val currentSucceeded = infos.any {
+                    it.state == androidx.work.WorkInfo.State.SUCCEEDED &&
+                        it.outputData.getString("file_path") == currentPath
+                }
+                val currentFailed = infos.firstOrNull {
+                    it.state == androidx.work.WorkInfo.State.FAILED &&
+                        it.outputData.getString("file_path") == currentPath
+                }
+                if (currentSucceeded) {
+                    pendingLocalVideo = null
+                    pendingVideoReady = false
+                    pendingVideoUploadFailed = false
+                    uploadingAttachment = false
+                    errorText = ""
+                    refresh(silent = true)
+                } else if (currentFailed != null) {
+                    uploadingAttachment = false
+                    pendingVideoUploadFailed = true
+                    errorText = currentFailed.outputData.getString("error")
+                        ?: "Не удалось отправить видео. Файл сохранён — можно повторить отправку."
+                }
+            }
+
+            val successCount = infos.count { it.state == androidx.work.WorkInfo.State.SUCCEEDED }
+            if (!active && successCount > lastSuccessCount) {
+                lastSuccessCount = successCount
+                if (pendingLocalVideo == null && errorText.startsWith("Видео отправляется в фоне")) {
+                    errorText = ""
+                }
+                refresh(silent = true)
+            }
+            delay(1500)
+        }
     }
 
     LaunchedEffect(peer.id, currentUserId) {
@@ -5162,6 +5174,7 @@ private fun enqueueVideoUploadWorker(
     )
 }
 
+@OptIn(kotlin.time.ExperimentalTime::class)
 internal class FloustreamVideoUploadWorker(
     appContext: Context,
     params: WorkerParameters
@@ -5177,10 +5190,10 @@ internal class FloustreamVideoUploadWorker(
         val mime = inputData.getString("mime_type") ?: "video/mp4"
         val file = File(filePath)
         if (!file.isFile || file.length() <= 0L) {
-            return Result.failure(workDataOf("error" to "Локальный файл видео не найден. Выбери его ещё раз."))
+            return Result.failure(workDataOf("error" to "Локальный файл видео не найден. Выбери его ещё раз.", "file_path" to filePath))
         }
         if (file.length() > 50L * 1024L * 1024L) {
-            return Result.failure(workDataOf("error" to "Видео превышает лимит 50 МБ."))
+            return Result.failure(workDataOf("error" to "Видео превышает лимит 50 МБ.", "file_path" to filePath))
         }
 
         val notificationId = (draftKey.hashCode() and 0x7fffffff).coerceAtLeast(1)
@@ -5240,15 +5253,20 @@ internal class FloustreamVideoUploadWorker(
                 .remove("${draftKey}_round")
                 .commit()
             file.delete()
-            return Result.success()
+            return Result.success(workDataOf("file_path" to file.absolutePath))
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Exception) {
             RoundVideoDiagnostics.record(applicationContext, "background video worker failed; attempt=$runAttemptCount; type=${error.javaClass.name}; message=${error.message}", error)
-            if (runAttemptCount < 8) {
+            return if (runAttemptCount < 8) {
                 Result.retry()
             } else {
-                Result.failure(workDataOf("error" to (error.message ?: "Не удалось отправить видео.")))
+                Result.failure(
+                    workDataOf(
+                        "error" to (error.message ?: "Не удалось отправить видео."),
+                        "file_path" to file.absolutePath
+                    )
+                )
             }
         }
     }
