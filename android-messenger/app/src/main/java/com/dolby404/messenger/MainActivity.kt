@@ -3737,7 +3737,26 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 }
                 videoUploadInProgress = active
                 val currentDraftPath = pendingLocalVideo?.absolutePath
-                if (!active && !currentDraftPath.isNullOrBlank()) {
+                if (!active && currentDraftPath.isNullOrBlank()) {
+                    val failedBackgroundVideo = infos.firstOrNull { info ->
+                        info.state == androidx.work.WorkInfo.State.FAILED &&
+                            info.inputData.getString("file_path")?.let { File(it).isFile } == true
+                    }
+                    if (failedBackgroundVideo != null) {
+                        val failedPath = failedBackgroundVideo.inputData.getString("file_path")
+                        if (!failedPath.isNullOrBlank()) {
+                            pendingLocalVideo = File(failedPath)
+                            pendingVideoReady = true
+                            pendingVideoUploadFailed = true
+                            uploadingAttachment = false
+                            errorText = failedBackgroundVideo.outputData.getString("error")
+                                ?: "Видео не отправлено. Файл сохранён — нажми «Повторить»."
+                        }
+                    }
+                }
+                val currentDraftPathAfterRestore = pendingLocalVideo?.absolutePath
+                if (!active && !currentDraftPathAfterRestore.isNullOrBlank()) {
+                    val currentDraftPath = currentDraftPathAfterRestore
                     val currentSucceeded = infos.any {
                         it.state == androidx.work.WorkInfo.State.SUCCEEDED &&
                             it.inputData.getString("file_path") == currentDraftPath
