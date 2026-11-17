@@ -1,11 +1,52 @@
 package com.dolby404.messenger
 
+import java.util.concurrent.TimeUnit
+
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.collect
+
+import kotlinx.coroutines.NonCancellable
+
+import androidx.work.workDataOf
+
+
+import androidx.work.WorkerParameters
+
+import androidx.work.WorkManager
+
+import androidx.work.OneTimeWorkRequestBuilder
+
+import androidx.work.NetworkType
+
+import androidx.work.ForegroundInfo
+
+import androidx.work.ExistingWorkPolicy
+
+import androidx.work.CoroutineWorker
+
+import androidx.work.Constraints
+
+import androidx.work.BackoffPolicy
+
+import androidx.core.app.NotificationCompat
+
+import android.content.pm.ServiceInfo
+
+import android.app.NotificationManager
+
+import android.app.NotificationChannel
+
 
 import android.os.Bundle
 import android.net.Uri
 import android.media.MediaRecorder
 import android.media.MediaExtractor
 import java.io.File
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
+import java.net.SocketException
+import java.io.EOFException
+import java.io.IOException
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
@@ -37,6 +78,7 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -114,12 +156,44 @@ import java.net.URLEncoder
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.abs
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Duration.Companion.minutes
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.google.firebase.messaging.FirebaseMessaging
+
+private fun detectMediaMimeFromHeader(header: ByteArray, count: Int): String? {
+    if (count >= 12) {
+        fun ascii(start: Int, length: Int) = String(header, start, length, Charsets.US_ASCII)
+        if (ascii(4, 4) == "ftyp") {
+            val brand = ascii(8, 4).lowercase()
+            return when {
+                brand in setOf("avif", "avis") -> "image/avif"
+                brand in setOf("heic", "heix", "hevc", "hevx", "mif1", "msf1") -> "image/heic"
+                else -> "video/mp4"
+            }
+        }
+        if (ascii(0, 4) == "RIFF" && ascii(8, 4) == "WEBP") return "image/webp"
+        if (ascii(0, 4) == "RIFF" && ascii(8, 4) == "AVI ") return "video/x-msvideo"
+    }
+    if (count >= 4 && header[0] == 0x1A.toByte() && header[1] == 0x45.toByte() &&
+        header[2] == 0xDF.toByte() && header[3] == 0xA3.toByte()
+    ) return "video/webm"
+    if (count >= 3 && header[0] == 0xFF.toByte() && header[1] == 0xD8.toByte() &&
+        header[2] == 0xFF.toByte()
+    ) return "image/jpeg"
+    if (count >= 8 && header.copyOfRange(0, 8).contentEquals(
+            byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)
+        )
+    ) return "image/png"
+    if (count >= 6 && (String(header, 0, 6, Charsets.US_ASCII) == "GIF87a" ||
+            String(header, 0, 6, Charsets.US_ASCII) == "GIF89a")
+    ) return "image/gif"
+    if (count >= 2 && header[0] == 0x42.toByte() && header[1] == 0x4D.toByte()) return "image/bmp"
+    return null
+}
 
 private fun isFinalizedVideoFile(file: File): Boolean {
     if (!file.isFile || file.length() <= 1500L) return false
@@ -135,6 +209,47 @@ private fun isFinalizedVideoFile(file: File): Boolean {
     } finally {
         try { extractor.release() } catch (_: Exception) { }
     }
+}
+
+
+private fun isTransientNetworkFailure(error: Throwable): Boolean {
+    var current: Throwable? = error
+    while (current != null) {
+        if (current is IOException || current is EOFException ||
+            current is SocketException || current is SocketTimeoutException ||
+            current is UnknownHostException
+        ) return true
+        val message = current.message.orEmpty().lowercase()
+        if (listOf(
+                "connection closed", "connection reset", "unexpected end",
+                "network is unreachable", "failed to connect", "timed out",
+                "timeout", "eof", "temporarily unavailable", "service unavailable",
+                "gateway timeout", "http 408", "http 425", "http 429",
+                "http 500", "http 502", "http 503", "http 504",
+                "too many requests", "rate limit"
+            ).any { it in message }
+        ) return true
+        current = current.cause
+    }
+    return false
+}
+
+private suspend fun <T> withTransientNetworkRetry(
+    maxAttempts: Int = 4,
+    operation: suspend () -> T
+): T {
+    var lastError: Exception? = null
+    repeat(maxAttempts) { attempt ->
+        try {
+            return operation()
+        } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            if (!isTransientNetworkFailure(error)) throw error
+            lastError = error
+            if (attempt < maxAttempts - 1) delay(900L * (1L shl attempt))
+        }
+    }
+    throw lastError ?: IOException("Сетевой запрос не выполнен.")
 }
 
 private val Night = Color(0xFF080D1B)
@@ -444,22 +559,44 @@ private suspend fun sendLibraryMedia(context: Context, userId: String, peerId: S
     val safeName = item.name.replace(Regex("[^A-Za-z0-9._-]"), "_").take(100).ifBlank { "attachment" }
     val targetPath = userId + "/" + UUID.randomUUID().toString() + "_" + safeName
     if (item.mime.startsWith("video/")) {
-        val tempFile = File.createTempFile("dolby404_album_video_", ".mp4", context.cacheDir)
+        val draftKey = "album_video_${UUID.randomUUID()}.mp4"
+        val draftsDir = File(context.filesDir, "video-drafts").apply { mkdirs() }
+        val persistentVideo = File(draftsDir, draftKey)
         try {
             connection.connectTimeout = 15000
             connection.readTimeout = 60000
             connection.inputStream.use { input ->
-                tempFile.outputStream().use { output -> input.copyTo(output, 256 * 1024) }
+                persistentVideo.outputStream().buffered().use { output ->
+                    val buffer = ByteArray(256 * 1024)
+                    var total = 0L
+                    while (true) {
+                        val read = input.read(buffer)
+                        if (read < 0) break
+                        total += read
+                        if (total > 50L * 1024L * 1024L) error("Видеоальбом: файл больше 50 МБ.")
+                        output.write(buffer, 0, read)
+                    }
+                }
             }
-            if (tempFile.length() <= 0L) error("Видеоальбом: файл пустой или недоступен.")
-            if (tempFile.length() > 50L * 1024L * 1024L) error("Видеоальбом: файл больше 50 МБ.")
-            val token = floustreamClient.auth.currentSessionOrNull()?.accessToken
-                ?: error("Сессия истекла. Войди в аккаунт ещё раз.")
-            TusVideoUploader.upload(context, "message-media", targetPath, tempFile, token, BuildConfig.SUPABASE_PUBLISHABLE_KEY, item.mime.ifBlank { "video/mp4" })
+            if (persistentVideo.length() <= 0L) error("Видеоальбом: файл пустой или недоступен.")
+            val prefs = context.getSharedPreferences("floustream_video_drafts", Context.MODE_PRIVATE)
+            val saved = prefs.edit()
+                .putString(draftKey, targetPath)
+                .putString("${draftKey}_peer", peerId)
+                .putString("${draftKey}_name", item.name)
+                .putString("${draftKey}_mime", item.mime.ifBlank { "video/mp4" })
+                .putBoolean("${draftKey}_round", false)
+                .commit()
+            if (!saved) error("Не удалось сохранить очередь отправки видеоальбома.")
+            enqueueVideoUploadWorker(context, userId, peerId, persistentVideo, draftKey, targetPath, item.name, item.mime.ifBlank { "video/mp4" })
+            RoundVideoDiagnostics.record(context, "album video copied to persistent draft and queued; bytes=${persistentVideo.length()}")
+        } catch (error: Exception) {
+            persistentVideo.delete()
+            throw error
         } finally {
             connection.disconnect()
-            tempFile.delete()
         }
+        return@withContext
     } else {
         val bytes = try {
             connection.connectTimeout = 15000
@@ -477,11 +614,13 @@ private suspend fun sendLibraryMedia(context: Context, userId: String, peerId: S
 private suspend fun findFloustreamUsers(query: String): List<ProfileDto> {
     val term = query.trim().removePrefix("@")
     if (term.length < 2) return emptyList()
-    return floustreamClient.from("profiles").select {
-        filter { ilike("username", "%$term%") }
-    }.decodeList<ProfileDto>().filter {
-        it.id != floustreamClient.auth.currentUserOrNull()?.id && !it.isDeleted
-    }.take(30)
+    return withTransientNetworkRetry {
+        floustreamClient.from("profiles").select {
+            filter { ilike("username", "%$term%") }
+        }.decodeList<ProfileDto>().filter {
+            it.id != floustreamClient.auth.currentUserOrNull()?.id && !it.isDeleted
+        }.take(30)
+    }
 }
 
 private suspend fun loadDirectMessagesPage(
@@ -494,7 +633,7 @@ private suspend fun loadDirectMessagesPage(
     val token = floustreamClient.auth.currentSessionOrNull()?.accessToken
         ?: throw IllegalStateException("Сессия истекла.")
     val columns = "id,sender_id,recipient_id,content,created_at,read_at,attachment_path,attachment_name,attachment_mime,reply_to_message_id,edited_at"
-    fun fetchDirection(senderId: String, recipientId: String): List<DirectMessageDto> {
+    suspend fun fetchDirection(senderId: String, recipientId: String): List<DirectMessageDto> {
         val filters = buildString {
             append("sender_id=eq.").append(URLEncoder.encode(senderId, "UTF-8"))
             append("&recipient_id=eq.").append(URLEncoder.encode(recipientId, "UTF-8"))
@@ -506,39 +645,43 @@ private suspend fun loadDirectMessagesPage(
             }
             append("&order=created_at.desc,id.desc&limit=").append(pageSize)
         }
-        val connection = URL("${BuildConfig.SUPABASE_URL}/rest/v1/direct_messages?select=$columns&$filters")
-            .openConnection() as HttpURLConnection
-        try {
-            connection.requestMethod = "GET"
-            connection.connectTimeout = 15000
-            connection.readTimeout = 20000
-            connection.setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
-            connection.setRequestProperty("Authorization", "Bearer $token")
-            val code = connection.responseCode
-            if (code !in 200..299) {
-                val detail = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
-                throw IllegalStateException("Не удалось загрузить сообщения ($code). ${detail.take(180)}")
+        return withTransientNetworkRetry {
+            val connection = URL("${BuildConfig.SUPABASE_URL}/rest/v1/direct_messages?select=$columns&$filters")
+                .openConnection() as HttpURLConnection
+            try {
+                connection.requestMethod = "GET"
+                connection.connectTimeout = 20000
+                connection.readTimeout = 30000
+                connection.setRequestProperty("Connection", "close")
+                connection.setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+                connection.setRequestProperty("Authorization", "Bearer $token")
+                val code = connection.responseCode
+                if (code !in 200..299) {
+                    val detail = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                    if (code in 500..599) throw IOException("Не удалось загрузить сообщения (HTTP $code). ${detail.take(180)}")
+                    throw IllegalStateException("Не удалось загрузить сообщения ($code). ${detail.take(180)}")
+                }
+                val rows = JSONArray(connection.inputStream.bufferedReader().use { it.readText() })
+                (0 until rows.length()).map { index ->
+                    val row = rows.getJSONObject(index)
+                    fun nullable(name: String): String? = if (row.isNull(name)) null else row.optString(name).takeIf { it.isNotBlank() }
+                    DirectMessageDto(
+                        id = row.getString("id"),
+                        senderId = row.getString("sender_id"),
+                        recipientId = row.getString("recipient_id"),
+                        content = row.optString("content"),
+                        createdAt = row.getString("created_at"),
+                        readAt = nullable("read_at"),
+                        attachmentPath = nullable("attachment_path"),
+                        attachmentName = nullable("attachment_name"),
+                        attachmentMime = nullable("attachment_mime"),
+                        replyToMessageId = nullable("reply_to_message_id"),
+                        editedAt = nullable("edited_at")
+                    )
+                }
+            } finally {
+                connection.disconnect()
             }
-            val rows = JSONArray(connection.inputStream.bufferedReader().use { it.readText() })
-            return (0 until rows.length()).map { index ->
-                val row = rows.getJSONObject(index)
-                fun nullable(name: String): String? = if (row.isNull(name)) null else row.optString(name).takeIf { it.isNotBlank() }
-                DirectMessageDto(
-                    id = row.getString("id"),
-                    senderId = row.getString("sender_id"),
-                    recipientId = row.getString("recipient_id"),
-                    content = row.optString("content"),
-                    createdAt = row.getString("created_at"),
-                    readAt = nullable("read_at"),
-                    attachmentPath = nullable("attachment_path"),
-                    attachmentName = nullable("attachment_name"),
-                    attachmentMime = nullable("attachment_mime"),
-                    replyToMessageId = nullable("reply_to_message_id"),
-                    editedAt = nullable("edited_at")
-                )
-            }
-        } finally {
-            connection.disconnect()
         }
     }
     val sent = fetchDirection(userId, peerId)
@@ -956,26 +1099,45 @@ private suspend fun forwardDirectMessage(context: Context, userId: String, peerI
     val safeName = originalName.replace(Regex("[^A-Za-z0-9._-]"), "_").take(100).ifBlank { "attachment" }
     val targetPath = "$userId/${UUID.randomUUID()}_forwarded_$safeName"
     if (mime.startsWith("video/")) {
-        val tempFile = File.createTempFile("dolby404_forward_video_", ".mp4", context.cacheDir)
+        val draftKey = "forward_video_${UUID.randomUUID()}.mp4"
+        val draftsDir = File(context.filesDir, "video-drafts").apply { mkdirs() }
+        val persistentVideo = File(draftsDir, draftKey)
+        val connection = URL(signedUrl).openConnection() as HttpURLConnection
         try {
-            val connection = URL(signedUrl).openConnection() as HttpURLConnection
-            try {
-                connection.connectTimeout = 15000
-                connection.readTimeout = 60000
-                connection.inputStream.use { input ->
-                    tempFile.outputStream().use { output -> input.copyTo(output, 256 * 1024) }
+            connection.connectTimeout = 15000
+            connection.readTimeout = 60000
+            connection.inputStream.use { input ->
+                persistentVideo.outputStream().buffered().use { output ->
+                    val buffer = ByteArray(256 * 1024)
+                    var total = 0L
+                    while (true) {
+                        val read = input.read(buffer)
+                        if (read < 0) break
+                        total += read
+                        if (total > 50L * 1024L * 1024L) error("Вложение больше 50 МБ — пересылка отменена.")
+                        output.write(buffer, 0, read)
+                    }
                 }
-            } finally {
-                connection.disconnect()
             }
-            if (tempFile.length() <= 0L) error("Пересылаемое видео пустое или недоступно.")
-            if (tempFile.length() > 50L * 1024L * 1024L) error("Вложение больше 50 МБ — пересылка отменена.")
-            val token = floustreamClient.auth.currentSessionOrNull()?.accessToken
-                ?: error("Сессия истекла. Войди в аккаунт ещё раз.")
-            TusVideoUploader.upload(context, "message-media", targetPath, tempFile, token, BuildConfig.SUPABASE_PUBLISHABLE_KEY, mime)
+            if (persistentVideo.length() <= 0L) error("Пересылаемое видео пустое или недоступно.")
+            val prefs = context.getSharedPreferences("floustream_video_drafts", Context.MODE_PRIVATE)
+            val saved = prefs.edit()
+                .putString(draftKey, targetPath)
+                .putString("${draftKey}_peer", peerId)
+                .putString("${draftKey}_name", originalName)
+                .putString("${draftKey}_mime", mime)
+                .putBoolean("${draftKey}_round", false)
+                .commit()
+            if (!saved) error("Не удалось сохранить очередь пересылки видео.")
+            enqueueVideoUploadWorker(context, userId, peerId, persistentVideo, draftKey, targetPath, originalName, mime)
+            RoundVideoDiagnostics.record(context, "forwarded video copied to persistent draft and queued; bytes=${persistentVideo.length()}")
+        } catch (error: Exception) {
+            persistentVideo.delete()
+            throw error
         } finally {
-            tempFile.delete()
+            connection.disconnect()
         }
+        return@withContext
     } else {
         val connection = URL(signedUrl).openConnection() as HttpURLConnection
         val bytes = try {
@@ -1075,39 +1237,43 @@ private suspend fun loadInboxThreads(
         val pageSize = 500
         while (true) {
             val url = "${BuildConfig.SUPABASE_URL}/rest/v1/direct_messages?select=$columns&$column=eq.$encodedUserId&order=created_at.desc,id.desc&limit=$pageSize&offset=$offset"
-            val connection = URL(url).openConnection() as HttpURLConnection
-            val rows = try {
-                connection.requestMethod = "GET"
-                connection.connectTimeout = 15000
-                connection.readTimeout = 20000
-                connection.setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
-                connection.setRequestProperty("Authorization", "Bearer $token")
-                val code = connection.responseCode
-                if (code !in 200..299) {
-                    val detail = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
-                    throw IllegalStateException("Не удалось загрузить список чатов ($code). ${detail.take(180)}")
+            val rows = withTransientNetworkRetry {
+                val connection = URL(url).openConnection() as HttpURLConnection
+                try {
+                    connection.requestMethod = "GET"
+                    connection.connectTimeout = 20000
+                    connection.readTimeout = 30000
+                    connection.setRequestProperty("Connection", "close")
+                    connection.setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+                    connection.setRequestProperty("Authorization", "Bearer $token")
+                    val code = connection.responseCode
+                    if (code !in 200..299) {
+                        val detail = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                        if (code in 500..599) throw IOException("Не удалось загрузить список чатов (HTTP $code). ${detail.take(180)}")
+                        throw IllegalStateException("Не удалось загрузить список чатов ($code). ${detail.take(180)}")
+                    }
+                    val payload = JSONArray(connection.inputStream.bufferedReader().use { it.readText() })
+                    (0 until payload.length()).map { index ->
+                        val row = payload.getJSONObject(index)
+                        fun nullable(name: String): String? =
+                            if (row.isNull(name)) null else row.optString(name).takeIf { it.isNotBlank() }
+                        DirectMessageDto(
+                            id = row.getString("id"),
+                            senderId = row.getString("sender_id"),
+                            recipientId = row.getString("recipient_id"),
+                            content = row.optString("content"),
+                            createdAt = row.getString("created_at"),
+                            readAt = nullable("read_at"),
+                            attachmentPath = nullable("attachment_path"),
+                            attachmentName = nullable("attachment_name"),
+                            attachmentMime = nullable("attachment_mime"),
+                            replyToMessageId = nullable("reply_to_message_id"),
+                            editedAt = nullable("edited_at")
+                        )
+                    }
+                } finally {
+                    connection.disconnect()
                 }
-                val payload = JSONArray(connection.inputStream.bufferedReader().use { it.readText() })
-                (0 until payload.length()).map { index ->
-                    val row = payload.getJSONObject(index)
-                    fun nullable(name: String): String? =
-                        if (row.isNull(name)) null else row.optString(name).takeIf { it.isNotBlank() }
-                    DirectMessageDto(
-                        id = row.getString("id"),
-                        senderId = row.getString("sender_id"),
-                        recipientId = row.getString("recipient_id"),
-                        content = row.optString("content"),
-                        createdAt = row.getString("created_at"),
-                        readAt = nullable("read_at"),
-                        attachmentPath = nullable("attachment_path"),
-                        attachmentName = nullable("attachment_name"),
-                        attachmentMime = nullable("attachment_mime"),
-                        replyToMessageId = nullable("reply_to_message_id"),
-                        editedAt = nullable("edited_at")
-                    )
-                }
-            } finally {
-                connection.disconnect()
             }
             result.addAll(rows)
             if (!fullHistory || rows.size < pageSize) break
@@ -1126,10 +1292,11 @@ private suspend fun loadInboxThreads(
 
     return peerIds.mapNotNull { peerId ->
         val existing = existingByPeer[peerId]
-        val profile = existing?.peer ?: (floustreamClient.from("profiles").select {
-            filter { eq("id", peerId) }
-        }.decodeList<ProfileDto>().firstOrNull()
-            ?: ProfileDto(id = peerId, displayName = "Удалённый аккаунт", isDeleted = true))
+        val profile = existing?.peer ?: (withTransientNetworkRetry {
+            floustreamClient.from("profiles").select {
+                filter { eq("id", peerId) }
+            }.decodeList<ProfileDto>().firstOrNull()
+        } ?: ProfileDto(id = peerId, displayName = "Удалённый аккаунт", isDeleted = true))
 
         val conversation = rows.filter {
             (it.senderId == userId && it.recipientId == peerId) ||
@@ -1369,9 +1536,11 @@ private fun MessengerApp(
                         message = "Аккаунт создан! Проверь почту и подтверди email. После подтверждения войди здесь с теми же данными, что и на сайте."
                     }
                 } else {
-                    floustreamClient.auth.signInWith(Email) {
-                        this.email = email.trim()
-                        this.password = password
+                    withTransientNetworkRetry {
+                        floustreamClient.auth.signInWith(Email) {
+                            this.email = email.trim()
+                            this.password = password
+                        }
                     }
                     signedIn = true
                     message = "Авторизация успешна."
@@ -1384,6 +1553,8 @@ private fun MessengerApp(
                         "Это имя пользователя уже занято. Выбери другое."
                     errorText.contains("username_invalid_format", ignoreCase = true) ->
                         "Имя пользователя должно содержать 3–24 символа: латинские буквы, цифры или _."
+                    !isRegistering && isTransientNetworkFailure(e) ->
+                        "Не удалось связаться с сервером входа. Проверь интернет или попробуй другую сеть. Повторные попытки уже выполнены; пароль и аккаунт не изменены."
                     else -> e.message ?: if (isRegistering) "Не удалось зарегистрироваться." else "Не удалось войти. Проверь данные."
                 }
             } finally {
@@ -2312,14 +2483,33 @@ private fun ChatsScreen(
             var firstSyncAfterResume = true
             do {
                 try {
+                    // Load the newest page first so a slow regional route cannot keep
+                    // the inbox blank while older history is being paged in.
                     val latest = loadInboxThreads(
                         currentUserId,
                         existingThreads = threads.toList(),
-                        fullHistory = firstSyncAfterResume
+                        fullHistory = false
                     )
                     threads.clear()
                     threads.addAll(latest)
+                    hasLoadedInbox = true
+                    loading = false
                     error = ""
+                    if (firstSyncAfterResume) {
+                        try {
+                            val completeHistory = loadInboxThreads(
+                                currentUserId,
+                                existingThreads = threads.toList(),
+                                fullHistory = true
+                            )
+                            threads.clear()
+                            threads.addAll(completeHistory)
+                        } catch (historyError: Exception) {
+                            if (historyError is kotlinx.coroutines.CancellationException) throw historyError
+                            // Keep the already rendered recent inbox; the next foreground
+                            // refresh will reconcile it instead of replacing it with an error.
+                        }
+                    }
                 } catch (e: Exception) {
                     if (e is kotlinx.coroutines.CancellationException) throw e
                     if (!hasLoadedInbox) error = e.message ?: "Не удалось загрузить список чатов."
@@ -2697,7 +2887,6 @@ private fun MessageAttachment(message: DirectMessageDto) {
     val context = LocalContext.current
     val path = message.attachmentPath ?: return
     val mime = message.attachmentMime.orEmpty().lowercase()
-    val isRoundVideo = !message.attachmentName.orEmpty().startsWith("normal_")
     var signedUrl by remember(path) { mutableStateOf<String?>(null) }
     var loadError by remember(path) { mutableStateOf(false) }
     var urlRefreshAttempt by remember(path) { mutableIntStateOf(0) }
@@ -2731,13 +2920,13 @@ private fun MessageAttachment(message: DirectMessageDto) {
             TextButton(onClick = { urlRefreshAttempt++ }) { Text("Повторить", color = Blue) }
         }
         mime.startsWith("video/") && url == null && !loadError -> Box(
-            Modifier.size(if (isRoundVideo) 190.dp else 340.dp, if (isRoundVideo) 190.dp else 210.dp)
-                .clip(if (isRoundVideo) CircleShape else RoundedCornerShape(18.dp)).background(Color.Black),
+            Modifier.widthIn(max = 240.dp).fillMaxWidth().aspectRatio(9f / 16f)
+                .clip(RoundedCornerShape(6.dp)).background(Color.Black),
             contentAlignment = Alignment.Center
         ) { CircularProgressIndicator(color = Blue) }
         mime.startsWith("video/") && loadError -> Box(
-            Modifier.size(if (isRoundVideo) 190.dp else 340.dp, if (isRoundVideo) 190.dp else 210.dp)
-                .clip(if (isRoundVideo) CircleShape else RoundedCornerShape(18.dp)).background(Color.Black),
+            Modifier.widthIn(max = 240.dp).fillMaxWidth().aspectRatio(9f / 16f)
+                .clip(RoundedCornerShape(6.dp)).background(Color.Black),
             contentAlignment = Alignment.Center
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -2765,17 +2954,14 @@ private fun MessageAttachment(message: DirectMessageDto) {
                 .diskCacheKey("floustream-media-$path")
                 .crossfade(false).build(),
             contentDescription = message.attachmentName ?: "Изображение",
-            modifier = Modifier.widthIn(max = 280.dp).fillMaxWidth().height(300.dp)
+            modifier = Modifier.widthIn(max = 240.dp).fillMaxWidth().aspectRatio(9f / 16f)
                 .clip(RoundedCornerShape(12.dp)).clickable { showFullScreen = true },
             contentScale = ContentScale.Crop,
             onLoading = { imageLoadError = false },
             onError = { imageLoadError = true }
         )
         mime.startsWith("audio/") -> AudioMessagePlayer(url!!) { urlRefreshAttempt++ }
-        mime.startsWith("video/") -> VideoMessagePlayer(
-            url!!,
-            isRound = !message.attachmentName.orEmpty().startsWith("normal_")
-        ) { urlRefreshAttempt++ }
+        mime.startsWith("video/") -> VideoMessagePlayer(url!!, isRound = false) { urlRefreshAttempt++ }
         else -> Row(
             Modifier.fillMaxWidth().clickable {
                 try {
@@ -2823,78 +3009,20 @@ private fun MessageAttachment(message: DirectMessageDto) {
 
 @Composable
 private fun ChatAtmosphereBackground() {
-    val transition = rememberInfiniteTransition(label = "floustream-chat-atmosphere")
-    val drift by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 36000, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "haze-drift"
-    )
-    val metallicPhase by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 82000, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "metallic-color-cycle"
-    )
-
-    fun blend(from: Color, to: Color, amount: Float): Color {
-        val t = amount.coerceIn(0f, 1f)
-        return Color(
-            red = from.red + (to.red - from.red) * t,
-            green = from.green + (to.green - from.green) * t,
-            blue = from.blue + (to.blue - from.blue) * t,
-            alpha = from.alpha + (to.alpha - from.alpha) * t
-        )
-    }
-
-    val blueAccent = blend(Color(0xFF426FF0), Color(0xFF4D947C), metallicPhase)
-    val violetAccent = blend(Color(0xFF8957E8), Color(0xFF89969B), metallicPhase)
-    val cyanAccent = blend(Color(0xFF4BCBFF), Color(0xFF9BA8A7), metallicPhase)
-
+    // One static gradient only: no animated state, blur layers, or radial overlays.
     Box(
         Modifier.fillMaxSize().background(
             Brush.linearGradient(
-                listOf(
-                    Color(0xFF101B35),
-                    Color(0xFF1A193A),
-                    Color(0xFF102536),
-                    Color(0xFF0D172C)
+                colors = listOf(
+                    Color(0xFF291747),
+                    Color(0xFF244B86),
+                    Color(0xFF3C4B5C),
+                    Color(0xFF192536)
                 )
             )
         )
-    ) {
-        Box(
-            Modifier
-                .size(720.dp)
-                .offset(x = (-270f + drift * 105f).dp, y = (-250f).dp)
-                .blur(86.dp)
-                .background(Brush.radialGradient(listOf(blueAccent.copy(alpha = 0.62f), Color.Transparent)))
-        )
-        Box(
-            Modifier
-                .size(700.dp)
-                .offset(x = (90f - drift * 115f).dp, y = (280f - drift * 90f).dp)
-                .blur(92.dp)
-                .background(Brush.radialGradient(listOf(violetAccent.copy(alpha = 0.54f), Color.Transparent)))
-        )
-        Box(
-            Modifier
-                .size(560.dp)
-                .offset(x = (130f + drift * 70f).dp, y = (20f + drift * 55f).dp)
-                .blur(100.dp)
-                .background(Brush.radialGradient(listOf(cyanAccent.copy(alpha = 0.24f), Color.Transparent)))
-        )
-        // A subtle translucent veil gives message cards a little visual distance from the moving haze.
-        Box(Modifier.fillMaxSize().background(Color(0x18060B18)))
-    }
+    )
 }
-
 @Composable
 private fun FanActionButton(icon: String, label: String, onClick: () -> Unit) {
     Surface(
@@ -3027,7 +3155,7 @@ private object FloustreamVideoDiskCache {
 }
 
 @Composable
-private fun VideoMessagePlayer(url: String, isRound: Boolean = true, onRetry: () -> Unit) {
+private fun VideoMessagePlayer(url: String, isRound: Boolean = false, onRetry: () -> Unit) {
     val context = LocalContext.current
     val player = remember(url) {
         val cachedDataSource = CacheDataSource.Factory()
@@ -3043,6 +3171,9 @@ private fun VideoMessagePlayer(url: String, isRound: Boolean = true, onRetry: ()
         }
     }
     var playbackError by remember(url) { mutableStateOf(false) }
+    var isPlaying by remember(url) { mutableStateOf(false) }
+    var positionMs by remember(url) { mutableLongStateOf(0L) }
+    var durationMs by remember(url) { mutableLongStateOf(0L) }
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
@@ -3050,7 +3181,13 @@ private fun VideoMessagePlayer(url: String, isRound: Boolean = true, onRetry: ()
                 player.pause()
             }
             override fun onPlaybackStateChanged(playbackState: Int) {
-                if (playbackState == Player.STATE_READY) playbackError = false
+                if (playbackState == Player.STATE_READY) {
+                    playbackError = false
+                    durationMs = player.duration.coerceAtLeast(0L)
+                }
+            }
+            override fun onIsPlayingChanged(playing: Boolean) {
+                isPlaying = playing
             }
         }
         player.addListener(listener)
@@ -3059,42 +3196,53 @@ private fun VideoMessagePlayer(url: String, isRound: Boolean = true, onRetry: ()
             player.release()
         }
     }
+    LaunchedEffect(player) {
+        while (true) {
+            positionMs = player.currentPosition.coerceAtLeast(0L)
+            durationMs = player.duration.takeIf { it > 0L && it != androidx.media3.common.C.TIME_UNSET } ?: 0L
+            delay(200L)
+        }
+    }
     var showFullScreen by remember(url) { mutableStateOf(false) }
     Box(
-        Modifier.size(if (isRound) 190.dp else 340.dp, if (isRound) 190.dp else 210.dp)
-            .clip(if (isRound) CircleShape else RoundedCornerShape(18.dp)).background(Color.Black),
+        Modifier.widthIn(max = 240.dp).fillMaxWidth().aspectRatio(9f / 16f)
+            .clip(RoundedCornerShape(6.dp)).background(Color.Black),
         contentAlignment = Alignment.Center
     ) {
-        if (!showFullScreen) AndroidView(
-            factory = { viewContext ->
-                PlayerView(viewContext).apply {
-                    this.player = player
-                    useController = true
-                    resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
-                }
-            },
-            update = { it.player = player },
-            modifier = Modifier.fillMaxSize()
-        )
-        if (!isRound && !showFullScreen) {
-            Text(
-                "⛶",
-                Modifier.align(Alignment.TopEnd).padding(8.dp)
-                    .clip(CircleShape).background(Color(0x99080D1B))
-                    .clickable { showFullScreen = true }.padding(horizontal = 11.dp, vertical = 6.dp),
-                color = White,
-                fontSize = 21.sp
+        if (!showFullScreen) {
+            AndroidView(
+                factory = { viewContext ->
+                    PlayerView(viewContext).apply {
+                        this.player = player
+                        useController = false
+                        resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
+                    }
+                },
+                update = { it.player = player },
+                modifier = Modifier.fillMaxSize()
             )
-        }
-        if (playbackError) {
-            Column(
-                Modifier.fillMaxSize().background(Color(0xCC080D1B)).clickable { onRetry() }.padding(12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text("Не удалось воспроизвести видео", color = White, fontSize = 11.sp)
-                Spacer(Modifier.height(6.dp))
-                Text("↻ Повторить", color = Color(0xFFB99AFF), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            if (playbackError) {
+                Column(
+                    Modifier.align(Alignment.Center).background(Color(0x99080D1B), RoundedCornerShape(8.dp))
+                        .clickable { playbackError = false; onRetry() }.padding(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text("Видео недоступно", color = White, fontSize = 11.sp)
+                    Text("↻ Повторить", color = Color(0xFFB99AFF), fontSize = 12.sp)
+                }
+            } else {
+                VideoPlaybackControls(
+                    player = player,
+                    isPlaying = isPlaying,
+                    positionMs = positionMs,
+                    durationMs = durationMs,
+                    onTogglePlay = {
+                        if (player.isPlaying) player.pause() else player.play()
+                    },
+                    onFullscreen = { showFullScreen = true },
+                    modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                )
             }
         }
     }
@@ -3108,21 +3256,81 @@ private fun VideoMessagePlayer(url: String, isRound: Boolean = true, onRetry: ()
                     factory = { viewContext ->
                         PlayerView(viewContext).apply {
                             this.player = player
-                            useController = true
+                            useController = false
                             resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
                         }
                     },
                     update = { it.player = player },
                     modifier = Modifier.fillMaxSize()
                 )
+                VideoPlaybackControls(
+                    player = player,
+                    isPlaying = isPlaying,
+                    positionMs = positionMs,
+                    durationMs = durationMs,
+                    onTogglePlay = {
+                        if (player.isPlaying) player.pause() else player.play()
+                    },
+                    onFullscreen = { showFullScreen = false },
+                    modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                )
                 Text(
                     "×",
-                    Modifier.align(Alignment.TopEnd).clickable { showFullScreen = false }
-                        .padding(18.dp),
+                    Modifier.align(Alignment.TopEnd).clickable { showFullScreen = false }.padding(18.dp),
                     color = White,
                     fontSize = 34.sp
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun VideoPlaybackControls(
+    player: ExoPlayer,
+    isPlaying: Boolean,
+    positionMs: Long,
+    durationMs: Long,
+    onTogglePlay: () -> Unit,
+    onFullscreen: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val progress = if (durationMs > 0L) (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f) else 0f
+    Row(
+        modifier.background(Color(0x88070B13)).padding(horizontal = 7.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(7.dp)
+    ) {
+        Text(
+            if (isPlaying) "Ⅱ" else "▶",
+            Modifier.size(25.dp).clickable { onTogglePlay() },
+            color = Color.White.copy(alpha = 0.82f),
+            fontSize = 14.sp,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
+        Box(
+            Modifier.weight(1f).height(14.dp).pointerInput(durationMs) {
+                detectTapGestures { offset ->
+                    if (durationMs > 0L && size.width > 0) {
+                        val fraction = (offset.x / size.width.toFloat()).coerceIn(0f, 1f)
+                        player.seekTo((durationMs * fraction).toLong())
+                    }
+                }
+            },
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Box(Modifier.fillMaxWidth().height(2.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.22f)))
+            Box(
+                Modifier.fillMaxWidth(progress).height(2.dp).clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.72f))
+            )
+        }
+        Box(
+            Modifier.size(25.dp).clip(RoundedCornerShape(4.dp))
+                .background(Color.White.copy(alpha = 0.13f)).clickable { onFullscreen() },
+            contentAlignment = Alignment.Center
+        ) {
+            Text("⛶", color = Color.White.copy(alpha = 0.86f), fontSize = 15.sp)
         }
     }
 }
@@ -3572,85 +3780,108 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
         pendingLocalVideo = file
         pendingVideoReady = true
         pendingVideoUploadFailed = false
-        scope.launch {
-            videoUploadInProgress = true
-            uploadingAttachment = true
-            var messageCommitted = false
-            try {
-                RoundVideoDiagnostics.record(context, "video sender callback reached; persistentFile=${file.name}; exists=${file.exists()}; bytes=${file.length()}")
-                if (!file.exists() || file.length() < 1500L) error("Файл видеосообщения не сохранился.")
-                if (file.length() > 50L * 1024L * 1024L) error("Видео превышает лимит отправки 50 МБ. Файл сохранён в памяти приложения.")
-                val draftPrefs = context.getSharedPreferences("floustream_video_drafts", Context.MODE_PRIVATE)
-                val pathKey = file.name
-                val roundDraft = draftPrefs.getBoolean("${pathKey}_round", videoCaptureMode == VideoCaptureMode.ROUND_FRONT)
-                val name = draftPrefs.getString("${pathKey}_name", null) ?: (
-                    (if (roundDraft) "round_" else "normal_") + "video_" + System.currentTimeMillis() + ".mp4"
-                ).also { draftPrefs.edit().putString("${pathKey}_name", it).apply() }
-                draftPrefs.edit()
-                    .putString("${pathKey}_peer", peer.id)
-                    .putBoolean("${pathKey}_round", roundDraft)
-                    .apply()
-                val path = draftPrefs.getString(pathKey, null) ?: (
-                    currentUserId + "/" + UUID.randomUUID().toString() + "_" + name
-                ).also { draftPrefs.edit().putString(pathKey, it).apply() }
-                RoundVideoDiagnostics.record(context, "resumable video upload starting; bytes=${file.length()}; resumePathStored=true")
-                val uploadedKey = "${pathKey}_uploaded"
-                if (!draftPrefs.getBoolean(uploadedKey, false)) {
-                    val accessToken = floustreamClient.auth.currentSessionOrNull()?.accessToken
-                        ?: error("Сессия истекла. Войди в аккаунт ещё раз.")
-                    withContext(Dispatchers.IO) {
-                        TusVideoUploader.upload(
-                            context = context,
-                            bucket = "message-media",
-                            objectPath = path,
-                            file = file,
-                            accessToken = accessToken,
-                            apiKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY
-                        )
-                    }
-                    draftPrefs.edit().putBoolean(uploadedKey, true).apply()
-                }
-                RoundVideoDiagnostics.record(context, "video upload completed; inserting direct message")
-                // A previous insert may have reached PostgREST even if the client
-                // lost its response (for example, when the chat was closed). The
-                // unique Storage path is our retry key: check it before inserting.
-                val alreadyCommitted = withContext(Dispatchers.IO) {
-                    floustreamClient.from("direct_messages").select {
-                        filter {
-                            eq("sender_id", currentUserId)
-                            eq("recipient_id", peer.id)
-                            eq("attachment_path", path)
-                        }
-                    }.decodeList<DirectMessageDto>().isNotEmpty()
-                }
-                if (!alreadyCommitted) {
-                    sendDirectAttachment(currentUserId, peer.id, path, name, "video/mp4")
-                } else {
-                    RoundVideoDiagnostics.record(context, "Video message already exists for persisted attachment path; skipping duplicate insert")
-                }
-                messageCommitted = true
-                draftPrefs.edit()
-                    .remove(pathKey)
-                    .remove("${pathKey}_uploaded")
-                    .remove("${pathKey}_peer")
-                    .remove("${pathKey}_name")
-                    .remove("${pathKey}_round")
-                    .apply()
-                pendingLocalVideo = null
-                RoundVideoDiagnostics.record(context, "video direct message inserted successfully")
-                refresh()
-                errorText = ""
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                pendingVideoUploadFailed = true
-                RoundVideoDiagnostics.record(context, "video send failed; type=${e.javaClass.name}; message=${e.message}", e)
-                val reason = e.message?.takeIf { it.isNotBlank() } ?: "ошибка загрузки или сохранения сообщения"
-                errorText = "Не удалось отправить видео. Запись сохранена в памяти телефона (${file.name}). $reason"
-            } finally {
-                if (messageCommitted) file.delete()
-                videoUploadInProgress = false
-                uploadingAttachment = false
+        videoUploadInProgress = true
+        uploadingAttachment = true
+        try {
+            RoundVideoDiagnostics.record(context, "video draft queued; file=${file.name}; exists=${file.exists()}; bytes=${file.length()}")
+            if (!isFinalizedVideoFile(file)) error("Файл видеосообщения не сохранился или ещё не завершён.")
+            if (file.length() > 50L * 1024L * 1024L) error("Видео превышает лимит отправки 50 МБ. Файл сохранён в памяти приложения.")
+            val draftPrefs = context.getSharedPreferences("floustream_video_drafts", Context.MODE_PRIVATE)
+            val draftKey = file.name
+            val roundDraft = draftPrefs.getBoolean("${draftKey}_round", videoCaptureMode == VideoCaptureMode.ROUND_FRONT)
+            val name = draftPrefs.getString("${draftKey}_name", null) ?: (
+                (if (roundDraft) "round_" else "normal_") + "video_" + System.currentTimeMillis() + ".mp4"
+            )
+            val mime = draftPrefs.getString("${draftKey}_mime", "video/mp4") ?: "video/mp4"
+            val objectPath = draftPrefs.getString(draftKey, null) ?: (
+                currentUserId + "/" + UUID.randomUUID().toString() + "_" + name
+            )
+            val saved = draftPrefs.edit()
+                .putString(draftKey, objectPath)
+                .putString("${draftKey}_peer", peer.id)
+                .putString("${draftKey}_name", name)
+                .putString("${draftKey}_mime", "video/mp4")
+                .putBoolean("${draftKey}_round", roundDraft)
+                .commit()
+            if (!saved) error("Не удалось сохранить очередь отправки видео.")
+            enqueueVideoUploadWorker(context, currentUserId, peer.id, file, draftKey, objectPath, name, mime)
+            RoundVideoDiagnostics.record(context, "video draft queued in WorkManager; objectPathStored=true")
+            errorText = "Видео отправляется в фоне. Можно выйти из чата."
+        } catch (e: Exception) {
+            videoUploadInProgress = false
+            uploadingAttachment = false
+            pendingVideoUploadFailed = true
+            RoundVideoDiagnostics.record(context, "video queue failed; type=${e.javaClass.name}; message=${e.message}", e)
+            errorText = e.message ?: "Не удалось поставить видео в очередь отправки."
+        }
+    }
+
+    LaunchedEffect(peer.id, currentUserId) {
+        val workManager = WorkManager.getInstance(context)
+        val workTag = "floustream-video-peer-${peer.id}"
+        var lastSuccessCount = 0
+        while (true) {
+            val infos = withContext(Dispatchers.IO) {
+                workManager.getWorkInfosByTag(workTag).get()
             }
+            val active = infos.any {
+                it.state == androidx.work.WorkInfo.State.ENQUEUED ||
+                    it.state == androidx.work.WorkInfo.State.RUNNING ||
+                    it.state == androidx.work.WorkInfo.State.BLOCKED
+            }
+            videoUploadInProgress = active
+
+            val currentDraftPath = pendingLocalVideo?.absolutePath
+            if (!active && currentDraftPath.isNullOrBlank()) {
+                val failedBackgroundVideo = infos.firstOrNull { info ->
+                    info.state == androidx.work.WorkInfo.State.FAILED &&
+                        info.outputData.getString("file_path")?.let { File(it).isFile } == true
+                }
+                val failedPath = failedBackgroundVideo?.outputData?.getString("file_path")
+                if (!failedPath.isNullOrBlank()) {
+                    pendingLocalVideo = File(failedPath)
+                    pendingVideoReady = true
+                    pendingVideoUploadFailed = true
+                    uploadingAttachment = false
+                    errorText = failedBackgroundVideo.outputData.getString("error")
+                        ?: "Видео не отправлено. Файл сохранён — нажми «Повторить»."
+                }
+            }
+
+            val currentPath = pendingLocalVideo?.absolutePath
+            if (!active && !currentPath.isNullOrBlank()) {
+                val currentSucceeded = infos.any {
+                    it.state == androidx.work.WorkInfo.State.SUCCEEDED &&
+                        it.outputData.getString("file_path") == currentPath
+                }
+                val currentFailed = infos.firstOrNull {
+                    it.state == androidx.work.WorkInfo.State.FAILED &&
+                        it.outputData.getString("file_path") == currentPath
+                }
+                if (currentSucceeded) {
+                    pendingLocalVideo = null
+                    pendingVideoReady = false
+                    pendingVideoUploadFailed = false
+                    uploadingAttachment = false
+                    errorText = ""
+                    refresh(silent = true)
+                } else if (currentFailed != null) {
+                    uploadingAttachment = false
+                    pendingVideoUploadFailed = true
+                    errorText = currentFailed.outputData.getString("error")
+                        ?: "Не удалось отправить видео. Файл сохранён — можно повторить отправку."
+                }
+            }
+
+            val successCount = infos.count { it.state == androidx.work.WorkInfo.State.SUCCEEDED }
+            if (!active && successCount > lastSuccessCount) {
+                lastSuccessCount = successCount
+                if (pendingLocalVideo == null && errorText.startsWith("Видео отправляется в фоне")) {
+                    errorText = ""
+                }
+                refresh(silent = true)
+            }
+            delay(1500)
         }
     }
 
@@ -3678,13 +3909,26 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             }
 
             recoverable?.let { (fileName, draftFile) ->
+                val workInfos = withContext(Dispatchers.IO) {
+                    WorkManager.getInstance(context).getWorkInfosForUniqueWork("floustream-video-$fileName").get()
+                }
+                val queued = workInfos.any {
+                    it.state == androidx.work.WorkInfo.State.ENQUEUED ||
+                        it.state == androidx.work.WorkInfo.State.RUNNING ||
+                        it.state == androidx.work.WorkInfo.State.BLOCKED
+                }
                 val isRound = draftPrefs.getBoolean("${fileName}_round", true)
                 videoCaptureMode = if (isRound) VideoCaptureMode.ROUND_FRONT else VideoCaptureMode.NORMAL_SWITCHABLE
                 pendingLocalVideo = draftFile
                 pendingVideoReady = true
-                pendingVideoUploadFailed = true
-                errorText = "Найдено несохранённое видео. Нажми «Повторить», чтобы продолжить отправку."
-                RoundVideoDiagnostics.record(context, "Recovered pending video draft for current chat; file=$fileName; bytes=${draftFile.length()}")
+                pendingVideoUploadFailed = !queued
+                videoUploadInProgress = queued
+                errorText = if (queued) {
+                    "Видео уже отправляется в фоне. Можно выйти из чата."
+                } else {
+                    "Найдено несохранённое видео. Нажми «Повторить», чтобы продолжить отправку."
+                }
+                RoundVideoDiagnostics.record(context, "Recovered pending video draft for current chat; queued=$queued; file=$fileName; bytes=${draftFile.length()}")
             }
         }
     }
@@ -3693,44 +3937,89 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
         if (uris.isNotEmpty() && !uploadingAttachment) scope.launch {
             uploadingAttachment = true
             var sentCount = 0
+            var queuedVideoCount = 0
             val failures = mutableListOf<String>()
             try {
                 uris.forEach { uri ->
                     var name = "attachment"
                     try {
                         val resolver = context.contentResolver
-                        var mime = (resolver.getType(uri)?.substringBefore(';')?.trim()?.lowercase())
-                            ?.takeIf { it.contains('/') } ?: "application/octet-stream"
                         var declaredSize = -1L
                         name = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { cursor ->
                             if (cursor.moveToFirst()) {
-                                declaredSize = cursor.getLong(cursor.getColumnIndexOrThrow(OpenableColumns.SIZE))
-                                cursor.getString(cursor.getColumnIndexOrThrow(OpenableColumns.DISPLAY_NAME))
+                                val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                                if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) declaredSize = cursor.getLong(sizeIndex)
+                                val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                                if (nameIndex >= 0) cursor.getString(nameIndex) else null
                             } else null
-                        } ?: "attachment"
+                        }?.takeIf { it.isNotBlank() } ?: uri.lastPathSegment?.substringAfterLast('/')?.takeIf { it.isNotBlank() } ?: "attachment"
+                        val extension = name.substringAfterLast('.', "").lowercase()
+                        val providerMime = resolver.getType(uri)?.substringBefore(';')?.trim()?.lowercase()
+                        var mime = providerMime?.takeIf { it.contains('/') && it != "application/octet-stream" }
+                            ?: android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension)
+                            ?: "application/octet-stream"
+                        // Some gallery/cloud providers return neither a useful MIME type nor
+                        // a filename extension. Sniff a small header before choosing the upload
+                        // path, so an unknown video is not accidentally read into memory as an
+                        // ordinary attachment and sent with application/octet-stream.
+                        if (mime == "application/octet-stream") {
+                            val detectedMime = withContext(Dispatchers.IO) {
+                                resolver.openInputStream(uri)?.use { input ->
+                                    val header = ByteArray(32)
+                                    var count = 0
+                                    while (count < header.size) {
+                                        val read = input.read(header, count, header.size - count)
+                                        if (read <= 0) break
+                                        count += read
+                                    }
+                                    if (count > 0) detectMediaMimeFromHeader(header, count) else null
+                                }
+                            }
+                            if (detectedMime != null) mime = detectedMime
+                        }
                         if (declaredSize > 50L * 1024L * 1024L) error("$name: размер превышает 50 МБ.")
                         if (mime.startsWith("video/")) {
-                            val tempVideo = File(context.cacheDir, "picked_video_${UUID.randomUUID()}.mp4")
-                            try {
-                                withContext(Dispatchers.IO) {
+                            val safeName = name.substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"), "_").take(100).ifBlank { "video.mp4" }
+                            val draftKey = "picked_video_${UUID.randomUUID()}.mp4"
+                            val draftsDir = File(context.filesDir, "video-drafts").apply { mkdirs() }
+                            val persistentVideo = File(draftsDir, draftKey)
+                            val objectPath = "$currentUserId/${UUID.randomUUID()}_$safeName"
+                            // Photo Picker grants temporary URI access. Finish the copy and enqueue
+                            // the durable worker in a NonCancellable section so leaving this chat
+                            // cannot cancel preparation and delete the only copy of the video.
+                            withContext(NonCancellable + Dispatchers.IO) {
+                                try {
                                     resolver.openInputStream(uri)?.use { input ->
-                                        tempVideo.outputStream().use { output -> input.copyTo(output, 256 * 1024) }
+                                        persistentVideo.outputStream().buffered().use { output ->
+                                            val buffer = ByteArray(256 * 1024)
+                                            var total = 0L
+                                            while (true) {
+                                                val read = input.read(buffer)
+                                                if (read < 0) break
+                                                total += read
+                                                if (total > 50L * 1024L * 1024L) error("$name: размер превышает 50 МБ.")
+                                                output.write(buffer, 0, read)
+                                            }
+                                        }
                                     } ?: error("Не удалось прочитать видео.")
+                                    if (persistentVideo.length() <= 0L) error("$name: видео пустое или недоступно.")
+                                    val draftPrefs = context.getSharedPreferences("floustream_video_drafts", Context.MODE_PRIVATE)
+                                    val saved = draftPrefs.edit()
+                                        .putString(draftKey, objectPath)
+                                        .putString("${draftKey}_peer", peer.id)
+                                        .putString("${draftKey}_name", name)
+                                        .putString("${draftKey}_mime", mime)
+                                        .putBoolean("${draftKey}_round", false)
+                                        .commit()
+                                    if (!saved) error("Не удалось сохранить очередь отправки видео.")
+                                    enqueueVideoUploadWorker(context, currentUserId, peer.id, persistentVideo, draftKey, objectPath, name, mime)
+                                    RoundVideoDiagnostics.record(context, "gallery video copied to persistent draft and queued; bytes=${persistentVideo.length()}")
+                                } catch (error: Exception) {
+                                    persistentVideo.delete()
+                                    throw error
                                 }
-                                if (tempVideo.length() <= 0L) error("$name: видео пустое или недоступно.")
-                                if (tempVideo.length() > 50L * 1024L * 1024L) error("$name: размер превышает 50 МБ.")
-                                val safeName = name.substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"), "_").take(100).ifBlank { "video.mp4" }
-                                val path = "$currentUserId/${UUID.randomUUID()}_$safeName"
-                                val accessToken = floustreamClient.auth.currentSessionOrNull()?.accessToken
-                                    ?: error("Сессия истекла. Войди в аккаунт ещё раз.")
-                                withContext(Dispatchers.IO) {
-                                    TusVideoUploader.upload(context, "message-media", path, tempVideo, accessToken, BuildConfig.SUPABASE_PUBLISHABLE_KEY, mime)
-                                }
-                                sendDirectAttachment(currentUserId, peer.id, path, name, mime)
-                                sentCount++
-                            } finally {
-                                tempVideo.delete()
                             }
+                            queuedVideoCount++
                             return@forEach
                         }
                         var bytes = withContext(Dispatchers.IO) {
@@ -3785,7 +4074,11 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                     }
                 }
                 if (sentCount > 0) refresh()
-                errorText = if (failures.isEmpty()) "" else "Отправлено $sentCount из ${uris.size}. ${failures.distinct().joinToString("; ")}"
+                errorText = when {
+                    failures.isNotEmpty() -> "Отправлено $sentCount, видео в очереди $queuedVideoCount. ${failures.distinct().joinToString("; ")}"
+                    queuedVideoCount > 0 -> "Видео отправляется в фоне. Можно выйти из чата."
+                    else -> ""
+                }
             } finally {
                 uploadingAttachment = false
             }
@@ -4118,6 +4411,9 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 val mine = msg.senderId == currentUserId
                 val isImageAttachment = !msg.attachmentPath.isNullOrBlank() &&
                     msg.attachmentMime.orEmpty().startsWith("image/")
+                val isVideoAttachment = !msg.attachmentPath.isNullOrBlank() &&
+                    msg.attachmentMime.orEmpty().startsWith("video/")
+                val isMediaAttachment = isImageAttachment || isVideoAttachment
                 val isVoiceAttachment = !msg.attachmentPath.isNullOrBlank() &&
                     msg.attachmentMime.orEmpty().startsWith("audio/")
                 val hasAttachment = !msg.attachmentPath.isNullOrBlank()
@@ -4127,15 +4423,15 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 ) {
                     Column(horizontalAlignment = if (hasAttachment) Alignment.Start else if (mine) Alignment.End else Alignment.Start) {
                         Surface(
-                            color = if (isImageAttachment) Color.Transparent
+                            color = if (isMediaAttachment) Color.Transparent
                                 else if (isVoiceAttachment) Color(0xD918243B)
                                 else if (mine) Color(0xD9254D91) else Color(0xD918243B),
-                            shape = RoundedCornerShape(12.dp),
-                            shadowElevation = if (isImageAttachment) 0.dp else 5.dp,
+                            shape = RoundedCornerShape(8.dp),
+                            shadowElevation = if (isMediaAttachment) 0.dp else 5.dp,
                             border = if (isVoiceAttachment) androidx.compose.foundation.BorderStroke(
                                 0.5.dp, Color(0x334D8BFF)
                             ) else null,
-                            modifier = Modifier.widthIn(max = if (isImageAttachment || msg.attachmentMime.orEmpty().startsWith("video/")) 360.dp else 290.dp)
+                            modifier = Modifier.widthIn(max = if (isMediaAttachment) 240.dp else 290.dp)
                                 .combinedClickable(
                                     onClick = { },
                                     onLongClick = { pendingMessageActions = msg }
@@ -4143,10 +4439,8 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                         ) {
                             Column(
                                 Modifier.padding(
-                                    horizontal = if (!msg.attachmentPath.isNullOrBlank() &&
-                                        msg.attachmentMime.orEmpty().startsWith("image/")) 2.dp else 13.dp,
-                                    vertical = if (!msg.attachmentPath.isNullOrBlank() &&
-                                        msg.attachmentMime.orEmpty().startsWith("image/")) 2.dp else 9.dp
+                                    horizontal = if (isMediaAttachment) 0.dp else 13.dp,
+                                    vertical = if (isMediaAttachment) 0.dp else 9.dp
                                 )
                             ) {
                                 if (msg.id in pinnedMessageIds) {
@@ -4953,3 +5247,172 @@ private fun ConversationScreen(name: String, onBack: () -> Unit, onInfo: () -> U
         }
     }
 }
+
+// Durable, lifecycle-independent video upload. The local file is kept until both
+// the Storage object and its single direct-message row are confirmed.
+private fun enqueueVideoUploadWorker(
+    context: Context,
+    userId: String,
+    peerId: String,
+    file: File,
+    draftKey: String,
+    objectPath: String,
+    name: String,
+    mime: String
+) {
+    val request = OneTimeWorkRequestBuilder<FloustreamVideoUploadWorker>()
+        .setInputData(
+            workDataOf(
+                "user_id" to userId,
+                "peer_id" to peerId,
+                "file_path" to file.absolutePath,
+                "draft_key" to draftKey,
+                "object_path" to objectPath,
+                "file_name" to name,
+                "mime_type" to mime
+            )
+        )
+        .setConstraints(
+            Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .build()
+        )
+        .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 15, TimeUnit.SECONDS)
+        .addTag("floustream-video-peer-$peerId")
+        .build()
+
+    WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(
+        "floustream-video-$draftKey",
+        ExistingWorkPolicy.KEEP,
+        request
+    )
+}
+
+@OptIn(kotlin.time.ExperimentalTime::class)
+internal class FloustreamVideoUploadWorker(
+    appContext: Context,
+    params: WorkerParameters
+) : CoroutineWorker(appContext, params) {
+
+    override suspend fun doWork(): Result {
+        val userId = inputData.getString("user_id") ?: return Result.failure()
+        val peerId = inputData.getString("peer_id") ?: return Result.failure()
+        val filePath = inputData.getString("file_path") ?: return Result.failure()
+        val draftKey = inputData.getString("draft_key") ?: return Result.failure()
+        val objectPath = inputData.getString("object_path") ?: return Result.failure()
+        val name = inputData.getString("file_name") ?: "video.mp4"
+        val mime = inputData.getString("mime_type") ?: "video/mp4"
+        val file = File(filePath)
+        if (!file.isFile || file.length() <= 0L) {
+            return Result.failure(workDataOf("error" to "Локальный файл видео не найден. Выбери его ещё раз.", "file_path" to filePath))
+        }
+        if (file.length() > 50L * 1024L * 1024L) {
+            return Result.failure(workDataOf("error" to "Видео превышает лимит 50 МБ.", "file_path" to filePath))
+        }
+
+        val notificationId = (draftKey.hashCode() and 0x7fffffff).coerceAtLeast(1)
+        try {
+            setForeground(createForegroundInfo(notificationId, name, 0))
+            val prefs = applicationContext.getSharedPreferences("floustream_video_drafts", Context.MODE_PRIVATE)
+            val currentSession = floustreamClient.auth.currentSessionOrNull()
+            if (
+                currentSession == null ||
+                java.time.Instant.parse(currentSession.expiresAt.toString()) <= java.time.Instant.now().plusSeconds(60)
+            ) {
+                floustreamClient.auth.refreshCurrentSession()
+            }
+            val accessToken = floustreamClient.auth.currentSessionOrNull()?.accessToken
+                ?: error("Сессия недоступна. Открой FLOUSTREAM и повтори отправку.")
+
+            if (!prefs.getBoolean("${draftKey}_uploaded", false)) {
+                withContext(Dispatchers.IO) {
+                    TusVideoUploader.upload(
+                        context = applicationContext,
+                        bucket = "message-media",
+                        objectPath = objectPath,
+                        file = file,
+                        accessToken = accessToken,
+                        apiKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY,
+                        refreshAccessToken = {
+                            floustreamClient.auth.refreshCurrentSession()
+                            floustreamClient.auth.currentSessionOrNull()?.accessToken
+                                ?: error("Не удалось обновить сессию для продолжения загрузки видео.")
+                        },
+                        contentType = mime,
+                        onProgress = { uploaded, total ->
+                            val percent = if (total > 0L) ((uploaded * 100L) / total).toInt().coerceIn(0, 100) else 0
+                            setProgress(workDataOf("uploaded_bytes" to uploaded, "total_bytes" to total, "progress_percent" to percent))
+                            setForeground(createForegroundInfo(notificationId, name, percent))
+                        }
+                    )
+                }
+                prefs.edit().putBoolean("${draftKey}_uploaded", true).commit()
+            }
+
+            val alreadyCommitted = withContext(Dispatchers.IO) {
+                floustreamClient.from("direct_messages").select {
+                    filter {
+                        eq("sender_id", userId)
+                        eq("recipient_id", peerId)
+                        eq("attachment_path", objectPath)
+                    }
+                }.decodeList<DirectMessageDto>().isNotEmpty()
+            }
+            if (!alreadyCommitted) {
+                sendDirectAttachment(userId, peerId, objectPath, name, mime)
+            }
+
+            prefs.edit()
+                .remove(draftKey)
+                .remove("${draftKey}_uploaded")
+                .remove("${draftKey}_peer")
+                .remove("${draftKey}_name")
+                .remove("${draftKey}_mime")
+                .remove("${draftKey}_round")
+                .commit()
+            file.delete()
+            return Result.success(workDataOf("file_path" to file.absolutePath))
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            RoundVideoDiagnostics.record(applicationContext, "background video worker failed; attempt=$runAttemptCount; type=${error.javaClass.name}; message=${error.message}", error)
+            return if (runAttemptCount < 8) {
+                Result.retry()
+            } else {
+                Result.failure(
+                    workDataOf(
+                        "error" to (error.message ?: "Не удалось отправить видео."),
+                        "file_path" to file.absolutePath
+                    )
+                )
+            }
+        }
+    }
+
+    private fun createForegroundInfo(notificationId: Int, fileName: String, progress: Int): ForegroundInfo {
+        val manager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            manager.createNotificationChannel(
+                NotificationChannel(
+                    "floustream_video_uploads",
+                    "Отправка видео",
+                    NotificationManager.IMPORTANCE_LOW
+                )
+            )
+        }
+        val notification = NotificationCompat.Builder(applicationContext, "floustream_video_uploads")
+            .setSmallIcon(android.R.drawable.stat_sys_upload)
+            .setContentTitle("FLOUSTREAM — отправка видео")
+            .setContentText("$fileName · $progress%")
+            .setProgress(100, progress, false)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .build()
+        return ForegroundInfo(
+            notificationId,
+            notification,
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+        )
+    }
+}
+

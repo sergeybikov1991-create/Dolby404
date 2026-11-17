@@ -14,8 +14,8 @@ android {
         applicationId = "com.dolby404.messenger"
         minSdk = 26
         targetSdk = 36
-        versionCode = 32
-        versionName = "0.4.24"
+        versionCode = 35
+        versionName = "0.4.27"
 
         buildConfigField("String", "SUPABASE_URL", "\"https://qhpobdktlbhdqsnajypr.supabase.co\"")
         buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"sb_publishable_tzG1qVsbjaW8YE_LBVN87Q_v0CahKN5\"")
@@ -63,6 +63,7 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
+    implementation("androidx.work:work-runtime-ktx:2.12.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.10.0")
     implementation("androidx.media3:media3-exoplayer:1.6.1")
