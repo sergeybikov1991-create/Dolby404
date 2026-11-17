@@ -110,6 +110,7 @@ import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.abs
 import kotlin.time.Duration.Companion.minutes
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.google.firebase.messaging.FirebaseMessaging
@@ -331,6 +332,46 @@ private data class DirectMessageDto(
     @SerialName("reply_to_message_id") val replyToMessageId: String? = null,
     @SerialName("edited_at") val editedAt: String? = null
 )
+
+private fun chatMessageCacheKey(userId: String, peerId: String) = "chat_messages_${userId}_${peerId}"
+
+private fun readCachedChatMessages(context: Context, userId: String, peerId: String): List<DirectMessageDto> {
+    val raw = context.getSharedPreferences("floustream_chat_cache", Context.MODE_PRIVATE)
+        .getString(chatMessageCacheKey(userId, peerId), null) ?: return emptyList()
+    return try {
+        val array = JSONArray(raw)
+        (0 until array.length()).mapNotNull { index ->
+            val row = array.optJSONObject(index) ?: return@mapNotNull null
+            fun nullable(name: String): String? = if (row.isNull(name)) null else row.optString(name).takeIf { it.isNotBlank() && it != "null" }
+            DirectMessageDto(
+                id = row.getString("id"), senderId = row.getString("sender_id"),
+                recipientId = row.getString("recipient_id"), content = row.optString("content"),
+                createdAt = row.getString("created_at"), readAt = nullable("read_at"),
+                attachmentPath = nullable("attachment_path"), attachmentName = nullable("attachment_name"),
+                attachmentMime = nullable("attachment_mime"), replyToMessageId = nullable("reply_to_message_id"),
+                editedAt = nullable("edited_at")
+            )
+        }.sortedWith(compareBy<DirectMessageDto> { it.createdAt }.thenBy { it.id })
+    } catch (_: Exception) { emptyList() }
+}
+
+private fun writeCachedChatMessages(context: Context, userId: String, peerId: String, messages: List<DirectMessageDto>) {
+    val recent = messages.distinctBy { it.id }.sortedWith(compareBy<DirectMessageDto> { it.createdAt }.thenBy { it.id }).takeLast(500)
+    val array = JSONArray()
+    recent.forEach { message ->
+        array.put(JSONObject()
+            .put("id", message.id).put("sender_id", message.senderId)
+            .put("recipient_id", message.recipientId).put("content", message.content)
+            .put("created_at", message.createdAt).put("read_at", message.readAt ?: JSONObject.NULL)
+            .put("attachment_path", message.attachmentPath ?: JSONObject.NULL)
+            .put("attachment_name", message.attachmentName ?: JSONObject.NULL)
+            .put("attachment_mime", message.attachmentMime ?: JSONObject.NULL)
+            .put("reply_to_message_id", message.replyToMessageId ?: JSONObject.NULL)
+            .put("edited_at", message.editedAt ?: JSONObject.NULL))
+    }
+    context.getSharedPreferences("floustream_chat_cache", Context.MODE_PRIVATE).edit()
+        .putString(chatMessageCacheKey(userId, peerId), array.toString()).apply()
+}
 
 private data class ChatThread(
     val peer: ProfileDto,
@@ -2703,10 +2744,13 @@ private fun MessageAttachment(message: DirectMessageDto) {
         url == null && !loadError -> CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Blue)
         loadError -> Text("Не удалось получить ссылку на вложение", color = Muted, fontSize = 12.sp)
         mime.startsWith("image/") -> AsyncImage(
-            model = url,
+            model = ImageRequest.Builder(context).data(url)
+                .memoryCacheKey("floustream-media-$path")
+                .diskCacheKey("floustream-media-$path")
+                .crossfade(false).build(),
             contentDescription = message.attachmentName ?: "Изображение",
-            modifier = Modifier.fillMaxWidth().height(300.dp)
-                .clip(RoundedCornerShape(16.dp)).clickable { showFullScreen = true },
+            modifier = Modifier.widthIn(max = 280.dp).fillMaxWidth().height(300.dp)
+                .clip(RoundedCornerShape(12.dp)).clickable { showFullScreen = true },
             contentScale = ContentScale.Crop,
             onLoading = { imageLoadError = false },
             onError = { imageLoadError = true }
@@ -2875,6 +2919,10 @@ private fun FanMediaButton(
         ),
         label = "f-logo-shimmer"
     )
+    val logoTilt by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (expanded) -12f else 0f,
+        animationSpec = tween(durationMillis = 260), label = "floustream-f-tilt"
+    )
     val logoBrush = Brush.linearGradient(
         colors = listOf(
             Color(0xFF63D8FF),
@@ -2915,7 +2963,7 @@ private fun FanMediaButton(
 
         Surface(
             modifier = Modifier.align(Alignment.BottomStart).size(44.dp)
-                .graphicsLayer { rotationZ = if (expanded) -8f else 0f }
+                .graphicsLayer { rotationZ = logoTilt; scaleX = if (expanded) 1.04f else 1f; scaleY = if (expanded) 1.04f else 1f }
                 .clickable { expanded = !expanded },
             color = Color(0x66131D36),
             shape = CircleShape,
@@ -2933,11 +2981,18 @@ private fun FanMediaButton(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    "F",
-                    style = androidx.compose.ui.text.TextStyle(brush = logoBrush),
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = (-1.5).sp
+                    "f",
+                    style = androidx.compose.ui.text.TextStyle(
+                        brush = logoBrush,
+                        shadow = androidx.compose.ui.graphics.Shadow(
+                            color = Color(0xAA6A8CFF), blurRadius = 13f,
+                            offset = androidx.compose.ui.geometry.Offset(1.5f, 2f)
+                        )
+                    ),
+                    fontSize = 34.sp,
+                    fontWeight = FontWeight.Black,
+                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                    letterSpacing = (-2.5).sp
                 )
             }
         }
@@ -3285,6 +3340,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                     }
                 }
             }
+            withContext(Dispatchers.IO) { writeCachedChatMessages(context, currentUserId, peer.id, messages.toList()) }
             if (wasAtBottom && insertedMessages > 0) {
                 delay(50L)
                 val lastIndex = messageListState.layoutInfo.totalItemsCount - 1
@@ -3705,6 +3761,15 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
 
     LaunchedEffect(peer.id, currentUserId, isResumed) {
         if (isResumed) {
+            // Paint the last locally cached page immediately; the network refresh below reconciles it.
+            if (messages.isEmpty()) {
+                val cached = withContext(Dispatchers.IO) { readCachedChatMessages(context, currentUserId, peer.id) }
+                if (cached.isNotEmpty()) {
+                    Snapshot.withMutableSnapshot { messages.addAll(cached) }
+                    hasMoreOlderMessages = cached.size >= 500
+                    loading = false
+                }
+            }
             // Notification/deep-link launches can race session restoration or a brief
             // network wake-up. Retry once before showing a red error to the user.
             var loaded = refresh(silent = true)
@@ -3961,6 +4026,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                                         if (additions.isNotEmpty()) {
                                             // Keep the prepend atomic; stable LazyColumn keys preserve the visible anchor.
                                             Snapshot.withMutableSnapshot { messages.addAll(0, additions) }
+                                            withContext(Dispatchers.IO) { writeCachedChatMessages(context, currentUserId, peer.id, messages.toList()) }
                                             val olderReactions = try {
                                                 loadDirectMessageReactions(additions.map { it.id })
                                             } catch (e: Exception) {
