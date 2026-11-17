@@ -34,6 +34,7 @@ on:
       - "feature/android-0.4.17-video-drafts-dual-camera"
       - "feature/android-0.4.23-fan-chat-visual"
       - "feature/android-0.4.25-f-chat-cache"
+      - "feature/android-0.4.25-global-video-visual"
     tags:
       - "v*"
 
