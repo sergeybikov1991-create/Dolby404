@@ -11,6 +11,18 @@ These rules are mandatory for every release candidate. A release is not consider
 - Before changing a feature, inspect the current FIX index and the relevant fixed snapshot. Reuse/copy the approved implementation rather than recreating it.
 - If FIX is unavailable or its contents cannot be inspected, stop and report that; do not pretend the comparison happened.
 
+
+## 1A. Safe reuse of saved implementations (mandatory)
+
+- Treat FIX.zip / approved saved snapshots as a source of feature behavior and implementation patterns, not as a source of project-wide toolchain configuration.
+- Never copy an old project's root Gradle files, Gradle wrapper, plugin versions, Kotlin version, compile/target SDK, applicationId, signing configuration, versionName, or versionCode into a newer release unless a separately reviewed migration explicitly requires it.
+- Port the smallest self-contained component possible. Keep the current release's build system, package structure, app identity, signing identity, dependency catalog, database schema, and API contracts authoritative.
+- Before porting, record the source snapshot's app/toolchain versions and inspect the destination versions. Check every imported class, function, annotation, language/API feature, dependency, manifest component, permission, service type, and serialized/database field against the destination toolchain and runtime.
+- Do not assume that code which compiled in an older release compiles in the current one, or that a newer API is available just because it appears in sample code. Prefer APIs supported by the destination Kotlin/AGP/SDK versions. Upgrade the toolchain only as a deliberate, isolated change with a full compatibility build and regression run.
+- After each port, run a clean compile/build on the exact candidate commit, inspect dependency resolution and manifest merger output, and run the affected feature plus protected-feature regression tests. If a check cannot be run, mark it NOT VERIFIED and block release readiness; never report it as passed.
+- Keep a porting record: source snapshot path/version/commit/hash, destination files, adaptations made, destination toolchain versions, build/test evidence, and known limitations.
+- Do not modify or overwrite approved FIX snapshots while adapting code. If the adapted implementation is later approved for FIX.zip, add it as a new immutable snapshot with its own passport.
+
 ## 2. Protect existing behavior
 
 - Treat all approved FIX snapshots and previously working release behavior as regression-protected.
