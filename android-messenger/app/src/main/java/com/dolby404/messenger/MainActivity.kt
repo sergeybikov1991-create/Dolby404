@@ -20,6 +20,14 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
@@ -46,6 +54,8 @@ import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Brush
@@ -2752,48 +2762,183 @@ private fun MessageAttachment(message: DirectMessageDto) {
 }
 
 @Composable
-private fun PhotoVideoModeButton(onPhoto: () -> Unit, onVideo: () -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
-    Box {
-        Surface(
-            modifier = Modifier.size(44.dp).clickable { expanded = !expanded },
-            color = PanelSoft,
-            shape = CircleShape,
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x668FB8FF)),
-            shadowElevation = 7.dp
+private fun ChatAtmosphereBackground() {
+    val transition = rememberInfiniteTransition(label = "floustream-chat-atmosphere")
+    val drift by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 36000, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "haze-drift"
+    )
+    val metallicPhase by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 82000, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "metallic-color-cycle"
+    )
+
+    fun blend(from: Color, to: Color, amount: Float): Color {
+        val t = amount.coerceIn(0f, 1f)
+        return Color(
+            red = from.red + (to.red - from.red) * t,
+            green = from.green + (to.green - from.green) * t,
+            blue = from.blue + (to.blue - from.blue) * t,
+            alpha = from.alpha + (to.alpha - from.alpha) * t
+        )
+    }
+
+    val blueAccent = blend(Color(0xFF426FF0), Color(0xFF4D947C), metallicPhase)
+    val violetAccent = blend(Color(0xFF8957E8), Color(0xFF89969B), metallicPhase)
+    val cyanAccent = blend(Color(0xFF4BCBFF), Color(0xFF9BA8A7), metallicPhase)
+
+    Box(
+        Modifier.fillMaxSize().background(
+            Brush.linearGradient(
+                listOf(
+                    Color(0xFF101B35),
+                    Color(0xFF1A193A),
+                    Color(0xFF102536),
+                    Color(0xFF0D172C)
+                )
+            )
+        )
+    ) {
+        Box(
+            Modifier
+                .size(720.dp)
+                .offset(x = (-270f + drift * 105f).dp, y = (-250f).dp)
+                .blur(86.dp)
+                .background(Brush.radialGradient(listOf(blueAccent.copy(alpha = 0.62f), Color.Transparent)))
+        )
+        Box(
+            Modifier
+                .size(700.dp)
+                .offset(x = (90f - drift * 115f).dp, y = (280f - drift * 90f).dp)
+                .blur(92.dp)
+                .background(Brush.radialGradient(listOf(violetAccent.copy(alpha = 0.54f), Color.Transparent)))
+        )
+        Box(
+            Modifier
+                .size(560.dp)
+                .offset(x = (130f + drift * 70f).dp, y = (20f + drift * 55f).dp)
+                .blur(100.dp)
+                .background(Brush.radialGradient(listOf(cyanAccent.copy(alpha = 0.24f), Color.Transparent)))
+        )
+        // A subtle translucent veil gives message cards a little visual distance from the moving haze.
+        Box(Modifier.fillMaxSize().background(Color(0x18060B18)))
+    }
+}
+
+@Composable
+private fun FanActionButton(icon: String, label: String, onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier.size(54.dp).clickable(onClick = onClick),
+        color = Color(0xE51A2340),
+        shape = RoundedCornerShape(17.dp),
+        border = androidx.compose.foundation.BorderStroke(
+            0.8.dp,
+            Brush.linearGradient(listOf(Color(0xAA69CFFF), Color(0xAA9A70FF), Color(0x8871E4D2)))
+        ),
+        shadowElevation = 10.dp
+    ) {
+        Column(
+            Modifier.fillMaxSize().padding(vertical = 5.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Box(
-                Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Blue, Violet)), CircleShape),
-                contentAlignment = Alignment.Center
-            ) { Text("📷", fontSize = 21.sp) }
+            Text(icon, color = Color(0xFFB9D8FF), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+            Text(label, color = White, fontSize = 8.sp, fontWeight = FontWeight.Medium)
+        }
+    }
+}
+
+@Composable
+private fun FanMediaButton(
+    onPhoto: () -> Unit,
+    onVideo: () -> Unit,
+    onGallery: () -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val shimmerTransition = rememberInfiniteTransition(label = "floustream-f-logo")
+    val shimmer by shimmerTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 3400, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "f-logo-shimmer"
+    )
+    val logoBrush = Brush.linearGradient(
+        colors = listOf(
+            Color(0xFF63D8FF),
+            Color(0xFF668BFF),
+            Color(0xFFB16BFF),
+            Color(0xFF69E9E0),
+            Color(0xFF63D8FF)
+        ),
+        start = androidx.compose.ui.geometry.Offset(shimmer * 130f, 0f),
+        end = androidx.compose.ui.geometry.Offset(shimmer * 130f + 100f, 100f)
+    )
+
+    Box(Modifier.width(154.dp).height(44.dp)) {
+        AnimatedVisibility(
+            visible = expanded,
+            modifier = Modifier.align(Alignment.BottomStart).offset(x = 0.dp, y = (-56).dp),
+            enter = fadeIn(tween(190)) + scaleIn(initialScale = 0.68f, animationSpec = tween(220)),
+            exit = fadeOut(tween(120)) + scaleOut(targetScale = 0.68f, animationSpec = tween(120))
+        ) {
+            FanActionButton("▧", "Фото") { expanded = false; onPhoto() }
         }
         AnimatedVisibility(
             visible = expanded,
-            modifier = Modifier.align(Alignment.BottomStart).offset(y = (-48).dp),
-            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+            modifier = Modifier.align(Alignment.BottomStart).offset(x = 49.dp, y = (-48).dp),
+            enter = fadeIn(tween(230, delayMillis = 35)) + scaleIn(initialScale = 0.68f, animationSpec = tween(250, delayMillis = 35)),
+            exit = fadeOut(tween(120)) + scaleOut(targetScale = 0.68f, animationSpec = tween(120))
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Surface(
-                    modifier = Modifier.width(132.dp).clickable { expanded = false; onPhoto() },
-                    color = PanelSoft, shape = RoundedCornerShape(14.dp), shadowElevation = 8.dp
-                ) {
-                    Row(Modifier.padding(horizontal = 12.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("📷", color = Color(0xFF9FCBFF), fontSize = 18.sp)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Фото", color = White, fontSize = 13.sp)
-                    }
-                }
-                Surface(
-                    modifier = Modifier.width(132.dp).clickable { expanded = false; onVideo() },
-                    color = PanelSoft, shape = RoundedCornerShape(14.dp), shadowElevation = 8.dp
-                ) {
-                    Row(Modifier.padding(horizontal = 12.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("▣", color = Color(0xFF9FCBFF), fontSize = 18.sp)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Видео", color = White, fontSize = 13.sp)
-                    }
-                }
+            FanActionButton("▶", "Видео") { expanded = false; onVideo() }
+        }
+        AnimatedVisibility(
+            visible = expanded,
+            modifier = Modifier.align(Alignment.BottomStart).offset(x = 98.dp, y = (-18).dp),
+            enter = fadeIn(tween(270, delayMillis = 70)) + scaleIn(initialScale = 0.68f, animationSpec = tween(280, delayMillis = 70)),
+            exit = fadeOut(tween(120)) + scaleOut(targetScale = 0.68f, animationSpec = tween(120))
+        ) {
+            FanActionButton("▤", "Галерея") { expanded = false; onGallery() }
+        }
+
+        Surface(
+            modifier = Modifier.align(Alignment.BottomStart).size(44.dp)
+                .graphicsLayer { rotationZ = if (expanded) -8f else 0f }
+                .clickable { expanded = !expanded },
+            color = Color(0x66131D36),
+            shape = CircleShape,
+            border = androidx.compose.foundation.BorderStroke(
+                1.dp,
+                Brush.linearGradient(listOf(Color(0xFF5BCFFF), Color(0xFF9464FF), Color(0xFF65E4D9)))
+            ),
+            shadowElevation = 8.dp
+        ) {
+            Box(
+                Modifier.fillMaxSize().background(
+                    Brush.radialGradient(listOf(Color(0x335ACBFF), Color.Transparent)),
+                    CircleShape
+                ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "F",
+                    style = androidx.compose.ui.text.TextStyle(brush = logoBrush),
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = (-1.5).sp
+                )
             }
         }
     }
@@ -3324,7 +3469,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             uploadingAttachment = false
         }
     }
-    var showAttachmentMenu by remember { mutableStateOf(false) }
+    var showGallerySourceDialog by remember { mutableStateOf(false) }
     var showVideoRecorder by remember { mutableStateOf(false) }
     var videoCaptureMode by remember { mutableStateOf(VideoCaptureMode.NORMAL_SWITCHABLE) }
     var showPhotoCamera by remember { mutableStateOf(false) }
@@ -3641,9 +3786,11 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
         }
     }
 
-    Column(Modifier.fillMaxSize().background(Night)) {
+    Box(Modifier.fillMaxSize()) {
+        ChatAtmosphereBackground()
+        Column(Modifier.fillMaxSize()) {
         Row(
-            Modifier.fillMaxWidth().background(Panel).padding(horizontal = 8.dp, vertical = 12.dp),
+            Modifier.fillMaxWidth().background(Color(0xAA111A2D)).padding(horizontal = 8.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("‹", Modifier.clickable { onBack() }.padding(horizontal = 10.dp), color = White, fontSize = 32.sp)
@@ -3882,9 +4029,10 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                     Column(horizontalAlignment = if (hasAttachment) Alignment.Start else if (mine) Alignment.End else Alignment.Start) {
                         Surface(
                             color = if (isImageAttachment) Color.Transparent
-                                else if (isVoiceAttachment) PanelSoft
-                                else if (mine) Color(0xFF254D91) else PanelSoft,
+                                else if (isVoiceAttachment) Color(0xD918243B)
+                                else if (mine) Color(0xD9254D91) else Color(0xD918243B),
                             shape = RoundedCornerShape(12.dp),
+                            shadowElevation = if (isImageAttachment) 0.dp else 5.dp,
                             border = if (isVoiceAttachment) androidx.compose.foundation.BorderStroke(
                                 0.5.dp, Color(0x334D8BFF)
                             ) else null,
@@ -4007,7 +4155,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             }
         }
         if (!peer.isDeleted) Column(
-            Modifier.fillMaxWidth().background(Panel)
+            Modifier.fillMaxWidth().background(Color(0xAA111A2D))
         ) {
             replyToMessage?.let { quoted ->
                 Row(
@@ -4025,45 +4173,16 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box {
-                Surface(modifier = Modifier.size(42.dp).clickable { showAttachmentMenu = true }, color = PanelSoft, shape = CircleShape) {
-                    Box(contentAlignment = Alignment.Center) {
-                        if (uploadingAttachment) CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Blue)
-                        else Text("+", color = White, fontSize = 25.sp)
-                    }
-                }
-                DropdownMenu(expanded = showAttachmentMenu, onDismissRequest = { showAttachmentMenu = false }) {
-                    DropdownMenuItem(
-                        text = { Text("Галерея") },
-                        onClick = {
-                            showAttachmentMenu = false
-                            showPhoneMediaPicker = true
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Медиатека FLOUSTREAM") },
-                        onClick = {
-                            showAttachmentMenu = false
-                            scope.launch {
-                                try {
-                                    mediaLibrary = loadPublicMediaLibrary(currentUserId)
-                                    selectedMediaIds = emptySet()
-                                    showMediaLibrary = true
-                                } catch (e: Exception) {
-                                    if (e is kotlinx.coroutines.CancellationException) throw e
-                                    errorText = e.message ?: "Не удалось открыть медиатеку."
-                                }
-                            }
-                        }
-                    )
-                }
-            }
-            PhotoVideoModeButton(
-                onPhoto = { if (uploadingAttachment) errorText = "Дождись завершения текущей отправки." else showPhotoCamera = true },
+            FanMediaButton(
+                onPhoto = {
+                    if (uploadingAttachment) errorText = "Дождись завершения текущей отправки."
+                    else showPhotoCamera = true
+                },
                 onVideo = {
                     if (pendingLocalVideo != null) errorText = "Сначала отправь сохранённое видео или нажми «Повторить» в его сообщении."
                     else { videoCaptureMode = VideoCaptureMode.NORMAL_SWITCHABLE; showVideoRecorder = true }
-                }
+                },
+                onGallery = { showGallerySourceDialog = true }
             )
             OutlinedTextField(
                 value = draft, onValueChange = { draft = it },
@@ -4154,6 +4273,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                 }
             }
         }
+    }
     }
 
     if (showPhotoCamera) {
@@ -4522,6 +4642,45 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             dismissButton = {
                 TextButton(enabled = !deletingMessage, onClick = { pendingDeleteMessage = null }) {
                     Text("Отмена", color = White)
+                }
+            }
+        )
+    }
+
+    if (showGallerySourceDialog) {
+        AlertDialog(
+            onDismissRequest = { showGallerySourceDialog = false },
+            containerColor = Panel,
+            title = { Text("Галерея", color = White) },
+            text = { Text("Выбери, откуда добавить фотографии или видео.", color = Muted) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showGallerySourceDialog = false
+                        showPhoneMediaPicker = true
+                    }
+                ) { Text("Галерея телефона", color = White) }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(
+                        onClick = {
+                            showGallerySourceDialog = false
+                            scope.launch {
+                                try {
+                                    mediaLibrary = loadPublicMediaLibrary(currentUserId)
+                                    selectedMediaIds = emptySet()
+                                    showMediaLibrary = true
+                                } catch (e: Exception) {
+                                    if (e is kotlinx.coroutines.CancellationException) throw e
+                                    errorText = e.message ?: "Не удалось открыть медиатеку."
+                                }
+                            }
+                        }
+                    ) { Text("Альбомы FLOUSTREAM", color = Blue) }
+                    TextButton(onClick = { showGallerySourceDialog = false }) {
+                        Text("Отмена", color = Muted)
+                    }
                 }
             }
         )
