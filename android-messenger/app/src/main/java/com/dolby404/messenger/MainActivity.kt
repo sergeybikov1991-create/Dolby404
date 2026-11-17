@@ -1199,7 +1199,6 @@ private suspend fun loadInboxThreads(
         val pageSize = 500
         while (true) {
             val url = "${BuildConfig.SUPABASE_URL}/rest/v1/direct_messages?select=$columns&$column=eq.$encodedUserId&order=created_at.desc,id.desc&limit=$pageSize&offset=$offset"
-            val connection = URL(url).openConnection() as HttpURLConnection
             val rows = withTransientNetworkRetry {
                 val connection = URL(url).openConnection() as HttpURLConnection
                 try {
