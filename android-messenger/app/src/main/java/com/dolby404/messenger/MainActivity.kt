@@ -2447,14 +2447,33 @@ private fun ChatsScreen(
             var firstSyncAfterResume = true
             do {
                 try {
+                    // Load the newest page first so a slow regional route cannot keep
+                    // the inbox blank while older history is being paged in.
                     val latest = loadInboxThreads(
                         currentUserId,
                         existingThreads = threads.toList(),
-                        fullHistory = firstSyncAfterResume
+                        fullHistory = false
                     )
                     threads.clear()
                     threads.addAll(latest)
+                    hasLoadedInbox = true
+                    loading = false
                     error = ""
+                    if (firstSyncAfterResume) {
+                        try {
+                            val completeHistory = loadInboxThreads(
+                                currentUserId,
+                                existingThreads = threads.toList(),
+                                fullHistory = true
+                            )
+                            threads.clear()
+                            threads.addAll(completeHistory)
+                        } catch (historyError: Exception) {
+                            if (historyError is kotlinx.coroutines.CancellationException) throw historyError
+                            // Keep the already rendered recent inbox; the next foreground
+                            // refresh will reconcile it instead of replacing it with an error.
+                        }
+                    }
                 } catch (e: Exception) {
                     if (e is kotlinx.coroutines.CancellationException) throw e
                     if (!hasLoadedInbox) error = e.message ?: "Не удалось загрузить список чатов."
