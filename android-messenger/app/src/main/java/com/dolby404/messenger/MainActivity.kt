@@ -3,6 +3,7 @@ package com.dolby404.messenger
 import java.util.concurrent.TimeUnit
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.collect
 
 import kotlinx.coroutines.NonCancellable
 
@@ -480,22 +481,44 @@ private suspend fun sendLibraryMedia(context: Context, userId: String, peerId: S
     val safeName = item.name.replace(Regex("[^A-Za-z0-9._-]"), "_").take(100).ifBlank { "attachment" }
     val targetPath = userId + "/" + UUID.randomUUID().toString() + "_" + safeName
     if (item.mime.startsWith("video/")) {
-        val tempFile = File.createTempFile("dolby404_album_video_", ".mp4", context.cacheDir)
+        val draftKey = "album_video_${UUID.randomUUID()}.mp4"
+        val draftsDir = File(context.filesDir, "video-drafts").apply { mkdirs() }
+        val persistentVideo = File(draftsDir, draftKey)
         try {
             connection.connectTimeout = 15000
             connection.readTimeout = 60000
             connection.inputStream.use { input ->
-                tempFile.outputStream().use { output -> input.copyTo(output, 256 * 1024) }
+                persistentVideo.outputStream().buffered().use { output ->
+                    val buffer = ByteArray(256 * 1024)
+                    var total = 0L
+                    while (true) {
+                        val read = input.read(buffer)
+                        if (read < 0) break
+                        total += read
+                        if (total > 50L * 1024L * 1024L) error("Видеоальбом: файл больше 50 МБ.")
+                        output.write(buffer, 0, read)
+                    }
+                }
             }
-            if (tempFile.length() <= 0L) error("Видеоальбом: файл пустой или недоступен.")
-            if (tempFile.length() > 50L * 1024L * 1024L) error("Видеоальбом: файл больше 50 МБ.")
-            val token = floustreamClient.auth.currentSessionOrNull()?.accessToken
-                ?: error("Сессия истекла. Войди в аккаунт ещё раз.")
-            TusVideoUploader.upload(context, "message-media", targetPath, tempFile, token, BuildConfig.SUPABASE_PUBLISHABLE_KEY, item.mime.ifBlank { "video/mp4" })
+            if (persistentVideo.length() <= 0L) error("Видеоальбом: файл пустой или недоступен.")
+            val prefs = context.getSharedPreferences("floustream_video_drafts", Context.MODE_PRIVATE)
+            val saved = prefs.edit()
+                .putString(draftKey, targetPath)
+                .putString("${draftKey}_peer", peerId)
+                .putString("${draftKey}_name", item.name)
+                .putString("${draftKey}_mime", item.mime.ifBlank { "video/mp4" })
+                .putBoolean("${draftKey}_round", false)
+                .commit()
+            if (!saved) error("Не удалось сохранить очередь отправки видеоальбома.")
+            enqueueVideoUploadWorker(context, userId, peerId, persistentVideo, draftKey, targetPath, item.name, item.mime.ifBlank { "video/mp4" })
+            RoundVideoDiagnostics.record(context, "album video copied to persistent draft and queued; bytes=${persistentVideo.length()}")
+        } catch (error: Exception) {
+            persistentVideo.delete()
+            throw error
         } finally {
             connection.disconnect()
-            tempFile.delete()
         }
+        return@withContext
     } else {
         val bytes = try {
             connection.connectTimeout = 15000
@@ -992,26 +1015,45 @@ private suspend fun forwardDirectMessage(context: Context, userId: String, peerI
     val safeName = originalName.replace(Regex("[^A-Za-z0-9._-]"), "_").take(100).ifBlank { "attachment" }
     val targetPath = "$userId/${UUID.randomUUID()}_forwarded_$safeName"
     if (mime.startsWith("video/")) {
-        val tempFile = File.createTempFile("dolby404_forward_video_", ".mp4", context.cacheDir)
+        val draftKey = "forward_video_${UUID.randomUUID()}.mp4"
+        val draftsDir = File(context.filesDir, "video-drafts").apply { mkdirs() }
+        val persistentVideo = File(draftsDir, draftKey)
+        val connection = URL(signedUrl).openConnection() as HttpURLConnection
         try {
-            val connection = URL(signedUrl).openConnection() as HttpURLConnection
-            try {
-                connection.connectTimeout = 15000
-                connection.readTimeout = 60000
-                connection.inputStream.use { input ->
-                    tempFile.outputStream().use { output -> input.copyTo(output, 256 * 1024) }
+            connection.connectTimeout = 15000
+            connection.readTimeout = 60000
+            connection.inputStream.use { input ->
+                persistentVideo.outputStream().buffered().use { output ->
+                    val buffer = ByteArray(256 * 1024)
+                    var total = 0L
+                    while (true) {
+                        val read = input.read(buffer)
+                        if (read < 0) break
+                        total += read
+                        if (total > 50L * 1024L * 1024L) error("Вложение больше 50 МБ — пересылка отменена.")
+                        output.write(buffer, 0, read)
+                    }
                 }
-            } finally {
-                connection.disconnect()
             }
-            if (tempFile.length() <= 0L) error("Пересылаемое видео пустое или недоступно.")
-            if (tempFile.length() > 50L * 1024L * 1024L) error("Вложение больше 50 МБ — пересылка отменена.")
-            val token = floustreamClient.auth.currentSessionOrNull()?.accessToken
-                ?: error("Сессия истекла. Войди в аккаунт ещё раз.")
-            TusVideoUploader.upload(context, "message-media", targetPath, tempFile, token, BuildConfig.SUPABASE_PUBLISHABLE_KEY, mime)
+            if (persistentVideo.length() <= 0L) error("Пересылаемое видео пустое или недоступно.")
+            val prefs = context.getSharedPreferences("floustream_video_drafts", Context.MODE_PRIVATE)
+            val saved = prefs.edit()
+                .putString(draftKey, targetPath)
+                .putString("${draftKey}_peer", peerId)
+                .putString("${draftKey}_name", originalName)
+                .putString("${draftKey}_mime", mime)
+                .putBoolean("${draftKey}_round", false)
+                .commit()
+            if (!saved) error("Не удалось сохранить очередь пересылки видео.")
+            enqueueVideoUploadWorker(context, userId, peerId, persistentVideo, draftKey, targetPath, originalName, mime)
+            RoundVideoDiagnostics.record(context, "forwarded video copied to persistent draft and queued; bytes=${persistentVideo.length()}")
+        } catch (error: Exception) {
+            persistentVideo.delete()
+            throw error
         } finally {
-            tempFile.delete()
+            connection.disconnect()
         }
+        return@withContext
     } else {
         val connection = URL(signedUrl).openConnection() as HttpURLConnection
         val bytes = try {
