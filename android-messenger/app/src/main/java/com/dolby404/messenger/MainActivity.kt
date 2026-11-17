@@ -3609,6 +3609,41 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     }
 
     LaunchedEffect(peer.id, currentUserId) {
+        WorkManager.getInstance(context)
+            .getWorkInfosByTagFlow("floustream-video-peer-${peer.id}")
+            .collect { infos ->
+                val active = infos.any {
+                    it.state == androidx.work.WorkInfo.State.ENQUEUED ||
+                        it.state == androidx.work.WorkInfo.State.RUNNING ||
+                        it.state == androidx.work.WorkInfo.State.BLOCKED
+                }
+                videoUploadInProgress = active
+                val currentDraftPath = pendingLocalVideo?.absolutePath
+                if (!active && !currentDraftPath.isNullOrBlank()) {
+                    val currentSucceeded = infos.any {
+                        it.state == androidx.work.WorkInfo.State.SUCCEEDED &&
+                            it.inputData.getString("file_path") == currentDraftPath
+                    }
+                    val currentFailed = infos.firstOrNull {
+                        it.state == androidx.work.WorkInfo.State.FAILED &&
+                            it.inputData.getString("file_path") == currentDraftPath
+                    }
+                    if (currentSucceeded) {
+                        pendingLocalVideo = null
+                        pendingVideoReady = false
+                        pendingVideoUploadFailed = false
+                        errorText = ""
+                        refresh(silent = true)
+                    } else if (currentFailed != null) {
+                        pendingVideoUploadFailed = true
+                        errorText = currentFailed.outputData.getString("error")
+                            ?: "Не удалось отправить видео. Файл сохранён — можно повторить отправку."
+                    }
+                }
+            }
+    }
+
+    LaunchedEffect(peer.id, currentUserId) {
         if (pendingLocalVideo == null && currentUserId.isNotBlank()) {
             val draftPrefs = context.getSharedPreferences("floustream_video_drafts", Context.MODE_PRIVATE)
             val draftsDir = File(context.filesDir, "video-drafts")
@@ -3647,6 +3682,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
         if (uris.isNotEmpty() && !uploadingAttachment) scope.launch {
             uploadingAttachment = true
             var sentCount = 0
+            var queuedVideoCount = 0
             val failures = mutableListOf<String>()
             try {
                 uris.forEach { uri ->
@@ -3704,7 +3740,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                                     throw error
                                 }
                             }
-                            sentCount++
+                            queuedVideoCount++
                             return@forEach
                         }
                         var bytes = withContext(Dispatchers.IO) {
@@ -3759,7 +3795,11 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
                     }
                 }
                 if (sentCount > 0) refresh()
-                errorText = if (failures.isNotEmpty()) "Обработано $sentCount из ${uris.size}. ${failures.distinct().joinToString("; ")}" else ""
+                errorText = when {
+                    failures.isNotEmpty() -> "Отправлено $sentCount, видео в очереди $queuedVideoCount. ${failures.distinct().joinToString("; ")}"
+                    queuedVideoCount > 0 -> "Видео отправляется в фоне. Можно выйти из чата."
+                    else -> ""
+                }
             } finally {
                 uploadingAttachment = false
             }
