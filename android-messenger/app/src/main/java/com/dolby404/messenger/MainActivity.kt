@@ -1258,10 +1258,11 @@ private suspend fun loadInboxThreads(
 
     return peerIds.mapNotNull { peerId ->
         val existing = existingByPeer[peerId]
-        val profile = existing?.peer ?: (floustreamClient.from("profiles").select {
-            filter { eq("id", peerId) }
-        }.decodeList<ProfileDto>().firstOrNull()
-            ?: ProfileDto(id = peerId, displayName = "Удалённый аккаунт", isDeleted = true))
+        val profile = existing?.peer ?: (withTransientNetworkRetry {
+            floustreamClient.from("profiles").select {
+                filter { eq("id", peerId) }
+            }.decodeList<ProfileDto>().firstOrNull()
+        } ?: ProfileDto(id = peerId, displayName = "Удалённый аккаунт", isDeleted = true))
 
         val conversation = rows.filter {
             (it.senderId == userId && it.recipientId == peerId) ||
@@ -1501,9 +1502,11 @@ private fun MessengerApp(
                         message = "Аккаунт создан! Проверь почту и подтверди email. После подтверждения войди здесь с теми же данными, что и на сайте."
                     }
                 } else {
-                    floustreamClient.auth.signInWith(Email) {
-                        this.email = email.trim()
-                        this.password = password
+                    withTransientNetworkRetry {
+                        floustreamClient.auth.signInWith(Email) {
+                            this.email = email.trim()
+                            this.password = password
+                        }
                     }
                     signedIn = true
                     message = "Авторизация успешна."
