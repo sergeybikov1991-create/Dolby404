@@ -119,6 +119,7 @@ internal object TusVideoUploader {
             .header("Upload-Metadata", metadata)
             .header("Authorization", "Bearer $token")
             .header("apikey", apiKey)
+            .header("x-upsert", "true")
             .post(ByteArray(0).toRequestBody())
             .build()
 
