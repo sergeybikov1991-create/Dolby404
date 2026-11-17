@@ -2165,7 +2165,7 @@ private fun SocialVideoPlayer(url: String) {
             }
         },
         update = { it.player = player },
-        modifier = Modifier.fillMaxWidth().height(240.dp).clip(RoundedCornerShape(12.dp))
+        modifier = Modifier.fillMaxWidth().height(300.dp).clip(RoundedCornerShape(12.dp))
     )
 }
 
@@ -2664,12 +2664,12 @@ private fun MessageAttachment(message: DirectMessageDto) {
             TextButton(onClick = { urlRefreshAttempt++ }) { Text("Повторить", color = Blue) }
         }
         mime.startsWith("video/") && url == null && !loadError -> Box(
-            Modifier.size(if (isRoundVideo) 190.dp else 250.dp, if (isRoundVideo) 190.dp else 150.dp)
+            Modifier.size(if (isRoundVideo) 190.dp else 340.dp, if (isRoundVideo) 190.dp else 210.dp)
                 .clip(if (isRoundVideo) CircleShape else RoundedCornerShape(18.dp)).background(Color.Black),
             contentAlignment = Alignment.Center
         ) { CircularProgressIndicator(color = Blue) }
         mime.startsWith("video/") && loadError -> Box(
-            Modifier.size(if (isRoundVideo) 190.dp else 250.dp, if (isRoundVideo) 190.dp else 150.dp)
+            Modifier.size(if (isRoundVideo) 190.dp else 340.dp, if (isRoundVideo) 190.dp else 210.dp)
                 .clip(if (isRoundVideo) CircleShape else RoundedCornerShape(18.dp)).background(Color.Black),
             contentAlignment = Alignment.Center
         ) {
@@ -2679,11 +2679,11 @@ private fun MessageAttachment(message: DirectMessageDto) {
             }
         }
         mime.startsWith("image/") && url == null && !loadError -> Box(
-            Modifier.fillMaxWidth().height(240.dp),
+            Modifier.fillMaxWidth().height(300.dp),
             contentAlignment = Alignment.Center
         ) { CircularProgressIndicator(color = Blue) }
         mime.startsWith("image/") && (loadError || imageLoadError) -> Row(
-            Modifier.fillMaxWidth().height(240.dp),
+            Modifier.fillMaxWidth().height(300.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
@@ -2695,7 +2695,7 @@ private fun MessageAttachment(message: DirectMessageDto) {
         mime.startsWith("image/") -> AsyncImage(
             model = url,
             contentDescription = message.attachmentName ?: "Изображение",
-            modifier = Modifier.fillMaxWidth().height(240.dp)
+            modifier = Modifier.fillMaxWidth().height(300.dp)
                 .clip(RoundedCornerShape(16.dp)).clickable { showFullScreen = true },
             contentScale = ContentScale.Crop,
             onLoading = { imageLoadError = false },
