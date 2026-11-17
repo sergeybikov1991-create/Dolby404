@@ -5202,15 +5202,14 @@ internal class FloustreamVideoUploadWorker(
             setForeground(createForegroundInfo(notificationId, name, 0))
             val prefs = applicationContext.getSharedPreferences("floustream_video_drafts", Context.MODE_PRIVATE)
             val currentSession = floustreamClient.auth.currentSessionOrNull()
-            val session = if (
+            if (
                 currentSession == null ||
                 currentSession.expiresAt <= Clock.System.now() + 60.seconds
             ) {
                 floustreamClient.auth.refreshCurrentSession()
-            } else {
-                currentSession
             }
-            val accessToken = session.accessToken
+            val accessToken = floustreamClient.auth.currentSessionOrNull()?.accessToken
+                ?: error("Сессия недоступна. Открой FLOUSTREAM и повтори отправку.")
 
             if (!prefs.getBoolean("${draftKey}_uploaded", false)) {
                 withContext(Dispatchers.IO) {
