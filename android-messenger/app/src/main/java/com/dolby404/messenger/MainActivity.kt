@@ -155,7 +155,6 @@ import java.net.URLEncoder
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.abs
-import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Duration.Companion.minutes
 import coil.compose.AsyncImage
@@ -5185,7 +5184,7 @@ internal class FloustreamVideoUploadWorker(
             val currentSession = floustreamClient.auth.currentSessionOrNull()
             if (
                 currentSession == null ||
-                currentSession.expiresAt <= Clock.System.now() + 60.seconds
+                currentSession.expiresAt <= kotlin.time.Instant.fromEpochMilliseconds(System.currentTimeMillis()) + 60.seconds
             ) {
                 floustreamClient.auth.refreshCurrentSession()
             }
