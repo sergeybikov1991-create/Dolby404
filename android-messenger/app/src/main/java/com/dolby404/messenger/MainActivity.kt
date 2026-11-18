@@ -4441,8 +4441,10 @@ private fun RealConversationScreen(
             )
         )
     }
+    val voiceTts = remember(peer.id) { AndroidOfflineRussianTts(context) }
+    val ttsStatus by voiceTts.status.collectAsState()
     val voiceSpeechOutput = remember(peer.id) {
-        AndroidVoiceSpeechOutput(AndroidOfflineRussianTts(context))
+        AndroidVoiceSpeechOutput(voiceTts)
     }
     val voiceController = remember(peer.id) {
         AndroidOnDeviceVoiceController(
@@ -5003,7 +5005,8 @@ private fun RealConversationScreen(
             }
             val voiceHint = voiceState.errorMessage
                 ?: voiceState.responseText.takeIf { it.isNotBlank() }
-                ?: voiceState.recognizedText
+                ?: voiceState.recognizedText.takeIf { it.isNotBlank() }
+                ?: ttsStatus.takeIf { !voiceSpeechOutput.isReady }
             if (voiceHint.isNotBlank()) {
                 Text(
                     voiceHint,
