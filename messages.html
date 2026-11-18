@@ -85,17 +85,17 @@ async function renderMessages(rows){
  host.scrollTop=host.scrollHeight;
  lastMessageId=rows[rows.length-1]?.id||lastMessageId;
 }
-async function loadMessages(silent=false){
+async function loadMessages(silent=false,forceRender=false){
  if(loading){refreshAfterLoad=true;return;}loading=true;
  try{
   const filter="and(sender_id.eq."+viewer.id+",recipient_id.eq."+peerId+"),and(sender_id.eq."+peerId+",recipient_id.eq."+viewer.id+")";
-  const result=await client.from("direct_messages").select("id,sender_id,recipient_id,content,attachment_path,attachment_name,attachment_mime,created_at").or(filter).order("created_at",{ascending:true}).limit(200);
+  const result=await client.from("direct_messages").select("id,sender_id,recipient_id,content,attachment_path,attachment_name,attachment_mime,created_at").or(filter).order("created_at",{ascending:false}).limit(200);
   if(result.error)throw result.error;
-  const rows=result.data||[];
+  const rows=(result.data||[]).reverse();
   const marked=await client.from("direct_messages").update({read_at:new Date().toISOString()}).eq("recipient_id",viewer.id).eq("sender_id",peerId).is("read_at",null);
   if(marked.error)throw marked.error;
   const newest=rows[rows.length-1]?.id||"";
-  if(!silent||newest!==lastMessageId)await renderMessages(rows);
+  if(!silent||forceRender||newest!==lastMessageId)await renderMessages(rows);
  }catch(error){if(!silent)showNotice("Не удалось загрузить сообщения: "+error.message,true);}
  finally{loading=false;if(refreshAfterLoad){refreshAfterLoad=false;loadMessages(true);}}
 }
@@ -116,7 +116,7 @@ function renderInbox(rows,profiles){
  }
 }
 async function loadInbox(){
- if(inboxLoading)return;inboxLoading=true;
+ if(inboxLoading){inboxRefreshAfterLoad=true;return;}inboxLoading=true;
  try{const result=await client.from("direct_messages").select("id,sender_id,recipient_id,content,attachment_name,created_at,read_at").or("sender_id.eq."+viewer.id+",recipient_id.eq."+viewer.id).order("created_at",{ascending:false}).limit(500);
   if(result.error)throw result.error;const rows=result.data||[];const ids=[...new Set(rows.map(row=>row.sender_id===viewer.id?row.recipient_id:row.sender_id).filter(Boolean))];let profiles=[];
   if(ids.length){const people=await client.from("profiles").select("id,username,display_name,avatar_url").in("id",ids);if(people.error)throw people.error;profiles=people.data||[];}renderInbox(rows,profiles);
@@ -131,7 +131,9 @@ function watchDirectMessages(onChange,watchReadState){
   onChange();
  };
  channel.on("postgres_changes",{event:"INSERT",schema:"public",table:"direct_messages",filter:"recipient_id=eq."+viewer.id},receive)
-  .on("postgres_changes",{event:"INSERT",schema:"public",table:"direct_messages",filter:"sender_id=eq."+viewer.id},receive);
+  .on("postgres_changes",{event:"INSERT",schema:"public",table:"direct_messages",filter:"sender_id=eq."+viewer.id},receive)
+  .on("postgres_changes",{event:"UPDATE",schema:"public",table:"direct_messages",filter:"recipient_id=eq."+viewer.id},receive)
+  .on("postgres_changes",{event:"UPDATE",schema:"public",table:"direct_messages",filter:"sender_id=eq."+viewer.id},receive);
  if(watchReadState)channel.on("postgres_changes",{event:"UPDATE",schema:"public",table:"direct_messages",filter:"recipient_id=eq."+viewer.id},receive);
  channel.subscribe(status=>{if(status==="CHANNEL_ERROR"||status==="TIMED_OUT")console.warn("FLOUSTREAM Realtime:",status);});
  return channel;
@@ -154,7 +156,7 @@ async function start(){
   $("back").href=deletedAccount?"messages.html":"public-profile.html?id="+encodeURIComponent(peerId);
   $("composer").hidden=deletedAccount;
   if(deletedAccount)showNotice("Этот аккаунт удалён. История переписки сохранена; отправлять новые сообщения нельзя.");
-  watchDirectMessages(()=>loadMessages(true),false);
+  watchDirectMessages(()=>loadMessages(true,true),false);
   await loadMessages();
   if(!deletedAccount){
    $("composer").addEventListener("submit",async event=>{
