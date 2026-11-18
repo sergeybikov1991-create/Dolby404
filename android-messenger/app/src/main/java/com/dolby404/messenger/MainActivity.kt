@@ -1724,6 +1724,7 @@ private fun MessengerHome(
 ) {
     var tab by remember { mutableStateOf("Чаты") }
     var selectedProfile by remember { mutableStateOf<ProfileDto?>(null) }
+    val voiceAudioCoordinator = remember { VoiceAudioSessionCoordinator() }
     val currentUserId = floustreamClient.auth.currentUserOrNull()?.id.orEmpty()
     var searchOpen by remember { mutableStateOf(false) }
     var search by remember { mutableStateOf("") }
@@ -1811,6 +1812,7 @@ private fun MessengerHome(
                 RealConversationScreen(
                     peer = selectedProfile!!,
                     currentUserId = currentUserId,
+                    audioCoordinator = voiceAudioCoordinator,
                     onBack = { selectedProfile = null }
                 )
             } else {
@@ -3454,7 +3456,12 @@ private fun AudioMessagePlayer(url: String, onRetry: () -> Unit) {
 }
 
 @Composable
-private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBack: () -> Unit) {
+private fun RealConversationScreen(
+    peer: ProfileDto,
+    currentUserId: String,
+    audioCoordinator: VoiceAudioSessionCoordinator,
+    onBack: () -> Unit
+) {
     val context = LocalContext.current
     val messages = remember(peer.id) { mutableStateListOf<DirectMessageDto>() }
     var reactions by remember(peer.id) { mutableStateOf<Map<String, List<DirectMessageReactionDto>>>(emptyMap()) }
@@ -3631,6 +3638,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     var pendingVideoReady by remember { mutableStateOf(false) }
     var videoUploadInProgress by remember { mutableStateOf(false) }
     var voiceRecorder by remember { mutableStateOf<MediaRecorder?>(null) }
+    var voiceMessageAudioLease by remember(peer.id) { mutableStateOf<VoiceAudioSessionCoordinator.Lease?>(null) }
     var voiceFile by remember { mutableStateOf<File?>(null) }
     var recordingVoice by remember { mutableStateOf(false) }
     var pendingDeleteMessage by remember { mutableStateOf<DirectMessageDto?>(null) }
@@ -3668,6 +3676,8 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             voiceFile?.delete()
             voiceFile = null
             recordingVoice = false
+            voiceMessageAudioLease?.close()
+            voiceMessageAudioLease = null
         }
     }
     val microphonePermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -3677,6 +3687,11 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
     fun startVoiceRecording(): Boolean {
         if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
+            return false
+        }
+        val audioLease = audioCoordinator.tryAcquire(VoiceAudioOwner.VOICE_MESSAGE)
+        if (audioLease == null) {
+            errorText = "Микрофон сейчас занят голосовым помощником или звонком."
             return false
         }
         var createdRecorder: MediaRecorder? = null
@@ -3696,6 +3711,7 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             recorder.start()
             voiceFile = file
             voiceRecorder = recorder
+            voiceMessageAudioLease = audioLease
             voiceRecordingStartedAt = System.currentTimeMillis()
             voiceElapsedSeconds = 0
             recordingVoice = true
@@ -3706,6 +3722,8 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
             createdFile?.delete()
             voiceRecorder = null
             voiceFile = null
+            voiceMessageAudioLease = null
+            audioLease.close()
             recordingVoice = false
             voiceRecordingStartedAt = 0L
             voiceElapsedSeconds = 0
@@ -3733,6 +3751,8 @@ private fun RealConversationScreen(peer: ProfileDto, currentUserId: String, onBa
         } finally {
             try { recorder?.reset() } catch (_: Exception) { }
             try { recorder?.release() } catch (_: Exception) { }
+            voiceMessageAudioLease?.close()
+            voiceMessageAudioLease = null
         }
 
         if (!send || file == null) {
