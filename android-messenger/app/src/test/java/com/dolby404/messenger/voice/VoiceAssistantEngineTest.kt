@@ -60,6 +60,45 @@ class VoiceAssistantEngineTest {
         assertTrue(engine.historySnapshot().isEmpty())
     }
 
+
+    @Test fun spokenYesConfirmsPendingSendWithoutCallingDialogueAgain() = runBlocking {
+        val executed = mutableListOf<VoiceAction>()
+        var dialogueCalls = 0
+        val engine = engine(
+            VoiceDialogueEngine { _, _, _ ->
+                dialogueCalls += 1
+                VoiceModelIntent(
+                    "send_message",
+                    mapOf("conversation_ref" to "active", "text" to "Привет")
+                )
+            },
+            executed
+        )
+        val context = VoiceConversationContext().enterConversation("chat-1")
+        val pending = engine.onFinalTranscript("Отправь привет", context)
+        assertTrue(pending is VoiceTurnResult.AwaitingConfirmation)
+
+        val confirmed = engine.onFinalTranscript("Да", context)
+        assertTrue(confirmed is VoiceTurnResult.Executed)
+        assertEquals(1, dialogueCalls)
+        assertEquals(listOf(VoiceAction.SendMessage("chat-1", "Привет")), executed)
+    }
+
+    @Test fun spokenNoCancelsPendingAction() = runBlocking {
+        val executed = mutableListOf<VoiceAction>()
+        val engine = engine(
+            VoiceDialogueEngine { _, _, _ ->
+                VoiceModelIntent("send_message", mapOf("conversation_ref" to "active", "text" to "Привет"))
+            },
+            executed
+        )
+        val context = VoiceConversationContext().enterConversation("chat-1")
+        engine.onFinalTranscript("Отправь привет", context)
+        val cancelled = engine.onFinalTranscript("Нет", context)
+        assertTrue(cancelled is VoiceTurnResult.Cancelled)
+        assertTrue(executed.isEmpty())
+    }
+
     @Test fun emptyTranscriptDoesNotCallDialogue() = runBlocking {
         val executed = mutableListOf<VoiceAction>()
         var called = false
