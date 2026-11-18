@@ -34,7 +34,8 @@ sealed interface VoiceBindingResult {
 
 /**
  * Converts model-facing references ("active", "last", "Анна") into IDs resolved
- * by app-owned state/repositories. Only Bound intents may enter VoiceCommandRouter.
+ * by app-owned state/repositories. Raw ID-shaped fields from the model are
+ * discarded, never forwarded to VoiceCommandRouter.
  */
 class VoiceIntentBinder(private val resolver: VoiceEntityResolver) {
     suspend fun bind(
@@ -42,6 +43,13 @@ class VoiceIntentBinder(private val resolver: VoiceEntityResolver) {
         context: VoiceConversationContext
     ): VoiceBindingResult {
         val args = modelIntent.arguments.toMutableMap()
+
+        // IDs are trusted only after resolution by app-owned repositories/context.
+        args.remove("conversation_id")
+        args.remove("message_id")
+        args.remove("attachment_id")
+        args.remove("contact_id")
+        args.remove("target_conversation_id")
 
         suspend fun bindReference(
             sourceKey: String,
@@ -56,24 +64,23 @@ class VoiceIntentBinder(private val resolver: VoiceEntityResolver) {
             return null
         }
 
-        val conversationRequired = when (modelIntent.name) {
+        val conversationRequired = modelIntent.name in setOf(
             "open_conversation", "mark_read", "mark_unread", "pin_conversation",
             "unpin_conversation", "archive_conversation", "unarchive_conversation",
             "mute_conversation", "unmute_conversation", "send_message",
-            "reply_to_message", "start_voice_recording", "send_attachment" -> true
-            else -> false
-        }
+            "reply_to_message", "start_voice_recording", "send_attachment"
+        )
         if (conversationRequired) {
             bindReference("conversation_ref", "conversation_id", resolver::conversationId)?.let { return it }
         } else if (modelIntent.name == "search_messages" && args.containsKey("conversation_ref")) {
             bindReference("conversation_ref", "conversation_id", resolver::conversationId)?.let { return it }
         }
 
-        val messageRequired = modelIntent.name in setOf(
-            "reply_to_message", "forward_message", "edit_message",
-            "delete_message", "react_to_message", "play_voice_message"
-        )
-        if (messageRequired) {
+        if (modelIntent.name in setOf(
+                "reply_to_message", "forward_message", "edit_message",
+                "delete_message", "react_to_message", "play_voice_message"
+            )
+        ) {
             bindReference("message_ref", "message_id", resolver::messageId)?.let { return it }
         }
 
@@ -81,10 +88,7 @@ class VoiceIntentBinder(private val resolver: VoiceEntityResolver) {
             bindReference("target_conversation_ref", "target_conversation_id", resolver::conversationId)?.let { return it }
         }
 
-        if (modelIntent.name == "open_attachment") {
-            bindReference("attachment_ref", "attachment_id", resolver::attachmentId)?.let { return it }
-        }
-        if (modelIntent.name == "send_attachment") {
+        if (modelIntent.name == "open_attachment" || modelIntent.name == "send_attachment") {
             bindReference("attachment_ref", "attachment_id", resolver::attachmentId)?.let { return it }
         }
 
