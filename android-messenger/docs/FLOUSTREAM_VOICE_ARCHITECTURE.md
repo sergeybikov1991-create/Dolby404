@@ -1,6 +1,6 @@
 # FLOUSTREAM VOICE — architecture and integration contract
 
-Status: architecture foundation in progress; not yet wired to production chat UI or model runtime.
+Status: typed voice pipeline foundation implemented and unit-tested in source; production UI, speech-model runtime and chat action adapter remain unintegrated.
 Branch: `feature/floustream-voice-foundation`
 Baseline: `release/floustream-0.4.28`
 
@@ -17,11 +17,11 @@ The assistant is not a dictation-only feature. It must understand follow-up refe
 1. **Audio session coordinator** — exclusive lease for ASSISTANT, VOICE_MESSAGE, CALL and WAKE_WORD. A microphone consumer must fully stop/release before another obtains the lease.
 2. **Audio capture** — mono PCM16 at 16 kHz in 100 ms frames. Capture starts only from a visible Activity after runtime permission is granted. No hidden background listening.
 3. **STT adapter** — streaming recognizer interface; runtime/model are versioned separately. The AAR is pinned and checksum-verified in CI. Russian model weights are opt-in downloads, not embedded in APK.
-4. **Dialogue/context engine** — keeps a bounded conversation context, current screen, selected conversation/contact/message, pending confirmation and recent search result identifiers. The app, not the LLM, owns authoritative IDs.
-5. **Intent parser** — returns structured intent name + primitive arguments only. It has no direct Android, SQL, Supabase, filesystem or shell access.
-6. **Command router** — allow-list maps intents to typed VoiceAction values and classifies them as safe, confirmation-required or rejected.
-7. **Application action adapter** — the only layer allowed to call existing app/repository/use-case functions. It resolves names to IDs, validates ownership/permissions, and calls the existing chat/media/call APIs. It must not duplicate message persistence or attachment upload logic.
-8. **Response/TTS adapter** — returns concise Russian status and speaks it. Assistant TTS output must not be fed back into STT; apply playback ducking/mute and a short post-TTS cooldown.
+4. **Dialogue/context engine** — `VoiceConversationContext` keeps current screen, active conversation/contact, selected/latest message and selected attachment. Context revisions invalidate stale follow-up references and confirmations. The app, not the LLM, owns authoritative IDs.
+5. **Intent parser** — returns structured intent name + user-facing references (for example `active`, `last`, or a contact name), never database IDs. It has no direct Android, SQL, Supabase, filesystem or shell access.
+6. **Intent binder + command router** — `VoiceIntentBinder` resolves model references through `VoiceEntityResolver`, discards raw model-supplied ID fields, then the allow-list router maps bound intents to typed `VoiceAction` values and classifies them as safe, confirmation-required or rejected.
+7. **Application action adapter** — `VoiceActionExecutor` is the only bridge allowed to call existing app/repository/use-case functions. Its production implementation must validate ownership/permissions and delegate to existing chat/media/call APIs. It must not duplicate message persistence or attachment upload logic.
+8. **Orchestrator + response/TTS adapter** — `VoiceAssistantOrchestrator` coordinates binding, routing, one-shot confirmation and executor dispatch. It returns typed outcomes for UI clarification/confirmation and concise Russian status for TTS. Assistant TTS output must not be fed back into STT; apply playback ducking/mute and a short post-TTS cooldown.
 
 ## Supported intent surface
 
@@ -57,7 +57,7 @@ The assistant is not a dictation-only feature. It must understand follow-up refe
 - Reject unknown intent names, missing IDs and malformed arguments.
 - The model may provide a display-name query; only the app resolver can turn it into an authoritative ID.
 - Never infer the recipient solely from a stale transcript. Context references must be bound to a current conversation/session and expire on navigation or session end.
-- Confirmation is bound to the exact action payload and expires after timeout/navigation; changing any argument requires a new confirmation.
+- `VoiceConfirmationGate` binds confirmation to the exact typed action and context revision; it is one-shot and expires after 30 seconds or navigation. Changing any argument requires a new confirmation.
 - Check current-user ownership and backend authorization again at execution time.
 - Destructive actions and external side effects are never auto-confirmed.
 - Keep audio, transcript and model files in app-private storage; do not upload microphone audio by default.
@@ -89,5 +89,5 @@ The assistant is not a dictation-only feature. It must understand follow-up refe
 
 ## Current implementation boundary
 
-Implemented foundation: state/action contract, allow-list router, PCM capture, exclusive audio lease, Android TTS wrapper, unit-test foundation, CI runtime pinning.
-Not yet implemented: sherpa recognizer adapter, model download manager, LLM runtime, dialogue/context engine, production action adapter, voice UI, wake phrase.
+Implemented foundation: state/action contract, allow-list router, app-owned entity-reference binder, ephemeral conversation context, one-shot confirmation gate, orchestration pipeline, PCM capture, exclusive audio lease, Android TTS wrapper, unit tests, CI runtime pinning.
+Not yet implemented: sherpa recognizer adapter, model download manager, LLM runtime/intent parser, production VoiceEntityResolver and VoiceActionExecutor implementations, voice UI integration, wake phrase.
