@@ -2867,11 +2867,28 @@ private fun SettingsScreen(currentUserId: String, onBack: () -> Unit, onSignOut:
         else onInfo("Без разрешения на микрофон голосовая активация не может работать.")
     }
 
-    fun requestWakeWordStart() {
+    fun requestMicrophonePermissionOrStart() {
         if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
             startWakeWordService()
         } else {
             microphonePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (!granted) onInfo("Уведомление активации может быть скрыто Android. Микрофонный сервис всё равно будет отображаться в системном списке активных приложений.")
+        requestMicrophonePermissionOrStart()
+    }
+
+    fun requestWakeWordStart() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            requestMicrophonePermissionOrStart()
         }
     }
 
