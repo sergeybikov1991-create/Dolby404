@@ -11,6 +11,7 @@ class VoiceAssistantEngine(
 ) {
     private val historyLock = Any()
     private val history = mutableListOf<VoiceDialogueTurn>()
+    private var pendingConfirmationToken: String? = null
 
     init {
         require(maxHistoryTurns > 0)
@@ -25,6 +26,19 @@ class VoiceAssistantEngine(
             return VoiceTurnResult.ClarificationRequired("Я не расслышал команду. Повторите, пожалуйста")
         }
 
+        val pending = synchronized(historyLock) { pendingConfirmationToken }
+        if (pending != null) {
+            if (isConfirmation(clean)) {
+                return rememberAndReturn(clean, confirm(pending, context))
+            }
+            if (isCancellation(clean)) {
+                cancelPendingConfirmation()
+                return rememberAndReturn(clean, VoiceTurnResult.Cancelled("Хорошо, отменил действие"))
+            }
+            // A new command replaces the old unconfirmed action; it is never executed.
+            cancelPendingConfirmation()
+        }
+
         val snapshot = synchronized(historyLock) { history.toList() }
         val intent = dialogue.interpret(clean, context, snapshot)
             ?: return rememberAndReturn(
@@ -32,23 +46,49 @@ class VoiceAssistantEngine(
                 VoiceTurnResult.ClarificationRequired("Уточните, пожалуйста, что нужно сделать")
             )
 
-        return rememberAndReturn(clean, orchestrator.handle(intent, context))
+        val result = orchestrator.handle(intent, context)
+        if (result is VoiceTurnResult.AwaitingConfirmation) {
+            synchronized(historyLock) { pendingConfirmationToken = result.token }
+        }
+        return rememberAndReturn(clean, result)
     }
 
-    suspend fun confirm(
-        token: String,
-        context: VoiceConversationContext
-    ): VoiceTurnResult = orchestrator.confirm(token, context)
+    suspend fun confirm(token: String, context: VoiceConversationContext): VoiceTurnResult {
+        synchronized(historyLock) {
+            if (pendingConfirmationToken != token) {
+                return VoiceTurnResult.Rejected("Подтверждение уже недействительно")
+            }
+            pendingConfirmationToken = null
+        }
+        return orchestrator.confirm(token, context)
+    }
 
-    fun cancelPendingConfirmation() = orchestrator.cancelPendingConfirmation()
+    fun cancelPendingConfirmation() {
+        synchronized(historyLock) { pendingConfirmationToken = null }
+        orchestrator.cancelPendingConfirmation()
+    }
 
     fun clearConversationMemory() {
-        synchronized(historyLock) { history.clear() }
+        synchronized(historyLock) {
+            history.clear()
+            pendingConfirmationToken = null
+        }
         orchestrator.cancelPendingConfirmation()
     }
 
     fun historySnapshot(): List<VoiceDialogueTurn> =
         synchronized(historyLock) { history.toList() }
+
+    private fun isConfirmation(text: String): Boolean =
+        text.lowercase().replace(Regex("[.!?,]+"), "").trim() in setOf(
+            "да", "да подтверждаю", "подтверждаю", "подтвердить",
+            "отправляй", "начинай", "принимаю"
+        )
+
+    private fun isCancellation(text: String): Boolean =
+        text.lowercase().replace(Regex("[.!?,]+"), "").trim() in setOf(
+            "нет", "отмена", "отмени", "не надо", "не подтверждаю"
+        )
 
     private fun rememberAndReturn(
         transcript: String,
@@ -63,6 +103,7 @@ class VoiceAssistantEngine(
             is VoiceTurnResult.AwaitingConfirmation -> result.prompt
             is VoiceTurnResult.ClarificationRequired -> result.question
             is VoiceTurnResult.Rejected -> result.reason
+            is VoiceTurnResult.Cancelled -> result.spokenMessage
         }
         synchronized(historyLock) {
             history += VoiceDialogueTurn(VoiceDialogueRole.USER, transcript)
