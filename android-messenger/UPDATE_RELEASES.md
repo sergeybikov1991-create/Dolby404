@@ -16,3 +16,11 @@ Required GitHub Actions secrets:
 - `DOLBY404_KEY_PASSWORD`
 
 Never commit the keystore, Base64 key, or passwords to this repository. The workflow removes the temporary keystore from its runner after the job.
+
+
+## Candidate v0.4.30
+
+- Android versionName: `0.4.30`; versionCode: `38`.
+- Keeps Android on-device speech recognition, Russian system speech-pack support, Android TTS, allow-listed commands and confirmation gates.
+- Removes the unused Sherpa native runtime from the app package; the active voice path uses Android `SpeechRecognizer`.
+- Keeps the approved chat/media features and microphone ownership coordination unchanged.
