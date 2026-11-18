@@ -1998,10 +1998,12 @@ private fun MessengerHome(
     }
 
     var conversationWasOpen by remember { mutableStateOf(false) }
-    LaunchedEffect(selectedProfile, wakeWordPending) {
+    LaunchedEffect(selectedProfile, wakeWordPending, homeVoiceState.phase) {
         if (selectedProfile != null) {
             conversationWasOpen = true
-        } else if (conversationWasOpen && !wakeWordPending) {
+        } else if (conversationWasOpen && !wakeWordPending &&
+            (homeVoiceState.phase == VoicePhase.IDLE || homeVoiceState.phase == VoicePhase.ERROR)
+        ) {
             conversationWasOpen = false
             delay(500)
             val microphoneIdle = withTimeoutOrNull(5000) {
