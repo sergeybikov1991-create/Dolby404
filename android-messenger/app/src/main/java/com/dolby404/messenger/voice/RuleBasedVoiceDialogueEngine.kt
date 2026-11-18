@@ -41,6 +41,8 @@ class RuleBasedVoiceDialogueEngine : VoiceDialogueEngine {
                 return intent("open_chats")
             "открой контакты", "перейди в контакты", "покажи контакты" ->
                 return intent("open_contacts")
+            "открой настройки", "перейди в настройки", "покажи настройки" ->
+                return intent("open_settings")
             "открой медиа", "покажи медиа", "открой галерею", "покажи галерею" ->
                 return intent("show_media")
             "покажи непрочитанные", "покажи непрочитанные чаты", "открой непрочитанные" ->
