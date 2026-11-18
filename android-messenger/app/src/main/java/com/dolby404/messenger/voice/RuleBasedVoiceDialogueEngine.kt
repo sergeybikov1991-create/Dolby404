@@ -54,10 +54,10 @@ class RuleBasedVoiceDialogueEngine : VoiceDialogueEngine {
         match(text, "^(?:найди|поищи) сообщение (.+)$")?.let {
             return intent("search_messages", "query" to it)
         }
-        match(text, "^(?:найди|покажи) (?:мои )?фото$")?.let {
+        if (text in setOf("найди фото", "покажи фото", "найди мои фото", "покажи мои фото")) {
             return intent("search_attachments", "media_kind" to "photo")
         }
-        match(text, "^(?:найди|покажи) (?:мои )?видео$")?.let {
+        if (text in setOf("найди видео", "покажи видео", "найди мои видео", "покажи мои видео")) {
             return intent("search_attachments", "media_kind" to "video")
         }
         match(text, "^(?:позвони|начни аудиозвонок|позвони по аудио) (?:контакту )?(.+)$")?.let {
@@ -66,7 +66,7 @@ class RuleBasedVoiceDialogueEngine : VoiceDialogueEngine {
         match(text, "^(?:начни видеозвонок|позвони по видео|видеозвонок) (?:контакту )?(.+)$")?.let {
             return intent("start_video_call", "contact_ref" to it)
         }
-        match(text, "^(?:ответь|ответь на последнее сообщение) (.+)$")?.let {
+        match(text, "^(?:ответь на последнее сообщение|ответь) (.+)$")?.let {
             return intent("reply_to_message", "message_ref" to "last", "text" to it)
         }
 
