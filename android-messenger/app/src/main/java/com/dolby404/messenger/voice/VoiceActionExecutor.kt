@@ -78,13 +78,15 @@ class VoiceIntentBinder(private val resolver: VoiceEntityResolver) {
                 context.activeConversationId != null
             ) args["conversation_ref"] = "active"
             bindReference("conversation_ref", "conversation_id", resolver::conversationId)?.let { return it }
-        } else if (modelIntent.name == "search_messages" && args.containsKey("conversation_ref")) {
+        } else if (modelIntent.name in setOf("search_messages", "search_attachments") &&
+            args.containsKey("conversation_ref")
+        ) {
             bindReference("conversation_ref", "conversation_id", resolver::conversationId)?.let { return it }
         }
 
         if (modelIntent.name in setOf(
                 "reply_to_message", "forward_message", "edit_message",
-                "delete_message", "react_to_message", "play_voice_message"
+                "delete_message", "react_to_message", "read_message", "play_voice_message"
             )
         ) {
             if (!args.containsKey("message_ref")) {
