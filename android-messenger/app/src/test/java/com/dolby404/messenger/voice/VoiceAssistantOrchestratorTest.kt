@@ -32,7 +32,7 @@ class VoiceAssistantOrchestratorTest {
             VoiceIntentBinder(resolver),
             VoiceActionExecutor { action -> executed += action; VoiceExecutionResult.Success("unexpected") }
         )
-        val result = orchestrator.handle(VoiceModelIntent("send_message"), VoiceConversationContext())
+        val result = orchestrator.handle(VoiceModelIntent("run_shell_command"), VoiceConversationContext())
         assertTrue(result is VoiceTurnResult.Rejected)
         assertTrue(executed.isEmpty())
     }
