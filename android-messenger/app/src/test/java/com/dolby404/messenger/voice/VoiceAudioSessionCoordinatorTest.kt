@@ -40,6 +40,19 @@ class VoiceAudioSessionCoordinatorTest {
         assertTrue(coordinator.tryAcquire(VoiceAudioOwner.ASSISTANT) != null)
     }
 
+
+    @Test
+    fun videoMessageRecordingExcludesAssistantAndVoiceMessageCapture() {
+        val coordinator = VoiceAudioSessionCoordinator()
+        val video = coordinator.tryAcquire(VoiceAudioOwner.VIDEO_MESSAGE)
+        assertNotNull(video)
+        assertEquals(VoiceAudioOwner.VIDEO_MESSAGE, coordinator.currentOwner.value)
+        assertNull(coordinator.tryAcquire(VoiceAudioOwner.ASSISTANT))
+        assertNull(coordinator.tryAcquire(VoiceAudioOwner.VOICE_MESSAGE))
+        video!!.close()
+        assertNotNull(coordinator.tryAcquire(VoiceAudioOwner.ASSISTANT))
+    }
+
     @Test
     fun ownerIsClearedOnlyWhenCurrentLeaseIsClosed() {
         val coordinator = VoiceAudioSessionCoordinator()
