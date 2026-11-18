@@ -3739,7 +3739,7 @@ private fun RealConversationScreen(
         }
     }
     val microphonePermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        errorText = if (granted) "Микрофон разрешён. Удержи кнопку отправки ещё раз для записи." else "Для голосовых сообщений нужно разрешить доступ к микрофону."
+        errorText = if (granted) "Микрофон разрешён. Нажми 🎙 для помощника или удержи отправку для голосового сообщения." else "Для голосового управления и голосовых сообщений нужно разрешить доступ к микрофону."
     }
 
     fun startVoiceRecording(): Boolean {
@@ -4915,6 +4915,30 @@ private fun RealConversationScreen(
                 })
             )
             Surface(
+                modifier = Modifier.size(40.dp).clickable(
+                    enabled = !recordingVoice && !uploadingAttachment &&
+                        voiceState.phase !in setOf(VoicePhase.TRANSCRIBING, VoicePhase.THINKING, VoicePhase.SPEAKING)
+                ) {
+                    if (voiceState.phase == VoicePhase.LISTENING) {
+                        voiceController.stopListening()
+                    } else if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                        microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
+                    } else {
+                        voiceController.startListening()
+                    }
+                },
+                color = if (voiceState.phase == VoicePhase.LISTENING) Violet else PanelSoft,
+                shape = CircleShape
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        if (voiceState.phase == VoicePhase.LISTENING) "■" else "🎙",
+                        color = White,
+                        fontSize = 17.sp
+                    )
+                }
+            }
+            Surface(
                 modifier = Modifier.size(44.dp).pointerInput(draft, sending, uploadingAttachment) {
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
@@ -4976,6 +5000,19 @@ private fun RealConversationScreen(
                         else -> Text("➤", color = White, fontSize = 20.sp)
                     }
                 }
+            }
+            val voiceHint = voiceState.errorMessage
+                ?: voiceState.responseText.takeIf { it.isNotBlank() }
+                ?: voiceState.recognizedText
+            if (voiceHint.isNotBlank()) {
+                Text(
+                    voiceHint,
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
+                    color = if (voiceState.errorMessage != null) Color(0xFFFFB4B4) else Muted,
+                    fontSize = 10.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }
