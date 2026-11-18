@@ -10,6 +10,7 @@ class RuleBasedVoiceDialogueEngineTest {
     @Test fun opensCommonSectionsWithoutModel() {
         assertEquals("open_chats", parser.parse("Открой чаты")?.name)
         assertEquals("open_contacts", parser.parse("Покажи контакты")?.name)
+        assertEquals("open_settings", parser.parse("Открой настройки")?.name)
         assertEquals("show_media", parser.parse("Открой галерею")?.name)
         assertEquals("show_unread", parser.parse("Покажи непрочитанные чаты")?.name)
     }
