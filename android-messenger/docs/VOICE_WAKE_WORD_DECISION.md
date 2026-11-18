@@ -19,13 +19,16 @@ The model card does not explicitly guarantee recognition of the FLOUSTREAM brand
 
 ## Android lifecycle and microphone rules
 
-- Ask for RECORD_AUDIO while the app is visible.
-- Start a microphone foreground service only from a visible FLOUSTREAM activity.
-- Declare FOREGROUND_SERVICE and FOREGROUND_SERVICE_MICROPHONE, and declare the service with foregroundServiceType="microphone".
-- Promote the service to foreground immediately with a persistent, truthful notification.
-- Do not attempt to start this microphone service from BOOT_COMPLETED on Android 14+.
+A normal microphone foreground service is suitable only for an explicitly enabled, user-visible listening mode. It must be started while FLOUSTREAM is visible, after RECORD_AUDIO is granted, and it must show a persistent notification. It does not grant permission to launch MainActivity from the background, and it cannot be silently restarted from BOOT_COMPLETED on current Android versions.
+
+The user's core requirement is stronger: say “Флоу” while FLOUSTREAM is not open, then have the assistant open FLOUSTREAM and navigate to a chat. Android restricts background activity launches. The system-supported path to investigate for that behavior is an optional VoiceInteractionService selected by the user as the device's default digital assistant. Android keeps the selected VoiceInteractionService running for hotwording. Before implementation, verify OnePlus/OxygenOS support, the assistant-role selection flow, microphone access rules for that service, and whether a software Vosk detector can legally/reliably run in that lifecycle. Do not claim a regular foreground service can open the app from background.
+
+- Ask for RECORD_AUDIO through a visible app flow and explain that microphone listening is active.
+- If offering a non-default-assistant fallback, start a microphone foreground service only from a visible FLOUSTREAM activity and show a persistent notification.
+- Do not attempt to start a microphone foreground service from BOOT_COMPLETED on Android 14+.
 - Keep wake-word capture mutually exclusive with assistant command capture, voice/video recording, and calls through VoiceAudioSessionCoordinator.
-- When the wake phrase is detected, stop/release the wake-word recognizer and microphone before starting the command-recognition session; reacquire wake-word listening only after the command session ends.
+- When the wake phrase is detected, stop/release the wake-word recognizer and microphone before starting command recognition; reacquire wake-word listening only after the command session ends.
+- A VoiceInteractionService should remain lightweight; create the heavy command/session work only after invocation.
 
 ## Release gates
 
