@@ -128,7 +128,22 @@ async function start(){
   const auth=await client.auth.getUser();if(auth.error)throw auth.error;viewer=auth.data.user;
   if(!viewer){location.replace("portal.html");return;}
   peerId=new URLSearchParams(location.search).get("with");
-  if(!peerId){$("peer-name").textContent="Сообщения";$("peer-handle").textContent="Все диалоги";$("peer-avatar").textContent="✉";$("composer").hidden=true;await loadInbox();client.channel("floustream-inbox-"+viewer.id).on("postgres_changes",{event:"INSERT",schema:"public",table:"direct_messages"},()=>loadInbox()).on("postgres_changes",{event:"UPDATE",schema:"public",table:"direct_messages",filter:"recipient_id=eq."+viewer.id},()=>loadInbox()).subscribe();setInterval(()=>{if(!document.hidden)loadInbox();},5000);return;}
+  if(!peerId){$("peer-name").textContent="Сообщения";$("peer-handle").textContent="Все диалоги";$("peer-avatar").textContent="✉";$("composer").hidden=true;await loadInbox();
+   const inboxChannel=client.channel("floustream-inbox-"+viewer.id)
+    .on("postgres_changes",{event:"INSERT",schema:"public",table:"direct_messages"},payload=>{
+     const row=payload.new||{};
+     if(row.sender_id===viewer.id||row.recipient_id===viewer.id)loadInbox();
+    })
+    .on("postgres_changes",{event:"UPDATE",schema:"public",table:"direct_messages"},payload=>{
+     const row=payload.new||{};
+     if(row.sender_id===viewer.id||row.recipient_id===viewer.id)loadInbox();
+    })
+    .subscribe(status=>{
+     if(status==="SUBSCRIBED"){showNotice("");loadInbox();}
+     else if(status==="CHANNEL_ERROR"||status==="TIMED_OUT")showNotice("Восстанавливаем связь со списком диалогов…",true);
+    });
+   window.addEventListener("pagehide",()=>client.removeChannel(inboxChannel),{once:true});
+   return;}
   if(peerId===viewer.id){showNotice("Открой профиль другого пользователя, чтобы начать переписку.",true);$("composer").hidden=true;return;}
   const profile=await client.from("profiles").select("id,username,display_name,avatar_url").eq("id",peerId).maybeSingle();
   if(profile.error)throw profile.error;
@@ -169,7 +184,20 @@ async function start(){
     }finally{button.disabled=false;event.target.value="";}
    });
   }
-  setInterval(()=>{if(!document.hidden)loadMessages(true);},5000);
+  const chatChannel=client.channel("floustream-chat-"+[viewer.id,peerId].sort().join("-"))
+   .on("postgres_changes",{event:"INSERT",schema:"public",table:"direct_messages"},payload=>{
+    const row=payload.new||{};
+    if((row.sender_id===viewer.id&&row.recipient_id===peerId)||(row.sender_id===peerId&&row.recipient_id===viewer.id))loadMessages(true);
+   })
+   .on("postgres_changes",{event:"UPDATE",schema:"public",table:"direct_messages"},payload=>{
+    const row=payload.new||{};
+    if((row.sender_id===viewer.id&&row.recipient_id===peerId)||(row.sender_id===peerId&&row.recipient_id===viewer.id))loadMessages(true);
+   })
+   .subscribe(status=>{
+    if(status==="SUBSCRIBED"){showNotice("");loadMessages(true);}
+    else if(status==="CHANNEL_ERROR"||status==="TIMED_OUT")showNotice("Восстанавливаем соединение…",true);
+   });
+  window.addEventListener("pagehide",()=>client.removeChannel(chatChannel),{once:true});
  }catch(error){$("peer-name").textContent="Не удалось открыть переписку";showNotice(error.message,true);$("messages").replaceChildren();}
 }
 start();
