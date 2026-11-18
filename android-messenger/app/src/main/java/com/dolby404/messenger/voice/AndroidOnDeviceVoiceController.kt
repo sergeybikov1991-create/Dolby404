@@ -86,6 +86,7 @@ class AndroidOnDeviceVoiceController(
                         override fun onSupportResult(support: android.speech.RecognitionSupport) {
                             val supported = support.supportedOnDeviceLanguages.any(::isRussianTag)
                             val installed = support.installedOnDeviceLanguages.any(::isRussianTag)
+                            var downloadListenerOwnsProbe = false
                             when {
                                 installed -> finishModelCheck(true, null)
                                 supported -> {
@@ -93,17 +94,76 @@ class AndroidOnDeviceVoiceController(
                                         if (modelDownloadRequested) false else { modelDownloadRequested = true; true }
                                     }
                                     if (shouldRequest) {
-                                        try {
-                                            probe.triggerModelDownload(createRussianIntent())
-                                            finishModelCheck(false, "Русский офлайн-пакет ещё не установлен. Запрошена загрузка; проверь позже.")
-                                        } catch (error: Exception) {
-                                            finishModelCheck(false, "Не удалось запросить загрузку русского офлайн-пакета")
+                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                                            downloadListenerOwnsProbe = true
+                                            try {
+                                                probe.triggerModelDownload(
+                                                    createRussianIntent(),
+                                                    mainExecutor,
+                                                    object : android.speech.ModelDownloadListener {
+                                                        override fun onProgress(completedPercent: Int) {
+                                                            _state.value = _state.value.copy(
+                                                                errorMessage = "Загрузка русского офлайн-пакета: $completedPercent%"
+                                                            )
+                                                        }
+
+                                                        override fun onScheduled() {
+                                                            finishModelCheck(
+                                                                false,
+                                                                "Загрузка русского офлайн-пакета запланирована системой. Проверим готовность позже."
+                                                            )
+                                                            runCatching { probe.destroy() }
+                                                        }
+
+                                                        override fun onSuccess() {
+                                                            synchronized(lock) { modelDownloadRequested = false }
+                                                            finishModelCheck(true, null)
+                                                            runCatching { probe.destroy() }
+                                                        }
+
+                                                        override fun onError(error: Int) {
+                                                            synchronized(lock) { modelDownloadRequested = false }
+                                                            finishModelCheck(
+                                                                false,
+                                                                "Не удалось загрузить русский офлайн-пакет (код $error)"
+                                                            )
+                                                            runCatching { probe.destroy() }
+                                                        }
+                                                    }
+                                                )
+                                            } catch (error: Exception) {
+                                                downloadListenerOwnsProbe = false
+                                                synchronized(lock) { modelDownloadRequested = false }
+                                                finishModelCheck(
+                                                    false,
+                                                    "Не удалось запросить загрузку русского офлайн-пакета"
+                                                )
+                                            }
+                                        } else {
+                                            try {
+                                                probe.triggerModelDownload(createRussianIntent())
+                                                finishModelCheck(
+                                                    false,
+                                                    "Запрошена загрузка русского офлайн-пакета. После загрузки нажми микрофон ещё раз."
+                                                )
+                                            } catch (error: Exception) {
+                                                synchronized(lock) { modelDownloadRequested = false }
+                                                finishModelCheck(
+                                                    false,
+                                                    "Не удалось запросить загрузку русского офлайн-пакета"
+                                                )
+                                            }
                                         }
-                                    } else finishModelCheck(false, "Загрузка русского офлайн-пакета запрошена. Проверь позже.")
+                                    } else {
+                                        finishModelCheck(
+                                            false,
+                                            "Загрузка русского офлайн-пакета уже запрошена. Проверь позже."
+                                        )
+                                    }
                                 }
                                 else -> finishModelCheck(false, "Системный офлайн-распознаватель не предлагает русский язык")
                             }
-                            runCatching { probe.destroy() }
+                            if (!downloadListenerOwnsProbe) runCatching { probe.destroy() }
                         }
                         override fun onError(error: Int) {
                             finishModelCheck(false, "Не удалось проверить русский офлайн-пакет (код $error)")
@@ -122,7 +182,11 @@ class AndroidOnDeviceVoiceController(
 
     private fun finishModelCheck(ready: Boolean, message: String?) {
         synchronized(lock) { modelCheckInProgress = false }
-        _state.value = _state.value.copy(isModelReady = ready, errorMessage = message)
+        _state.value = _state.value.copy(
+            phase = if (ready && _state.value.phase == VoicePhase.ERROR) VoicePhase.IDLE else _state.value.phase,
+            isModelReady = ready,
+            errorMessage = message
+        )
     }
 
     fun startListening(): Boolean {
@@ -209,6 +273,7 @@ class AndroidOnDeviceVoiceController(
         assistant.cancelPendingConfirmation()
         speechOutput.stop()
         _state.value = VoiceAssistantState(
+            errorMessage = _state.value.errorMessage,
             isModelReady = _state.value.isModelReady
         )
     }
