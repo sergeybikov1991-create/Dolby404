@@ -53,7 +53,8 @@ The existing T-one CTC model is about 138 MB and expects 8 kHz. It is not the de
 - Capture a photo/video or pick an attachment.
 - Start/stop a voice-message recording.
 - Reply to the latest message.
-- Start audio/video calls by contact name (confirmation required).
+- Prepare a message draft to a contact, or send a dictated message only after spoken confirmation.
+- Start audio/video calls by contact name (confirmation required; call execution is not yet connected).
 
 This is intentionally a limited first command vocabulary. Extend it only with tests for each new phrase and action.
 
@@ -75,7 +76,7 @@ This is intentionally a limited first command vocabulary. Extend it only with te
 - An Android system on-device SpeechRecognizer controller has been added; it uses the system Russian language pack, holds the exclusive microphone lease, and releases the microphone before TTS.
 - MainActivity now wires AndroidOnDeviceVoiceController into the conversation composer with a microphone button.
 - The initial production resolver searches FLOUSTREAM profile display names/usernames and resolves message references only from app-owned conversation state.
-- The initial action executor delegates to existing navigation, message sending, message search, media picker, camera, and video recorder flows. Message sends/replies and calls remain confirmation-gated by the router; calls are not yet implemented by the app executor.
+- The initial action executor delegates to existing navigation, contact lookup, confirmed message sending/replies, message search, media picker, camera, and video recorder flows. Message sends/replies and calls remain confirmation-gated by the router; call execution is not yet implemented by the app executor.
 - Push-to-talk is foreground-only. Listening is cancelled when the conversation pauses; no background microphone or wake phrase is enabled.
 - The Android system service and Russian language-pack availability have not yet been checked on the OnePlus 10T.
 - CI run #452 succeeded for commit `8975687a9247fbdf8fa3f2783cfbc76118811ea1`, before the rule-based parser commits. The parser commits have not yet had a confirmed CI run; do not describe them as tested or release-ready.
