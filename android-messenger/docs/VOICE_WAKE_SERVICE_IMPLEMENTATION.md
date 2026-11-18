@@ -1,37 +1,44 @@
-# FLOUSTREAM wake-word service implementation contract
+# FLOUSTREAM wake-word implementation status
 
-Status: design gate for the next implementation step. This document does not claim that background wake-word capture is implemented.
+Base: `release/floustream-0.4.30`
+Development branch: `feature/floustream-voice-activation-0430`
 
-## Verified starting point
+## Implemented in this branch
 
-- The 0.4.30 baseline targets Android 36 and has `RECORD_AUDIO`, but its manifest does not declare `FOREGROUND_SERVICE_MICROPHONE` or a microphone foreground service.
-- The current `AndroidOnDeviceVoiceController` uses Android `SpeechRecognizer`, rejects starts while the activity is not foreground, and releases listening on activity pause. It is an in-app command recognizer, not a wake-word listener.
-- `VoiceAudioSessionCoordinator` is an in-process lease guard. It does not capture audio.
-- The other experimental branch contains a Vosk detector and declares Vosk/JNA dependencies, but the detector requires a model directory already extracted into app-private storage. That branch does not provide a verified end-to-end model installer + foreground microphone service + activity handoff. It must not be merged wholesale.
-- The current development branch only has an exact phrase matcher and unit tests. No microphone capture or background service is present yet.
+- Strict transcript matcher for exact `флоу` and `flow` wake phrases, with unit tests.
+- Vosk wake-phrase decoder. It accepts only finalized phrases and requires mono PCM16 at 16 kHz.
+- Foreground microphone service registered as a non-exported Android microphone service.
+- The service acquires the process-wide `WAKE_WORD` lease, captures audio through `AudioRecord`, and releases the recorder and lease after detection or failure.
+- The shared microphone coordinator is now used by the app UI and service.
+- A settings card can download and install the small Russian Vosk model, verify its exact archive size and SHA-256, safely extract it into app-private storage, and let the user enable or disable the foreground listener.
+- After detecting the wake phrase, the service releases the microphone, emits a package-scoped broadcast, and leaves an actionable notification rather than trying to launch an Activity from the background.
 
-## Required architecture
+## Model source and integrity
 
-1. User explicitly enables hands-free mode while FLOUSTREAM is visible and grants microphone permission. Explain the persistent microphone notification and battery cost.
-2. Download the selected Russian wake-word model over HTTPS into app-private temporary storage. Verify a pinned SHA-256 before extraction; reject path traversal, unexpected archive entries, truncated files and insufficient storage. Extract atomically and mark ready only after validation.
-3. Start a dedicated, non-exported `WakeWordForegroundService` from the visible activity. It must call `startForeground` immediately with a truthful persistent notification and use `foregroundServiceType="microphone"`.
-4. Declare `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MICROPHONE`, and `RECORD_AUDIO`. Request runtime microphone permission before service start. Handle Android 14+ while-in-use restrictions and Android 15 target-SDK restrictions; do not attempt to silently start microphone capture from background or boot.
-5. The service owns one PCM16 mono 16 kHz `AudioRecord` pipeline and a `WAKE_WORD` lease for its entire capture lifetime. The detector receives frames only while that lease is held.
-6. On exact wake phrase, stop and release the wake-word capture before handing off. Do not run Vosk and `SpeechRecognizer` concurrently. Transfer to the existing assistant only through an explicit coordinator handoff after verifying the app's activation path is allowed.
-7. If Android blocks opening the activity from the background/lock screen, announce the limitation and show a notification action or use an explicitly selected system-assistant role. Never promise silent lock-screen launch until device-tested.
-8. Stop wake listening before voice messages, video messages and calls; restart only after the other owner releases the microphone. A failed handoff must release all resources and leave a recoverable notification state.
+- Model: `vosk-model-small-ru-0.22`, approximately 45 MB, Apache-2.0.
+- Official archive URL: `https://alphacephei.com/vosk/models/vosk-model-small-ru-0.22.zip`
+- Expected archive size: `46,236,750` bytes.
+- Pinned SHA-256: `961d5ff98a17f4aa6de69864d0aa71fa5bac682301d2b5d17a3f24c5c99a46d4`.
+- The model is not bundled into the APK. It is downloaded only after the user chooses installation.
+- Extraction is constrained to the expected ZIP root and rejects path traversal, unexpected archive structure, truncated downloads, hash mismatch and excessive expanded size.
 
-## Acceptance tests before any release
+## Important limitations not yet closed
 
-- Enable/disable and permission denial/revocation.
-- Model download interruption, checksum mismatch, low storage and corrupt archive.
-- Exact Russian and English wake phrase; false-positive phrases; background noise.
-- Screen on, app backgrounded, screen locked, Doze, battery saver, process recreation.
-- OnePlus 10T / Android 15: start restrictions, persistent notification, thermal and battery behavior.
-- Mutual exclusion with assistant command recognition, voice message, video message and call capture.
-- Stop service, force-stop, reboot and app update behavior.
-- Existing chat cache, attachment fan, voice messages and gallery media regression suite.
+1. The wake event is not yet wired into a global assistant controller. The existing assistant controller is scoped to an open conversation. If the app is backgrounded, Android notification interaction is the safe route back into the app; seamless automatic command listening after wake still needs the top-level assistant handoff.
+2. The service must be started by the user from a visible Activity after microphone permission is granted. Android 14+ microphone foreground-service restrictions prohibit assuming that a third-party app can silently start microphone capture from the background or at boot.
+3. The notification permission flow and behavior on denied notification permission still need UX validation.
+4. Model download and extraction have not yet been exercised on a real phone or across restrictive networks.
+5. No CI build, unit-test run, APK, or OnePlus 10T runtime test has been verified for this branch.
+
+## Next implementation order
+
+1. Run the Android CI build and unit tests; fix all compiler, lint and dependency issues.
+2. Add the top-level voice assistant controller so the wake event can open chats and operate app-wide commands, not only commands inside an already open conversation.
+3. Wire the service broadcast and notification intent to that controller with a safe foreground handoff.
+4. Validate model installation, service start/stop, false positives, microphone arbitration and notification behavior on OnePlus 10T / Android 15.
+5. Test background, screen-off, lock-screen, Doze and battery-saver behavior. Document any Android/OEM restrictions instead of promising unsupported behavior.
+6. Run existing chat-cache, attachment, voice-message and gallery-media regression tests.
 
 ## Release gate
 
-Do not merge this feature or publish an APK until a clean CI build and unit tests pass, model integrity is verified, and the wake-to-command handoff has been exercised on the OnePlus 10T. The app's in-app updater remains the only user-facing test distribution path.
+Do not merge to `main` or publish a candidate APK until CI is green and the complete wake-to-global-command flow has been tested on the OnePlus 10T. The in-app updater remains the only user-facing test distribution path.
