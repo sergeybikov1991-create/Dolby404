@@ -13,6 +13,16 @@ class VoiceAssistantEngine(
     private val history = mutableListOf<VoiceDialogueTurn>()
     private var pendingConfirmationToken: String? = null
 
+    /** First-release constructor: deterministic offline commands, no LLM required. */
+    constructor(
+        orchestrator: VoiceAssistantOrchestrator,
+        maxHistoryTurns: Int = 8
+    ) : this(
+        dialogue = RuleBasedVoiceDialogueEngine(),
+        orchestrator = orchestrator,
+        maxHistoryTurns = maxHistoryTurns
+    )
+
     init {
         require(maxHistoryTurns > 0)
     }
