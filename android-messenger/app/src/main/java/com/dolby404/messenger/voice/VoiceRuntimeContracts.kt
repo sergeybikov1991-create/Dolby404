@@ -16,10 +16,3 @@ data class VoiceDialogueTurn(
     val text: String
 )
 
-/** Output adapter; Android TTS implementation must verify offline voice availability. */
-interface VoiceSpeechOutput {
-    val isReady: Boolean
-    fun speak(text: String): Boolean
-    fun speak(text: String, onDone: () -> Unit): Boolean = speak(text)
-    fun stop()
-}
