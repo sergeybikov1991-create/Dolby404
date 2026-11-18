@@ -2437,7 +2437,7 @@ private fun SocialPostComposer(currentUserId: String, onPosted: suspend () -> Un
     }
 }
 
-@OptIn(androidx.media3.common.util.UnstableApi::class)
+@androidx.media3.common.util.UnstableApi
 @Composable
 private fun SocialVideoPlayer(url: String) {
     val context = LocalContext.current
@@ -3199,7 +3199,7 @@ private fun FanMediaButton(
     }
 }
 
-@OptIn(androidx.media3.common.util.UnstableApi::class)
+@androidx.media3.common.util.UnstableApi
 private object FloustreamVideoDiskCache {
     @Volatile private var instance: SimpleCache? = null
     fun get(context: Context): SimpleCache = instance ?: synchronized(this) {
@@ -3211,7 +3211,7 @@ private object FloustreamVideoDiskCache {
     }
 }
 
-@OptIn(androidx.media3.common.util.UnstableApi::class)
+@androidx.media3.common.util.UnstableApi
 @Composable
 private fun VideoMessagePlayer(url: String, isRound: Boolean = false, onRetry: () -> Unit) {
     val context = LocalContext.current
