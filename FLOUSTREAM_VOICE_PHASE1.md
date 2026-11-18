@@ -24,9 +24,16 @@ Phase 1 is a reliable voice command interface, not a general-purpose AI chatbot.
 
 The language model adapter is optional future work and is not part of Phase 1.
 
-## ASR candidate under evaluation
+## ASR strategy
 
-Preferred compact candidate: sherpa-onnx streaming Zipformer small Russian Vosk-derived model, int8.
+First choice: Android's system on-device SpeechRecognizer on Android 12+.
+
+- No FLOUSTREAM model download or extra model storage when the Russian on-device language pack is already installed.
+- The app explicitly requests the on-device recognizer and Russian (ru-RU); it does not silently fall back to a network recognizer.
+- The system may report that Russian is unsupported or its language pack is not installed. The app must explain this clearly.
+- TTS is also Android system TextToSpeech, restricted to an installed offline Russian voice.
+
+Fallback candidate if the system Russian pack is unavailable: sherpa-onnx streaming Zipformer small Russian Vosk-derived model, int8.
 
 - Approximate model directory size: 29.3 MB.
 - Streaming Russian recognition at 16 kHz.
@@ -36,7 +43,7 @@ Preferred compact candidate: sherpa-onnx streaming Zipformer small Russian Vosk-
 - sherpa-onnx converted model: https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-small-ru-vosk-int8-2025-08-16
 - Kotlin API uses OnlineTransducerModelConfig with Zipformer2, BPE vocabulary, and tokens.
 
-The current T-one CTC model is about 138 MB and expects 8 kHz. Do not make it the long-term default until the compact candidate is benchmarked. Do not replace the installer until model files, hashes, license, and archive/download behavior are verified.
+The existing T-one CTC model is about 138 MB and expects 8 kHz. It is not the default path. Do not replace the current installer until model files, hashes, license, and download behavior are verified.
 
 ## Initial supported commands
 
@@ -65,5 +72,7 @@ This is intentionally a limited first command vocabulary. Extend it only with te
 - Typed voice contracts, allow-list router, resolver boundary, confirmation gate, conversation context, audio lease coordinator, PCM capture, and TTS adapter exist.
 - A deterministic Russian rule-based command parser and unit tests have been added.
 - VoiceAssistantEngine now has a no-LLM constructor that uses the deterministic parser.
-- The existing MainActivity does not yet instantiate VoiceRuntimeController; production entity resolver/action executor and the visible push-to-talk control still need integration.
+- An Android system on-device SpeechRecognizer controller has been added; it uses the system Russian language pack, holds the exclusive microphone lease, and releases the microphone before TTS.
+- The existing MainActivity does not yet instantiate AndroidOnDeviceVoiceController; production entity resolver/action executor and the visible push-to-talk control still need integration.
+- The Android system service and Russian language-pack availability have not yet been checked on the OnePlus 10T.
 - CI run #452 succeeded for commit `8975687a9247fbdf8fa3f2783cfbc76118811ea1`, before the rule-based parser commits. The parser commits have not yet had a confirmed CI run; do not describe them as tested or release-ready.
