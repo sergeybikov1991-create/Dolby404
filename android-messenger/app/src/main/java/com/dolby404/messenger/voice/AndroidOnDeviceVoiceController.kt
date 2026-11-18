@@ -72,6 +72,7 @@ class AndroidOnDeviceVoiceController(
             if (closed || modelCheckInProgress) return
             modelCheckInProgress = true
         }
+        _state.value = _state.value.copy(errorMessage = "Проверяем наличие русского офлайн-пакета речи…")
         mainHandler.post {
             val probe = try {
                 SpeechRecognizer.createOnDeviceSpeechRecognizer(appContext)
