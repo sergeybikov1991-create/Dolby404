@@ -146,17 +146,17 @@ jobs:
             FLOUSTREAM-Messenger.apk
             FLOUSTREAM-Messenger.apk.sha256
             FLOUSTREAM-source-v0.4.24.zip
-            FLOUSTREAM-source-v0.4.28.zip
+            FLOUSTREAM-source-v0.4.29.zip
           if-no-files-found: error
           retention-days: 30
 
       - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish_release) || (github.event_name == 'push' && github.ref == 'refs/heads/release/floustream-0.4.28')
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish_release) || (github.event_name == 'push' && github.ref == 'refs/heads/release/floustream-0.4.29')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || (startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.4.29') }}
           target_commitish: ${{ github.sha }}
-          name: FLOUSTREAM Messenger ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || (startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.4.28') }}
+          name: FLOUSTREAM Messenger ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || (startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.4.29') }}
           overwrite_files: true
           files: |
             FLOUSTREAM-Messenger.apk
