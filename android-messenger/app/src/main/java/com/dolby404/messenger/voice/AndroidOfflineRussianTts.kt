@@ -3,6 +3,7 @@ package com.dolby404.messenger.voice
 import android.content.Context
 import android.speech.tts.TextToSpeech
 import android.speech.tts.Voice
+import android.speech.tts.UtteranceProgressListener
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -61,11 +62,17 @@ class AndroidOfflineRussianTts(
         }
     }
 
-    fun speak(text: String): Boolean {
+    fun speak(text: String): Boolean = speak(text) {}
+
+    fun speak(text: String, onDone: () -> Unit): Boolean {
         val value = text.trim()
         val tts = engine
         if (value.isEmpty() || !_isReady.value || tts == null) return false
-
+        tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+            override fun onStart(utteranceId: String?) = Unit
+            override fun onDone(utteranceId: String?) = onDone()
+            override fun onError(utteranceId: String?) = onDone()
+        })
         return tts.speak(value, TextToSpeech.QUEUE_FLUSH, null, "floustream-voice") ==
             TextToSpeech.SUCCESS
     }
