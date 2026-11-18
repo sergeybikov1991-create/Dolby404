@@ -35,7 +35,7 @@ object VoiceCommandRouter {
             } ?: missing("С кем создать переписку?")
             "mark_read", "mark_unread", "pin_conversation", "unpin_conversation",
             "archive_conversation", "unarchive_conversation", "mute_conversation",
-            "unmute_conversation" -> {
+            "unmute_conversation", "delete_conversation", "clear_conversation_history" -> {
                 val id = required(a, "conversation_id")
                     ?: return missing("Не удалось определить переписку")
                 val action = when (a.name) {
