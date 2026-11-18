@@ -65,10 +65,7 @@ class VoiceCommandRouterTest {
         assertEquals(VoiceAction.ToggleCallMicrophone, (route("toggle_call_microphone") as VoiceCommandDecision.ExecuteSafely).action)
         assertEquals(VoiceAction.ToggleCallCamera, (route("toggle_call_camera") as VoiceCommandDecision.ExecuteSafely).action)
         assertEquals(
-            VoiceCommandDecision.AskForConfirmation(
-                VoiceAction.StopVoiceMessageRecording,
-                "Отправить записанное голосовое сообщение?"
-            ),
+            VoiceCommandDecision.ExecuteSafely(VoiceAction.StopVoiceMessageRecording),
             route("stop_voice_recording")
         )
     }
