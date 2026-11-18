@@ -11,6 +11,7 @@ class VoiceCommandRouterTest {
     @Test fun navigationAndSearchAreSafe() {
         assertEquals(VoiceCommandDecision.ExecuteSafely(VoiceAction.OpenChats), route("open_chats"))
         assertEquals(VoiceCommandDecision.ExecuteSafely(VoiceAction.OpenContacts), route("open_contacts"))
+        assertEquals(VoiceCommandDecision.ExecuteSafely(VoiceAction.OpenSettings), route("open_settings"))
         assertEquals(VoiceCommandDecision.ExecuteSafely(VoiceAction.ShowMedia), route("show_media"))
         assertEquals(VoiceCommandDecision.ExecuteSafely(VoiceAction.ShowUnreadConversations), route("show_unread"))
         assertTrue(route("search_conversations", "query" to "Анна") is VoiceCommandDecision.ExecuteSafely)
