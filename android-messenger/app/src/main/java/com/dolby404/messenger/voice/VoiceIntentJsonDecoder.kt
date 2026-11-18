@@ -62,7 +62,7 @@ class VoiceIntentJsonDecoder(
 fun interface LocalVoiceLanguageModel {
     suspend fun generateIntentJson(
         transcript: String,
-        context: VoiceConversationContext,
+        context: VoiceDialogueContextView,
         history: List<VoiceDialogueTurn>
     ): String
 }
@@ -74,7 +74,7 @@ class StructuredLocalVoiceDialogueEngine(
 ) : VoiceDialogueEngine {
     override suspend fun interpret(
         transcript: String,
-        context: VoiceConversationContext,
+        context: VoiceDialogueContextView,
         history: List<VoiceDialogueTurn>
     ): VoiceModelIntent? {
         val raw = model.generateIntentJson(transcript, context, history)
