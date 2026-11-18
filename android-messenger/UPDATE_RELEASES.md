@@ -24,3 +24,11 @@ Never commit the keystore, Base64 key, or passwords to this repository. The work
 - Adds the first local FLOUSTREAM voice assistant foundation (push-to-talk; Android on-device speech recognition; Android TTS; allow-listed commands and confirmation gates).
 - Preserves the approved chat/media implementation; microphone ownership is coordinated between the assistant, voice messages, and video messages.
 - Release CI must pass unit tests, Android lint, signed APK build, package/version verification, and APK signature verification before publication.
+
+
+## Candidate v0.4.30
+
+- Android versionName: `0.4.30`; versionCode: `38`.
+- Keeps Android on-device speech recognition, Russian system speech-pack support, Android TTS, allow-listed commands and confirmation gates.
+- Removes the unused Sherpa native runtime from the app package; the active voice path uses Android `SpeechRecognizer`.
+- Keeps the approved chat/media features and microphone ownership coordination unchanged.
