@@ -136,11 +136,15 @@ class AndroidPcmAudioCapture(
         }
 
         if (threadToJoin != null && threadToJoin !== Thread.currentThread()) {
-            try {
-                threadToJoin.join(1_500)
-            } catch (interrupted: InterruptedException) {
-                Thread.currentThread().interrupt()
+            var interrupted = false
+            while (threadToJoin.isAlive) {
+                try {
+                    threadToJoin.join()
+                } catch (_: InterruptedException) {
+                    interrupted = true
+                }
             }
+            if (interrupted) Thread.currentThread().interrupt()
         }
 
         synchronized(lock) {
