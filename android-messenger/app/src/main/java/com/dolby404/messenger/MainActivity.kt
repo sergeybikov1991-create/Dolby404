@@ -1967,7 +1967,7 @@ private fun MessengerHome(
         }
     }
 
-    LaunchedEffect(homeVoiceState.phase, homeVoiceState.responseText, homeVoiceState.errorMessage, rearmHomeWakeWord, selectedProfile) {
+    LaunchedEffect(homeVoiceState.phase, homeVoiceState.errorMessage, rearmHomeWakeWord, selectedProfile) {
         val turnFinished = homeVoiceState.phase == VoicePhase.IDLE || homeVoiceState.phase == VoicePhase.ERROR
         val hasTurnResult = homeVoiceState.recognizedText.isNotBlank() ||
             !homeVoiceState.errorMessage.isNullOrBlank()
@@ -5463,7 +5463,6 @@ private fun RealConversationScreen(
                 }
             }
             val voiceHint = voiceState.errorMessage
-                ?: voiceState.responseText.takeIf { it.isNotBlank() }
                 ?: voiceState.recognizedText.takeIf { it.isNotBlank() }
                 ?: (if (!voiceState.isModelReady) "Русский офлайн-пакет речи ещё не подтверждён" else null)
             voiceHint?.takeIf { it.isNotBlank() }?.let { hint ->
