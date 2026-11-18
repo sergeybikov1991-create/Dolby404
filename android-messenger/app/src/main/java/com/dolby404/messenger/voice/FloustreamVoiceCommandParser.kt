@@ -5,13 +5,7 @@ package com.dolby404.messenger.voice
  * Only the explicitly approved commands are accepted. Unknown phrases never
  * trigger broad search, contact discovery, message generation or other actions.
  */
-class FloustreamVoiceCommandParser : VoiceDialogueEngine {
-
-    override suspend fun interpret(
-        transcript: String,
-        context: VoiceDialogueContextView,
-        history: List<VoiceDialogueTurn>
-    ): VoiceModelIntent? = parse(transcript)
+class FloustreamVoiceCommandParser {
 
     fun parse(transcript: String): VoiceModelIntent? {
         val text = normalize(transcript)
