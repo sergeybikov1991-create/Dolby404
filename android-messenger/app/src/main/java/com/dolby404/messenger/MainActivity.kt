@@ -2079,7 +2079,8 @@ private fun MessengerHome(
 
                 }
             }
-            if (selectedProfile == null) {
+        }
+        if (selectedProfile == null) {
                 val voiceHint = rootVoiceState.errorMessage
                     ?: rootVoiceState.responseText.takeIf { it.isNotBlank() }
                     ?: rootVoiceState.recognizedText.takeIf { it.isNotBlank() }
