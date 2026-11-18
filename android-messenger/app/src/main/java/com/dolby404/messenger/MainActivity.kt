@@ -1884,7 +1884,7 @@ private fun MessengerHome(
                     tab = "Чаты"
                     searchOpen = true
                     search = action.query
-                    VoiceExecutionResult.Success("Ищу переписки по запросу \${action.query}")
+                    VoiceExecutionResult.Success("Ищу переписки по запросу ${action.query}")
                 }
                 is VoiceAction.OpenConversation -> {
                     val target = withTransientNetworkRetry {
@@ -1899,7 +1899,7 @@ private fun MessengerHome(
                         tab = "Чаты"
                         socialOpen = false
                         socialDrawerOpen = false
-                        VoiceExecutionResult.Success("Открыл переписку с \${target.displayName ?: target.username ?: "контактом"}")
+                        VoiceExecutionResult.Success("Открыл переписку с ${target.displayName ?: target.username ?: "контактом"}")
                     }
                 }
                 VoiceAction.ShowUnreadConversations ->
