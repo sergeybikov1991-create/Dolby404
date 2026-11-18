@@ -39,10 +39,6 @@ class RuleBasedVoiceDialogueEngine : VoiceDialogueEngine {
                 return intent("pick_video")
             "выбери файл", "прикрепи файл", "добавь файл" ->
                 return intent("pick_file")
-            "запиши голосовое", "начни запись голосового", "запусти запись голосового" ->
-                return intent("start_voice_recording")
-            "останови запись", "останови запись голосового", "заверши запись" ->
-                return intent("stop_voice_recording")
         }
 
         match(text, "^(?:открой|открой чат с|перейди в переписку с) (?:чат с )?(.+)$")?.let {
