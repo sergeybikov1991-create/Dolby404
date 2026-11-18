@@ -15,6 +15,11 @@ class VoiceCommandRouterTest {
         assertEquals(VoiceCommandDecision.ExecuteSafely(VoiceAction.ShowUnreadConversations), route("show_unread"))
         assertTrue(route("search_conversations", "query" to "Анна") is VoiceCommandDecision.ExecuteSafely)
         assertTrue(route("search_messages", "query" to "фото") is VoiceCommandDecision.ExecuteSafely)
+        assertTrue(route("search_attachments", "media_kind" to "photo") is VoiceCommandDecision.ExecuteSafely)
+        assertEquals(
+            VoiceAction.ReadMessage("m1"),
+            (route("read_message", "message_id" to "m1") as VoiceCommandDecision.ExecuteSafely).action
+        )
     }
 
     @Test fun conversationManagementMapsToTypedActions() {
@@ -34,7 +39,11 @@ class VoiceCommandRouterTest {
             route("send_attachment", "conversation_id" to "c1", "attachment_id" to "a1"),
             route("start_audio_call", "contact_id" to "u1"),
             route("start_video_call", "contact_id" to "u1"),
-            route("change_setting", "setting_key" to "theme", "value" to "dark")
+            route("change_setting", "setting_key" to "theme", "value" to "dark"),
+            route("delete_conversation", "conversation_id" to "c1"),
+            route("clear_conversation_history", "conversation_id" to "c1"),
+            route("save_attachment_to_site_media", "attachment_id" to "a1"),
+            route("share_site_media", "site_media_id" to "s1", "conversation_id" to "c1")
         )
         commands.forEach { assertTrue("Expected confirmation for $it", it is VoiceCommandDecision.AskForConfirmation) }
     }
