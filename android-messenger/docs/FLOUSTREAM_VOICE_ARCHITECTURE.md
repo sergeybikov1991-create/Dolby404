@@ -14,7 +14,7 @@ The assistant is not a dictation-only feature. It must understand follow-up refe
 
 ## Layered architecture
 
-1. **Audio session coordinator** — exclusive lease for ASSISTANT, VOICE_MESSAGE, CALL and WAKE_WORD. The existing chat voice-message MediaRecorder now acquires/releases the same VOICE_MESSAGE lease; assistant PCM capture acquires ASSISTANT. A microphone consumer must fully stop/release before another obtains the lease. The future WebRTC call adapter must acquire CALL.
+1. **Audio session coordinator** — exclusive lease for ASSISTANT, VOICE_MESSAGE, CALL and WAKE_WORD. The existing chat voice-message MediaRecorder acquires/releases VOICE_MESSAGE; RootEncoder video-message microphone capture acquires/releases VIDEO_MESSAGE; assistant PCM capture acquires ASSISTANT. A microphone consumer must fully stop/release before another obtains the lease. The future WebRTC call adapter must acquire CALL.
 2. **Audio capture** — mono PCM16 at 16 kHz in 100 ms frames. Capture starts only from a visible Activity after runtime permission is granted. No hidden background listening.
 3. **STT adapter** — streaming recognizer interface; runtime/model are versioned separately. The AAR is pinned and checksum-verified in CI. Russian model weights are opt-in downloads, not embedded in APK.
 4. **Dialogue/context engine** — `VoiceConversationContext` keeps current screen, active conversation/contact, selected/latest message and selected attachment. Context revisions invalidate stale follow-up references and confirmations. The app, not the LLM, owns authoritative IDs.
@@ -93,5 +93,5 @@ The assistant is not a dictation-only feature. It must understand follow-up refe
 
 ## Current implementation boundary
 
-Implemented foundation: state/action contract, allow-list router, strict JSON intent decoder, local-LLM dialogue adapter boundary, ID-free dialogue context view, app-owned entity-reference binder, ephemeral conversation context, one-shot spoken confirmation/cancellation, bounded dialogue engine, foreground push-to-talk runtime controller, configurable PCM capture, shared exclusive microphone lease (including the existing voice-message recorder), offline Android TTS adapter, sherpa-onnx v1.13.5 T-one recognizer adapter, checksum-verified opt-in model installer and unit tests.
+Implemented foundation: state/action contract, allow-list router, strict JSON intent decoder, local-LLM dialogue adapter boundary, ID-free dialogue context view, app-owned entity-reference binder, ephemeral conversation context, one-shot spoken confirmation/cancellation, bounded dialogue engine, foreground push-to-talk runtime controller, configurable PCM capture, shared exclusive microphone lease (including existing voice-message and RootEncoder video-message recorders), offline Android TTS adapter, sherpa-onnx v1.13.5 T-one recognizer adapter, checksum-verified opt-in model installer and unit tests.
 Not yet implemented: concrete llama.cpp/other local LLM runtime and GGUF model installer, production VoiceEntityResolver and VoiceActionExecutor implementations, MainActivity/Compose UI integration, device-tested end-to-end operation, wake phrase.
