@@ -1779,6 +1779,157 @@ private fun MessengerHome(
     var socialDrawerOpen by remember { mutableStateOf(false) }
     var socialSection by remember { mutableStateOf("Моя страница") }
 
+    val appContext = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val voiceScope = rememberCoroutineScope()
+    val latestTab by rememberUpdatedState(tab)
+    val latestSocialOpen by rememberUpdatedState(socialOpen)
+    val latestSelectedProfile by rememberUpdatedState(selectedProfile)
+
+    val rootVoiceResolver = remember(currentUserId) {
+        object : VoiceEntityResolver {
+            override suspend fun conversationId(reference: String, context: VoiceConversationContext): String? =
+                if (reference.equals("active", ignoreCase = true)) context.activeConversationId
+                else findVoiceContactCandidates(reference).singleOrNull()?.id
+
+            override suspend fun messageId(reference: String, context: VoiceConversationContext): String? = null
+            override suspend fun attachmentId(reference: String, context: VoiceConversationContext): String? = null
+
+            override suspend fun contactId(reference: String, context: VoiceConversationContext): String? =
+                if (reference.equals("current", ignoreCase = true)) context.activeContactId
+                else findVoiceContactCandidates(reference).singleOrNull()?.id
+
+            override suspend fun siteMediaId(reference: String, context: VoiceConversationContext): String? = null
+        }
+    }
+    val rootVoiceExecutor = remember(currentUserId) {
+        VoiceActionExecutor { action ->
+            try {
+                when (action) {
+                    VoiceAction.OpenChats -> {
+                        selectedProfile = null
+                        socialOpen = false
+                        socialDrawerOpen = false
+                        tab = "Чаты"
+                        VoiceExecutionResult.Success("Открыл чаты")
+                    }
+                    VoiceAction.OpenContacts -> {
+                        selectedProfile = null
+                        socialOpen = false
+                        socialDrawerOpen = false
+                        tab = "Контакты"
+                        VoiceExecutionResult.Success("Открыл контакты")
+                    }
+                    VoiceAction.ShowMedia -> {
+                        selectedProfile = null
+                        socialOpen = true
+                        socialDrawerOpen = false
+                        socialSection = "Фото"
+                        VoiceExecutionResult.Success("Открыл медиа FLOUSTREAM")
+                    }
+                    VoiceAction.ShowUnreadConversations -> {
+                        selectedProfile = null
+                        socialOpen = false
+                        socialDrawerOpen = false
+                        tab = "Чаты"
+                        VoiceExecutionResult.Failure("Открыл чаты. Фильтр непрочитанных пока не подключён")
+                    }
+                    is VoiceAction.SearchConversations -> {
+                        selectedProfile = null
+                        socialOpen = false
+                        socialDrawerOpen = false
+                        tab = "Чаты"
+                        searchOpen = true
+                        search = action.query
+                        VoiceExecutionResult.Success("Ищу переписки по запросу ${action.query}")
+                    }
+                    is VoiceAction.OpenConversation -> {
+                        val target = withTransientNetworkRetry {
+                            floustreamClient.from("profiles").select {
+                                filter { eq("id", action.conversationId) }
+                            }.decodeList<ProfileDto>().firstOrNull()
+                        }
+                        if (target == null || target.isDeleted) {
+                            VoiceExecutionResult.Failure("Не удалось найти эту переписку")
+                        } else {
+                            selectedProfile = target
+                            socialOpen = false
+                            socialDrawerOpen = false
+                            tab = "Чаты"
+                            VoiceExecutionResult.Success("Открыл переписку с ${target.displayName ?: target.username ?: "контактом"}")
+                        }
+                    }
+                    is VoiceAction.StartCall ->
+                        VoiceExecutionResult.Failure("Голосовые и видеозвонки пока не подключены")
+                    else -> VoiceExecutionResult.Failure("Эта команда пока доступна только внутри переписки")
+                }
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                VoiceExecutionResult.Failure(e.message?.takeIf { it.isNotBlank() } ?: "Не удалось выполнить команду")
+            }
+        }
+    }
+    val rootVoiceAssistant = remember(currentUserId) {
+        VoiceAssistantEngine(
+            VoiceAssistantOrchestrator(
+                binder = VoiceIntentBinder(rootVoiceResolver),
+                executor = rootVoiceExecutor,
+                confirmationGate = VoiceConfirmationGate(),
+                nowMillis = { System.currentTimeMillis() }
+            )
+        )
+    }
+    val rootVoiceTts = remember(currentUserId) { AndroidOfflineRussianTts(appContext) }
+    val rootVoiceSpeechOutput = remember(currentUserId) { AndroidVoiceSpeechOutput(rootVoiceTts) }
+    val rootVoiceController = remember(currentUserId) {
+        AndroidOnDeviceVoiceController(
+            context = appContext,
+            coordinator = voiceAudioCoordinator,
+            assistant = rootVoiceAssistant,
+            speechOutput = rootVoiceSpeechOutput,
+            contextProvider = {
+                val activeTab = latestTab
+                val inSocial = latestSocialOpen
+                val activeProfile = latestSelectedProfile
+                VoiceConversationContext(
+                    screen = when {
+                        activeProfile != null -> VoiceScreen.CONVERSATION
+                        inSocial -> VoiceScreen.MEDIA
+                        activeTab == "Контакты" -> VoiceScreen.CONTACTS
+                        activeTab == "Настройки" -> VoiceScreen.SETTINGS
+                        else -> VoiceScreen.CHATS
+                    },
+                    revision = (activeTab.hashCode().toLong() shl 1) xor if (inSocial) 1L else 0L
+                )
+            },
+            hasRecordAudioPermission = {
+                appContext.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+            },
+            isActivityForeground = {
+                lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+            },
+            scope = voiceScope
+        )
+    }
+    val rootVoiceState by rootVoiceController.state.collectAsState()
+    val rootVoicePermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) rootVoiceController.startListening()
+        else infoMessage = "Для голосового управления нужно разрешение на микрофон."
+    }
+
+    DisposableEffect(rootVoiceController) {
+        onDispose { rootVoiceController.close() }
+    }
+    DisposableEffect(lifecycleOwner, rootVoiceController) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_PAUSE) rootVoiceController.cancelListening()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     LaunchedEffect(notificationPeerId, currentUserId) {
         val peerId = notificationPeerId?.takeIf { it.isNotBlank() } ?: return@LaunchedEffect
         if (peerId == currentUserId) {
@@ -1819,7 +1970,8 @@ private fun MessengerHome(
     }
 
     Surface(Modifier.fillMaxSize(), color = Night) {
-        Column(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize()) {
+            Column(Modifier.fillMaxSize()) {
             if (socialOpen) {
                 SocialNetworkScreen(
                     currentUserId = currentUserId,
@@ -1924,8 +2076,62 @@ private fun MessengerHome(
                             )
                         )
                     }
-                }
 
+            }
+            if (selectedProfile == null) {
+                val voiceHint = rootVoiceState.errorMessage
+                    ?: rootVoiceState.responseText.takeIf { it.isNotBlank() }
+                    ?: rootVoiceState.recognizedText.takeIf { it.isNotBlank() }
+                Column(
+                    Modifier.align(Alignment.BottomEnd).padding(
+                        end = 16.dp,
+                        bottom = if (socialOpen) 18.dp else 88.dp
+                    ),
+                    horizontalAlignment = Alignment.End
+                ) {
+                    voiceHint?.let {
+                        Surface(
+                            color = Color(0xEE111A2D),
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        ) {
+                            Text(
+                                it,
+                                Modifier.widthIn(max = 230.dp).padding(horizontal = 12.dp, vertical = 8.dp),
+                                color = if (rootVoiceState.errorMessage != null) Color(0xFFFFB4B4) else White,
+                                fontSize = 11.sp,
+                                maxLines = 3,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                    Surface(
+                        modifier = Modifier.size(58.dp).clickable(
+                            enabled = rootVoiceState.phase !in setOf(
+                                VoicePhase.TRANSCRIBING, VoicePhase.THINKING, VoicePhase.SPEAKING
+                            )
+                        ) {
+                            if (rootVoiceState.phase == VoicePhase.LISTENING) {
+                                rootVoiceController.stopListening()
+                            } else if (appContext.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                                rootVoicePermission.launch(Manifest.permission.RECORD_AUDIO)
+                            } else {
+                                rootVoiceController.startListening()
+                            }
+                        },
+                        color = if (rootVoiceState.phase == VoicePhase.LISTENING) Violet else Blue,
+                        shape = CircleShape,
+                        shadowElevation = 12.dp
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                if (rootVoiceState.phase == VoicePhase.LISTENING) "■" else "🎙",
+                                color = White,
+                                fontSize = 22.sp
+                            )
+                        }
+                    }
+                }
             }
         }
     }
