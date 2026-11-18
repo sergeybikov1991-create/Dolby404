@@ -92,3 +92,18 @@ test("video album keeps public and private players, native controls and swipe na
   expect(profile).not.toContain("video-album-playmark");
   expect(profile).not.toContain("video-viewer-thumb-mark");
 });
+
+
+test("messages page uses Supabase Realtime instead of five-second polling", async () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const messages = fs.readFileSync(path.join(__dirname, "../messages.html"), "utf8");
+
+  expect(messages).toContain('event:"INSERT"');
+  expect(messages).toContain('event:"UPDATE"');
+  expect(messages).toContain('client.channel("floustream-direct-"');
+  expect(messages).toContain("refreshAfterLoad");
+  expect(messages).toContain("inboxRefreshAfterLoad");
+  expect(messages).not.toMatch(/setInterval\s*\([^)]*(?:loadMessages|loadInbox)/s);
+  expect(messages).not.toContain("},5000)");
+});
