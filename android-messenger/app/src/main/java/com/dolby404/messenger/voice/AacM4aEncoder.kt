@@ -22,6 +22,7 @@ class AacM4aEncoder(
     companion object {
         private const val MIME = MediaFormat.MIMETYPE_AUDIO_AAC
         private const val TIMEOUT_US = 10_000L
+        private const val FINISH_TIMEOUT_NS = 5_000_000_000L
     }
 
     private var codec: MediaCodec? = null
@@ -43,6 +44,7 @@ class AacM4aEncoder(
         check(!started && !finished) { "Encoder can only be started once" }
         require(outputFile.parentFile?.exists() == true) { "Output directory does not exist" }
         try {
+            outputFile.delete()
             val format = MediaFormat.createAudioFormat(MIME, sampleRateHz, channelCount).apply {
                 setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
                 setInteger(MediaFormat.KEY_BIT_RATE, bitRate)
@@ -56,7 +58,9 @@ class AacM4aEncoder(
             muxer = MediaMuxer(outputFile.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
             started = true
         } catch (error: Exception) {
+            finished = true
             releaseResources()
+            outputFile.delete()
             throw error
         }
     }
@@ -97,10 +101,13 @@ class AacM4aEncoder(
     fun finish() {
         if (finished) return
         check(started)
+        var success = false
+        val deadline = System.nanoTime() + FINISH_TIMEOUT_NS
         try {
             val activeCodec = checkNotNull(codec)
             var queued = false
             while (!queued) {
+                check(System.nanoTime() < deadline) { "Timed out queueing AAC end-of-stream" }
                 val inputIndex = activeCodec.dequeueInputBuffer(TIMEOUT_US)
                 if (inputIndex >= 0) {
                     val pts = submittedSamples * 1_000_000L /
@@ -111,10 +118,15 @@ class AacM4aEncoder(
                     queued = true
                 } else drainOutput()
             }
-            while (!drainOutput(waitForEos = true)) Unit
-            finished = true
+            while (!drainOutput(waitForEos = true)) {
+                check(System.nanoTime() < deadline) { "Timed out draining AAC end-of-stream" }
+            }
+            check(muxerStarted) { "AAC encoder produced no muxer output format" }
+            success = true
         } finally {
+            finished = true
             releaseResources()
+            if (!success) outputFile.delete()
         }
     }
 
