@@ -17,8 +17,4 @@ class VoiceAssistantEngine(
             ?: return VoiceTurnResult.Rejected("Команда не распознана")
         return orchestrator.handle(intent, context)
     }
-
-    fun cancelPendingConfirmation() {
-        orchestrator.cancelPendingConfirmation()
-    }
 }
