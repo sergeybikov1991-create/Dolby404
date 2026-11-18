@@ -268,7 +268,6 @@ class AndroidOnDeviceVoiceController(
         }
         runCatching { active?.cancel() }
         assistant.cancelPendingConfirmation()
-        speechOutput.stop()
         _state.value = VoiceAssistantState(
             errorMessage = _state.value.errorMessage,
             isModelReady = _state.value.isModelReady
