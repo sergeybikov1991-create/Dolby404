@@ -7,121 +7,76 @@ import org.junit.Test
 
 class VoiceAssistantEngineTest {
     private val resolver = object : VoiceEntityResolver {
-        override suspend fun conversationId(reference: String, context: VoiceConversationContext) =
-            if (reference == "active") context.activeConversationId else null
-        override suspend fun messageId(reference: String, context: VoiceConversationContext) =
-            if (reference == "last") context.lastMessageId else null
-        override suspend fun attachmentId(reference: String, context: VoiceConversationContext) =
-            if (reference == "selected") context.selectedAttachmentId else null
-        override suspend fun contactId(reference: String, context: VoiceConversationContext) =
-            if (reference == "current") context.activeContactId else null
-        override suspend fun siteMediaId(reference: String, context: VoiceConversationContext) =
-            if (reference == "featured") "site-media-1" else null
+        override suspend fun conversationId(reference: String, context: VoiceConversationContext): String? =
+            when (reference) {
+                "active" -> context.activeConversationId
+                "иван иванов" -> "saved-chat-1"
+                else -> null
+            }
+        override suspend fun messageId(reference: String, context: VoiceConversationContext): String? = null
+        override suspend fun attachmentId(reference: String, context: VoiceConversationContext): String? = null
+        override suspend fun contactId(reference: String, context: VoiceConversationContext): String? = null
+        override suspend fun siteMediaId(reference: String, context: VoiceConversationContext): String? = null
     }
 
-    private fun engine(dialogue: VoiceDialogueEngine, executed: MutableList<VoiceAction>) =
-        VoiceAssistantEngine(
-            dialogue,
-            VoiceAssistantOrchestrator(
-                VoiceIntentBinder(resolver),
-                VoiceActionExecutor { action ->
-                    executed += action
-                    VoiceExecutionResult.Success("Готово")
-                },
-                VoiceConfirmationGate { "engine-token" },
-                { 10L }
-            ),
-            maxHistoryTurns = 2
-        )
-
-    @Test fun passesTranscriptToDialogueAndExecutesSafeAction() = runBlocking {
-        val executed = mutableListOf<VoiceAction>()
-        var heard = ""
-        val engine = engine(
-            VoiceDialogueEngine { transcript, _, _ ->
-                heard = transcript
-                VoiceModelIntent("open_chats")
+    private fun engine(executed: MutableList<VoiceAction>) = VoiceAssistantEngine(
+        VoiceAssistantOrchestrator(
+            binder = VoiceIntentBinder(resolver),
+            executor = VoiceActionExecutor { action ->
+                executed += action
+                VoiceExecutionResult.Success("ok")
             },
-            executed
+            confirmationGate = VoiceConfirmationGate(),
+            nowMillis = { 10L }
         )
-        val result = engine.onFinalTranscript("  Открой чаты  ", VoiceConversationContext())
+    )
+
+    @Test fun opensChatList() = runBlocking {
+        val executed = mutableListOf<VoiceAction>()
+        val result = engine(executed).onFinalTranscript("Флоу, открой", VoiceConversationContext())
         assertTrue(result is VoiceTurnResult.Executed)
-        assertEquals("Открой чаты", heard)
         assertEquals(listOf(VoiceAction.OpenChats), executed)
-        assertEquals(2, engine.historySnapshot().size)
     }
 
-    @Test fun boundsHistoryAndClearsPendingContext() = runBlocking {
+    @Test fun opensOnlyResolvedSavedConversation() = runBlocking {
         val executed = mutableListOf<VoiceAction>()
-        val engine = engine(VoiceDialogueEngine { _, _, _ -> VoiceModelIntent("open_chats") }, executed)
-        repeat(4) { engine.onFinalTranscript("Команда $it", VoiceConversationContext()) }
-        assertEquals(4, engine.historySnapshot().size)
-        engine.clearConversationMemory()
-        assertTrue(engine.historySnapshot().isEmpty())
-    }
-
-
-    @Test fun spokenYesConfirmsPendingSendWithoutCallingDialogueAgain() = runBlocking {
-        val executed = mutableListOf<VoiceAction>()
-        var dialogueCalls = 0
-        val engine = engine(
-            VoiceDialogueEngine { _, _, _ ->
-                dialogueCalls += 1
-                VoiceModelIntent(
-                    "send_message",
-                    mapOf("conversation_ref" to "active", "text" to "Привет")
-                )
-            },
-            executed
+        val result = engine(executed).onFinalTranscript(
+            "открой чат Иван Иванов",
+            VoiceConversationContext()
         )
-        val context = VoiceConversationContext().enterConversation("chat-1")
-        val pending = engine.onFinalTranscript("Отправь привет", context)
-        assertTrue(pending is VoiceTurnResult.AwaitingConfirmation)
-
-        val confirmed = engine.onFinalTranscript("Да", context)
-        assertTrue(confirmed is VoiceTurnResult.Executed)
-        assertEquals(1, dialogueCalls)
-        assertEquals(listOf(VoiceAction.SendMessage("chat-1", "Привет")), executed)
+        assertTrue(result is VoiceTurnResult.Executed)
+        assertEquals(listOf(VoiceAction.OpenConversation("saved-chat-1")), executed)
     }
 
-    @Test fun spokenNoCancelsPendingAction() = runBlocking {
+    @Test fun refusesConversationNotFoundInSavedInbox() = runBlocking {
         val executed = mutableListOf<VoiceAction>()
-        val engine = engine(
-            VoiceDialogueEngine { _, _, _ ->
-                VoiceModelIntent("send_message", mapOf("conversation_ref" to "active", "text" to "Привет"))
-            },
-            executed
+        val result = engine(executed).onFinalTranscript(
+            "открой чат Пётр Петров",
+            VoiceConversationContext()
         )
-        val context = VoiceConversationContext().enterConversation("chat-1")
-        engine.onFinalTranscript("Отправь привет", context)
-        val cancelled = engine.onFinalTranscript("Нет", context)
-        assertTrue(cancelled is VoiceTurnResult.Cancelled)
+        assertTrue(result is VoiceTurnResult.ClarificationRequired)
         assertTrue(executed.isEmpty())
     }
 
-    @Test fun defaultConstructorUsesDeterministicOfflineCommands() = runBlocking {
+    @Test fun startsAndStopsVoiceMessageRecordingWithCommands() = runBlocking {
         val executed = mutableListOf<VoiceAction>()
-        val orchestrator = VoiceAssistantOrchestrator(
-            VoiceIntentBinder(resolver),
-            VoiceActionExecutor { action ->
-                executed += action
-                VoiceExecutionResult.Success("Открыл раздел чатов")
-            },
-            VoiceConfirmationGate { "default-engine-token" },
-            { 10L }
+        val engine = engine(executed)
+        val context = VoiceConversationContext().enterConversation("chat-1")
+        assertTrue(engine.onFinalTranscript("запиши голосовое", context) is VoiceTurnResult.Executed)
+        assertTrue(engine.onFinalTranscript("Стоп", context) is VoiceTurnResult.Executed)
+        assertEquals(
+            listOf(
+                VoiceAction.StartVoiceMessageRecording("chat-1"),
+                VoiceAction.StopVoiceMessageRecording
+            ),
+            executed
         )
-        val engine = VoiceAssistantEngine(orchestrator)
-        val result = engine.onFinalTranscript("Открой чаты", VoiceConversationContext())
-        assertTrue(result is VoiceTurnResult.Executed)
-        assertEquals(listOf(VoiceAction.OpenChats), executed)
     }
 
-    @Test fun emptyTranscriptDoesNotCallDialogue() = runBlocking {
+    @Test fun rejectsEverythingOutsideTheApprovedCommandSet() = runBlocking {
         val executed = mutableListOf<VoiceAction>()
-        var called = false
-        val engine = engine(VoiceDialogueEngine { _, _, _ -> called = true; null }, executed)
-        val result = engine.onFinalTranscript("  ", VoiceConversationContext())
-        assertTrue(result is VoiceTurnResult.ClarificationRequired)
-        assertEquals(false, called)
+        val result = engine(executed).onFinalTranscript("отправь сообщение привет", VoiceConversationContext())
+        assertTrue(result is VoiceTurnResult.Rejected)
+        assertTrue(executed.isEmpty())
     }
 }
