@@ -44,17 +44,15 @@ self.addEventListener("fetch", event => {
   if (request.mode === "navigate") {
     const key = new Request(url.origin + url.pathname);
     event.respondWith((async () => {
-      const cache = await caches.open(CACHE_NAME);
-      const cached = await cache.match(key);
-      const update = fetch(request).then(async response => {
+      const cachePromise = caches.open(CACHE_NAME);
+      const update = cachePromise.then(cache => fetch(request).then(async response => {
         if (response.ok && response.type === "basic") await cache.put(key, response.clone());
         return response;
-      });
-      if (cached) {
-        event.waitUntil(update.catch(() => {}));
-        return cached;
-      }
-      return update;
+      }));
+      event.waitUntil(update.catch(() => {}));
+      const cache = await cachePromise;
+      const cached = await cache.match(key);
+      return cached || update;
     })());
     return;
   }
@@ -62,17 +60,15 @@ self.addEventListener("fetch", event => {
   // Only small same-origin code/style/font files; no API, media, or third-party data.
   if (/\.(?:js|css|woff2?)$/i.test(url.pathname)) {
     event.respondWith((async () => {
-      const cache = await caches.open(CACHE_NAME);
-      const cached = await cache.match(request);
-      const update = fetch(request).then(async response => {
+      const cachePromise = caches.open(CACHE_NAME);
+      const update = cachePromise.then(cache => fetch(request).then(async response => {
         if (response.ok && response.type === "basic") await cache.put(request, response.clone());
         return response;
-      });
-      if (cached) {
-        event.waitUntil(update.catch(() => {}));
-        return cached;
-      }
-      return update;
+      }));
+      event.waitUntil(update.catch(() => {}));
+      const cache = await cachePromise;
+      const cached = await cache.match(request);
+      return cached || update;
     })());
   }
 });
