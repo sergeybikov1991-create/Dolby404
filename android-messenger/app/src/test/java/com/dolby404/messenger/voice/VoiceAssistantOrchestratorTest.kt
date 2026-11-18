@@ -15,6 +15,8 @@ class VoiceAssistantOrchestratorTest {
             if (reference == "selected") context.selectedAttachmentId else null
         override suspend fun contactId(reference: String, context: VoiceConversationContext) =
             if (reference == "current") context.activeContactId else null
+        override suspend fun siteMediaId(reference: String, context: VoiceConversationContext) =
+            if (reference == "featured") "site-media-1" else null
     }
 
     @Test fun safeNavigationExecutesWithoutConfirmation() = runBlocking {
