@@ -50,7 +50,9 @@ class VoiceAudioSessionCoordinatorTest {
         assertNull(coordinator.tryAcquire(VoiceAudioOwner.ASSISTANT))
         assertNull(coordinator.tryAcquire(VoiceAudioOwner.VOICE_MESSAGE))
         video!!.close()
-        assertNotNull(coordinator.tryAcquire(VoiceAudioOwner.ASSISTANT))
+        val assistant = coordinator.tryAcquire(VoiceAudioOwner.ASSISTANT)
+        assertNotNull(assistant)
+        assistant?.close()
     }
 
     @Test
