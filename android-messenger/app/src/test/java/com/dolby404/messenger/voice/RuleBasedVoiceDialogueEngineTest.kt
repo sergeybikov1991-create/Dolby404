@@ -51,6 +51,10 @@ class RuleBasedVoiceDialogueEngineTest {
         assertEquals("анне", send?.arguments?.get("conversation_ref"))
         assertEquals("я уже подъехал", send?.arguments?.get("text"))
         assertEquals(false, send?.arguments?.containsKey("conversation_id"))
+
+        val natural = parser.parse("Напиши Анне что скоро буду")
+        assertEquals("prepare_message_draft", natural?.name)
+        assertEquals("скоро буду", natural?.arguments?.get("text"))
     }
 
     @Test fun mapsReplyToLastMessageWithoutInventingIds() {
