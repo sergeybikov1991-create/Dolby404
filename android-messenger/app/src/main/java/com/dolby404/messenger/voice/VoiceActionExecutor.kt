@@ -71,6 +71,9 @@ class VoiceIntentBinder(private val resolver: VoiceEntityResolver) {
             "reply_to_message", "start_voice_recording", "send_attachment"
         )
         if (conversationRequired) {
+            if (!args.containsKey("conversation_ref") && modelIntent.name != "open_conversation" &&
+                context.activeConversationId != null
+            ) args["conversation_ref"] = "active"
             bindReference("conversation_ref", "conversation_id", resolver::conversationId)?.let { return it }
         } else if (modelIntent.name == "search_messages" && args.containsKey("conversation_ref")) {
             bindReference("conversation_ref", "conversation_id", resolver::conversationId)?.let { return it }
@@ -81,6 +84,12 @@ class VoiceIntentBinder(private val resolver: VoiceEntityResolver) {
                 "delete_message", "react_to_message", "play_voice_message"
             )
         ) {
+            if (!args.containsKey("message_ref")) {
+                when {
+                    context.selectedMessageId != null -> args["message_ref"] = "selected"
+                    context.lastMessageId != null -> args["message_ref"] = "last"
+                }
+            }
             bindReference("message_ref", "message_id", resolver::messageId)?.let { return it }
         }
 
@@ -89,10 +98,16 @@ class VoiceIntentBinder(private val resolver: VoiceEntityResolver) {
         }
 
         if (modelIntent.name == "open_attachment" || modelIntent.name == "send_attachment") {
+            if (!args.containsKey("attachment_ref") && context.selectedAttachmentId != null) {
+                args["attachment_ref"] = "selected"
+            }
             bindReference("attachment_ref", "attachment_id", resolver::attachmentId)?.let { return it }
         }
 
         if (modelIntent.name in setOf("start_audio_call", "start_video_call")) {
+            if (!args.containsKey("contact_ref") && context.activeContactId != null) {
+                args["contact_ref"] = "current"
+            }
             bindReference("contact_ref", "contact_id", resolver::contactId)?.let { return it }
         }
 
