@@ -181,7 +181,11 @@ class WakeWordForegroundService : Service() {
     }
 
     private fun notifyWakeDetected(command: String) {
-        showStatus("Команда услышана. Выполняю.", ongoing = false)
+        showStatus(
+            if (command.isBlank()) "Фраза «Флоу» услышана. Открой FLOUSTREAM для команды."
+            else "Команда услышана. Открой FLOUSTREAM для выполнения.",
+            ongoing = false
+        )
         sendBroadcast(Intent(ACTION_WAKE_DETECTED).setPackage(packageName).putExtra(EXTRA_COMMAND, command))
     }
 
@@ -194,6 +198,7 @@ class WakeWordForegroundService : Service() {
         val openIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra("wake_word_detected", true)
+            putExtra(EXTRA_COMMAND, detectedCommand)
         }
         val pendingIntent = PendingIntent.getActivity(
             this, 4107, openIntent,
