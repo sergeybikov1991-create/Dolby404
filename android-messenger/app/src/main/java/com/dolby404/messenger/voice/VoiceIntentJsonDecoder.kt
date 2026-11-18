@@ -1,6 +1,7 @@
 package com.dolby404.messenger.voice
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 
@@ -44,7 +45,7 @@ class VoiceIntentJsonDecoder(
                 if (!key.matches(Regex("[a-z][a-z0-9_]{0,63}"))) {
                     return VoiceIntentDecodeResult.Invalid("Некорректное имя параметра")
                 }
-                if (value.length > 2_000 || value.any { it == '\u0000' || (it.isISOControl() && it !in "\n\r\t") }) {
+                if (value.length > 2_000 || value.any { it == '\u0000' || (Character.isISOControl(it) && it !in "\n\r\t") }) {
                     return VoiceIntentDecodeResult.Invalid("Параметр команды содержит недопустимые данные")
                 }
             }
