@@ -16,6 +16,7 @@ class VoiceCommandRouterTest {
         assertTrue(route("search_conversations", "query" to "Анна") is VoiceCommandDecision.ExecuteSafely)
         assertTrue(route("search_messages", "query" to "фото") is VoiceCommandDecision.ExecuteSafely)
         assertTrue(route("search_attachments", "media_kind" to "photo") is VoiceCommandDecision.ExecuteSafely)
+        assertTrue(route("prepare_message_draft", "recipient" to "Анна", "text" to "Привет") is VoiceCommandDecision.ExecuteSafely)
         assertEquals(
             VoiceAction.ReadMessage("m1"),
             (route("read_message", "message_id" to "m1") as VoiceCommandDecision.ExecuteSafely).action
