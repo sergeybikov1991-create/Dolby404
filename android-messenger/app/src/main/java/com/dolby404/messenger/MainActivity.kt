@@ -1835,7 +1835,7 @@ private fun MessengerHome(
     val homeVoiceContext = LocalContext.current
     val homeVoiceLifecycle = LocalLifecycleOwner.current
     val homeVoiceScope = rememberCoroutineScope()
-    val homeVoiceAssistant = remember {
+    val homeVoiceAssistant = remember(selectedProfile == null) {
         val noEntityResolver = object : VoiceEntityResolver {
             override suspend fun conversationId(reference: String, context: VoiceConversationContext): String? = null
             override suspend fun messageId(reference: String, context: VoiceConversationContext): String? = null
@@ -1888,9 +1888,9 @@ private fun MessengerHome(
             )
         )
     }
-    val homeVoiceTts = remember { AndroidOfflineRussianTts(homeVoiceContext) }
-    val homeVoiceSpeechOutput = remember { AndroidVoiceSpeechOutput(homeVoiceTts) }
-    val homeVoiceController = remember {
+    val homeVoiceTts = remember(selectedProfile == null) { AndroidOfflineRussianTts(homeVoiceContext) }
+    val homeVoiceSpeechOutput = remember(homeVoiceTts) { AndroidVoiceSpeechOutput(homeVoiceTts) }
+    val homeVoiceController = remember(selectedProfile == null) {
         AndroidOnDeviceVoiceController(
             context = homeVoiceContext,
             coordinator = voiceAudioCoordinator,
