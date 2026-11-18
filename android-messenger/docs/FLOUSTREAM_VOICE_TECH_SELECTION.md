@@ -14,14 +14,14 @@
 
 Подтверждено первоисточниками:
 - sherpa-onnx v1.13.5 Android Kotlin API содержит `OnlineToneCtcModelConfig` и `OnlineRecognizer`; проверен именно tag v1.13.5, а не только текущий master.
-- T-one — потоковая русская ASR-модель CTC, пакет `sherpa-onnx-streaming-t-one-russian-2025-09-08`.
+- T-one — потоковая русская ASR-модель CTC, пакет `sherpa-onnx-streaming-t-one-russian-2025-09-08`. Лицензия модели подтверждена в upstream `voicekit-team/T-one`, commit `3c5b6c015038173840e62cea99e10cdb1c759116`; её текст включён в assets приложения и копируется в app-private storage при установке модели.
 - Архив релиза: 128,468,156 байт; распакованный `model.onnx` около 138 MB; в архиве также `tokens.txt` и `LICENSE`.
 - Официальный SHA-256 архива: `b9c907450e99a6e5049e279bf18368a17db0bdc5e63b7fa978943138debbe3ae`.
 - Модель ожидает 8 kHz. Для неё в приложении сделан настраиваемый AudioRecord sample rate, без неявного неправильного 16→8 kHz преобразования.
 - Это основной прототипный кандидат, но не утверждённая модель релиза: проверить качество на обычном микрофоне телефона, имена контактов, шум, задержку, RAM и нагрев на OnePlus 10T.
 
 Реализация прототипного слоя уже добавлена в ветку:
-1. `RussianAsrModelInstaller` загружает официальный архив только по вызову пользователя, проверяет SHA-256, распаковывает только `model.onnx`, `tokens.txt`, `LICENSE` и блокирует path traversal.
+1. `RussianAsrModelInstaller` загружает официальный архив только по вызову пользователя, проверяет SHA-256, распаковывает только `model.onnx` и `tokens.txt`, блокирует path traversal и добавляет upstream Apache-2.0 LICENSE из закреплённого commit репозитория T-one (если архив не содержит LICENSE).
 2. `SherpaTOneRussianRecognizer` создаёт streaming recognizer через API sherpa-onnx v1.13.5 и требует 8 kHz.
 3. `AndroidPcmAudioCapture` поддерживает конфигурируемую частоту захвата; для T-one задаётся 8 kHz.
 4. Следующие проверки: сборка AAR, работа native JNI, лицензия в экране модели, качество распознавания на OnePlus 10T, WER/CER, partial/final latency, RAM и нагрев.
