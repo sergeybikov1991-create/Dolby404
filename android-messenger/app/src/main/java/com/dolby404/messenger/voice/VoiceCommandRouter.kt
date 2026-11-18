@@ -21,6 +21,7 @@ object VoiceCommandRouter {
         return when (a.name) {
             "open_chats" -> safe(VoiceAction.OpenChats)
             "open_contacts" -> safe(VoiceAction.OpenContacts)
+            "open_settings" -> safe(VoiceAction.OpenSettings)
             "show_media" -> safe(VoiceAction.ShowMedia)
             "show_unread" -> safe(VoiceAction.ShowUnreadConversations)
 
