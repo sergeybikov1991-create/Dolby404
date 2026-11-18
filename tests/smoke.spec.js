@@ -107,3 +107,16 @@ test("messages page uses Supabase Realtime instead of five-second polling", asyn
   expect(messages).not.toMatch(/setInterval\s*\([^)]*(?:loadMessages|loadInbox)/s);
   expect(messages).not.toContain("},5000)");
 });
+
+
+test("messages page keeps the newest messages at the bottom and guards sends", async () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const messages = fs.readFileSync(path.join(__dirname, "../messages.html"), "utf8");
+
+  expect(messages).toContain(".bubble-row{display:flex;flex:0 0 auto}");
+  expect(messages).toContain('.order("created_at",{ascending:false}).order("id",{ascending:false}).limit(200)');
+  expect(messages).toContain("requestAnimationFrame(()=>{host.scrollTop=host.scrollHeight;});");
+  expect(messages).toContain('finally{button.disabled=false;input.focus();}');
+  expect(messages).toContain('or nullif(trim(coalesce(attachment_path');
+});
