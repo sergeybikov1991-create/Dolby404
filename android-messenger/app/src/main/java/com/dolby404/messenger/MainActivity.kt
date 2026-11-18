@@ -4373,24 +4373,34 @@ private fun RealConversationScreen(
                         }
                     }
                     is VoiceAction.SendMessage -> {
-                        if (action.conversationId != peer.id) {
-                            VoiceExecutionResult.Failure("Сначала открой нужную переписку")
+                        val target = if (action.conversationId == peer.id) peer else withTransientNetworkRetry {
+                            floustreamClient.from("profiles").select {
+                                filter { eq("id", action.conversationId) }
+                            }.decodeList<ProfileDto>().firstOrNull()
+                        }
+                        if (target == null || target.isDeleted) {
+                            VoiceExecutionResult.Failure("Не удалось определить получателя сообщения")
                         } else {
-                            sendDirectMessage(currentUserId, peer.id, action.messageText)
+                            sendDirectMessage(currentUserId, target.id, action.messageText)
                             draft = ""
                             replyToMessage = null
-                            refresh()
+                            if (target.id == peer.id) refresh() else onOpenConversation(target)
                             VoiceExecutionResult.Success("Сообщение отправлено")
                         }
                     }
                     is VoiceAction.ReplyToMessage -> {
-                        if (action.conversationId != peer.id) {
-                            VoiceExecutionResult.Failure("Сначала открой нужную переписку")
+                        val target = if (action.conversationId == peer.id) peer else withTransientNetworkRetry {
+                            floustreamClient.from("profiles").select {
+                                filter { eq("id", action.conversationId) }
+                            }.decodeList<ProfileDto>().firstOrNull()
+                        }
+                        if (target == null || target.isDeleted) {
+                            VoiceExecutionResult.Failure("Не удалось определить переписку для ответа")
                         } else {
-                            sendDirectMessage(currentUserId, peer.id, action.messageText, action.messageId)
+                            sendDirectMessage(currentUserId, target.id, action.messageText, action.messageId)
                             draft = ""
                             replyToMessage = null
-                            refresh()
+                            if (target.id == peer.id) refresh() else onOpenConversation(target)
                             VoiceExecutionResult.Success("Ответ отправлен")
                         }
                     }
