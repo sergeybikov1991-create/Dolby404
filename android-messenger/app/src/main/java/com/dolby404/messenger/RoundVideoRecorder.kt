@@ -37,6 +37,8 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.dolby404.messenger.voice.VoiceAudioOwner
+import com.dolby404.messenger.voice.VoiceAudioSessionCoordinator
 import com.pedro.common.ConnectChecker
 import com.pedro.encoder.input.sources.audio.MicrophoneSource
 import com.pedro.encoder.input.sources.video.Camera2Source
@@ -54,6 +56,7 @@ internal enum class VideoCaptureMode { ROUND_FRONT, NORMAL_SWITCHABLE }
 @Composable
 internal fun RoundVideoRecorder(
     mode: VideoCaptureMode,
+    audioCoordinator: VoiceAudioSessionCoordinator,
     onDismiss: () -> Unit,
     onRecordingFinishing: (File) -> Unit,
     onRecorded: (File) -> Unit,
@@ -92,6 +95,7 @@ internal fun RoundVideoRecorder(
     val pendingRoundSend = remember { AtomicBoolean(false) }
     val disposed = remember { AtomicBoolean(false) }
     val recordingFile = remember { mutableStateOf<File?>(null) }
+    var videoAudioLease by remember { mutableStateOf<VoiceAudioSessionCoordinator.Lease?>(null) }
     val cameraSource = remember(context) { Camera2Source(context) }
     val stream = remember(context) {
         val checker = object : ConnectChecker {
@@ -130,6 +134,8 @@ internal fun RoundVideoRecorder(
             finalizing = false
             startedAt = 0L
             shouldSend.set(false)
+            videoAudioLease?.close()
+            videoAudioLease = null
             latestOnError.value(error.message ?: "Не удалось завершить видеозапись.")
         }
     }
@@ -162,9 +168,17 @@ internal fun RoundVideoRecorder(
 
     fun startRecording(): Boolean {
         if (!cameraReady || stream.isRecording || finalizing || disposed.get()) return false
+        val acquiredLease = audioCoordinator.tryAcquire(VoiceAudioOwner.VIDEO_MESSAGE)
+        if (acquiredLease == null) {
+            latestOnError.value("Микрофон сейчас занят голосовым помощником или другой записью.")
+            return false
+        }
+        videoAudioLease = acquiredLease
         val draftsDir = File(context.filesDir, "video-drafts")
         if (!draftsDir.exists() && !draftsDir.mkdirs()) {
             latestOnError.value("Не удалось создать папку для сохранения видеозаписи.")
+            videoAudioLease?.close()
+            videoAudioLease = null
             return false
         }
         val file = File(draftsDir, "video_${UUID.randomUUID()}.mp4")
@@ -192,6 +206,8 @@ internal fun RoundVideoRecorder(
                         elapsedSeconds = 0
                         finalizing = false
                         recordingFile.value = null
+                        videoAudioLease?.close()
+                        videoAudioLease = null
                         when {
                             shouldSend.get() && file.isFile && file.length() > 1500L -> {
                                 // Hand the finalized draft to the chat immediately. The sender
@@ -221,6 +237,8 @@ internal fun RoundVideoRecorder(
             file.delete()
             recordingFile.value = null
             shouldSend.set(false)
+            videoAudioLease?.close()
+            videoAudioLease = null
             latestOnError.value(error.message ?: "Не удалось начать видеозапись.")
             false
         }
@@ -267,6 +285,8 @@ internal fun RoundVideoRecorder(
                 }.onFailure { RoundVideoDiagnostics.record(context, "RootEncoder release failed", it) }
                 recordingFile.value?.delete()
                 recordingFile.value = null
+                videoAudioLease?.close()
+                videoAudioLease = null
                 RoundVideoDiagnostics.record(context, "RootEncoder recorder disposed")
             }
         }
