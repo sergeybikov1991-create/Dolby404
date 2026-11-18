@@ -11,6 +11,7 @@ import com.dolby404.messenger.voice.VoiceAction
 import com.dolby404.messenger.voice.VoiceActionExecutor
 import com.dolby404.messenger.voice.VoiceAssistantEngine
 import com.dolby404.messenger.voice.VoiceAssistantOrchestrator
+import com.dolby404.messenger.voice.VoiceAssistantState
 import com.dolby404.messenger.voice.VoiceConfirmationGate
 import com.dolby404.messenger.voice.VoiceConversationContext
 import com.dolby404.messenger.voice.VoiceEntityResolver
@@ -25,6 +26,7 @@ import java.util.concurrent.TimeUnit
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 
 import kotlinx.coroutines.NonCancellable
@@ -1835,118 +1837,120 @@ private fun MessengerHome(
     val homeVoiceContext = LocalContext.current
     val homeVoiceLifecycle = LocalLifecycleOwner.current
     val homeVoiceScope = rememberCoroutineScope()
-    val homeVoiceAssistant = remember(selectedProfile == null) {
-        val homeEntityResolver = object : VoiceEntityResolver {
-            override suspend fun conversationId(reference: String, context: VoiceConversationContext): String? =
-                if (reference.equals("active", ignoreCase = true)) context.activeConversationId
-                else findVoiceContactCandidates(reference).singleOrNull()?.id
+    val inactiveHomeVoiceState = remember { MutableStateFlow(VoiceAssistantState()) }
+    val homeVoiceController = remember(selectedProfile == null) {
+        if (selectedProfile != null) {
+            null
+        } else {
+            val homeEntityResolver = object : VoiceEntityResolver {
+                override suspend fun conversationId(reference: String, context: VoiceConversationContext): String? =
+                    if (reference.equals("active", ignoreCase = true)) context.activeConversationId
+                    else findVoiceContactCandidates(reference).singleOrNull()?.id
 
-            override suspend fun messageId(reference: String, context: VoiceConversationContext): String? = null
-            override suspend fun attachmentId(reference: String, context: VoiceConversationContext): String? = null
-            override suspend fun contactId(reference: String, context: VoiceConversationContext): String? =
-                if (reference.equals("current", ignoreCase = true)) context.activeContactId
-                else findVoiceContactCandidates(reference).singleOrNull()?.id
-            override suspend fun siteMediaId(reference: String, context: VoiceConversationContext): String? = null
-        }
-        val navigationExecutor = VoiceActionExecutor { action ->
-            when (action) {
-                VoiceAction.OpenChats -> {
-                    selectedProfile = null
-                    socialOpen = false
-                    socialDrawerOpen = false
-                    tab = "Чаты"
-                    VoiceExecutionResult.Success("Открыл чаты")
-                }
-                VoiceAction.OpenContacts -> {
-                    selectedProfile = null
-                    socialOpen = false
-                    socialDrawerOpen = false
-                    tab = "Контакты"
-                    VoiceExecutionResult.Success("Открыл контакты")
-                }
-                VoiceAction.OpenSettings -> {
-                    selectedProfile = null
-                    socialOpen = false
-                    socialDrawerOpen = false
-                    tab = "Настройки"
-                    VoiceExecutionResult.Success("Открыл настройки")
-                }
-                VoiceAction.ShowMedia -> {
-                    selectedProfile = null
-                    socialOpen = true
-                    socialDrawerOpen = false
-                    socialSection = "Фото"
-                    VoiceExecutionResult.Success("Открыл медиа FLOUSTREAM")
-                }
-                is VoiceAction.SearchConversations -> {
-                    selectedProfile = null
-                    socialOpen = false
-                    tab = "Чаты"
-                    searchOpen = true
-                    search = action.query
-                    VoiceExecutionResult.Success("Ищу переписки по запросу ${action.query}")
-                }
-                is VoiceAction.OpenConversation -> {
-                    val target = withTransientNetworkRetry {
-                        floustreamClient.from("profiles").select {
-                            filter { eq("id", action.conversationId) }
-                        }.decodeList<ProfileDto>().firstOrNull()
-                    }
-                    if (target == null || target.isDeleted) {
-                        VoiceExecutionResult.Failure("Не удалось открыть эту переписку")
-                    } else {
-                        selectedProfile = target
-                        tab = "Чаты"
+                override suspend fun messageId(reference: String, context: VoiceConversationContext): String? = null
+                override suspend fun attachmentId(reference: String, context: VoiceConversationContext): String? = null
+                override suspend fun contactId(reference: String, context: VoiceConversationContext): String? =
+                    if (reference.equals("current", ignoreCase = true)) context.activeContactId
+                    else findVoiceContactCandidates(reference).singleOrNull()?.id
+                override suspend fun siteMediaId(reference: String, context: VoiceConversationContext): String? = null
+            }
+            val navigationExecutor = VoiceActionExecutor { action ->
+                when (action) {
+                    VoiceAction.OpenChats -> {
+                        selectedProfile = null
                         socialOpen = false
                         socialDrawerOpen = false
-                        VoiceExecutionResult.Success("Открыл переписку с ${target.displayName ?: target.username ?: "контактом"}")
+                        tab = "Чаты"
+                        VoiceExecutionResult.Success("Открыл чаты")
                     }
+                    VoiceAction.OpenContacts -> {
+                        selectedProfile = null
+                        socialOpen = false
+                        socialDrawerOpen = false
+                        tab = "Контакты"
+                        VoiceExecutionResult.Success("Открыл контакты")
+                    }
+                    VoiceAction.OpenSettings -> {
+                        selectedProfile = null
+                        socialOpen = false
+                        socialDrawerOpen = false
+                        tab = "Настройки"
+                        VoiceExecutionResult.Success("Открыл настройки")
+                    }
+                    VoiceAction.ShowMedia -> {
+                        selectedProfile = null
+                        socialOpen = true
+                        socialDrawerOpen = false
+                        socialSection = "Фото"
+                        VoiceExecutionResult.Success("Открыл медиа FLOUSTREAM")
+                    }
+                    is VoiceAction.SearchConversations -> {
+                        selectedProfile = null
+                        socialOpen = false
+                        tab = "Чаты"
+                        searchOpen = true
+                        search = action.query
+                        VoiceExecutionResult.Success("Ищу переписки по запросу \${action.query}")
+                    }
+                    is VoiceAction.OpenConversation -> {
+                        val target = withTransientNetworkRetry {
+                            floustreamClient.from("profiles").select {
+                                filter { eq("id", action.conversationId) }
+                            }.decodeList<ProfileDto>().firstOrNull()
+                        }
+                        if (target == null || target.isDeleted) {
+                            VoiceExecutionResult.Failure("Не удалось открыть эту переписку")
+                        } else {
+                            selectedProfile = target
+                            tab = "Чаты"
+                            socialOpen = false
+                            socialDrawerOpen = false
+                            VoiceExecutionResult.Success("Открыл переписку с \${target.displayName ?: target.username ?: "контактом"}")
+                        }
+                    }
+                    VoiceAction.ShowUnreadConversations ->
+                        VoiceExecutionResult.Failure("Фильтр непрочитанных переписок пока не подключён")
+                    else -> VoiceExecutionResult.Failure("Эта команда доступна внутри переписки или пока не подключена")
                 }
-                VoiceAction.ShowUnreadConversations ->
-                    VoiceExecutionResult.Failure("Фильтр непрочитанных переписок пока не подключён")
-                else -> VoiceExecutionResult.Failure("Эта команда доступна внутри переписки или пока не подключена")
             }
-        }
-        VoiceAssistantEngine(
-            VoiceAssistantOrchestrator(
-                binder = VoiceIntentBinder(homeEntityResolver),
-                executor = navigationExecutor,
-                confirmationGate = VoiceConfirmationGate(),
-                nowMillis = { System.currentTimeMillis() }
+            val homeAssistant = VoiceAssistantEngine(
+                VoiceAssistantOrchestrator(
+                    binder = VoiceIntentBinder(homeEntityResolver),
+                    executor = navigationExecutor,
+                    confirmationGate = VoiceConfirmationGate(),
+                    nowMillis = { System.currentTimeMillis() }
+                )
             )
-        )
+            val homeTts = AndroidOfflineRussianTts(homeVoiceContext)
+            AndroidOnDeviceVoiceController(
+                context = homeVoiceContext,
+                coordinator = voiceAudioCoordinator,
+                assistant = homeAssistant,
+                speechOutput = AndroidVoiceSpeechOutput(homeTts),
+                contextProvider = {
+                    val screen = when {
+                        socialOpen -> VoiceScreen.MEDIA
+                        tab == "Контакты" -> VoiceScreen.CONTACTS
+                        tab == "Настройки" -> VoiceScreen.SETTINGS
+                        else -> VoiceScreen.CHATS
+                    }
+                    VoiceConversationContext(screen = screen)
+                },
+                hasRecordAudioPermission = {
+                    homeVoiceContext.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+                },
+                isActivityForeground = {
+                    homeVoiceLifecycle.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+                },
+                scope = homeVoiceScope
+            )
+        }
     }
-    val homeVoiceTts = remember(selectedProfile == null) { AndroidOfflineRussianTts(homeVoiceContext) }
-    val homeVoiceSpeechOutput = remember(homeVoiceTts) { AndroidVoiceSpeechOutput(homeVoiceTts) }
-    val homeVoiceController = remember(selectedProfile == null) {
-        AndroidOnDeviceVoiceController(
-            context = homeVoiceContext,
-            coordinator = voiceAudioCoordinator,
-            assistant = homeVoiceAssistant,
-            speechOutput = homeVoiceSpeechOutput,
-            contextProvider = {
-                val screen = when {
-                    socialOpen -> VoiceScreen.MEDIA
-                    tab == "Контакты" -> VoiceScreen.CONTACTS
-                    tab == "Настройки" -> VoiceScreen.SETTINGS
-                    else -> VoiceScreen.CHATS
-                }
-                VoiceConversationContext(screen = screen)
-            },
-            hasRecordAudioPermission = {
-                homeVoiceContext.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-            },
-            isActivityForeground = {
-                homeVoiceLifecycle.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
-            },
-            scope = homeVoiceScope
-        )
-    }
-    val homeVoiceState by homeVoiceController.state.collectAsState()
+    val homeVoiceState by (homeVoiceController?.state ?: inactiveHomeVoiceState).collectAsState()
     var rearmHomeWakeWord by remember { mutableStateOf(false) }
 
     LaunchedEffect(wakeWordPending, selectedProfile, homeVoiceController, homeVoiceLifecycle) {
-        if (wakeWordPending && selectedProfile == null) {
+        if (wakeWordPending && selectedProfile == null && homeVoiceController != null) {
             val resumed = withTimeoutOrNull(5000) {
                 homeVoiceLifecycle.lifecycle.currentStateFlow.first {
                     it.isAtLeast(Lifecycle.State.RESUMED)
@@ -1970,7 +1974,7 @@ private fun MessengerHome(
         val turnFinished = homeVoiceState.phase == VoicePhase.IDLE || homeVoiceState.phase == VoicePhase.ERROR
         val hasTurnResult = !homeVoiceState.responseText.isNullOrBlank() ||
             !homeVoiceState.errorMessage.isNullOrBlank()
-        if (selectedProfile == null && rearmHomeWakeWord && turnFinished && hasTurnResult) {
+        if (selectedProfile == null && homeVoiceController != null && rearmHomeWakeWord && turnFinished && hasTurnResult) {
             delay(500)
             val prefs = homeVoiceContext.getSharedPreferences("floustream_voice", Context.MODE_PRIVATE)
             if (prefs.getBoolean("wake_word_enabled", false) &&
@@ -1989,7 +1993,7 @@ private fun MessengerHome(
     }
 
     DisposableEffect(homeVoiceController) {
-        onDispose { homeVoiceController.close() }
+        onDispose { homeVoiceController?.close() }
     }
 
     LaunchedEffect(notificationPeerId, currentUserId) {
