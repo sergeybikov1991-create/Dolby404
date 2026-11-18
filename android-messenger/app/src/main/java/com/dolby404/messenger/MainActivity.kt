@@ -2072,6 +2072,7 @@ private fun MessengerHome(
                     peer = selectedProfile!!,
                     currentUserId = currentUserId,
                     audioCoordinator = voiceAudioCoordinator,
+                    appVoiceBusy = homeVoiceState.phase != VoicePhase.IDLE && homeVoiceState.phase != VoicePhase.ERROR,
                     wakeWordPending = wakeWordPending,
                     onWakeWordHandled = onWakeWordHandled,
                     onBack = { selectedProfile = null },
@@ -3870,6 +3871,7 @@ private fun RealConversationScreen(
     peer: ProfileDto,
     currentUserId: String,
     audioCoordinator: VoiceAudioSessionCoordinator,
+    appVoiceBusy: Boolean,
     wakeWordPending: Boolean,
     onWakeWordHandled: () -> Unit,
     onBack: () -> Unit,
@@ -4886,14 +4888,15 @@ private fun RealConversationScreen(
         }
     }
 
-    LaunchedEffect(audioCoordinator, lifecycleOwner, voiceController, wakeWordPending) {
+    LaunchedEffect(audioCoordinator, lifecycleOwner, voiceController, wakeWordPending, appVoiceBusy) {
         audioCoordinator.currentOwner.collect { owner ->
-            if (owner == null && !wakeWordPending) {
+            if (owner == null && !wakeWordPending && !appVoiceBusy) {
                 delay(350)
                 val prefs = context.getSharedPreferences("floustream_voice", Context.MODE_PRIVATE)
                 if (prefs.getBoolean("wake_word_enabled", false) &&
                     lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) &&
                     audioCoordinator.currentOwner.value == null &&
+                    !appVoiceBusy &&
                     voiceController.state.value.phase == VoicePhase.IDLE
                 ) {
                     runCatching {
