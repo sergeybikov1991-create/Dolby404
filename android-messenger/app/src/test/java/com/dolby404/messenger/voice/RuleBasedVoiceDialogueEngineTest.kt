@@ -29,9 +29,9 @@ class RuleBasedVoiceDialogueEngineTest {
         assertEquals("photo", parser.parse("Найди фото")?.arguments?.get("media_kind"))
     }
 
-    @Test fun mapsVoiceRecordingCommands() {
-        assertEquals("start_voice_recording", parser.parse("Запиши голосовое")?.name)
-        assertEquals("stop_voice_recording", parser.parse("Останови запись")?.name)
+    @Test fun doesNotUseAssistantMicrophoneToControlVoiceMessageRecording() {
+        assertNull(parser.parse("Запиши голосовое"))
+        assertNull(parser.parse("Останови запись"))
     }
 
     @Test fun mapsCallCommandsToContactReferences() {
