@@ -78,6 +78,7 @@ object WakeWordModelInstaller {
 
             val digest = MessageDigest.getInstance("SHA-256")
             var downloaded = 0L
+            var lastProgressCallback = 0L
             BufferedInputStream(connection.inputStream).use { input ->
                 FileOutputStream(archive).use { raw ->
                     BufferedOutputStream(raw).use { output ->
@@ -91,7 +92,10 @@ object WakeWordModelInstaller {
                             }
                             digest.update(buffer, 0, count)
                             output.write(buffer, 0, count)
-                            onProgress(downloaded, MODEL_ARCHIVE_BYTES)
+                            if (downloaded - lastProgressCallback >= 512L * 1024L || downloaded == MODEL_ARCHIVE_BYTES) {
+                                lastProgressCallback = downloaded
+                                onProgress(downloaded, MODEL_ARCHIVE_BYTES)
+                            }
                         }
                     }
                 }
