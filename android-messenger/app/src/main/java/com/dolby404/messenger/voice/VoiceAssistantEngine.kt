@@ -40,7 +40,7 @@ class VoiceAssistantEngine(
         }
 
         val snapshot = synchronized(historyLock) { history.toList() }
-        val intent = dialogue.interpret(clean, context, snapshot)
+        val intent = dialogue.interpret(clean, context.toDialogueView(), snapshot)
             ?: return rememberAndReturn(
                 clean,
                 VoiceTurnResult.ClarificationRequired("Уточните, пожалуйста, что нужно сделать")
