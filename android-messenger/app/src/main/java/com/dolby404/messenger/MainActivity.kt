@@ -299,9 +299,13 @@ class MainActivity : ComponentActivity() {
     private var pendingLifecycleAction by mutableStateOf<String?>(null)
     private var pendingNotificationPeerId by mutableStateOf<String?>(null)
     private var pendingWakeWord by mutableStateOf(false)
+    private var pendingWakeCommand by mutableStateOf("")
     private val wakeWordReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == WakeWordForegroundService.ACTION_WAKE_DETECTED) pendingWakeWord = true
+            if (intent?.action == WakeWordForegroundService.ACTION_WAKE_DETECTED) {
+                pendingWakeCommand = intent.getStringExtra(WakeWordForegroundService.EXTRA_COMMAND).orEmpty()
+                pendingWakeWord = true
+            }
         }
     }
 
@@ -320,6 +324,7 @@ class MainActivity : ComponentActivity() {
         pendingLifecycleAction = lifecycleActionFromIntent(intent)
         pendingNotificationPeerId = intent.getStringExtra("sender_id")?.takeIf { it.isNotBlank() }
         pendingWakeWord = intent.getBooleanExtra("wake_word_detected", false)
+        pendingWakeCommand = intent.getStringExtra(WakeWordForegroundService.EXTRA_COMMAND).orEmpty()
         floustreamClient.handleDeeplinks(intent)
         setContent {
             MaterialTheme(
@@ -331,7 +336,7 @@ class MainActivity : ComponentActivity() {
                     onBackground = White,
                     onSurface = White
                 )
-            ) { androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) { MessengerApp(pendingLifecycleAction, pendingNotificationPeerId, pendingWakeWord, { pendingLifecycleAction = null }, { pendingNotificationPeerId = null }, { pendingWakeWord = false }); AppUpdatePrompt() } }
+            ) { androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) { MessengerApp(pendingLifecycleAction, pendingNotificationPeerId, pendingWakeWord, pendingWakeCommand, { pendingLifecycleAction = null }, { pendingNotificationPeerId = null }, { pendingWakeWord = false; pendingWakeCommand = "" }); AppUpdatePrompt() } }
         }
     }
 
@@ -372,6 +377,7 @@ class MainActivity : ComponentActivity() {
         pendingLifecycleAction = lifecycleActionFromIntent(intent)
         pendingNotificationPeerId = intent.getStringExtra("sender_id")?.takeIf { it.isNotBlank() }
         pendingWakeWord = intent.getBooleanExtra("wake_word_detected", false)
+        pendingWakeCommand = intent.getStringExtra(WakeWordForegroundService.EXTRA_COMMAND).orEmpty()
         floustreamClient.handleDeeplinks(intent)
     }
 }
@@ -1489,6 +1495,7 @@ private fun MessengerApp(
     pendingLifecycleAction: String?,
     notificationPeerId: String?,
     wakeWordPending: Boolean,
+    wakeWordCommand: String,
     onLifecycleHandled: () -> Unit,
     onNotificationHandled: () -> Unit,
     onWakeWordHandled: () -> Unit
@@ -1669,6 +1676,7 @@ private fun MessengerApp(
             MessengerHome(
                 notificationPeerId = notificationPeerId,
                 wakeWordPending = wakeWordPending,
+                wakeWordCommand = wakeWordCommand,
                 onWakeWordHandled = onWakeWordHandled,
                 onNotificationHandled = onNotificationHandled,
                 onDeleteAccount = {
@@ -1813,6 +1821,7 @@ private fun MessengerHome(
     onDeleteAccount: () -> Unit,
     notificationPeerId: String?,
     wakeWordPending: Boolean,
+    wakeWordCommand: String,
     onWakeWordHandled: () -> Unit,
     onNotificationHandled: () -> Unit
 ) {
@@ -1951,7 +1960,7 @@ private fun MessengerHome(
     val homeVoiceState by homeVoiceController.state.collectAsState()
     var rearmHomeWakeWord by remember { mutableStateOf(false) }
 
-    LaunchedEffect(wakeWordPending, selectedProfile, homeVoiceController, homeVoiceLifecycle) {
+    LaunchedEffect(wakeWordPending, wakeWordCommand, selectedProfile, homeVoiceController, homeVoiceLifecycle) {
         if (wakeWordPending && selectedProfile == null) {
             val resumed = withTimeoutOrNull(5000) {
                 homeVoiceLifecycle.lifecycle.currentStateFlow.first {
@@ -1960,11 +1969,17 @@ private fun MessengerHome(
             }
             if (resumed != null) {
                 delay(150)
-                val started = homeVoiceController.startListening()
-                val startFailed = homeVoiceController.state.value.phase == VoicePhase.ERROR
-                if (started || startFailed) {
+                if (wakeWordCommand.isNotBlank()) {
+                    homeVoiceController.processRecognizedCommand(wakeWordCommand)
                     rearmHomeWakeWord = true
                     onWakeWordHandled()
+                } else {
+                    val started = homeVoiceController.startListening()
+                    val startFailed = homeVoiceController.state.value.phase == VoicePhase.ERROR
+                    if (started || startFailed) {
+                        rearmHomeWakeWord = true
+                        onWakeWordHandled()
+                    }
                 }
             } else {
                 onWakeWordHandled()
@@ -1974,7 +1989,7 @@ private fun MessengerHome(
 
     LaunchedEffect(homeVoiceState.phase, homeVoiceState.responseText, homeVoiceState.errorMessage, rearmHomeWakeWord, selectedProfile) {
         val turnFinished = homeVoiceState.phase == VoicePhase.IDLE || homeVoiceState.phase == VoicePhase.ERROR
-        val hasTurnResult = !homeVoiceState.responseText.isNullOrBlank() ||
+        val hasTurnResult = homeVoiceState.recognizedText.isNotBlank() ||
             !homeVoiceState.errorMessage.isNullOrBlank()
         if (rearmHomeWakeWord && turnFinished && hasTurnResult) {
             delay(500)
@@ -3918,6 +3933,7 @@ private fun RealConversationScreen(
     audioCoordinator: VoiceAudioSessionCoordinator,
     appVoiceBusy: Boolean,
     wakeWordPending: Boolean,
+    wakeWordCommand: String,
     onWakeWordHandled: () -> Unit,
     onBack: () -> Unit,
     onOpenConversation: (ProfileDto) -> Unit,
@@ -4891,25 +4907,32 @@ private fun RealConversationScreen(
 
     var rearmWakeWordAfterAssistant by remember(peer.id) { mutableStateOf(false) }
 
-    LaunchedEffect(wakeWordPending, voiceController, lifecycleOwner) {
+    LaunchedEffect(wakeWordPending, wakeWordCommand, voiceController, lifecycleOwner) {
         if (wakeWordPending) {
-            lifecycleOwner.lifecycle.currentStateFlow.collect { state ->
-                if (state.isAtLeast(Lifecycle.State.RESUMED)) {
-                    delay(150)
+            val resumed = withTimeoutOrNull(5000) {
+                lifecycleOwner.lifecycle.currentStateFlow.first { it.isAtLeast(Lifecycle.State.RESUMED) }
+            }
+            if (resumed != null) {
+                delay(150)
+                if (wakeWordCommand.isNotBlank()) {
+                    voiceController.processRecognizedCommand(wakeWordCommand)
+                    rearmWakeWordAfterAssistant = true
+                    onWakeWordHandled()
+                } else {
                     val started = voiceController.startListening()
                     if (started) rearmWakeWordAfterAssistant = true
-                    if (started || voiceController.state.value.phase == VoicePhase.ERROR) {
-                        onWakeWordHandled()
-                    }
+                    if (started || voiceController.state.value.phase == VoicePhase.ERROR) onWakeWordHandled()
                 }
+            } else {
+                onWakeWordHandled()
             }
         }
     }
 
-    LaunchedEffect(voiceState.phase, voiceState.responseText, rearmWakeWordAfterAssistant) {
+    LaunchedEffect(voiceState.phase, voiceState.recognizedText, rearmWakeWordAfterAssistant) {
         if (rearmWakeWordAfterAssistant &&
             voiceState.phase == VoicePhase.IDLE &&
-            !voiceState.responseText.isNullOrBlank()
+            voiceState.recognizedText.isNotBlank()
         ) {
             delay(500)
             val prefs = context.getSharedPreferences("floustream_voice", Context.MODE_PRIVATE)
