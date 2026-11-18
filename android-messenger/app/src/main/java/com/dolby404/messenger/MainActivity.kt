@@ -9,7 +9,6 @@ import com.dolby404.messenger.voice.VoiceAction
 import com.dolby404.messenger.voice.VoiceActionExecutor
 import com.dolby404.messenger.voice.VoiceAssistantEngine
 import com.dolby404.messenger.voice.VoiceAssistantOrchestrator
-import com.dolby404.messenger.voice.VoiceConfirmationGate
 import com.dolby404.messenger.voice.VoiceConversationContext
 import com.dolby404.messenger.voice.VoiceEntityResolver
 import com.dolby404.messenger.voice.VoiceExecutionResult
@@ -4856,8 +4855,6 @@ private fun RealConversationScreen(
             VoiceAssistantOrchestrator(
                 binder = VoiceIntentBinder(voiceResolver),
                 executor = voiceExecutor,
-                confirmationGate = VoiceConfirmationGate(),
-                nowMillis = { System.currentTimeMillis() }
             )
         )
     }
