@@ -61,7 +61,7 @@ class VoiceIntentJsonDecoderTest {
     }
 
     @Test fun rejectsControlCharactersInArguments() {
-        val result = decoder.decode("""{"intent":"search_messages","arguments":{"query":"bad\\u0000value"}}""")
+        val result = decoder.decode("""{"intent":"search_messages","arguments":{"query":"bad\u0000value"}}""")
         assertTrue(result is VoiceIntentDecodeResult.Invalid)
     }
 }
