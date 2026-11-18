@@ -115,13 +115,16 @@ class AndroidOnDeviceVoiceController(
 
     fun cancelListening() {
         val active = synchronized(lock) {
-            if (!listening) return
-            listening = false
-            microphoneLease?.close()
-            microphoneLease = null
+            if (listening) {
+                listening = false
+                microphoneLease?.close()
+                microphoneLease = null
+            }
             recognizer
         }
         runCatching { active?.cancel() }
+        assistant.cancelPendingConfirmation()
+        speechOutput.stop()
         _state.value = VoiceAssistantState(
             isModelReady = isOnDeviceServiceAvailable(appContext)
         )
