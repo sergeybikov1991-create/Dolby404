@@ -92,3 +92,16 @@ test("video album keeps public and private players, native controls and swipe na
   expect(profile).not.toContain("video-album-playmark");
   expect(profile).not.toContain("video-viewer-thumb-mark");
 });
+
+test("messenger uses realtime subscriptions instead of five-second polling", () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const messages = fs.readFileSync(path.join(__dirname, "../messages.html"), "utf8");
+
+  expect(messages).toContain('floustream-inbox-');
+  expect(messages).toContain('floustream-chat-');
+  expect(messages).toContain('.on("postgres_changes"');
+  expect(messages).toContain('pendingMessageReload');
+  expect(messages).not.toContain('setInterval(()=>{if(!document.hidden)loadInbox();},5000);');
+  expect(messages).not.toContain('setInterval(()=>{if(!document.hidden)loadMessages(true);},5000);');
+});
