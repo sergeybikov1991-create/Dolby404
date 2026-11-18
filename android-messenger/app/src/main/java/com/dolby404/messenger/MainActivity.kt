@@ -4718,6 +4718,27 @@ private fun RealConversationScreen(
         }
     }
 
+    LaunchedEffect(audioCoordinator, lifecycleOwner, voiceController) {
+        audioCoordinator.currentOwner.collect { owner ->
+            if (owner == null && !wakeWordPending) {
+                delay(350)
+                val prefs = context.getSharedPreferences("floustream_voice", Context.MODE_PRIVATE)
+                if (prefs.getBoolean("wake_word_enabled", false) &&
+                    lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) &&
+                    audioCoordinator.currentOwner.value == null &&
+                    voiceController.state.value.phase == VoicePhase.IDLE
+                ) {
+                    runCatching {
+                        context.startForegroundService(
+                            Intent(context, WakeWordForegroundService::class.java)
+                                .setAction(WakeWordForegroundService.ACTION_START)
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     DisposableEffect(voiceController) {
         onDispose { voiceController.close() }
     }
