@@ -702,7 +702,7 @@ private suspend fun loadDirectMessagesPage(
                 val code = connection.responseCode
                 if (code !in 200..299) {
                     val detail = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
-                    if (code in 500..599) throw IOException("Не удалось загрузить сообщения (HTTP $code). ${detail.take(180)}")
+                    if (code in setOf(408, 425, 429) || code in 500..599) throw IOException("Не удалось загрузить сообщения (HTTP $code). ${detail.take(180)}")
                     throw IllegalStateException("Не удалось загрузить сообщения ($code). ${detail.take(180)}")
                 }
                 val rows = JSONArray(connection.inputStream.bufferedReader().use { it.readText() })
@@ -1293,7 +1293,7 @@ private suspend fun loadInboxThreads(
                     val code = connection.responseCode
                     if (code !in 200..299) {
                         val detail = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
-                        if (code in 500..599) throw IOException("Не удалось загрузить список чатов (HTTP $code). ${detail.take(180)}")
+                        if (code in setOf(408, 425, 429) || code in 500..599) throw IOException("Не удалось загрузить список чатов (HTTP $code). ${detail.take(180)}")
                         throw IllegalStateException("Не удалось загрузить список чатов ($code). ${detail.take(180)}")
                     }
                     val payload = JSONArray(connection.inputStream.bufferedReader().use { it.readText() })
