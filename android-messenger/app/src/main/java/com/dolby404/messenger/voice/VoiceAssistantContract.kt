@@ -1,11 +1,6 @@
 package com.dolby404.messenger.voice
 
-/**
- * UI/runtime contract for FLOUSTREAM VOICE.
- *
- * This layer is platform-neutral. Model output is untrusted input and must be
- * converted to these typed actions by VoiceCommandRouter before app execution.
- */
+/** Runtime state and fixed typed actions for FLOUSTREAM hands-free commands. */
 enum class VoicePhase {
     IDLE, LISTENING, TRANSCRIBING, THINKING, ERROR
 }
@@ -71,11 +66,10 @@ enum class MediaKind { PHOTO, VIDEO, FILE, ANY }
 
 sealed interface VoiceCommandDecision {
     data class ExecuteSafely(val action: VoiceAction) : VoiceCommandDecision
-    data class AskForConfirmation(val action: VoiceAction, val prompt: String) : VoiceCommandDecision
     data class Reject(val reason: String) : VoiceCommandDecision
 }
 
-/** Model output is only a proposed intent; never an executable Android command. */
+/** Parsed command; entity references are resolved by app-owned state before execution. */
 data class VoiceModelIntent(
     val name: String,
     val arguments: Map<String, String> = emptyMap()
