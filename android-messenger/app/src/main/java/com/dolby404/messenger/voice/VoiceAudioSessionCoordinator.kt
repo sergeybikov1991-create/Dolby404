@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * Enforces one microphone consumer at a time across assistant, voice messages,
- * calls and (later) wake-word detection.
+ * calls and wake-word detection.
  *
  * This is an in-process ownership guard. It does not itself open or close the
  * Android microphone; callers must hold the lease for the full capture lifetime
