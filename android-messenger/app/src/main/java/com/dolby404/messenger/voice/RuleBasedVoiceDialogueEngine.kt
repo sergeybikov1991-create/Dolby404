@@ -22,7 +22,7 @@ class RuleBasedVoiceDialogueEngine : VoiceDialogueEngine {
             RegexOption.IGNORE_CASE
         ).matchEntire(transcript.trim())
         if (messageCommand != null) {
-            val recipient = messageCommand.groupValues[1].trim()
+            val recipient = messageCommand.groupValues[1].trim().lowercase().replace('ё', 'е')
             val message = messageCommand.groupValues[2].trim()
             if (recipient.isNotEmpty() && message.isNotEmpty()) {
                 val action = if (transcript.trim().lowercase().startsWith("отправь")) "send_message" else "prepare_message_draft"
