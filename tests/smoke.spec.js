@@ -120,3 +120,23 @@ test("messages page keeps the newest messages at the bottom and guards sends", a
   expect(messages).toContain('finally{button.disabled=false;input.focus();}');
   expect(messages).toContain("attachment_path:path");
 });
+
+
+test("FLOUSTREAM shell cache preloads pages without caching private API data", async () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const worker = fs.readFileSync(path.join(__dirname, "../service-worker.js"), "utf8");
+  for (const page of ["portal.html", "profile.html", "public-profile.html", "messages.html", "friends.html", "home.html", "music.html"]) {
+    expect(worker).toContain("./" + page);
+  }
+  expect(worker).toContain('request.mode === "navigate"');
+  expect(worker).toContain('request.method !== "GET"');
+  expect(worker).toContain('response.type === "basic"');
+  expect(worker).toContain('self.skipWaiting()');
+  expect(worker).toContain('self.clients.claim()');
+  expect(worker).not.toContain("supabase.co");
+  for (const page of ["profile.html", "public-profile.html", "messages.html"]) {
+    const html = fs.readFileSync(path.join(__dirname, "../" + page), "utf8");
+    expect(html).toContain('service-worker.js');
+  }
+});
