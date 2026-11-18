@@ -174,16 +174,16 @@ class WakeWordForegroundService : Service() {
     }
 
     private fun notifyWakeDetected() {
-        showStatus("Фраза «Флоу» услышана. Нажми, чтобы открыть голосового помощника.")
+        showStatus("Фраза «Флоу» услышана. Нажми, чтобы открыть голосового помощника.", ongoing = false)
         sendBroadcast(Intent(ACTION_WAKE_DETECTED).setPackage(packageName))
     }
 
-    private fun showStatus(message: String) {
+    private fun showStatus(message: String, ongoing: Boolean = true) {
         val manager = getSystemService(NotificationManager::class.java)
-        manager.notify(NOTIFICATION_ID, buildNotification(message))
+        manager.notify(NOTIFICATION_ID, buildNotification(message, ongoing))
     }
 
-    private fun buildNotification(message: String): Notification {
+    private fun buildNotification(message: String, ongoing: Boolean = true): Notification {
         val openIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra("wake_word_detected", true)
@@ -197,7 +197,8 @@ class WakeWordForegroundService : Service() {
             .setContentTitle("FLOUSTREAM — голосовой помощник")
             .setContentText(message)
             .setContentIntent(pendingIntent)
-            .setOngoing(true)
+            .setOngoing(ongoing)
+            .setAutoCancel(!ongoing)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
