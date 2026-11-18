@@ -73,6 +73,9 @@ This is intentionally a limited first command vocabulary. Extend it only with te
 - A deterministic Russian rule-based command parser and unit tests have been added.
 - VoiceAssistantEngine now has a no-LLM constructor that uses the deterministic parser.
 - An Android system on-device SpeechRecognizer controller has been added; it uses the system Russian language pack, holds the exclusive microphone lease, and releases the microphone before TTS.
-- The existing MainActivity does not yet instantiate AndroidOnDeviceVoiceController; production entity resolver/action executor and the visible push-to-talk control still need integration.
+- MainActivity now wires AndroidOnDeviceVoiceController into the conversation composer with a microphone button.
+- The initial production resolver searches FLOUSTREAM profile display names/usernames and resolves message references only from app-owned conversation state.
+- The initial action executor delegates to existing navigation, message sending, message search, media picker, camera, and video recorder flows. Message sends/replies and calls remain confirmation-gated by the router; calls are not yet implemented by the app executor.
+- Push-to-talk is foreground-only. Listening is cancelled when the conversation pauses; no background microphone or wake phrase is enabled.
 - The Android system service and Russian language-pack availability have not yet been checked on the OnePlus 10T.
 - CI run #452 succeeded for commit `8975687a9247fbdf8fa3f2783cfbc76118811ea1`, before the rule-based parser commits. The parser commits have not yet had a confirmed CI run; do not describe them as tested or release-ready.
