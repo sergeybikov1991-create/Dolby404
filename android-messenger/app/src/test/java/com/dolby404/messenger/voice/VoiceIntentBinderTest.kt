@@ -88,6 +88,30 @@ class VoiceIntentBinderTest {
         assertEquals("trusted-contact", call.intent.arguments["contact_id"])
     }
 
+
+    @Test fun bindsSiteMediaAndAttachmentUsingTrustedResolvers() = runBlocking {
+        val context = VoiceConversationContext()
+            .enterConversation("trusted-chat")
+            .selectAttachment("trusted-attachment")
+        val binder = VoiceIntentBinder(resolver)
+
+        val save = binder.bind(
+            VoiceModelIntent("save_attachment_to_site_media"),
+            context
+        ) as VoiceBindingResult.Bound
+        assertEquals("trusted-attachment", save.intent.arguments["attachment_id"])
+
+        val share = binder.bind(
+            VoiceModelIntent(
+                "share_site_media",
+                mapOf("site_media_ref" to "featured")
+            ),
+            context
+        ) as VoiceBindingResult.Bound
+        assertEquals("trusted-chat", share.intent.arguments["conversation_id"])
+        assertEquals("site-media-1", share.intent.arguments["site_media_id"])
+    }
+
     @Test fun unresolvedReferencesRequireClarification() = runBlocking {
         val result = VoiceIntentBinder(resolver).bind(
             VoiceModelIntent("open_conversation", mapOf("conversation_ref" to "неизвестный контакт")),
