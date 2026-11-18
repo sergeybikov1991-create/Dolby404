@@ -9,6 +9,8 @@ class AndroidVoiceSpeechOutput(
 
     override fun speak(text: String): Boolean = tts.speak(text)
 
+    override fun speak(text: String, onDone: () -> Unit): Boolean = tts.speak(text, onDone)
+
     override fun stop() = tts.stop()
 
     fun close() = tts.close()
