@@ -43,6 +43,10 @@ class VoiceAssistantOrchestrator(
         }
     }
 
+    fun cancelPendingConfirmation() {
+        confirmationGate.cancel()
+    }
+
     suspend fun confirm(token: String, currentContext: VoiceConversationContext): VoiceTurnResult {
         val action = confirmationGate.confirm(
             token = token,
