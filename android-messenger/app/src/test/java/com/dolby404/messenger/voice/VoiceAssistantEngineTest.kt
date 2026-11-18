@@ -26,8 +26,6 @@ class VoiceAssistantEngineTest {
                 executed += action
                 VoiceExecutionResult.Success("ok")
             },
-            confirmationGate = VoiceConfirmationGate(),
-            nowMillis = { 10L }
         )
     )
 
