@@ -58,7 +58,7 @@ The assistant is not a dictation-only feature. It must understand follow-up refe
 
 - Never execute free-form model output as a command.
 - Reject unknown intent names, missing IDs and malformed arguments.
-- The model may provide a display-name query; only the app resolver can turn it into an authoritative ID.
+- The LLM receives a display-only `VoiceDialogueContextView`; it never receives conversation, contact, message, attachment or site-media database IDs. It may provide a display-name/reference query; only the app resolver can turn it into an authoritative ID.
 - Never infer the recipient solely from a stale transcript. Context references must be bound to a current conversation/session and expire on navigation or session end.
 - `VoiceConfirmationGate` binds confirmation to the exact typed action and context revision; it is one-shot and expires after 30 seconds or navigation. Changing any argument requires a new confirmation.
 - Check current-user ownership and backend authorization again at execution time.
@@ -93,5 +93,5 @@ The assistant is not a dictation-only feature. It must understand follow-up refe
 
 ## Current implementation boundary
 
-Implemented foundation: state/action contract, allow-list router, strict JSON intent decoder, local-LLM dialogue adapter boundary, app-owned entity-reference binder, ephemeral conversation context, one-shot spoken confirmation/cancellation, bounded dialogue engine, foreground push-to-talk runtime controller, configurable PCM capture, exclusive audio lease, offline Android TTS adapter, sherpa-onnx v1.13.5 T-one recognizer adapter, checksum-verified opt-in model installer and unit tests.
+Implemented foundation: state/action contract, allow-list router, strict JSON intent decoder, local-LLM dialogue adapter boundary, ID-free dialogue context view, app-owned entity-reference binder, ephemeral conversation context, one-shot spoken confirmation/cancellation, bounded dialogue engine, foreground push-to-talk runtime controller, configurable PCM capture, exclusive audio lease, offline Android TTS adapter, sherpa-onnx v1.13.5 T-one recognizer adapter, checksum-verified opt-in model installer and unit tests.
 Not yet implemented: concrete llama.cpp/other local LLM runtime and GGUF model installer, production VoiceEntityResolver and VoiceActionExecutor implementations, MainActivity/Compose UI integration, device-tested end-to-end operation, wake phrase.
