@@ -103,6 +103,18 @@ class AndroidPcmAudioCapture(
                 start()
             }
             true
+        } catch (security: SecurityException) {
+            running.set(false)
+            releaseAudioEffects()
+            try {
+                createdRecorder?.release()
+            } catch (_: Exception) {
+            }
+            recorder = null
+            lease = null
+            acquired.close()
+            onError("Нет разрешения на использование микрофона. Разреши доступ и повтори попытку.")
+            false
         } catch (error: Exception) {
             running.set(false)
             releaseAudioEffects()
