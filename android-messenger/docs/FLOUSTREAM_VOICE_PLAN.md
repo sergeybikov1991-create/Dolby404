@@ -76,3 +76,45 @@
 - Проверять первоисточник, лицензию каждой модели и runtime отдельно: открытый код движка не означает автоматически свободную лицензию на все веса моделей.
 - Не выбирать модель только по размеру или рейтингу; обязательно тестировать русский язык и производительность на OnePlus 10T.
 - Платные облачные модели не входят в обязательную архитектуру. Возможность подключить их позднее может быть только необязательным модулем с отдельным согласием пользователя.
+
+
+## Текущий статус реализации (2026-11-18)
+
+Работа ведётся только в `feature/floustream-voice-foundation`; база `release/floustream-0.4.28` и `main` не изменяются.
+
+### Уже добавлено в ветку
+- Контракт состояний и типизированных команд для чатов, сообщений, медиа, сайта и звонков.
+- Allow-list router с подтверждением отправки, удаления, пересылки, звонков, изменения настроек и операций с медиа.
+- App-owned entity binder: модель передаёт только пользовательские ссылки; любые сгенерированные ею ID удаляются и разрешаются приложением.
+- Контекст диалога хранит активный чат, выбранное/последнее сообщение и вложение; в LLM передаётся отдельный display-only view без database IDs.
+- Strict JSON decoder, prompt builder и интерфейс локальной LLM.
+- Bounded dialogue history; голосовые «да/подтверждаю» и «нет/отмена» обрабатываются локально и не отправляются повторно в модель.
+- One-shot confirmation gate: действие привязано к контексту, имеет срок действия и исполняется максимум один раз.
+- Foreground push-to-talk runtime controller, PCM AudioRecord capture, exclusive audio lease, offline Android TTS adapter.
+- sherpa-onnx v1.13.5 T-one Russian streaming adapter; модель скачивается отдельно после явного вызова, проверяется SHA-256 и безопасно распаковывается в app-private storage.
+- Unit tests для router, binder, context, confirmations, orchestration, JSON decoder/prompt и model manifest.
+
+### Выборы технологий
+- STT prototype: sherpa-onnx T-one Russian CTC, 8 kHz, streaming.
+- Dialogue LLM candidate: Qwen3.5-2B GGUF Q4_K_M (~1.28 GB); lightweight fallback Qwen3.5-0.8B Q4_0 (~563 MB). Оба требуют проверки качества и RAM на целевом телефоне.
+- LLM runtime: llama.cpp Android JNI/Kotlin — кандидат, но конкретная native сборка и адаптер ещё не добавлены.
+- TTS: Android TextToSpeech, выбирается только установленный русский voice без network requirement.
+
+### Пока не готово — не считать завершённым
+- CI сборка последнего HEAD и полный unit-test run.
+- llama.cpp Android native runtime и проверка поддержки Qwen3.5 на закреплённом commit.
+- Model downloader для GGUF и экран согласия/прогресса загрузки.
+- Production `VoiceEntityResolver` и `VoiceActionExecutor`, которые вызовут существующие chat/media use-cases без дублирования логики.
+- Интеграция VoiceRuntimeController в MainActivity/Compose UI.
+- End-to-end проверка на OnePlus 10T / Android 15.
+- Wake phrase «Привет, Флоу» — только отдельный будущий этап.
+
+### Следующий порядок работ
+1. Дождаться GitHub Actions на актуальном HEAD: Gradle assembleDebug и unit tests; исправить все ошибки до зелёного результата.
+2. Закрепить и собрать llama.cpp Android arm64 runtime; не добавлять непроверенную Maven-координату.
+3. Реализовать проверенные model installers для Qwen3.5-2B и лёгкого fallback, с resume/cancel, свободным местом, лицензией и SHA-256.
+4. Связать typed actions с уже существующими chat/media функциями; регрессии чата являются блокирующим условием.
+5. Добавить отдельный Compose entry point и push-to-talk UI, запрос RECORD_AUDIO только при первом использовании.
+6. Проверить реальную работу на OnePlus 10T, затем выпускать только через существующий in-app updater.
+
+Не выпускать релиз и не просить пользователя ставить APK вручную, пока CI, UI, модель, action adapter и updater не проверены.
