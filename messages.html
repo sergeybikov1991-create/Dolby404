@@ -57,7 +57,7 @@ body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 18% 0%,#281
 const SUPABASE_URL="https://qhpobdktlbhdqsnajypr.supabase.co";
 const SUPABASE_KEY="sb_publishable_tzG1qVsbjaW8YE_LBVN87Q_v0CahKN5";
 const $=id=>document.getElementById(id);
-let client,viewer,peerId,lastMessageId="",loading=false,inboxLoading=false;
+let client,viewer,peerId,lastMessageId="",loading=false,inboxLoading=false,refreshAfterLoad=false;
 function loadLibrary(){return new Promise((resolve,reject)=>{if(window.supabase?.createClient){resolve();return;}const script=document.createElement("script");script.src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";script.onload=()=>window.supabase?.createClient?resolve():reject(new Error("Supabase не загрузился"));script.onerror=()=>reject(new Error("Не удалось загрузить библиотеку Supabase"));document.head.append(script);});}
 function safeUrl(value){if(!value)return "";try{const u=new URL(value,location.href);return ["http:","https:"].includes(u.protocol)?u.href:"";}catch(_){return "";}}
 function timeText(value){const d=new Date(value);return Number.isNaN(d.getTime())?"":d.toLocaleString("ru-RU",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});}
@@ -86,7 +86,7 @@ async function renderMessages(rows){
  lastMessageId=rows[rows.length-1]?.id||lastMessageId;
 }
 async function loadMessages(silent=false){
- if(loading)return;loading=true;
+ if(loading){refreshAfterLoad=true;return;}loading=true;
  try{
   const filter="and(sender_id.eq."+viewer.id+",recipient_id.eq."+peerId+"),and(sender_id.eq."+peerId+",recipient_id.eq."+viewer.id+")";
   const result=await client.from("direct_messages").select("id,sender_id,recipient_id,content,attachment_path,attachment_name,attachment_mime,created_at").or(filter).order("created_at",{ascending:true}).limit(200);
@@ -97,7 +97,7 @@ async function loadMessages(silent=false){
   const newest=rows[rows.length-1]?.id||"";
   if(!silent||newest!==lastMessageId)await renderMessages(rows);
  }catch(error){if(!silent)showNotice("Не удалось загрузить сообщения: "+error.message,true);}
- finally{loading=false;}
+ finally{loading=false;if(refreshAfterLoad){refreshAfterLoad=false;loadMessages(true);}}
 }
 function renderInbox(rows,profiles){
  const host=$("messages");host.replaceChildren();host.classList.add("inbox-list");
@@ -105,7 +105,7 @@ function renderInbox(rows,profiles){
  const profileMap=new Map((profiles||[]).map(p=>[p.id,p]));const threads=new Map();
  for(const row of rows){const other=row.sender_id===viewer.id?row.recipient_id:row.sender_id;if(!threads.has(other))threads.set(other,{last:row,unread:0});if(row.recipient_id===viewer.id&&row.sender_id===other&&!row.read_at)threads.get(other).unread++;}
  for(const [id,thread] of threads){
-  const deletedAccount=!profileMap.has(id);const person=profileMap.get(id)||{};const link=document.createElement("a");link.className="inbox-item";link.href="messages.html?v=20261115-2&with="+encodeURIComponent(id);
+  const deletedAccount=!profileMap.has(id);const person=profileMap.get(id)||{};const link=document.createElement("a");link.className="inbox-item";link.href="messages.html?v=20261119-realtime-1&with="+encodeURIComponent(id);
   const avatar=document.createElement("div");avatar.className="inbox-avatar";const avatarUrl=safeUrl(person.avatar_url);
   if(avatarUrl){const img=document.createElement("img");img.src=avatarUrl;img.alt="";avatar.append(img);}else avatar.textContent=((person.display_name||person.username||"◉").trim()[0]||"◉").toUpperCase();
   const copy=document.createElement("div");copy.className="inbox-copy";const name=document.createElement("div");name.className="inbox-name";name.textContent=deletedAccount?"Удалённый аккаунт":(person.display_name||person.username||"Пользователь");
