@@ -2077,6 +2077,7 @@ private fun MessengerHome(
                         )
                     }
 
+                }
             }
             if (selectedProfile == null) {
                 val voiceHint = rootVoiceState.errorMessage
