@@ -292,7 +292,6 @@ private val floustreamClient = createSupabaseClient(
     }
 }
 
-@androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 class MainActivity : ComponentActivity() {
     private var pendingLifecycleAction by mutableStateOf<String?>(null)
     private var pendingNotificationPeerId by mutableStateOf<String?>(null)
@@ -1441,7 +1440,6 @@ private suspend fun callAccountLifecycle(action: String): String = withContext(D
     } finally { connection.disconnect() }
 }
 
-@android.annotation.SuppressLint("UnsafeOptInUsageError")
 @androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 @androidx.media3.common.util.UnstableApi
 @Composable
