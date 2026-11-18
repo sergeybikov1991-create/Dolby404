@@ -24,6 +24,10 @@
             android:foregroundServiceType="dataSync"
             tools:node="merge" />
         <service
+            android:name=".voice.WakeWordForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
+        <service
             android:name=".FLOUSTREAMMessagingService"
             android:exported="false">
             <intent-filter>
