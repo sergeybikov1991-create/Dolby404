@@ -122,13 +122,27 @@ async function loadInbox(){
   if(ids.length){const people=await client.from("profiles").select("id,username,display_name,avatar_url").in("id",ids);if(people.error)throw people.error;profiles=people.data||[];}renderInbox(rows,profiles);
  }catch(error){showNotice("Не удалось загрузить список сообщений: "+error.message,true);}finally{inboxLoading=false;}
 }
+function watchDirectMessages(onChange,watchReadState){
+ const channel=client.channel("floustream-direct-"+viewer.id+"-"+(peerId||"inbox"));
+ const receive=payload=>{
+  const row=payload.new||{};
+  if(row.sender_id!==viewer.id&&row.recipient_id!==viewer.id)return;
+  if(peerId&&row.sender_id!==peerId&&row.recipient_id!==peerId)return;
+  onChange();
+ };
+ channel.on("postgres_changes",{event:"INSERT",schema:"public",table:"direct_messages",filter:"recipient_id=eq."+viewer.id},receive)
+  .on("postgres_changes",{event:"INSERT",schema:"public",table:"direct_messages",filter:"sender_id=eq."+viewer.id},receive);
+ if(watchReadState)channel.on("postgres_changes",{event:"UPDATE",schema:"public",table:"direct_messages",filter:"recipient_id=eq."+viewer.id},receive);
+ channel.subscribe(status=>{if(status==="CHANNEL_ERROR"||status==="TIMED_OUT")console.warn("FLOUSTREAM Realtime:",status);});
+ return channel;
+}
 async function start(){
  try{
   await loadLibrary();client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
   const auth=await client.auth.getUser();if(auth.error)throw auth.error;viewer=auth.data.user;
   if(!viewer){location.replace("portal.html");return;}
   peerId=new URLSearchParams(location.search).get("with");
-  if(!peerId){$("peer-name").textContent="Сообщения";$("peer-handle").textContent="Все диалоги";$("peer-avatar").textContent="✉";$("composer").hidden=true;await loadInbox();client.channel("floustream-inbox-"+viewer.id).on("postgres_changes",{event:"INSERT",schema:"public",table:"direct_messages"},()=>loadInbox()).on("postgres_changes",{event:"UPDATE",schema:"public",table:"direct_messages",filter:"recipient_id=eq."+viewer.id},()=>loadInbox()).subscribe();setInterval(()=>{if(!document.hidden)loadInbox();},5000);return;}
+  if(!peerId){$("peer-name").textContent="Сообщения";$("peer-handle").textContent="Все диалоги";$("peer-avatar").textContent="✉";$("composer").hidden=true;await loadInbox();watchDirectMessages(()=>loadInbox(),true);return;}
   if(peerId===viewer.id){showNotice("Открой профиль другого пользователя, чтобы начать переписку.",true);$("composer").hidden=true;return;}
   const profile=await client.from("profiles").select("id,username,display_name,avatar_url").eq("id",peerId).maybeSingle();
   if(profile.error)throw profile.error;
@@ -141,6 +155,7 @@ async function start(){
   $("composer").hidden=deletedAccount;
   if(deletedAccount)showNotice("Этот аккаунт удалён. История переписки сохранена; отправлять новые сообщения нельзя.");
   await loadMessages();
+  watchDirectMessages(()=>loadMessages(true),false);
   if(!deletedAccount){
    $("composer").addEventListener("submit",async event=>{
     event.preventDefault();const input=$("message-input"),content=input.value.trim();if(!content)return;
@@ -169,7 +184,6 @@ async function start(){
     }finally{button.disabled=false;event.target.value="";}
    });
   }
-  setInterval(()=>{if(!document.hidden)loadMessages(true);},5000);
  }catch(error){$("peer-name").textContent="Не удалось открыть переписку";showNotice(error.message,true);$("messages").replaceChildren();}
 }
 start();
