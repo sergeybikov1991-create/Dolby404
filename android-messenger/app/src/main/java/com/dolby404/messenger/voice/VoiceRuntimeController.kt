@@ -187,6 +187,7 @@ class VoiceRuntimeController(
             is VoiceTurnResult.AwaitingConfirmation -> result.prompt
             is VoiceTurnResult.ClarificationRequired -> result.question
             is VoiceTurnResult.Rejected -> result.reason
+            is VoiceTurnResult.Cancelled -> result.spokenMessage
         }
         val outputReady = speechOutput.isReady
         _state.value = VoiceAssistantState(
