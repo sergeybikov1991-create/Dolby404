@@ -690,31 +690,6 @@ private suspend fun findFloustreamUsers(query: String): List<ProfileDto> {
     }
 }
 
-/**
- * Voice references are resolved against display names and usernames inside the app.
- * A small Russian inflection stem helps phrases such as "с Анной" match "Анна";
- * ambiguous results are intentionally left unresolved for clarification.
- */
-private suspend fun findVoiceContactCandidates(reference: String): List<ProfileDto> {
-    val term = reference.trim().removePrefix("@")
-    if (term.length < 2) return emptyList()
-    val lower = term.lowercase()
-    val suffix = listOf("ой", "ей", "ом", "ем", "е", "у", "ю", "а", "я")
-        .firstOrNull { lower.endsWith(it) && lower.length - it.length >= 2 }
-    val displayStem = if (suffix == null) term else term.dropLast(suffix.length)
-    val byDisplayName = withTransientNetworkRetry {
-        floustreamClient.from("profiles").select {
-            filter { ilike("display_name", "%$displayStem%") }
-        }.decodeList<ProfileDto>()
-    }
-    val byUsername = findFloustreamUsers(term)
-    val currentUserId = floustreamClient.auth.currentUserOrNull()?.id
-    return (byDisplayName + byUsername)
-        .filter { it.id != currentUserId && !it.isDeleted }
-        .distinctBy { it.id }
-        .take(30)
-}
-
 private suspend fun loadDirectMessagesPage(
     userId: String,
     peerId: String,
@@ -1862,8 +1837,7 @@ private fun MessengerHome(
             override suspend fun messageId(reference: String, context: VoiceConversationContext): String? = null
             override suspend fun attachmentId(reference: String, context: VoiceConversationContext): String? = null
             override suspend fun contactId(reference: String, context: VoiceConversationContext): String? =
-                if (reference.equals("current", ignoreCase = true)) context.activeContactId
-                else findVoiceContactCandidates(reference).singleOrNull()?.id
+                if (reference.equals("current", ignoreCase = true)) context.activeContactId else null
             override suspend fun siteMediaId(reference: String, context: VoiceConversationContext): String? = null
         }
         val navigationExecutor = VoiceActionExecutor { action ->
@@ -2128,6 +2102,7 @@ private fun MessengerHome(
                     appVoiceBusy = homeVoiceState.phase != VoicePhase.IDLE && homeVoiceState.phase != VoicePhase.ERROR,
                     wakeWordPending = wakeWordPending,
                     wakeWordCommand = wakeWordCommand,
+                    savedChats = voiceSavedChats.toList(),
                     onWakeWordHandled = onWakeWordHandled,
                     onBack = { selectedProfile = null },
                     onOpenConversation = { profile -> selectedProfile = profile; tab = "Чаты" },
@@ -3935,6 +3910,7 @@ private fun RealConversationScreen(
     appVoiceBusy: Boolean,
     wakeWordPending: Boolean,
     wakeWordCommand: String,
+    savedChats: List<ProfileDto>,
     onWakeWordHandled: () -> Unit,
     onBack: () -> Unit,
     onOpenConversation: (ProfileDto) -> Unit,
@@ -4677,14 +4653,16 @@ private fun RealConversationScreen(
         }
     }
 
-    suspend fun resolveVoiceProfile(reference: String): ProfileDto? {
-        val candidates = try {
-            findVoiceContactCandidates(reference)
-        } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
-            emptyList()
-        }
-        return candidates.singleOrNull()
+    fun resolveVoiceProfile(reference: String): ProfileDto? {
+        val normalized = reference.trim().lowercase().replace('ё', 'е')
+            .replace(Regex("[^\\p{L}\\p{N}]+"), " ").replace(Regex("\\s+"), " ")
+        if (normalized.isBlank()) return null
+        return savedChats.filter { profile ->
+            listOfNotNull(profile.displayName, profile.username).any { label ->
+                label.trim().lowercase().replace('ё', 'е')
+                    .replace(Regex("[^\\p{L}\\p{N}]+"), " ").replace(Regex("\\s+"), " ") == normalized
+            }
+        }.distinctBy { it.id }.singleOrNull()
     }
 
     val voiceResolver = remember(peer.id) {
