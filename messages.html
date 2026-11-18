@@ -109,7 +109,7 @@ function renderInbox(rows,profiles){
  const profileMap=new Map((profiles||[]).map(p=>[p.id,p]));const threads=new Map();
  for(const row of rows){const other=row.sender_id===viewer.id?row.recipient_id:row.sender_id;if(!threads.has(other))threads.set(other,{last:row,unread:0});if(row.recipient_id===viewer.id&&row.sender_id===other&&!row.read_at)threads.get(other).unread++;}
  for(const [id,thread] of threads){
-  const deletedAccount=!profileMap.has(id);const person=profileMap.get(id)||{};const link=document.createElement("a");link.className="inbox-item";link.href="messages.html?v=20261119-realtime-1&with="+encodeURIComponent(id);
+  const deletedAccount=!profileMap.has(id);const person=profileMap.get(id)||{};const link=document.createElement("a");link.className="inbox-item";link.href="messages.html?v=20261119-realtime-2&with="+encodeURIComponent(id);
   const avatar=document.createElement("div");avatar.className="inbox-avatar";const avatarUrl=safeUrl(person.avatar_url);
   if(avatarUrl){const img=document.createElement("img");img.src=avatarUrl;img.alt="";avatar.append(img);}else avatar.textContent=((person.display_name||person.username||"◉").trim()[0]||"◉").toUpperCase();
   const copy=document.createElement("div");copy.className="inbox-copy";const name=document.createElement("div");name.className="inbox-name";name.textContent=deletedAccount?"Удалённый аккаунт":(person.display_name||person.username||"Пользователь");
