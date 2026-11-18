@@ -1822,6 +1822,7 @@ private fun MessengerHome(
     var selectedProfile by remember { mutableStateOf<ProfileDto?>(null) }
     val voiceAudioCoordinator = VoiceAudioSessionCoordinator.shared
     val currentUserId = floustreamClient.auth.currentUserOrNull()?.id.orEmpty()
+    val voiceSavedChats = remember(currentUserId) { mutableStateListOf<ProfileDto>() }
     var searchOpen by remember { mutableStateOf(false) }
     var search by remember { mutableStateOf("") }
     var infoMessage by remember { mutableStateOf("") }
@@ -1837,9 +1838,19 @@ private fun MessengerHome(
     val homeVoiceScope = rememberCoroutineScope()
     val homeVoiceAssistant = remember {
         val homeEntityResolver = object : VoiceEntityResolver {
-            override suspend fun conversationId(reference: String, context: VoiceConversationContext): String? =
-                if (reference.equals("active", ignoreCase = true)) context.activeConversationId
-                else findVoiceContactCandidates(reference).singleOrNull()?.id
+            override suspend fun conversationId(reference: String, context: VoiceConversationContext): String? {
+                if (reference.equals("active", ignoreCase = true)) return context.activeConversationId
+                val normalized = reference.trim().lowercase().replace('ё', 'е')
+                    .replace(Regex("[^\\p{L}\\p{N}]+"), " ").replace(Regex("\\s+"), " ")
+                if (normalized.isBlank()) return null
+                val matches = voiceSavedChats.filter { profile ->
+                    listOfNotNull(profile.displayName, profile.username).any { label ->
+                        label.trim().lowercase().replace('ё', 'е')
+                            .replace(Regex("[^\\p{L}\\p{N}]+"), " ").replace(Regex("\\s+"), " ") == normalized
+                    }
+                }.distinctBy { it.id }
+                return matches.singleOrNull()?.id
+            }
 
             override suspend fun messageId(reference: String, context: VoiceConversationContext): String? = null
             override suspend fun attachmentId(reference: String, context: VoiceConversationContext): String? = null
@@ -2148,6 +2159,10 @@ private fun MessengerHome(
                     "Чаты" -> ChatsScreen(
                         currentUserId = currentUserId,
                         searchQuery = search,
+                        onThreadsChanged = { loadedPeers ->
+                            voiceSavedChats.clear()
+                            voiceSavedChats.addAll(loadedPeers.distinctBy { it.id })
+                        },
                         onOpen = { selectedProfile = it }
                     )
                     "Контакты" -> ContactsScreen(onStart = { selectedProfile = it; tab = "Чаты" })
@@ -2764,6 +2779,7 @@ private fun HeaderAction(symbol: String, onClick: () -> Unit) {
 private fun ChatsScreen(
     currentUserId: String,
     searchQuery: String,
+    onThreadsChanged: (List<ProfileDto>) -> Unit,
     onOpen: (ProfileDto) -> Unit
 ) {
     val threads = remember(currentUserId) { mutableStateListOf<ChatThread>() }
@@ -2799,6 +2815,7 @@ private fun ChatsScreen(
                     )
                     threads.clear()
                     threads.addAll(latest)
+                    onThreadsChanged(latest.map { it.peer })
                     hasLoadedInbox = true
                     loading = false
                     error = ""
@@ -2811,6 +2828,7 @@ private fun ChatsScreen(
                             )
                             threads.clear()
                             threads.addAll(completeHistory)
+                            onThreadsChanged(completeHistory.map { it.peer })
                         } catch (historyError: Exception) {
                             if (historyError is kotlinx.coroutines.CancellationException) throw historyError
                             // Keep the already rendered recent inbox; the next foreground
