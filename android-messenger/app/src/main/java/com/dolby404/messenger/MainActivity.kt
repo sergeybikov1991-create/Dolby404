@@ -4143,7 +4143,7 @@ private fun RealConversationScreen(
         }
     }
     val microphonePermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        errorText = if (granted) "Микрофон разрешён. Нажми 🎙 для помощника или удержи отправку для голосового сообщения." else "Для голосового управления и голосовых сообщений нужно разрешить доступ к микрофону."
+        errorText = if (granted) "Микрофон разрешён. Теперь можно записывать голосовые сообщения." else "Для записи голосовых сообщений нужно разрешить доступ к микрофону."
     }
 
     fun startVoiceRecording(): Boolean {
@@ -5399,30 +5399,6 @@ private fun RealConversationScreen(
                     }
                 })
             )
-            Surface(
-                modifier = Modifier.size(40.dp).clickable(
-                    enabled = !recordingVoice && !uploadingAttachment &&
-                        voiceState.phase !in setOf(VoicePhase.TRANSCRIBING, VoicePhase.THINKING, VoicePhase.SPEAKING)
-                ) {
-                    if (voiceState.phase == VoicePhase.LISTENING) {
-                        voiceController.stopListening()
-                    } else if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-                        microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
-                    } else {
-                        voiceController.startListening()
-                    }
-                },
-                color = if (voiceState.phase == VoicePhase.LISTENING) Violet else PanelSoft,
-                shape = CircleShape
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        if (voiceState.phase == VoicePhase.LISTENING) "■" else "🎙",
-                        color = White,
-                        fontSize = 17.sp
-                    )
-                }
-            }
             Surface(
                 modifier = Modifier.size(44.dp).pointerInput(draft, sending, uploadingAttachment) {
                     awaitEachGesture {
