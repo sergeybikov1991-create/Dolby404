@@ -47,6 +47,7 @@ android {
 dependencies {
     // Pinned upstream sherpa-onnx Android runtime; downloaded and SHA-256 verified by CI.
     implementation(files("libs/sherpa-onnx-1.13.5.aar"))
+    implementation("org.apache.commons:commons-compress:1.27.1")
     implementation(platform("com.google.firebase:firebase-bom:35.2.0"))
     implementation("com.google.firebase:firebase-messaging")
     implementation(platform("androidx.compose:compose-bom:2025.11.00"))
