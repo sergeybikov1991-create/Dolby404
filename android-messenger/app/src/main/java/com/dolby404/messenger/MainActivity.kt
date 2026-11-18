@@ -4728,6 +4728,7 @@ private fun RealConversationScreen(
     if (showVideoRecorder) {
         RoundVideoRecorder(
             mode = videoCaptureMode,
+            audioCoordinator = audioCoordinator,
             onDismiss = { showVideoRecorder = false },
             onRecordingFinishing = { file ->
                 showVideoRecorder = false
