@@ -33,8 +33,11 @@ sealed interface VoiceAction {
     data class SetConversationPinned(val conversationId: String, val isPinned: Boolean) : VoiceAction
     data class SetConversationArchived(val conversationId: String, val isArchived: Boolean) : VoiceAction
     data class SetConversationMuted(val conversationId: String, val isMuted: Boolean) : VoiceAction
+    data class DeleteConversation(val conversationId: String) : VoiceAction
+    data class ClearConversationHistory(val conversationId: String) : VoiceAction
 
     data class SearchMessages(val conversationId: String?, val query: String) : VoiceAction
+    data class SearchAttachments(val conversationId: String?, val mediaKind: MediaKind, val query: String?) : VoiceAction
     data class PrepareMessageDraft(val recipientQuery: String, val messageText: String) : VoiceAction
     data class SendMessage(val conversationId: String, val messageText: String) : VoiceAction
     data class ReplyToMessage(val conversationId: String, val messageId: String, val messageText: String) : VoiceAction
@@ -42,6 +45,7 @@ sealed interface VoiceAction {
     data class EditMessage(val messageId: String, val newText: String) : VoiceAction
     data class DeleteMessage(val messageId: String) : VoiceAction
     data class ReactToMessage(val messageId: String, val reaction: String) : VoiceAction
+    data class ReadMessage(val messageId: String) : VoiceAction
 
     data class PlayVoiceMessage(val messageId: String) : VoiceAction
     data class StartVoiceMessageRecording(val conversationId: String) : VoiceAction
@@ -51,6 +55,8 @@ sealed interface VoiceAction {
     data object CaptureVideo : VoiceAction
     data class OpenAttachment(val attachmentId: String) : VoiceAction
     data class SendAttachment(val conversationId: String, val attachmentId: String) : VoiceAction
+    data class SaveAttachmentToSiteMedia(val attachmentId: String) : VoiceAction
+    data class ShareSiteMediaToConversation(val siteMediaId: String, val conversationId: String) : VoiceAction
 
     data class StartCall(val contactId: String, val callType: CallType) : VoiceAction
     data object AcceptCall : VoiceAction
