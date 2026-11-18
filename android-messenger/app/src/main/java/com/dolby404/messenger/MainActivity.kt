@@ -1440,6 +1440,7 @@ private suspend fun callAccountLifecycle(action: String): String = withContext(D
     } finally { connection.disconnect() }
 }
 
+@androidx.media3.common.util.UnstableApi
 @Composable
 private fun MessengerApp(
     pendingLifecycleAction: String?,
