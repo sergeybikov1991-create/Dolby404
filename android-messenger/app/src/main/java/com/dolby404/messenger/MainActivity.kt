@@ -1955,8 +1955,9 @@ private fun MessengerHome(
             if (resumed != null) {
                 delay(150)
                 val started = homeVoiceController.startListening()
-                if (started) rearmHomeWakeWord = true
-                if (started || homeVoiceController.state.value.phase == VoicePhase.ERROR) {
+                val startFailed = homeVoiceController.state.value.phase == VoicePhase.ERROR
+                if (started || startFailed) {
+                    rearmHomeWakeWord = true
                     onWakeWordHandled()
                 }
             } else {
