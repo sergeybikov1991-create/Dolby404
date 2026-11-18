@@ -188,13 +188,17 @@ class VoiceRuntimeController(
             is VoiceTurnResult.ClarificationRequired -> result.question
             is VoiceTurnResult.Rejected -> result.reason
         }
-        val spoken = speechOutput.isReady && speechOutput.speak(response)
+        val outputReady = speechOutput.isReady
         _state.value = VoiceAssistantState(
-            phase = if (spoken) VoicePhase.SPEAKING else VoicePhase.IDLE,
+            phase = if (outputReady) VoicePhase.SPEAKING else VoicePhase.IDLE,
             recognizedText = transcript,
             responseText = response,
             isModelReady = recognizer.isReady
         )
+        val spoken = outputReady && speechOutput.speak(response) {
+            _state.value = _state.value.copy(phase = VoicePhase.IDLE)
+        }
+        if (!spoken) _state.value = _state.value.copy(phase = VoicePhase.IDLE)
         return result
     }
 
