@@ -24,7 +24,7 @@ interface SpeechRecognitionSession : AutoCloseable {
 fun interface VoiceDialogueEngine {
     suspend fun interpret(
         transcript: String,
-        context: VoiceConversationContext,
+        context: VoiceDialogueContextView,
         history: List<VoiceDialogueTurn>
     ): VoiceModelIntent?
 }
