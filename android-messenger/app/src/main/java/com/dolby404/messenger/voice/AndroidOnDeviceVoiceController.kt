@@ -388,7 +388,6 @@ class AndroidOnDeviceVoiceController(
         _state.value = VoiceAssistantState(
             phase = VoicePhase.IDLE,
             recognizedText = transcript,
-            responseText = "",
             errorMessage = null,
             isModelReady = _state.value.isModelReady
         )
