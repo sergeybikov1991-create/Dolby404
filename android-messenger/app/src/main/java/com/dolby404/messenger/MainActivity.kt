@@ -18,7 +18,6 @@ import com.dolby404.messenger.voice.VoiceExecutionResult
 import com.dolby404.messenger.voice.VoiceIntentBinder
 import com.dolby404.messenger.voice.VoicePhase
 import com.dolby404.messenger.voice.VoiceScreen
-import com.dolby404.messenger.voice.VoiceScreen
 
 import java.util.concurrent.TimeUnit
 
@@ -5017,9 +5016,9 @@ private fun RealConversationScreen(
                 ?: voiceState.responseText.takeIf { it.isNotBlank() }
                 ?: voiceState.recognizedText.takeIf { it.isNotBlank() }
                 ?: ttsStatus.takeIf { !voiceSpeechOutput.isReady }
-            if (voiceHint.isNotBlank()) {
+            voiceHint?.takeIf { it.isNotBlank() }?.let { hint ->
                 Text(
-                    voiceHint,
+                    hint,
                     Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
                     color = if (voiceState.errorMessage != null) Color(0xFFFFB4B4) else Muted,
                     fontSize = 10.sp,
