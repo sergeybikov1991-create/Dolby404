@@ -144,7 +144,6 @@ class WakeWordForegroundService : Service() {
                 if (count > 0 && detector.acceptAudio(frame, count)) {
                     stopping.set(true)
                     wakeDetected = true
-                    notifyWakeDetected()
                     break
                 }
                 check(count >= 0) { "Ошибка чтения микрофона: $count" }
@@ -163,6 +162,8 @@ class WakeWordForegroundService : Service() {
             lease = null
             captureThread = null
             if (wakeDetected) {
+                // The wake broadcast is sent only after the WAKE_WORD lease is released.
+                notifyWakeDetected()
                 // Keep the actionable notification after releasing the microphone.
                 stopForeground(STOP_FOREGROUND_DETACH)
                 stopSelf()
@@ -185,6 +186,7 @@ class WakeWordForegroundService : Service() {
     private fun buildNotification(message: String): Notification {
         val openIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra("wake_word_detected", true)
         }
         val pendingIntent = PendingIntent.getActivity(
             this, 4107, openIntent,
