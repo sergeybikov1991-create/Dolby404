@@ -5,22 +5,18 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
     id("com.google.gms.google-services")
 }
-
 android {
     namespace = "com.dolby404.messenger"
     compileSdk = 36
-
     defaultConfig {
         applicationId = "com.dolby404.messenger"
         minSdk = 26
         targetSdk = 36
         versionCode = 36
         versionName = "0.4.28"
-
         buildConfigField("String", "SUPABASE_URL", "\"https://qhpobdktlbhdqsnajypr.supabase.co\"")
         buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"sb_publishable_tzG1qVsbjaW8YE_LBVN87Q_v0CahKN5\"")
     }
-
     signingConfigs {
         create("release") {
             val storePath = System.getenv("DOLBY404_KEYSTORE_PATH")
@@ -32,29 +28,22 @@ android {
             }
         }
     }
-
     buildTypes {
         getByName("release") {
             isMinifyEnabled = false
             signingConfig = signingConfigs.getByName("release")
         }
     }
-
     buildFeatures {
         compose = true
         buildConfig = true
     }
-
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-
-    kotlinOptions {
-        jvmTarget = "17"
-    }
+    kotlinOptions { jvmTarget = "17" }
 }
-
 dependencies {
     implementation(platform("com.google.firebase:firebase-bom:35.2.0"))
     implementation("com.google.firebase:firebase-messaging")
@@ -74,7 +63,6 @@ dependencies {
     implementation("androidx.camera:camera-view:$cameraXVersion")
     implementation("com.github.pedroSG94.RootEncoder:library:2.8.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
-
     implementation(platform("io.github.jan-tennert.supabase:bom:3.5.0"))
     implementation("io.github.jan-tennert.supabase:auth-kt")
     implementation("io.github.jan-tennert.supabase:postgrest-kt")
@@ -83,7 +71,7 @@ dependencies {
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("io.ktor:ktor-client-android:3.0.3")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
-
     implementation("androidx.core:core-ktx:1.16.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
+    testImplementation("junit:junit:4.13.2")
 }
