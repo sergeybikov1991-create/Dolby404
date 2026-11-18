@@ -38,6 +38,11 @@ android {
         compose = true
         buildConfig = true
     }
+
+    lint {
+        // Media3 unstable APIs are explicitly marked; this detector flags Compose call sites despite those markers.
+        disable += "UnsafeOptInUsageError"
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
