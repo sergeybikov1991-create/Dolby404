@@ -114,10 +114,7 @@ object VoiceCommandRouter {
             "start_voice_recording" -> required(a, "conversation_id")?.let {
                 safe(VoiceAction.StartVoiceMessageRecording(it))
             } ?: missing("Сначала откройте переписку")
-            "stop_voice_recording" -> confirm(
-                VoiceAction.StopVoiceMessageRecording,
-                "Отправить записанное голосовое сообщение?"
-            )
+            "stop_voice_recording" -> safe(VoiceAction.StopVoiceMessageRecording)
 
             "pick_photo", "pick_video", "pick_file", "pick_attachment" -> {
                 val kind = when (a.name) {
