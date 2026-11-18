@@ -46,7 +46,13 @@ object VoiceCommandRouter {
                     "archive_conversation" -> VoiceAction.SetConversationArchived(id, true)
                     "unarchive_conversation" -> VoiceAction.SetConversationArchived(id, false)
                     "mute_conversation" -> VoiceAction.SetConversationMuted(id, true)
-                    else -> VoiceAction.SetConversationMuted(id, false)
+                    "unmute_conversation" -> VoiceAction.SetConversationMuted(id, false)
+                    "delete_conversation" -> return confirm(
+                        VoiceAction.DeleteConversation(id), "Удалить эту переписку?"
+                    )
+                    else -> return confirm(
+                        VoiceAction.ClearConversationHistory(id), "Очистить историю этой переписки?"
+                    )
                 }
                 safe(action)
             }
@@ -54,6 +60,15 @@ object VoiceCommandRouter {
             "search_messages" -> {
                 val query = required(a, "query") ?: return missing("Что найти в сообщениях?")
                 safe(VoiceAction.SearchMessages(required(a, "conversation_id"), query))
+            }
+            "search_attachments" -> {
+                val kind = when (required(a, "media_kind")?.lowercase()) {
+                    "photo", "photos", "фото" -> MediaKind.PHOTO
+                    "video", "videos", "видео" -> MediaKind.VIDEO
+                    "file", "files", "файлы" -> MediaKind.FILE
+                    else -> MediaKind.ANY
+                }
+                safe(VoiceAction.SearchAttachments(required(a, "conversation_id"), kind, required(a, "query")))
             }
             "prepare_message_draft" -> {
                 val recipient = required(a, "recipient") ?: return missing("Кому адресовать сообщение?")
@@ -89,6 +104,9 @@ object VoiceCommandRouter {
                 val reaction = required(a, "reaction") ?: return missing("Какую реакцию поставить?")
                 safe(VoiceAction.ReactToMessage(message, reaction))
             }
+            "read_message" -> required(a, "message_id")?.let {
+                safe(VoiceAction.ReadMessage(it))
+            } ?: missing("Не удалось определить сообщение")
             "play_voice_message" -> required(a, "message_id")?.let {
                 safe(VoiceAction.PlayVoiceMessage(it))
             } ?: missing("Не удалось определить голосовое сообщение")
@@ -115,6 +133,14 @@ object VoiceCommandRouter {
                 val chat = required(a, "conversation_id") ?: return missing("Не удалось определить чат")
                 val attachment = required(a, "attachment_id") ?: return missing("Не удалось определить файл")
                 confirm(VoiceAction.SendAttachment(chat, attachment), "Отправить выбранное вложение?")
+            }
+            "save_attachment_to_site_media" -> required(a, "attachment_id")?.let {
+                confirm(VoiceAction.SaveAttachmentToSiteMedia(it), "Сохранить вложение в медиа FLOUSTREAM?")
+            } ?: missing("Не удалось определить вложение")
+            "share_site_media" -> {
+                val media = required(a, "site_media_id") ?: return missing("Какое медиа отправить?")
+                val chat = required(a, "conversation_id") ?: return missing("Куда отправить медиа?")
+                confirm(VoiceAction.ShareSiteMediaToConversation(media, chat), "Отправить это медиа в переписку?")
             }
 
             "start_audio_call", "start_video_call" -> {
