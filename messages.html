@@ -63,6 +63,10 @@ function safeUrl(value){if(!value)return "";try{const u=new URL(value,location.h
 function timeText(value){const d=new Date(value);return Number.isNaN(d.getTime())?"":d.toLocaleString("ru-RU",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});}
 function showNotice(message,error=false){$("notice").textContent=message||"";$("notice").style.color=error?"#ffb4c0":"#c8a7e8";}
 async function renderMessages(rows){
+ const signedUrls=new Map();
+ await Promise.all(rows.filter(row=>row.attachment_path).map(async row=>{
+  try{const result=await client.storage.from("message-media").createSignedUrl(row.attachment_path,3600);if(!result.error)signedUrls.set(row.id,result.data.signedUrl);}catch(_){}
+ }));
  const host=$("messages");host.replaceChildren();
  if(!rows.length){const empty=document.createElement("div");empty.className="empty";empty.textContent="Это начало вашей переписки. Отправь первое сообщение!";host.append(empty);return;}
  for(const row of rows){
@@ -70,9 +74,8 @@ async function renderMessages(rows){
   const bubble=document.createElement("div");bubble.className="bubble";
   if(row.attachment_path){
    try{
-    const signed=await client.storage.from("message-media").createSignedUrl(row.attachment_path,3600);
-    if(signed.error)throw signed.error;
-    const url=signed.data.signedUrl,mime=(row.attachment_mime||"").toLowerCase();
+    const url=signedUrls.get(row.id);if(!url)throw new Error("Вложение недоступно");
+    const mime=(row.attachment_mime||"").toLowerCase();
     if(mime.startsWith("image/")){const media=document.createElement("img");media.className="message-media-image";media.src=url;media.alt=row.attachment_name||"Изображение";media.loading="lazy";bubble.append(media);}
     else if(mime.startsWith("video/")){const media=document.createElement("video");media.className="message-media-video";media.src=url;media.controls=true;media.playsInline=true;media.preload="metadata";bubble.append(media);}
     else if(mime.startsWith("audio/")){const media=document.createElement("audio");media.className="message-media-audio";media.src=url;media.controls=true;media.preload="metadata";bubble.append(media);}
@@ -97,7 +100,7 @@ async function loadMessages(silent=false,forceRender=false){
   const newest=rows[rows.length-1]?.id||"";
   if(!silent||forceRender||newest!==lastMessageId)await renderMessages(rows);
  }catch(error){if(!silent)showNotice("Не удалось загрузить сообщения: "+error.message,true);}
- finally{loading=false;if(refreshAfterLoad){refreshAfterLoad=false;loadMessages(true);}}
+ finally{loading=false;if(refreshAfterLoad){refreshAfterLoad=false;loadMessages(true,true);}}
 }
 function renderInbox(rows,profiles){
  const host=$("messages");host.replaceChildren();host.classList.add("inbox-list");
@@ -134,7 +137,6 @@ function watchDirectMessages(onChange,watchReadState){
   .on("postgres_changes",{event:"INSERT",schema:"public",table:"direct_messages",filter:"sender_id=eq."+viewer.id},receive)
   .on("postgres_changes",{event:"UPDATE",schema:"public",table:"direct_messages",filter:"recipient_id=eq."+viewer.id},receive)
   .on("postgres_changes",{event:"UPDATE",schema:"public",table:"direct_messages",filter:"sender_id=eq."+viewer.id},receive);
- if(watchReadState)channel.on("postgres_changes",{event:"UPDATE",schema:"public",table:"direct_messages",filter:"recipient_id=eq."+viewer.id},receive);
  channel.subscribe(status=>{if(status==="CHANNEL_ERROR"||status==="TIMED_OUT")console.warn("FLOUSTREAM Realtime:",status);});
  return channel;
 }
