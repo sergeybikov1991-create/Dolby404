@@ -285,12 +285,12 @@ class AndroidOnDeviceVoiceController(
             setError("Голосовая команда доступна после открытия FLOUSTREAM")
             return
         }
+        _state.value = VoiceAssistantState(
+            phase = VoicePhase.THINKING,
+            recognizedText = clean,
+            isModelReady = _state.value.isModelReady
+        )
         scope.launch {
-            _state.value = VoiceAssistantState(
-                phase = VoicePhase.THINKING,
-                recognizedText = clean,
-                isModelReady = _state.value.isModelReady
-            )
             val result = try {
                 assistant.onFinalTranscript(clean, contextProvider())
             } catch (error: Exception) {
