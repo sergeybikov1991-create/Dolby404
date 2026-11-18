@@ -21,7 +21,7 @@ The assistant is not a dictation-only feature. It must understand follow-up refe
 5. **Intent parser** — returns structured intent name + user-facing references (for example `active`, `last`, or a contact name), never database IDs. It has no direct Android, SQL, Supabase, filesystem or shell access.
 6. **Intent binder + command router** — `VoiceIntentBinder` resolves model references through `VoiceEntityResolver`, discards raw model-supplied ID fields, then the allow-list router maps bound intents to typed `VoiceAction` values and classifies them as safe, confirmation-required or rejected.
 7. **Application action adapter** — `VoiceActionExecutor` is the only bridge allowed to call existing app/repository/use-case functions. Its production implementation must validate ownership/permissions and delegate to existing chat/media/call APIs. It must not duplicate message persistence or attachment upload logic.
-8. **Orchestrator + response/TTS adapter** — `VoiceAssistantOrchestrator` coordinates binding, routing, one-shot confirmation and executor dispatch. It returns typed outcomes for UI clarification/confirmation and concise Russian status for TTS. Assistant TTS output must not be fed back into STT; apply playback ducking/mute and a short post-TTS cooldown.
+8. **Dialogue engine + orchestrator + response/TTS adapter** — `VoiceAssistantEngine` sends final transcripts to a `VoiceDialogueEngine`, keeps a bounded history, then calls `VoiceAssistantOrchestrator`, which coordinates binding, routing, one-shot confirmation and executor dispatch. `StreamingSpeechRecognizer`, `SpeechRecognitionSession` and `VoiceSpeechOutput` define the runtime adapter boundaries. Assistant TTS output must not be fed back into STT; apply playback ducking/mute and a short post-TTS cooldown.
 
 ## Supported intent surface
 
@@ -89,5 +89,5 @@ The assistant is not a dictation-only feature. It must understand follow-up refe
 
 ## Current implementation boundary
 
-Implemented foundation: state/action contract, allow-list router, app-owned entity-reference binder, ephemeral conversation context, one-shot confirmation gate, orchestration pipeline, PCM capture, exclusive audio lease, Android TTS wrapper, unit tests, CI runtime pinning.
-Not yet implemented: sherpa recognizer adapter, model download manager, LLM runtime/intent parser, production VoiceEntityResolver and VoiceActionExecutor implementations, voice UI integration, wake phrase.
+Implemented foundation: state/action contract, allow-list router, app-owned entity-reference binder, ephemeral conversation context, one-shot confirmation gate, orchestration pipeline, bounded dialogue engine and runtime interfaces, PCM capture, exclusive audio lease, Android TTS wrapper, unit tests, CI runtime pinning.
+Not yet implemented: sherpa recognizer adapter, model download manager, concrete local LLM/intent parser, production VoiceEntityResolver and VoiceActionExecutor implementations, voice UI integration, wake phrase.
