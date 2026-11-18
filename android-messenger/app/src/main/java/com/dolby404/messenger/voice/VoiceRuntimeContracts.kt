@@ -40,5 +40,6 @@ data class VoiceDialogueTurn(
 interface VoiceSpeechOutput {
     val isReady: Boolean
     fun speak(text: String): Boolean
+    fun speak(text: String, onDone: () -> Unit): Boolean = speak(text)
     fun stop()
 }
