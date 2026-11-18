@@ -18,6 +18,7 @@ import com.dolby404.messenger.voice.VoiceExecutionResult
 import com.dolby404.messenger.voice.VoiceIntentBinder
 import com.dolby404.messenger.voice.VoicePhase
 import com.dolby404.messenger.voice.VoiceScreen
+import com.dolby404.messenger.voice.VoiceScreen
 
 import java.util.concurrent.TimeUnit
 
