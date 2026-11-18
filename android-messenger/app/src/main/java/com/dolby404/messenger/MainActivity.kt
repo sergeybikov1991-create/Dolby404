@@ -1909,8 +1909,6 @@ private fun MessengerHome(
             VoiceAssistantOrchestrator(
                 binder = VoiceIntentBinder(homeEntityResolver),
                 executor = navigationExecutor,
-                confirmationGate = VoiceConfirmationGate(),
-                nowMillis = { System.currentTimeMillis() }
             )
         )
     }
