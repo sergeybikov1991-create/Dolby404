@@ -1836,11 +1836,16 @@ private fun MessengerHome(
     val homeVoiceLifecycle = LocalLifecycleOwner.current
     val homeVoiceScope = rememberCoroutineScope()
     val homeVoiceAssistant = remember(selectedProfile == null) {
-        val noEntityResolver = object : VoiceEntityResolver {
-            override suspend fun conversationId(reference: String, context: VoiceConversationContext): String? = null
+        val homeEntityResolver = object : VoiceEntityResolver {
+            override suspend fun conversationId(reference: String, context: VoiceConversationContext): String? =
+                if (reference.equals("active", ignoreCase = true)) context.activeConversationId
+                else findVoiceContactCandidates(reference).singleOrNull()?.id
+
             override suspend fun messageId(reference: String, context: VoiceConversationContext): String? = null
             override suspend fun attachmentId(reference: String, context: VoiceConversationContext): String? = null
-            override suspend fun contactId(reference: String, context: VoiceConversationContext): String? = null
+            override suspend fun contactId(reference: String, context: VoiceConversationContext): String? =
+                if (reference.equals("current", ignoreCase = true)) context.activeContactId
+                else findVoiceContactCandidates(reference).singleOrNull()?.id
             override suspend fun siteMediaId(reference: String, context: VoiceConversationContext): String? = null
         }
         val navigationExecutor = VoiceActionExecutor { action ->
@@ -1881,6 +1886,22 @@ private fun MessengerHome(
                     search = action.query
                     VoiceExecutionResult.Success("Ищу переписки по запросу ${action.query}")
                 }
+                is VoiceAction.OpenConversation -> {
+                    val target = withTransientNetworkRetry {
+                        floustreamClient.from("profiles").select {
+                            filter { eq("id", action.conversationId) }
+                        }.decodeList<ProfileDto>().firstOrNull()
+                    }
+                    if (target == null || target.isDeleted) {
+                        VoiceExecutionResult.Failure("Не удалось открыть эту переписку")
+                    } else {
+                        selectedProfile = target
+                        tab = "Чаты"
+                        socialOpen = false
+                        socialDrawerOpen = false
+                        VoiceExecutionResult.Success("Открыл переписку с ${target.displayName ?: target.username ?: "контактом"}")
+                    }
+                }
                 VoiceAction.ShowUnreadConversations ->
                     VoiceExecutionResult.Failure("Фильтр непрочитанных переписок пока не подключён")
                 else -> VoiceExecutionResult.Failure("Эта команда доступна внутри переписки или пока не подключена")
@@ -1888,7 +1909,7 @@ private fun MessengerHome(
         }
         VoiceAssistantEngine(
             VoiceAssistantOrchestrator(
-                binder = VoiceIntentBinder(noEntityResolver),
+                binder = VoiceIntentBinder(homeEntityResolver),
                 executor = navigationExecutor,
                 confirmationGate = VoiceConfirmationGate(),
                 nowMillis = { System.currentTimeMillis() }
