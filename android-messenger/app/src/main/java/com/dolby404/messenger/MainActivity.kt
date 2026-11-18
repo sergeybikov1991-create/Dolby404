@@ -1669,6 +1669,8 @@ private fun MessengerApp(
         } else if (signedIn) {
             MessengerHome(
                 notificationPeerId = notificationPeerId,
+                wakeWordPending = wakeWordPending,
+                onWakeWordHandled = onWakeWordHandled,
                 onNotificationHandled = onNotificationHandled,
                 onDeleteAccount = {
                     val accountEmail = floustreamClient.auth.currentUserOrNull()?.email
@@ -1811,6 +1813,8 @@ private fun MessengerHome(
     onSignOut: () -> Unit,
     onDeleteAccount: () -> Unit,
     notificationPeerId: String?,
+    wakeWordPending: Boolean,
+    onWakeWordHandled: () -> Unit,
     onNotificationHandled: () -> Unit
 ) {
     var tab by remember { mutableStateOf("Чаты") }
