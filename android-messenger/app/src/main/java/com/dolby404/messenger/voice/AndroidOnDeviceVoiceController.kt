@@ -49,6 +49,10 @@ class AndroidOnDeviceVoiceController(
     private var closed = false
 
     fun startListening(): Boolean {
+        if (_state.value.phase == VoicePhase.SPEAKING) {
+            setError("Подожди, пока помощник закончит ответ")
+            return false
+        }
         if (!hasRecordAudioPermission()) {
             setError("Нужно разрешение на микрофон")
             return false
@@ -62,6 +66,7 @@ class AndroidOnDeviceVoiceController(
             return false
         }
 
+        speechOutput.stop()
         synchronized(lock) {
             if (closed || listening) return false
             val lease = coordinator.tryAcquire(VoiceAudioOwner.ASSISTANT)
