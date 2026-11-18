@@ -1859,6 +1859,13 @@ private fun MessengerHome(
                     tab = "Контакты"
                     VoiceExecutionResult.Success("Открыл контакты")
                 }
+                VoiceAction.OpenSettings -> {
+                    selectedProfile = null
+                    socialOpen = false
+                    socialDrawerOpen = false
+                    tab = "Настройки"
+                    VoiceExecutionResult.Success("Открыл настройки")
+                }
                 VoiceAction.ShowMedia -> {
                     selectedProfile = null
                     socialOpen = true
