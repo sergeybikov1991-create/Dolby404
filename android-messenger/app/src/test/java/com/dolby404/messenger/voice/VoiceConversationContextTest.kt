@@ -5,6 +5,20 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class VoiceConversationContextTest {
+
+    @Test fun dialogueViewContainsDisplayContextButNoDatabaseIdentifiers() {
+        val context = VoiceConversationContext()
+            .enterConversation("private-chat-id", "private-contact-id", "Чат с Анной", "Анна")
+            .selectMessage("private-message-id", isLatest = true, preview = "Привет")
+            .selectAttachment("private-attachment-id", "photo.jpg")
+        val view = context.toDialogueView()
+        assertEquals("Чат с Анной", view.activeConversationTitle)
+        assertEquals("Анна", view.activeContactDisplayName)
+        assertEquals("Привет", view.lastMessagePreview)
+        assertEquals("photo.jpg", view.selectedAttachmentName)
+        assertEquals(true, view.hasActiveConversation)
+    }
+
     @Test fun enteringAndLeavingConversationUpdatesScopedReferences() {
         val opened = VoiceConversationContext().enterConversation("c-1", "u-1")
         assertEquals(VoiceScreen.CONVERSATION, opened.screen)
