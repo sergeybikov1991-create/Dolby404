@@ -1965,11 +1965,11 @@ private fun MessengerHome(
         }
     }
 
-    LaunchedEffect(homeVoiceState.phase, homeVoiceState.responseText, rearmHomeWakeWord, selectedProfile) {
-        if (selectedProfile == null && rearmHomeWakeWord &&
-            homeVoiceState.phase == VoicePhase.IDLE &&
-            !homeVoiceState.responseText.isNullOrBlank()
-        ) {
+    LaunchedEffect(homeVoiceState.phase, homeVoiceState.responseText, homeVoiceState.errorMessage, rearmHomeWakeWord, selectedProfile) {
+        val turnFinished = homeVoiceState.phase == VoicePhase.IDLE || homeVoiceState.phase == VoicePhase.ERROR
+        val hasTurnResult = !homeVoiceState.responseText.isNullOrBlank() ||
+            !homeVoiceState.errorMessage.isNullOrBlank()
+        if (selectedProfile == null && rearmHomeWakeWord && turnFinished && hasTurnResult) {
             delay(500)
             val prefs = homeVoiceContext.getSharedPreferences("floustream_voice", Context.MODE_PRIVATE)
             if (prefs.getBoolean("wake_word_enabled", false) &&
