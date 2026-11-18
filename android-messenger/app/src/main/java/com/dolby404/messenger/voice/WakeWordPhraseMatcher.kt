@@ -3,23 +3,25 @@ package com.dolby404.messenger.voice
 import java.text.Normalizer
 import java.util.Locale
 
-/**
- * Strict second-stage gate for a wake phrase emitted by a speech recognizer.
- *
- * This class does not listen to the microphone or perform speech recognition.
- * It only accepts a transcript that consists entirely of the configured
- * invocation phrase, reducing accidental activations from ordinary speech.
- */
+/** Extracts only utterances explicitly invoked with the FLOUSTREAM wake word. */
 object WakeWordPhraseMatcher {
     private val acceptedPhrases = setOf("флоу", "flow")
 
-    fun isWakePhrase(transcript: String): Boolean {
-        val normalized = Normalizer.normalize(transcript, Normalizer.Form.NFKC)
+    fun extractCommand(transcript: String): String? {
+        val normalized = normalize(transcript)
+        if (normalized.isBlank()) return null
+        val firstWord = normalized.substringBefore(' ')
+        if (firstWord !in acceptedPhrases) return null
+        return normalized.substringAfter(' ', "").trim()
+    }
+
+    fun isWakePhrase(transcript: String): Boolean =
+        normalize(transcript) in acceptedPhrases
+
+    private fun normalize(value: String): String =
+        Normalizer.normalize(value, Normalizer.Form.NFKC)
             .lowercase(Locale.ROOT)
             .replace(Regex("[^\\p{L}\\p{N}]+"), " ")
             .trim()
             .replace(Regex("\\s+"), " ")
-
-        return normalized in acceptedPhrases
-    }
 }
