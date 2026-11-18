@@ -75,7 +75,8 @@ The assistant is not a dictation-only feature. It must understand follow-up refe
 ## Model/runtime policy
 
 - sherpa-onnx runtime AAR: pinned to v1.13.5, official release SHA-256 verified in CI.
-- Russian ASR weights: not selected for release until sample-rate compatibility, model license, Russian names/noise accuracy, WER/CER, latency, RAM and thermal behavior are measured on OnePlus 10T.
+- Russian streaming ASR prototype: sherpa-onnx T-one CTC 2025-09-08. Archive size 128,468,156 bytes; SHA-256 pinned in `RussianAsrModelInstaller`; sample rate is 8 kHz. The model is downloaded only after explicit user action and its LICENSE file is retained in app-private storage.
+- T-one is not release-approved until ordinary-phone-microphone quality, Russian names/noise accuracy, WER/CER, latency, RAM and thermal behavior are measured on OnePlus 10T.
 - Dialogue model: local-first candidate evaluation; GGUF model weights are downloaded only after user consent, with size, free-space check, license notice, checksum and cancellation.
 - Android TextToSpeech is only considered offline if the selected installed Russian voice is verified offline on the device.
 - No mandatory paid cloud API.
@@ -91,5 +92,5 @@ The assistant is not a dictation-only feature. It must understand follow-up refe
 
 ## Current implementation boundary
 
-Implemented foundation: state/action contract, allow-list router, app-owned entity-reference binder, ephemeral conversation context, one-shot confirmation gate, orchestration pipeline, bounded dialogue engine and runtime interfaces, PCM capture, exclusive audio lease, Android TTS wrapper, unit tests, CI runtime pinning.
-Not yet implemented: sherpa recognizer adapter, model download manager, concrete local LLM/intent parser, production VoiceEntityResolver and VoiceActionExecutor implementations, voice UI integration, wake phrase.
+Implemented foundation: state/action contract, allow-list router, app-owned entity-reference binder, ephemeral conversation context, one-shot confirmation gate, orchestration pipeline, bounded dialogue engine and runtime interfaces, configurable PCM capture, exclusive audio lease, Android TTS wrapper, sherpa-onnx v1.13.5 T-one recognizer adapter, checksum-verified opt-in model installer, unit tests and CI runtime pinning.
+Not yet implemented: concrete local LLM/intent parser, production VoiceEntityResolver and VoiceActionExecutor implementations, voice UI integration, end-to-end mic-to-dialogue wiring, wake phrase.
