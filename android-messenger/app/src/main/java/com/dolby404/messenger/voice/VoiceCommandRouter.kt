@@ -1,7 +1,7 @@
 package com.dolby404.messenger.voice
 
 /**
- * Converts allow-listed model intents into typed app-owned decisions.
+ * Converts allow-listed parsed commands into typed app-owned decisions.
  * It never performs database, network, Android, or UI operations itself.
  */
 object VoiceCommandRouter {
