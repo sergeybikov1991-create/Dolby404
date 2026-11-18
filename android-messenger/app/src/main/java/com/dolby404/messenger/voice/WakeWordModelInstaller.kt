@@ -100,7 +100,7 @@ object WakeWordModelInstaller {
             check(downloaded == MODEL_ARCHIVE_BYTES) {
                 "Архив модели неполный: получено $downloaded байт"
             }
-            val actualHash = digest.digest().joinToString("") { "%02x".format(it) }
+            val actualHash = digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) }
             check(actualHash.equals(MODEL_ARCHIVE_SHA256, ignoreCase = true)) {
                 "Контрольная сумма модели не совпала. Архив удалён."
             }
@@ -115,7 +115,7 @@ object WakeWordModelInstaller {
                 val buffer = ByteArray(32 * 1024)
                 while (true) {
                     val entry = zip.nextEntry ?: break
-                    val normalized = entry.name.replace('\\\\', '/')
+                    val normalized = entry.name.replace('\\', '/')
                     check(!normalized.startsWith("/") && !normalized.contains("../") &&
                         normalized != ".." && !normalized.contains(":")) {
                         "Архив содержит небезопасный путь"
