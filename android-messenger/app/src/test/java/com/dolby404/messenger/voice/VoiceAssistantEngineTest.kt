@@ -99,6 +99,23 @@ class VoiceAssistantEngineTest {
         assertTrue(executed.isEmpty())
     }
 
+    @Test fun defaultConstructorUsesDeterministicOfflineCommands() = runBlocking {
+        val executed = mutableListOf<VoiceAction>()
+        val orchestrator = VoiceAssistantOrchestrator(
+            VoiceIntentBinder(resolver),
+            VoiceActionExecutor { action ->
+                executed += action
+                VoiceExecutionResult.Success("Открыл раздел чатов")
+            },
+            VoiceConfirmationGate { "default-engine-token" },
+            { 10L }
+        )
+        val engine = VoiceAssistantEngine(orchestrator)
+        val result = engine.onFinalTranscript("Открой чаты", VoiceConversationContext())
+        assertTrue(result is VoiceTurnResult.Executed)
+        assertEquals(listOf(VoiceAction.OpenChats), executed)
+    }
+
     @Test fun emptyTranscriptDoesNotCallDialogue() = runBlocking {
         val executed = mutableListOf<VoiceAction>()
         var called = false
