@@ -33,6 +33,8 @@ sealed interface RussianAsrInstallResult {
  * with path traversal protection into app-private storage.
  */
 class RussianAsrModelInstaller(context: Context) {
+    private val appContext = context.applicationContext
+
     companion object {
         const val MODEL_SAMPLE_RATE = 8_000
         const val MODEL_NAME = "sherpa-onnx-streaming-t-one-russian-2025-09-08"
@@ -124,6 +126,11 @@ class RussianAsrModelInstaller(context: Context) {
             val model = File(staging, "model.onnx")
             val tokens = File(staging, "tokens.txt")
             val license = File(staging, "LICENSE")
+            if (!license.isFile) {
+                appContext.assets.open("licenses/t-one-LICENSE.txt").use { input ->
+                    FileOutputStream(license).use { output -> input.copyTo(output) }
+                }
+            }
             if (!model.isFile || !tokens.isFile || !license.isFile) {
                 return@withContext RussianAsrInstallResult.Failed("В архиве отсутствуют обязательные файлы модели")
             }
