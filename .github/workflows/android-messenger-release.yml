@@ -6,7 +6,7 @@ on:
       release_tag:
         description: "Release version tag"
         required: true
-        default: "v0.4.28"
+        default: "v0.4.29"
       publish_release:
         description: "Publish a GitHub Release after a successful build"
         required: true
@@ -71,10 +71,22 @@ jobs:
         with:
           packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
 
+      - name: Download pinned sherpa-onnx Android runtime
+        working-directory: android-messenger/app
+        run: |
+          set -euo pipefail
+          mkdir -p libs
+          curl --fail --location --retry 3 --output libs/sherpa-onnx-1.13.5.aar https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.5/sherpa-onnx-1.13.5.aar
+          echo "6419cd8bc983e0c4fab06067f0fe0313fdc0f7103818ac1e7a08d50787b7a82b  libs/sherpa-onnx-1.13.5.aar" | sha256sum --check --strict
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.13"
+
+      - name: Run unit tests and Android lint
+        working-directory: android-messenger
+        run: gradle --no-daemon :app:testDebugUnitTest :app:lintDebug
 
       - name: Restore and validate release signing key
         env:
@@ -109,7 +121,7 @@ jobs:
           set -euo pipefail
           APK="android-messenger/app/build/outputs/apk/release/app-release.apk"
           BADGING="$("$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK")"
-          echo "$BADGING" | grep -F "package: name='com.dolby404.messenger' versionCode='36' versionName='0.4.28'"
+          echo "$BADGING" | grep -F "package: name='com.dolby404.messenger' versionCode='37' versionName='0.4.29'"
 
       - name: Verify APK signature
         run: |
@@ -124,7 +136,7 @@ jobs:
         run: git -C baseline-source archive --format=zip --prefix=FLOUSTREAM-v0.4.24/ HEAD > FLOUSTREAM-source-v0.4.24.zip
 
       - name: Package exact release source snapshot
-        run: git archive --format=zip --prefix=FLOUSTREAM-v0.4.28/ HEAD > FLOUSTREAM-source-v0.4.28.zip
+        run: git archive --format=zip --prefix=FLOUSTREAM-v0.4.29/ HEAD > FLOUSTREAM-source-v0.4.29.zip
 
       - name: Upload install package
         uses: actions/upload-artifact@v4
@@ -142,7 +154,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish_release) || (github.event_name == 'push' && github.ref == 'refs/heads/release/floustream-0.4.28')
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || (startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.4.28') }}
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || (startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.4.29') }}
           target_commitish: ${{ github.sha }}
           name: FLOUSTREAM Messenger ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || (startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.4.28') }}
           overwrite_files: true
