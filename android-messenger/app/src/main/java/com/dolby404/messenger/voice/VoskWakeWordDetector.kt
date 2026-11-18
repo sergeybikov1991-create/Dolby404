@@ -20,7 +20,6 @@ class VoskWakeWordDetector(
 
     companion object {
         const val SAMPLE_RATE_HZ = 16_000f
-        private const val WAKE_GRAMMAR = """["флоу", "flow"]"""
     }
 
     private val model: Model
@@ -41,30 +40,27 @@ class VoskWakeWordDetector(
 
         model = Model(modelDirectory.absolutePath)
         recognizer = try {
-            Recognizer(model, sampleRate, WAKE_GRAMMAR)
+            Recognizer(model, sampleRate)
         } catch (error: Throwable) {
             model.close()
             throw error
         }
     }
 
-    /**
-     * Returns true only when Vosk has finalized an exact wake phrase.
-     * Partial hypotheses are deliberately ignored to reduce false activation.
-     */
+    /** Returns the command following the wake word, or an empty string for wake-only. */
     @Synchronized
-    fun acceptAudio(samples: ShortArray, length: Int = samples.size): Boolean {
+    fun acceptAudio(samples: ShortArray, length: Int = samples.size): String? {
         check(!closed) { "Wake-word detector is closed" }
         require(length in 1..samples.size) { "Invalid PCM frame length" }
 
         val completed = recognizer.acceptWaveForm(samples, length)
-        if (!completed) return false
+        if (!completed) return null
 
         val transcript = runCatching {
             JSONObject(recognizer.result).optString("text")
         }.getOrDefault("")
         recognizer.reset()
-        return WakeWordPhraseMatcher.isWakePhrase(transcript)
+        return WakeWordPhraseMatcher.extractCommand(transcript)
     }
 
     @Synchronized
