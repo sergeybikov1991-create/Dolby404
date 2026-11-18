@@ -29,6 +29,7 @@ class VoskWakeWordDetector(
     private var closed = false
 
     init {
+        require(sampleRate == SAMPLE_RATE_HZ) { "Wake-word model requires 16 kHz audio" }
         require(modelDirectory.isDirectory) {
             "Каталог русской модели распознавания не найден"
         }
