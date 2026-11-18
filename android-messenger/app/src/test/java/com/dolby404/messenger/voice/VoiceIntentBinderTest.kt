@@ -23,7 +23,11 @@ class VoiceIntentBinderTest {
         override suspend fun attachmentId(reference: String, context: VoiceConversationContext) =
             if (reference == "selected") context.selectedAttachmentId else null
         override suspend fun contactId(reference: String, context: VoiceConversationContext) =
-            if (reference == "Анна") "contact-anna" else null
+            when (reference) {
+                "Анна" -> "contact-anna"
+                "current" -> context.activeContactId
+                else -> null
+            }
     }
 
     @Test fun bindsActiveConversationFromAppContext() = runBlocking {
@@ -59,6 +63,27 @@ class VoiceIntentBinderTest {
         ) as VoiceBindingResult.Bound
         assertEquals("trusted-message", result.intent.arguments["message_id"])
         assertEquals("conversation-anna", result.intent.arguments["target_conversation_id"])
+    }
+
+
+    @Test fun followsActiveChatAndLastMessageWithoutRepeatingNames() = runBlocking {
+        val context = VoiceConversationContext()
+            .enterConversation("trusted-chat", "trusted-contact")
+            .selectMessage("trusted-last", isLatest = true)
+        val binder = VoiceIntentBinder(resolver)
+
+        val reply = binder.bind(
+            VoiceModelIntent("reply_to_message", mapOf("text" to "Спасибо")),
+            context
+        ) as VoiceBindingResult.Bound
+        assertEquals("trusted-chat", reply.intent.arguments["conversation_id"])
+        assertEquals("trusted-last", reply.intent.arguments["message_id"])
+
+        val call = binder.bind(
+            VoiceModelIntent("start_audio_call"),
+            context
+        ) as VoiceBindingResult.Bound
+        assertEquals("trusted-contact", call.intent.arguments["contact_id"])
     }
 
     @Test fun unresolvedReferencesRequireClarification() = runBlocking {
