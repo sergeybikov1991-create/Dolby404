@@ -1939,6 +1939,7 @@ private fun MessengerHome(
     }
 }
 
+@androidx.media3.common.util.UnstableApi
 @Composable
 private fun SocialNetworkScreen(
     currentUserId: String,
@@ -2938,6 +2939,7 @@ private object MessageMediaUrlCache {
     }
 }
 
+@androidx.media3.common.util.UnstableApi
 @Composable
 private fun MessageAttachment(message: DirectMessageDto) {
     val context = LocalContext.current
@@ -3511,6 +3513,7 @@ private fun AudioMessagePlayer(url: String, onRetry: () -> Unit) {
     }
 }
 
+@androidx.media3.common.util.UnstableApi
 @Composable
 private fun RealConversationScreen(
     peer: ProfileDto,
