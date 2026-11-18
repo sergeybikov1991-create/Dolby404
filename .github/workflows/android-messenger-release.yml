@@ -35,7 +35,7 @@ on:
       - "feature/android-0.4.23-fan-chat-visual"
       - "feature/android-0.4.25-f-chat-cache"
       - "feature/android-0.4.25-global-video-visual"
-      - "release/floustream-0.4.28"
+      - "release/floustream-0.4.29"
     tags:
       - "v*"
 
