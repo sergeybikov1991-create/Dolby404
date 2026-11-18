@@ -87,3 +87,27 @@ LLM никогда не получает прямой доступ к Android AP
 ## Статус
 
 Это технический отбор и план проверки, не готовая интеграция. Никакие зависимости, модели, разрешения Android или существующие экраны приложения этим документом не меняются. Существующие голосовые сообщения, чат-кэш, F-кнопка/веер и работа фото/видео остаются неприкосновенными.
+
+
+## Дополнение после проверки upstream Android packaging (2026-11-18)
+
+Проверен официальный Android AAR-проект sherpa-onnx и актуальная инструкция сборки Android runtime:
+
+- У проекта есть отдельный модуль `android/SherpaOnnxAar`, который собирает `sherpa_onnx-release.aar`.
+- Официальный релизный Android archive содержит предварительно собранные native libraries; upstream инструкция копирует их по ABI в `jniLibs`, после чего собирает AAR.
+- Поэтому не добавляем выдуманную Maven-координату sherpa-onnx. Интеграция должна брать AAR и Kotlin API из официального релизного архива/сборки, фиксировать версию и SHA-256, и включать только `arm64-v8a` для первого теста на OnePlus 10T. Если позднее понадобится поддержка других устройств, добавим ABI отдельно.
+- Runtime и модель остаются разными загрузками: AAR — часть приложения/модуля; модельные веса — отдельный opt-in download с checksum и лицензией.
+
+Проверенные upstream материалы:
+- https://github.com/k2-fsa/sherpa-onnx/tree/master/android/SherpaOnnxAar
+- https://github.com/k2-fsa/sherpa-onnx/blob/master/android/SherpaOnnxAar/README.md
+- https://k2-fsa.github.io/sherpa/onnx/android/build-sherpa-onnx.html
+- https://github.com/k2-fsa/sherpa-onnx/releases
+
+## Статус реализации после этого дополнения
+
+- Добавлен общий координатор эксклюзивного владения микрофоном.
+- Добавлен Android PCM capture: mono / 16 kHz / PCM16, кадры по 100 ms, преобразование в FloatArray для streaming recognizer.
+- Capture получает lease координатора до открытия AudioRecord и освобождает его после остановки reader thread и AudioRecord.
+- Добавлены unit tests для маршрутизатора команд и координатора аудиосессий.
+- Native sherpa-onnx AAR, русская модель и UI пока не подключены; сборка и запуск на OnePlus 10T ещё не подтверждены.
