@@ -75,25 +75,26 @@ class RussianAsrModelInstaller(context: Context) {
         try {
             if (staging.exists()) staging.deleteRecursively()
             val digest = MessageDigest.getInstance("SHA-256")
-            connection = (URL(DOWNLOAD_URL).openConnection() as HttpURLConnection).apply {
+            val activeConnection = (URL(DOWNLOAD_URL).openConnection() as HttpURLConnection).apply {
                 connectTimeout = 20_000
                 readTimeout = 60_000
                 instanceFollowRedirects = true
                 setRequestProperty("User-Agent", "FLOUSTREAM-Android")
                 connect()
             }
-            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+            connection = activeConnection
+            if (activeConnection.responseCode != HttpURLConnection.HTTP_OK) {
                 return@withContext RussianAsrInstallResult.Failed(
-                    "Сервер модели вернул HTTP ${connection.responseCode}"
+                    "Сервер модели вернул HTTP ${activeConnection.responseCode}"
                 )
             }
-            val contentLength = connection.contentLengthLong
+            val contentLength = activeConnection.contentLengthLong
             if (contentLength > MAX_ARCHIVE_BYTES) {
                 return@withContext RussianAsrInstallResult.Failed("Размер архива модели превышает допустимый")
             }
 
             var downloaded = 0L
-            BufferedInputStream(connection.inputStream).use { input ->
+            BufferedInputStream(activeConnection.inputStream).use { input ->
                 BufferedOutputStream(FileOutputStream(archive)).use { output ->
                     val buffer = ByteArray(64 * 1024)
                     while (true) {
