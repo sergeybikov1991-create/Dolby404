@@ -34,9 +34,7 @@ jobs:
         working-directory: android-messenger/app
         run: |
           mkdir -p libs
-          curl --fail --location --retry 3 \\
-            https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.5/sherpa-onnx-1.13.5.aar \\
-            --output libs/sherpa-onnx-1.13.5.aar
+          curl --fail --location --retry 3 --output libs/sherpa-onnx-1.13.5.aar https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.5/sherpa-onnx-1.13.5.aar
           echo "6419cd8bc983e0c4fab06067f0fe0313fdc0f7103818ac1e7a08d50787b7a82b  libs/sherpa-onnx-1.13.5.aar" | sha256sum --check --strict
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -45,6 +43,9 @@ jobs:
       - name: Build debug APK
         working-directory: android-messenger
         run: gradle --no-daemon :app:assembleDebug
+      - name: Run unit tests
+        working-directory: android-messenger
+        run: gradle --no-daemon :app:testDebugUnitTest
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
