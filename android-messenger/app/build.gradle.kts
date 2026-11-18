@@ -12,8 +12,8 @@ android {
         applicationId = "com.dolby404.messenger"
         minSdk = 26
         targetSdk = 36
-        versionCode = 37
-        versionName = "0.4.29"
+        versionCode = 38
+        versionName = "0.4.30"
         buildConfigField("String", "SUPABASE_URL", "\"https://qhpobdktlbhdqsnajypr.supabase.co\"")
         buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"sb_publishable_tzG1qVsbjaW8YE_LBVN87Q_v0CahKN5\"")
     }
@@ -51,8 +51,6 @@ android {
 }
 dependencies {
     // Pinned upstream sherpa-onnx Android runtime; downloaded and SHA-256 verified by CI.
-    implementation(files("libs/sherpa-onnx-1.13.5.aar"))
-    implementation("org.apache.commons:commons-compress:1.27.1")
     implementation(platform("com.google.firebase:firebase-bom:35.2.0"))
     implementation("com.google.firebase:firebase-messaging")
     implementation(platform("androidx.compose:compose-bom:2025.11.00"))
