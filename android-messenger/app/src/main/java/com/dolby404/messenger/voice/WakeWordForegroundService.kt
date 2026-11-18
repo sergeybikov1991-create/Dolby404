@@ -41,6 +41,7 @@ class WakeWordForegroundService : Service() {
     }
 
     private val stopping = AtomicBoolean(false)
+    @Volatile private var wakeDetected = false
     @Volatile private var captureThread: Thread? = null
     @Volatile private var recorder: AudioRecord? = null
     @Volatile private var lease: VoiceAudioSessionCoordinator.Lease? = null
@@ -101,6 +102,7 @@ class WakeWordForegroundService : Service() {
         }
         lease = audioLease
         stopping.set(false)
+        wakeDetected = false
 
         captureThread = Thread({
             runCapture(modelDirectory)
@@ -141,6 +143,7 @@ class WakeWordForegroundService : Service() {
                 val count = activeRecorder.read(frame, 0, frame.size, AudioRecord.READ_BLOCKING)
                 if (count > 0 && detector.acceptAudio(frame, count)) {
                     stopping.set(true)
+                    wakeDetected = true
                     notifyWakeDetected()
                     break
                 }
@@ -159,7 +162,13 @@ class WakeWordForegroundService : Service() {
             lease?.close()
             lease = null
             captureThread = null
-            stopSelf()
+            if (wakeDetected) {
+                // Keep the actionable notification after releasing the microphone.
+                stopForeground(STOP_FOREGROUND_DETACH)
+                stopSelf()
+            } else {
+                stopSelf()
+            }
         }
     }
 
