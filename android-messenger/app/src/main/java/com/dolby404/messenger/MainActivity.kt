@@ -4718,7 +4718,7 @@ private fun RealConversationScreen(
         }
     }
 
-    LaunchedEffect(audioCoordinator, lifecycleOwner, voiceController) {
+    LaunchedEffect(audioCoordinator, lifecycleOwner, voiceController, wakeWordPending) {
         audioCoordinator.currentOwner.collect { owner ->
             if (owner == null && !wakeWordPending) {
                 delay(350)
