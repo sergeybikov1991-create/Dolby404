@@ -1,12 +1,14 @@
 package com.dolby404.messenger.voice
 
+import java.util.UUID
+
 /**
  * One-shot confirmation bound to the exact typed action and context revision.
  * A confirmation becomes invalid after navigation, timeout, cancellation or use.
  */
 class VoiceConfirmationGate(
     private val ttlMillis: Long = 30_000L,
-    private val tokenFactory: () -> String
+    private val tokenFactory: () -> String = { UUID.randomUUID().toString() }
 ) {
     data class Pending(
         val token: String,
