@@ -17,7 +17,6 @@ import androidx.core.app.ServiceCompat
 import android.content.pm.ServiceInfo
 import androidx.core.content.ContextCompat
 import com.dolby404.messenger.MainActivity
-import com.dolby404.messenger.R
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -68,7 +67,8 @@ class WakeWordForegroundService : Service() {
                     NOTIFICATION_ID,
                     buildNotification("Ожидаю фразу «Флоу»"),
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE else 0
-                )                if (captureThread == null) startCapture()
+                )
+                if (captureThread == null) startCapture()
             }
             else -> {
                 stopSelf(startId)
