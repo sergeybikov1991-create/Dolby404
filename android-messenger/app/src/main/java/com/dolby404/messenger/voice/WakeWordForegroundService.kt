@@ -87,8 +87,8 @@ class WakeWordForegroundService : Service() {
             return
         }
 
-        val modelDirectory = File(filesDir, "wakeword/model")
-        if (!modelDirectory.isDirectory) {
+        val modelDirectory = WakeWordModelInstaller.modelDirectory(this)
+        if (!WakeWordModelInstaller.isInstalled(this)) {
             showStatus("Офлайн-модель ещё не установлена. Открой FLOUSTREAM для настройки.")
             stopSelf()
             return
