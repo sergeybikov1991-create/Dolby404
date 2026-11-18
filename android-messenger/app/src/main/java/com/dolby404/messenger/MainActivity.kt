@@ -2127,6 +2127,7 @@ private fun MessengerHome(
                     audioCoordinator = voiceAudioCoordinator,
                     appVoiceBusy = homeVoiceState.phase != VoicePhase.IDLE && homeVoiceState.phase != VoicePhase.ERROR,
                     wakeWordPending = wakeWordPending,
+                    wakeWordCommand = wakeWordCommand,
                     onWakeWordHandled = onWakeWordHandled,
                     onBack = { selectedProfile = null },
                     onOpenConversation = { profile -> selectedProfile = profile; tab = "Чаты" },
