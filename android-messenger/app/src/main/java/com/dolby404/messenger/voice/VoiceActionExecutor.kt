@@ -17,7 +17,7 @@ sealed interface VoiceExecutionResult {
 
 /**
  * App-owned resolver. It turns user-facing references into authoritative IDs.
- * The LLM must never invent or supply database IDs directly.
+ * The command parser never supplies database IDs directly.
  */
 interface VoiceEntityResolver {
     suspend fun conversationId(reference: String, context: VoiceConversationContext): String?
