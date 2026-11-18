@@ -28,11 +28,12 @@ The assistant is not a dictation-only feature. It must understand follow-up refe
 ### Conversations
 - Open chats, contacts, media and unread list.
 - Search/open/create conversation.
-- Mark read/unread; pin/unpin; archive/unarchive; mute/unmute.
+- Mark read/unread; pin/unpin; archive/unarchive; mute/unmute; delete a conversation or clear its history (confirmation required).
 - The resolver must ask a disambiguating question if multiple contacts/conversations match.
 
 ### Messages
-- Search messages globally or in the active conversation.
+- Search messages and photo/video/file attachments globally or in the active conversation.
+- Read a selected message aloud.
 - Prepare a draft, send, reply, forward, edit, delete and react.
 - Read/describe the selected message and play a voice message.
 - Sending, reply, forwarding, editing and deletion require a confirmation step. Reactions can be safe only after the exact target message is resolved.
@@ -40,6 +41,7 @@ The assistant is not a dictation-only feature. It must understand follow-up refe
 ### Media and voice messages
 - Open picker for photo/video/file; capture photo/video; open received attachment.
 - Start/stop voice-message recording and send a selected attachment.
+- Save chat attachments into FLOUSTREAM site media, or share site media into a chat (both require confirmation).
 - The adapter must reuse the existing gallery URI, upload, cache and player pipelines. It must not reimplement them.
 - Sending an attachment requires confirmation and an explicit target conversation.
 
