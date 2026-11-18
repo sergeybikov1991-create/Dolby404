@@ -1832,7 +1832,16 @@ private fun MessengerHome(
                     peer = selectedProfile!!,
                     currentUserId = currentUserId,
                     audioCoordinator = voiceAudioCoordinator,
-                    onBack = { selectedProfile = null }
+                    onBack = { selectedProfile = null },
+                    onOpenConversation = { profile -> selectedProfile = profile; tab = "Чаты" },
+                    onOpenContacts = { selectedProfile = null; tab = "Контакты" },
+                    onShowMedia = { selectedProfile = null; socialOpen = true; socialSection = "Фото" },
+                    onSearchConversations = { query ->
+                        selectedProfile = null
+                        tab = "Чаты"
+                        searchOpen = true
+                        search = query
+                    }
                 )
             } else {
                 Row(
@@ -3479,7 +3488,11 @@ private fun RealConversationScreen(
     peer: ProfileDto,
     currentUserId: String,
     audioCoordinator: VoiceAudioSessionCoordinator,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onOpenConversation: (ProfileDto) -> Unit,
+    onOpenContacts: () -> Unit,
+    onShowMedia: () -> Unit,
+    onSearchConversations: (String) -> Unit
 ) {
     val context = LocalContext.current
     val messages = remember(peer.id) { mutableStateListOf<DirectMessageDto>() }
