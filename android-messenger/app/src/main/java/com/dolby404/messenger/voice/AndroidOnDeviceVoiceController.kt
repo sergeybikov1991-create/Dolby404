@@ -301,18 +301,6 @@ class AndroidOnDeviceVoiceController(
         }
     }
 
-    fun confirmPending(token: String) {
-        scope.launch {
-            val result = try {
-                assistant.confirm(token, contextProvider())
-            } catch (error: Exception) {
-                if (error is kotlinx.coroutines.CancellationException) throw error
-                VoiceTurnResult.Rejected(error.message ?: "Не удалось подтвердить действие")
-            }
-            presentResult(result)
-        }
-    }
-
     fun cancelPendingConfirmation() {
         assistant.cancelPendingConfirmation()
     }
