@@ -15,6 +15,13 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 class VoiceAudioSessionCoordinator {
 
+    companion object {
+        /** One process-wide microphone owner shared by the UI and foreground services. */
+        val shared: VoiceAudioSessionCoordinator by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+            VoiceAudioSessionCoordinator()
+        }
+    }
+
     private val _currentOwner = MutableStateFlow<VoiceAudioOwner?>(null)
     val currentOwner: StateFlow<VoiceAudioOwner?> = _currentOwner.asStateFlow()
 
