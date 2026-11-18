@@ -63,8 +63,12 @@ class WakeWordForegroundService : Service() {
             }
             ACTION_START -> {
                 // Android requires promotion immediately after a microphone FGS start.
-                ServiceCompat.startForeground(\n                    this,\n                    NOTIFICATION_ID,\n                    buildNotification("Ожидаю фразу «Флоу»"),\n                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE else 0\n                )
-                if (captureThread == null) startCapture()
+                ServiceCompat.startForeground(
+                    this,
+                    NOTIFICATION_ID,
+                    buildNotification("Ожидаю фразу «Флоу»"),
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE else 0
+                )                if (captureThread == null) startCapture()
             }
             else -> {
                 stopSelf(startId)
