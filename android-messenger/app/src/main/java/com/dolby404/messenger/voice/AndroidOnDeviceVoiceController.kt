@@ -274,6 +274,33 @@ class AndroidOnDeviceVoiceController(
         )
     }
 
+    /** Executes a complete command already recognized by the foreground wake-word service. */
+    fun processRecognizedCommand(transcript: String) {
+        val clean = transcript.trim()
+        if (clean.isBlank()) {
+            startListening()
+            return
+        }
+        if (!isActivityForeground()) {
+            setError("Голосовая команда доступна после открытия FLOUSTREAM")
+            return
+        }
+        scope.launch {
+            _state.value = VoiceAssistantState(
+                phase = VoicePhase.THINKING,
+                recognizedText = clean,
+                isModelReady = _state.value.isModelReady
+            )
+            val result = try {
+                assistant.onFinalTranscript(clean, contextProvider())
+            } catch (error: Exception) {
+                if (error is kotlinx.coroutines.CancellationException) throw error
+                VoiceTurnResult.Rejected(error.message ?: "Не удалось выполнить голосовую команду")
+            }
+            presentResult(result, clean)
+        }
+    }
+
     fun confirmPending(token: String) {
         scope.launch {
             val result = try {
