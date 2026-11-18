@@ -4,8 +4,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
-class RuleBasedVoiceDialogueEngineTest {
-    private val parser = RuleBasedVoiceDialogueEngine()
+class FloustreamVoiceCommandParserTest {
+    private val parser = FloustreamVoiceCommandParser()
 
     @Test fun acceptsOnlyApprovedHandsFreeCommands() {
         assertEquals("open_chats", parser.parse("Флоу, открой")?.name)
