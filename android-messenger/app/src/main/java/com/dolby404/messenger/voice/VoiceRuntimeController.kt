@@ -107,19 +107,18 @@ class VoiceRuntimeController(
      * complete utterance to the dialogue engine. TTS starts only after mic release.
      */
     suspend fun stopListening(): VoiceTurnResult? {
-        val activeCapture: AndroidPcmAudioCapture
-        val activeSession: SpeechRecognitionSession
-        synchronized(lock) {
-            activeCapture = capture ?: return null
-            activeSession = recognitionSession ?: return null
+        val active = synchronized(lock) {
+            val currentCapture = capture ?: return null
+            val currentSession = recognitionSession ?: return null
             capture = null
             recognitionSession = null
+            currentCapture to currentSession
         }
 
         _state.value = _state.value.copy(phase = VoicePhase.TRANSCRIBING)
         withContext(Dispatchers.IO) {
-            activeCapture.stop()
-            activeSession.finish()
+            active.first.stop()
+            active.second.finish()
         }
 
         val transcript = synchronized(lock) {
@@ -143,18 +142,16 @@ class VoiceRuntimeController(
     fun cancelPendingConfirmation() = assistant.cancelPendingConfirmation()
 
     fun cancelListening() {
-        val activeCapture: AndroidPcmAudioCapture?
-        val activeSession: SpeechRecognitionSession?
-        synchronized(lock) {
-            activeCapture = capture
-            activeSession = recognitionSession
+        val active = synchronized(lock) {
+            val current = capture to recognitionSession
             capture = null
             recognitionSession = null
             finalSegments.clear()
+            current
         }
         scope.launch(Dispatchers.IO) {
-            activeCapture?.stop()
-            activeSession?.cancel()
+            active.first?.stop()
+            active.second?.cancel()
         }
         _state.value = VoiceAssistantState(isModelReady = recognizer.isReady)
     }
@@ -212,19 +209,17 @@ class VoiceRuntimeController(
     }
 
     override fun close() {
-        val activeCapture: AndroidPcmAudioCapture?
-        val activeSession: SpeechRecognitionSession?
-        synchronized(lock) {
+        val active = synchronized(lock) {
             if (closed) return
             closed = true
-            activeCapture = capture
-            activeSession = recognitionSession
+            val current = capture to recognitionSession
             capture = null
             recognitionSession = null
             finalSegments.clear()
+            current
         }
-        activeCapture?.stop()
-        activeSession?.cancel()
+        active.first?.stop()
+        active.second?.cancel()
         speechOutput.stop()
         (recognizer as? AutoCloseable)?.close()
         (speechOutput as? AndroidVoiceSpeechOutput)?.close()
