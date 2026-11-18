@@ -20,7 +20,7 @@ class PcmAudioFrameFanoutTest {
 
         fanout.dispatch(shortArrayOf(10, 20, 30, 40), length = 3)
 
-        assertEquals(listOf(10, 20, 30), received[0])
+        assertEquals(listOf<Short>(10, 20, 30), received[0])
         assertEquals(received[0], received[1])
     }
 
