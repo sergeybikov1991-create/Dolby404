@@ -18,6 +18,8 @@ import com.dolby404.messenger.voice.VoiceExecutionResult
 import com.dolby404.messenger.voice.VoiceIntentBinder
 import com.dolby404.messenger.voice.VoicePhase
 import com.dolby404.messenger.voice.VoiceScreen
+import com.dolby404.messenger.voice.WakeWordForegroundService
+import com.dolby404.messenger.voice.WakeWordModelInstaller
 
 import java.util.concurrent.TimeUnit
 
@@ -2791,6 +2793,58 @@ private fun ContactsScreen(onStart: (ProfileDto) -> Unit) {
 
 @Composable
 private fun SettingsScreen(currentUserId: String, onBack: () -> Unit, onSignOut: () -> Unit, onDeleteAccount: () -> Unit, onInfo: (String) -> Unit) {
+    val context = LocalContext.current
+    val voiceScope = rememberCoroutineScope()
+    val voicePrefs = remember { context.getSharedPreferences("floustream_voice", Context.MODE_PRIVATE) }
+    var voiceModelReady by remember { mutableStateOf(WakeWordModelInstaller.isInstalled(context)) }
+    var voiceInstalling by remember { mutableStateOf(false) }
+    var voiceProgress by remember { mutableStateOf(0f) }
+    var voiceEnabled by remember { mutableStateOf(voicePrefs.getBoolean("wake_word_enabled", false)) }
+
+    fun startWakeWordService() {
+        if (!voiceModelReady) {
+            onInfo("Сначала установи офлайн-модель русского распознавания.")
+            return
+        }
+        try {
+            context.startForegroundService(
+                Intent(context, WakeWordForegroundService::class.java)
+                    .setAction(WakeWordForegroundService.ACTION_START)
+            )
+            voicePrefs.edit().putBoolean("wake_word_enabled", true).apply()
+            voiceEnabled = true
+            onInfo("Ожидание фразы «Флоу» включено. Android покажет постоянное уведомление.")
+        } catch (error: Exception) {
+            onInfo(error.message ?: "Не удалось включить голосовую активацию.")
+        }
+    }
+
+    fun stopWakeWordService() {
+        runCatching {
+            context.startService(
+                Intent(context, WakeWordForegroundService::class.java)
+                    .setAction(WakeWordForegroundService.ACTION_STOP)
+            )
+        }
+        voicePrefs.edit().putBoolean("wake_word_enabled", false).apply()
+        voiceEnabled = false
+    }
+
+    val microphonePermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) startWakeWordService()
+        else onInfo("Без разрешения на микрофон голосовая активация не может работать.")
+    }
+
+    fun requestWakeWordStart() {
+        if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            startWakeWordService()
+        } else {
+            microphonePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
     var confirmSignOut by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     var profile by remember(currentUserId) { mutableStateOf<ProfileDto?>(null) }
@@ -2820,6 +2874,71 @@ private fun SettingsScreen(currentUserId: String, onBack: () -> Unit, onSignOut:
                     Text(profile?.displayName?.takeIf { it.isNotBlank() } ?: listOfNotNull(profile?.firstName, profile?.lastName).joinToString(" ").ifBlank { profile?.username ?: "FLOUSTREAM аккаунт" }, color = White, fontWeight = FontWeight.Bold)
                     Text(profile?.username?.let { "@$it" } ?: "Единый аккаунт сайта и приложения", color = Muted, fontSize = 11.sp)
                 }
+            }
+        }
+        Spacer(Modifier.height(18.dp))
+        Surface(
+            color = Panel,
+            shape = RoundedCornerShape(20.dp),
+            modifier = Modifier.fillMaxWidth(),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF344A70))
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Голосовой помощник", color = White, fontWeight = FontWeight.Bold)
+                        Text("Активация фразой «Флоу» без кнопки", color = Muted, fontSize = 12.sp)
+                    }
+                    Switch(
+                        checked = voiceEnabled,
+                        onCheckedChange = { enabled ->
+                            if (enabled) requestWakeWordStart() else stopWakeWordService()
+                        }
+                    )
+                }
+                Text(
+                    if (voiceModelReady) "Русская офлайн-модель установлена."
+                    else "Нужна офлайн-модель Vosk — около 45 МБ. Загружается один раз.",
+                    color = Muted,
+                    fontSize = 12.sp
+                )
+                if (!voiceModelReady) {
+                    Button(
+                        onClick = {
+                            if (!voiceInstalling) {
+                                voiceInstalling = true
+                                voiceProgress = 0f
+                                voiceScope.launch {
+                                    try {
+                                        WakeWordModelInstaller.install(context) { downloaded, total ->
+                                            voiceScope.launch {
+                                                voiceProgress = (downloaded.toFloat() / total.toFloat()).coerceIn(0f, 1f)
+                                            }
+                                        }
+                                        voiceModelReady = WakeWordModelInstaller.isInstalled(context)
+                                        onInfo(if (voiceModelReady) "Офлайн-модель установлена и проверена." else "Не удалось подтвердить установку модели.")
+                                    } catch (error: Exception) {
+                                        onInfo(error.message ?: "Не удалось загрузить офлайн-модель.")
+                                    } finally {
+                                        voiceInstalling = false
+                                    }
+                                }
+                            }
+                        },
+                        enabled = !voiceInstalling,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(if (voiceInstalling) "Загрузка модели…" else "Установить офлайн-модель")
+                    }
+                    if (voiceInstalling) {
+                        LinearProgressIndicator(progress = { voiceProgress }, modifier = Modifier.fillMaxWidth())
+                    }
+                }
+                Text(
+                    "Для ожидания команды Android держит микрофонный сервис и постоянное уведомление. Включай режим только когда он нужен.",
+                    color = Muted,
+                    fontSize = 11.sp
+                )
             }
         }
         Spacer(Modifier.height(18.dp))
