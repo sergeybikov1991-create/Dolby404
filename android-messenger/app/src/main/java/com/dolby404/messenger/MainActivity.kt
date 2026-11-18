@@ -1997,6 +1997,31 @@ private fun MessengerHome(
         onDispose { homeVoiceController.close() }
     }
 
+    var conversationWasOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(selectedProfile, wakeWordPending) {
+        if (selectedProfile != null) {
+            conversationWasOpen = true
+        } else if (conversationWasOpen && !wakeWordPending) {
+            conversationWasOpen = false
+            delay(500)
+            val microphoneIdle = withTimeoutOrNull(5000) {
+                voiceAudioCoordinator.currentOwner.first { it == null }
+            }
+            val prefs = homeVoiceContext.getSharedPreferences("floustream_voice", Context.MODE_PRIVATE)
+            if (microphoneIdle != null &&
+                prefs.getBoolean("wake_word_enabled", false) &&
+                homeVoiceLifecycle.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+            ) {
+                runCatching {
+                    homeVoiceContext.startForegroundService(
+                        Intent(homeVoiceContext, WakeWordForegroundService::class.java)
+                            .setAction(WakeWordForegroundService.ACTION_START)
+                    )
+                }
+            }
+        }
+    }
+
     LaunchedEffect(notificationPeerId, currentUserId) {
         val peerId = notificationPeerId?.takeIf { it.isNotBlank() } ?: return@LaunchedEffect
         if (peerId == currentUserId) {
