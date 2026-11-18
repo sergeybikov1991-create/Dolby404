@@ -11,7 +11,7 @@ Development branch: `feature/floustream-voice-activation-0430`
 - The service acquires the process-wide `WAKE_WORD` lease, captures audio through `AudioRecord`, and releases the recorder and lease after detection or failure.
 - The shared microphone coordinator is now used by the app UI and service.
 - A settings card can download and install the small Russian Vosk model, verify its exact archive size and SHA-256, safely extract it into app-private storage, and let the user enable or disable the foreground listener.
-- After detecting the wake phrase, the service releases the microphone, emits a package-scoped broadcast, and leaves an actionable notification rather than trying to launch an Activity from the background.
+- After detecting the wake phrase, the service releases the microphone, emits a package-scoped broadcast, and leaves an actionable notification rather than trying to launch an Activity from the background. If a conversation screen is already active in FLOUSTREAM, that screen can hand the wake event to its existing command recognizer; the app-wide assistant is not yet implemented.
 
 ## Model source and integrity
 
@@ -24,7 +24,7 @@ Development branch: `feature/floustream-voice-activation-0430`
 
 ## Important limitations not yet closed
 
-1. The wake event is not yet wired into a global assistant controller. The existing assistant controller is scoped to an open conversation. If the app is backgrounded, Android notification interaction is the safe route back into the app; seamless automatic command listening after wake still needs the top-level assistant handoff.
+1. Wake handoff currently reaches only the assistant hosted inside an already-open conversation. The app-wide assistant controller is still missing. If the app is backgrounded, tapping the notification opens FLOUSTREAM; if no conversation is active, the wake event waits until a conversation screen is opened. Seamless global command listening is not yet complete.
 2. The service must be started by the user from a visible Activity after microphone permission is granted. Android 14+ microphone foreground-service restrictions prohibit assuming that a third-party app can silently start microphone capture from the background or at boot.
 3. The notification permission flow and behavior on denied notification permission still need UX validation.
 4. Model download and extraction have not yet been exercised on a real phone or across restrictive networks.
