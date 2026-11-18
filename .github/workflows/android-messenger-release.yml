@@ -88,6 +88,17 @@ jobs:
         working-directory: android-messenger
         run: gradle --no-daemon :app:testDebugUnitTest :app:lintDebug
 
+      - name: Upload Android lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: FLOUSTREAM-android-lint-report
+          path: |
+            android-messenger/app/build/reports/lint-results-debug.html
+            android-messenger/app/build/intermediates/lint_intermediate_text_report/debug/lintReportDebug/lint-results-debug.txt
+          if-no-files-found: ignore
+          retention-days: 14
+
       - name: Restore and validate release signing key
         env:
           DOLBY404_KEYSTORE_BASE64: ${{ secrets.DOLBY404_KEYSTORE_BASE64 }}
@@ -107,7 +118,7 @@ jobs:
       - name: Build signed release APK
         working-directory: android-messenger
         env:
-          DOLBY404_KEYSTORE_PATH: keystore/release.jks
+          DOLBY404_KEYSTORE_PATH: ../keystore/release.jks
           DOLBY404_KEYSTORE_PASSWORD: ${{ secrets.DOLBY404_KEYSTORE_PASSWORD }}
           DOLBY404_KEY_ALIAS: ${{ secrets.DOLBY404_KEY_ALIAS }}
           DOLBY404_KEY_PASSWORD: ${{ secrets.DOLBY404_KEY_PASSWORD }}
