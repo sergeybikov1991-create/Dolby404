@@ -3,7 +3,6 @@ package com.dolby404.messenger.voice
 import android.content.Context
 import android.speech.tts.TextToSpeech
 import android.speech.tts.Voice
-import java.util.Locale
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -11,9 +10,9 @@ import kotlinx.coroutines.flow.asStateFlow
 /**
  * Offline-only Android TTS adapter.
  *
- * It deliberately selects only a Russian voice that does not require a network
- * connection. If the device has no such voice installed, it reports unavailable
- * instead of silently falling back to a cloud voice.
+ * It selects only a Russian voice that does not require a network connection.
+ * If the device has no such voice installed, it reports unavailable instead
+ * of silently falling back to a cloud voice.
  *
  * The owner must call close() when the voice feature is disposed.
  */
@@ -22,7 +21,6 @@ class AndroidOfflineRussianTts(
     private val onReady: (Boolean) -> Unit = {}
 ) : TextToSpeech.OnInitListener {
 
-    private val appContext = context.applicationContext
     private var engine: TextToSpeech? = null
 
     private val _isReady = MutableStateFlow(false)
@@ -32,7 +30,7 @@ class AndroidOfflineRussianTts(
     val status: StateFlow<String> = _status.asStateFlow()
 
     init {
-        engine = TextToSpeech(appContext, this)
+        engine = TextToSpeech(context.applicationContext, this)
     }
 
     override fun onInit(statusCode: Int) {
@@ -46,10 +44,7 @@ class AndroidOfflineRussianTts(
             ?.asSequence()
             ?.filter { it.locale.language.equals("ru", ignoreCase = true) }
             ?.filterNot { it.isNetworkConnectionRequired }
-            ?.sortedWith(
-                compareBy<Voice> { it.isDefault.not() }
-                    .thenBy { it.name.length }
-            )
+            ?.sortedBy { it.name.length }
             ?.firstOrNull()
 
         if (russianLocalVoice == null) {
@@ -57,8 +52,7 @@ class AndroidOfflineRussianTts(
             return
         }
 
-        val result = tts.setVoice(russianLocalVoice)
-        if (result == TextToSpeech.SUCCESS) {
+        if (tts.setVoice(russianLocalVoice) == TextToSpeech.SUCCESS) {
             _isReady.value = true
             _status.value = "Русская офлайн-озвучка готова"
             onReady(true)
