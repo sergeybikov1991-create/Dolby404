@@ -57,7 +57,7 @@ body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 18% 0%,#281
 const SUPABASE_URL="https://qhpobdktlbhdqsnajypr.supabase.co";
 const SUPABASE_KEY="sb_publishable_tzG1qVsbjaW8YE_LBVN87Q_v0CahKN5";
 const $=id=>document.getElementById(id);
-let client,viewer,peerId,lastMessageId="",loading=false,inboxLoading=false;
+let client,viewer,peerId,lastMessageId="",loading=false,inboxLoading=false,pendingMessageReload=false;
 function loadLibrary(){return new Promise((resolve,reject)=>{if(window.supabase?.createClient){resolve();return;}const script=document.createElement("script");script.src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";script.onload=()=>window.supabase?.createClient?resolve():reject(new Error("Supabase не загрузился"));script.onerror=()=>reject(new Error("Не удалось загрузить библиотеку Supabase"));document.head.append(script);});}
 function safeUrl(value){if(!value)return "";try{const u=new URL(value,location.href);return ["http:","https:"].includes(u.protocol)?u.href:"";}catch(_){return "";}}
 function timeText(value){const d=new Date(value);return Number.isNaN(d.getTime())?"":d.toLocaleString("ru-RU",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});}
@@ -86,7 +86,7 @@ async function renderMessages(rows){
  lastMessageId=rows[rows.length-1]?.id||lastMessageId;
 }
 async function loadMessages(silent=false){
- if(loading)return;loading=true;
+ if(loading){pendingMessageReload=true;return;}loading=true;
  try{
   const filter="and(sender_id.eq."+viewer.id+",recipient_id.eq."+peerId+"),and(sender_id.eq."+peerId+",recipient_id.eq."+viewer.id+")";
   const result=await client.from("direct_messages").select("id,sender_id,recipient_id,content,attachment_path,attachment_name,attachment_mime,created_at").or(filter).order("created_at",{ascending:true}).limit(200);
@@ -97,7 +97,7 @@ async function loadMessages(silent=false){
   const newest=rows[rows.length-1]?.id||"";
   if(!silent||newest!==lastMessageId)await renderMessages(rows);
  }catch(error){if(!silent)showNotice("Не удалось загрузить сообщения: "+error.message,true);}
- finally{loading=false;}
+ finally{loading=false;if(pendingMessageReload){pendingMessageReload=false;queueMicrotask(()=>loadMessages(true));}}
 }
 function renderInbox(rows,profiles){
  const host=$("messages");host.replaceChildren();host.classList.add("inbox-list");
