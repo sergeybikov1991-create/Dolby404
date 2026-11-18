@@ -17,6 +17,22 @@ class RuleBasedVoiceDialogueEngine : VoiceDialogueEngine {
     ): VoiceModelIntent? = parse(transcript)
 
     fun parse(transcript: String): VoiceModelIntent? {
+        val messageCommand = Regex(
+            "^(?:напиши сообщение|подготовь сообщение для|напиши|отправь сообщение|отправь)\\s+(.+?)\\s*[:—-]\\s*(.+)$",
+            RegexOption.IGNORE_CASE
+        ).matchEntire(transcript.trim())
+        if (messageCommand != null) {
+            val recipient = messageCommand.groupValues[1].trim()
+            val message = messageCommand.groupValues[2].trim()
+            if (recipient.isNotEmpty() && message.isNotEmpty()) {
+                val action = if (transcript.trim().lowercase().startsWith("отправь")) "send_message" else "prepare_message_draft"
+                return if (action == "send_message") {
+                    intent("send_message", "conversation_ref" to recipient, "text" to message)
+                } else {
+                    intent("prepare_message_draft", "recipient" to recipient, "text" to message)
+                }
+            }
+        }
         val text = normalize(transcript)
         if (text.isEmpty()) return null
 
