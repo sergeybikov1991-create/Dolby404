@@ -118,5 +118,5 @@ test("messages page keeps the newest messages at the bottom and guards sends", a
   expect(messages).toContain('.order("created_at",{ascending:false}).order("id",{ascending:false}).limit(200)');
   expect(messages).toContain("requestAnimationFrame(()=>{host.scrollTop=host.scrollHeight;});");
   expect(messages).toContain('finally{button.disabled=false;input.focus();}');
-  expect(messages).toContain('or nullif(trim(coalesce(attachment_path');
+  expect(messages).toContain("attachment_path:path");
 });
