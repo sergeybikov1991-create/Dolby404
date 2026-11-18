@@ -34,6 +34,7 @@ class WakeWordForegroundService : Service() {
         const val ACTION_START = "com.dolby404.messenger.voice.START_WAKE_WORD"
         const val ACTION_STOP = "com.dolby404.messenger.voice.STOP_WAKE_WORD"
         const val ACTION_WAKE_DETECTED = "com.dolby404.messenger.voice.WAKE_DETECTED"
+        const val EXTRA_COMMAND = "voice_command"
         private const val CHANNEL_ID = "floustream_voice_activation"
         private const val NOTIFICATION_ID = 4107
         private const val SAMPLE_RATE = 16_000
@@ -42,6 +43,7 @@ class WakeWordForegroundService : Service() {
 
     private val stopping = AtomicBoolean(false)
     @Volatile private var wakeDetected = false
+    @Volatile private var detectedCommand: String = ""
     @Volatile private var captureThread: Thread? = null
     @Volatile private var recorder: AudioRecord? = null
     @Volatile private var lease: VoiceAudioSessionCoordinator.Lease? = null
@@ -103,6 +105,7 @@ class WakeWordForegroundService : Service() {
         lease = audioLease
         stopping.set(false)
         wakeDetected = false
+        detectedCommand = ""
 
         captureThread = Thread({
             runCapture(modelDirectory)
@@ -141,10 +144,14 @@ class WakeWordForegroundService : Service() {
 
             while (!stopping.get()) {
                 val count = activeRecorder.read(frame, 0, frame.size, AudioRecord.READ_BLOCKING)
-                if (count > 0 && detector.acceptAudio(frame, count)) {
-                    stopping.set(true)
-                    wakeDetected = true
-                    break
+                if (count > 0) {
+                    val command = detector.acceptAudio(frame, count)
+                    if (command != null) {
+                        detectedCommand = command
+                        stopping.set(true)
+                        wakeDetected = true
+                        break
+                    }
                 }
                 check(count >= 0) { "Ошибка чтения микрофона: $count" }
             }
@@ -163,7 +170,7 @@ class WakeWordForegroundService : Service() {
             captureThread = null
             if (wakeDetected) {
                 // The wake broadcast is sent only after the WAKE_WORD lease is released.
-                notifyWakeDetected()
+                notifyWakeDetected(detectedCommand)
                 // Keep the actionable notification after releasing the microphone.
                 stopForeground(STOP_FOREGROUND_DETACH)
                 stopSelf()
@@ -173,9 +180,13 @@ class WakeWordForegroundService : Service() {
         }
     }
 
-    private fun notifyWakeDetected() {
-        showStatus("Фраза «Флоу» услышана. Нажми, чтобы открыть голосового помощника.", ongoing = false)
-        sendBroadcast(Intent(ACTION_WAKE_DETECTED).setPackage(packageName))
+    private fun notifyWakeDetected(command: String) {
+        showStatus(
+            if (command.isBlank()) "Фраза «Флоу» услышана. Открой FLOUSTREAM для команды."
+            else "Команда услышана. Открой FLOUSTREAM для выполнения.",
+            ongoing = false
+        )
+        sendBroadcast(Intent(ACTION_WAKE_DETECTED).setPackage(packageName).putExtra(EXTRA_COMMAND, command))
     }
 
     private fun showStatus(message: String, ongoing: Boolean = true) {
@@ -187,6 +198,7 @@ class WakeWordForegroundService : Service() {
         val openIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra("wake_word_detected", true)
+            putExtra(EXTRA_COMMAND, detectedCommand)
         }
         val pendingIntent = PendingIntent.getActivity(
             this, 4107, openIntent,

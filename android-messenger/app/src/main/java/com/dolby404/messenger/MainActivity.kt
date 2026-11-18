@@ -3,15 +3,12 @@ package com.dolby404.messenger
 import com.dolby404.messenger.voice.VoiceAudioOwner
 import com.dolby404.messenger.voice.VoiceAudioSessionCoordinator
 import com.dolby404.messenger.voice.AndroidOnDeviceVoiceController
-import com.dolby404.messenger.voice.AndroidOfflineRussianTts
-import com.dolby404.messenger.voice.AndroidVoiceSpeechOutput
 import com.dolby404.messenger.voice.CallType
 import com.dolby404.messenger.voice.MediaKind
 import com.dolby404.messenger.voice.VoiceAction
 import com.dolby404.messenger.voice.VoiceActionExecutor
 import com.dolby404.messenger.voice.VoiceAssistantEngine
 import com.dolby404.messenger.voice.VoiceAssistantOrchestrator
-import com.dolby404.messenger.voice.VoiceConfirmationGate
 import com.dolby404.messenger.voice.VoiceConversationContext
 import com.dolby404.messenger.voice.VoiceEntityResolver
 import com.dolby404.messenger.voice.VoiceExecutionResult
@@ -25,6 +22,7 @@ import java.util.concurrent.TimeUnit
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.first
 
 import kotlinx.coroutines.NonCancellable
 
@@ -300,9 +298,13 @@ class MainActivity : ComponentActivity() {
     private var pendingLifecycleAction by mutableStateOf<String?>(null)
     private var pendingNotificationPeerId by mutableStateOf<String?>(null)
     private var pendingWakeWord by mutableStateOf(false)
+    private var pendingWakeCommand by mutableStateOf("")
     private val wakeWordReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == WakeWordForegroundService.ACTION_WAKE_DETECTED) pendingWakeWord = true
+            if (intent?.action == WakeWordForegroundService.ACTION_WAKE_DETECTED) {
+                pendingWakeCommand = intent.getStringExtra(WakeWordForegroundService.EXTRA_COMMAND).orEmpty()
+                pendingWakeWord = true
+            }
         }
     }
 
@@ -321,6 +323,7 @@ class MainActivity : ComponentActivity() {
         pendingLifecycleAction = lifecycleActionFromIntent(intent)
         pendingNotificationPeerId = intent.getStringExtra("sender_id")?.takeIf { it.isNotBlank() }
         pendingWakeWord = intent.getBooleanExtra("wake_word_detected", false)
+        pendingWakeCommand = intent.getStringExtra(WakeWordForegroundService.EXTRA_COMMAND).orEmpty()
         floustreamClient.handleDeeplinks(intent)
         setContent {
             MaterialTheme(
@@ -332,7 +335,7 @@ class MainActivity : ComponentActivity() {
                     onBackground = White,
                     onSurface = White
                 )
-            ) { androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) { MessengerApp(pendingLifecycleAction, pendingNotificationPeerId, pendingWakeWord, { pendingLifecycleAction = null }, { pendingNotificationPeerId = null }, { pendingWakeWord = false }); AppUpdatePrompt() } }
+            ) { androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) { MessengerApp(pendingLifecycleAction, pendingNotificationPeerId, pendingWakeWord, pendingWakeCommand, { pendingLifecycleAction = null }, { pendingNotificationPeerId = null }, { pendingWakeWord = false; pendingWakeCommand = "" }); AppUpdatePrompt() } }
         }
     }
 
@@ -373,6 +376,7 @@ class MainActivity : ComponentActivity() {
         pendingLifecycleAction = lifecycleActionFromIntent(intent)
         pendingNotificationPeerId = intent.getStringExtra("sender_id")?.takeIf { it.isNotBlank() }
         pendingWakeWord = intent.getBooleanExtra("wake_word_detected", false)
+        pendingWakeCommand = intent.getStringExtra(WakeWordForegroundService.EXTRA_COMMAND).orEmpty()
         floustreamClient.handleDeeplinks(intent)
     }
 }
@@ -683,31 +687,6 @@ private suspend fun findFloustreamUsers(query: String): List<ProfileDto> {
             it.id != floustreamClient.auth.currentUserOrNull()?.id && !it.isDeleted
         }.take(30)
     }
-}
-
-/**
- * Voice references are resolved against display names and usernames inside the app.
- * A small Russian inflection stem helps phrases such as "с Анной" match "Анна";
- * ambiguous results are intentionally left unresolved for clarification.
- */
-private suspend fun findVoiceContactCandidates(reference: String): List<ProfileDto> {
-    val term = reference.trim().removePrefix("@")
-    if (term.length < 2) return emptyList()
-    val lower = term.lowercase()
-    val suffix = listOf("ой", "ей", "ом", "ем", "е", "у", "ю", "а", "я")
-        .firstOrNull { lower.endsWith(it) && lower.length - it.length >= 2 }
-    val displayStem = if (suffix == null) term else term.dropLast(suffix.length)
-    val byDisplayName = withTransientNetworkRetry {
-        floustreamClient.from("profiles").select {
-            filter { ilike("display_name", "%$displayStem%") }
-        }.decodeList<ProfileDto>()
-    }
-    val byUsername = findFloustreamUsers(term)
-    val currentUserId = floustreamClient.auth.currentUserOrNull()?.id
-    return (byDisplayName + byUsername)
-        .filter { it.id != currentUserId && !it.isDeleted }
-        .distinctBy { it.id }
-        .take(30)
 }
 
 private suspend fun loadDirectMessagesPage(
@@ -1490,6 +1469,7 @@ private fun MessengerApp(
     pendingLifecycleAction: String?,
     notificationPeerId: String?,
     wakeWordPending: Boolean,
+    wakeWordCommand: String,
     onLifecycleHandled: () -> Unit,
     onNotificationHandled: () -> Unit,
     onWakeWordHandled: () -> Unit
@@ -1670,6 +1650,7 @@ private fun MessengerApp(
             MessengerHome(
                 notificationPeerId = notificationPeerId,
                 wakeWordPending = wakeWordPending,
+                wakeWordCommand = wakeWordCommand,
                 onWakeWordHandled = onWakeWordHandled,
                 onNotificationHandled = onNotificationHandled,
                 onDeleteAccount = {
@@ -1814,6 +1795,7 @@ private fun MessengerHome(
     onDeleteAccount: () -> Unit,
     notificationPeerId: String?,
     wakeWordPending: Boolean,
+    wakeWordCommand: String,
     onWakeWordHandled: () -> Unit,
     onNotificationHandled: () -> Unit
 ) {
@@ -1821,12 +1803,224 @@ private fun MessengerHome(
     var selectedProfile by remember { mutableStateOf<ProfileDto?>(null) }
     val voiceAudioCoordinator = VoiceAudioSessionCoordinator.shared
     val currentUserId = floustreamClient.auth.currentUserOrNull()?.id.orEmpty()
+    val voiceSavedChats = remember(currentUserId) { mutableStateListOf<ProfileDto>() }
     var searchOpen by remember { mutableStateOf(false) }
     var search by remember { mutableStateOf("") }
     var infoMessage by remember { mutableStateOf("") }
     var socialOpen by remember { mutableStateOf(false) }
     var socialDrawerOpen by remember { mutableStateOf(false) }
     var socialSection by remember { mutableStateOf("Моя страница") }
+
+    // App-wide voice runtime for every non-conversation screen. The conversation
+    // screen keeps its existing chat-scoped executor so chat actions retain their
+    // validated peer/message state and never run against stale navigation state.
+    val homeVoiceContext = LocalContext.current
+    val homeVoiceLifecycle = LocalLifecycleOwner.current
+    val homeVoiceScope = rememberCoroutineScope()
+    val homeVoiceAssistant = remember {
+        val homeEntityResolver = object : VoiceEntityResolver {
+            override suspend fun conversationId(reference: String, context: VoiceConversationContext): String? {
+                if (reference.equals("active", ignoreCase = true)) return context.activeConversationId
+                val normalized = reference.trim().lowercase().replace('ё', 'е')
+                    .replace(Regex("[^\\p{L}\\p{N}]+"), " ").replace(Regex("\\s+"), " ")
+                if (normalized.isBlank()) return null
+                val matches = voiceSavedChats.filter { profile ->
+                    listOfNotNull(
+                        profile.displayName,
+                        profile.username,
+                        profile.firstName,
+                        profile.lastName,
+                        listOfNotNull(profile.firstName, profile.lastName).joinToString(" ").takeIf { it.isNotBlank() }
+                    ).any { label ->
+                        label.trim().lowercase().replace('ё', 'е')
+                            .replace(Regex("[^\\p{L}\\p{N}]+"), " ").replace(Regex("\\s+"), " ") == normalized
+                    }
+                }.distinctBy { it.id }
+                return matches.singleOrNull()?.id
+            }
+
+            override suspend fun messageId(reference: String, context: VoiceConversationContext): String? = null
+            override suspend fun attachmentId(reference: String, context: VoiceConversationContext): String? = null
+            override suspend fun contactId(reference: String, context: VoiceConversationContext): String? =
+                if (reference.equals("current", ignoreCase = true)) context.activeContactId else null
+            override suspend fun siteMediaId(reference: String, context: VoiceConversationContext): String? = null
+        }
+        val navigationExecutor = VoiceActionExecutor { action ->
+            when (action) {
+                VoiceAction.OpenChats -> {
+                    selectedProfile = null
+                    socialOpen = false
+                    socialDrawerOpen = false
+                    tab = "Чаты"
+                    VoiceExecutionResult.Success("Открыл чаты")
+                }
+                VoiceAction.OpenContacts -> {
+                    selectedProfile = null
+                    socialOpen = false
+                    socialDrawerOpen = false
+                    tab = "Контакты"
+                    VoiceExecutionResult.Success("Открыл контакты")
+                }
+                VoiceAction.OpenSettings -> {
+                    selectedProfile = null
+                    socialOpen = false
+                    socialDrawerOpen = false
+                    tab = "Настройки"
+                    VoiceExecutionResult.Success("Открыл настройки")
+                }
+                VoiceAction.ShowMedia -> {
+                    selectedProfile = null
+                    socialOpen = true
+                    socialDrawerOpen = false
+                    socialSection = "Фото"
+                    VoiceExecutionResult.Success("Открыл медиа FLOUSTREAM")
+                }
+                is VoiceAction.SearchConversations -> {
+                    selectedProfile = null
+                    socialOpen = false
+                    tab = "Чаты"
+                    searchOpen = true
+                    search = action.query
+                    VoiceExecutionResult.Success("Ищу переписки по запросу ${action.query}")
+                }
+                is VoiceAction.OpenConversation -> {
+                    val target = withTransientNetworkRetry {
+                        floustreamClient.from("profiles").select {
+                            filter { eq("id", action.conversationId) }
+                        }.decodeList<ProfileDto>().firstOrNull()
+                    }
+                    if (target == null || target.isDeleted) {
+                        VoiceExecutionResult.Failure("Не удалось открыть эту переписку")
+                    } else {
+                        selectedProfile = target
+                        tab = "Чаты"
+                        socialOpen = false
+                        socialDrawerOpen = false
+                        VoiceExecutionResult.Success("Открыл переписку с ${target.displayName ?: target.username ?: "контактом"}")
+                    }
+                }
+                VoiceAction.ShowUnreadConversations ->
+                    VoiceExecutionResult.Failure("Фильтр непрочитанных переписок пока не подключён")
+                else -> VoiceExecutionResult.Failure("Эта команда доступна внутри переписки или пока не подключена")
+            }
+        }
+        VoiceAssistantEngine(
+            VoiceAssistantOrchestrator(
+                binder = VoiceIntentBinder(homeEntityResolver),
+                executor = navigationExecutor,
+            )
+        )
+    }
+    val homeVoiceController = remember {
+        AndroidOnDeviceVoiceController(
+            context = homeVoiceContext,
+            coordinator = voiceAudioCoordinator,
+            assistant = homeVoiceAssistant,
+            contextProvider = {
+                val screen = when {
+                    socialOpen -> VoiceScreen.MEDIA
+                    tab == "Контакты" -> VoiceScreen.CONTACTS
+                    tab == "Настройки" -> VoiceScreen.SETTINGS
+                    else -> VoiceScreen.CHATS
+                }
+                VoiceConversationContext(screen = screen)
+            },
+            hasRecordAudioPermission = {
+                homeVoiceContext.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+            },
+            isActivityForeground = {
+                homeVoiceLifecycle.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+            },
+            scope = homeVoiceScope
+        )
+    }
+    val homeVoiceState by homeVoiceController.state.collectAsState()
+    var rearmHomeWakeWord by remember { mutableStateOf(false) }
+
+    LaunchedEffect(wakeWordPending, wakeWordCommand, selectedProfile, homeVoiceController, homeVoiceLifecycle) {
+        if (wakeWordPending && selectedProfile == null) {
+            val resumed = withTimeoutOrNull(5000) {
+                homeVoiceLifecycle.lifecycle.currentStateFlow.first {
+                    it.isAtLeast(Lifecycle.State.RESUMED)
+                }
+            }
+            if (resumed != null) {
+                delay(150)
+                if (wakeWordCommand.isNotBlank()) {
+                    homeVoiceController.processRecognizedCommand(wakeWordCommand)
+                    rearmHomeWakeWord = true
+                    onWakeWordHandled()
+                } else {
+                    val started = homeVoiceController.startListening()
+                    val startFailed = homeVoiceController.state.value.phase == VoicePhase.ERROR
+                    if (started || startFailed) {
+                        rearmHomeWakeWord = true
+                        onWakeWordHandled()
+                    }
+                }
+            } else {
+                onWakeWordHandled()
+            }
+        }
+    }
+
+    LaunchedEffect(homeVoiceState.phase, homeVoiceState.errorMessage, rearmHomeWakeWord, selectedProfile) {
+        val turnFinished = homeVoiceState.phase == VoicePhase.IDLE || homeVoiceState.phase == VoicePhase.ERROR
+        val hasTurnResult = homeVoiceState.recognizedText.isNotBlank() ||
+            !homeVoiceState.errorMessage.isNullOrBlank()
+        if (rearmHomeWakeWord && turnFinished && hasTurnResult) {
+            delay(500)
+            if (selectedProfile == null) {
+                val microphoneIdle = withTimeoutOrNull(5000) {
+                    voiceAudioCoordinator.currentOwner.first { it == null }
+                }
+                val prefs = homeVoiceContext.getSharedPreferences("floustream_voice", Context.MODE_PRIVATE)
+                if (microphoneIdle != null &&
+                    prefs.getBoolean("wake_word_enabled", false) &&
+                    homeVoiceLifecycle.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+                ) {
+                    runCatching {
+                        homeVoiceContext.startForegroundService(
+                            Intent(homeVoiceContext, WakeWordForegroundService::class.java)
+                                .setAction(WakeWordForegroundService.ACTION_START)
+                        )
+                    }
+                }
+            }
+            rearmHomeWakeWord = false
+        }
+    }
+
+    DisposableEffect(homeVoiceController) {
+        onDispose { homeVoiceController.close() }
+    }
+
+    var conversationWasOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(selectedProfile, wakeWordPending, homeVoiceState.phase) {
+        if (selectedProfile != null) {
+            conversationWasOpen = true
+        } else if (conversationWasOpen && !wakeWordPending &&
+            (homeVoiceState.phase == VoicePhase.IDLE || homeVoiceState.phase == VoicePhase.ERROR)
+        ) {
+            conversationWasOpen = false
+            delay(500)
+            val microphoneIdle = withTimeoutOrNull(5000) {
+                voiceAudioCoordinator.currentOwner.first { it == null }
+            }
+            val prefs = homeVoiceContext.getSharedPreferences("floustream_voice", Context.MODE_PRIVATE)
+            if (microphoneIdle != null &&
+                prefs.getBoolean("wake_word_enabled", false) &&
+                homeVoiceLifecycle.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+            ) {
+                runCatching {
+                    homeVoiceContext.startForegroundService(
+                        Intent(homeVoiceContext, WakeWordForegroundService::class.java)
+                            .setAction(WakeWordForegroundService.ACTION_START)
+                    )
+                }
+            }
+        }
+    }
 
     LaunchedEffect(notificationPeerId, currentUserId) {
         val peerId = notificationPeerId?.takeIf { it.isNotBlank() } ?: return@LaunchedEffect
@@ -1908,7 +2102,10 @@ private fun MessengerHome(
                     peer = selectedProfile!!,
                     currentUserId = currentUserId,
                     audioCoordinator = voiceAudioCoordinator,
+                    appVoiceBusy = homeVoiceState.phase != VoicePhase.IDLE && homeVoiceState.phase != VoicePhase.ERROR,
                     wakeWordPending = wakeWordPending,
+                    wakeWordCommand = wakeWordCommand,
+                    savedChats = voiceSavedChats.toList(),
                     onWakeWordHandled = onWakeWordHandled,
                     onBack = { selectedProfile = null },
                     onOpenConversation = { profile -> selectedProfile = profile; tab = "Чаты" },
@@ -1951,6 +2148,10 @@ private fun MessengerHome(
                     "Чаты" -> ChatsScreen(
                         currentUserId = currentUserId,
                         searchQuery = search,
+                        onThreadsChanged = { loadedPeers ->
+                            voiceSavedChats.clear()
+                            voiceSavedChats.addAll(loadedPeers.distinctBy { it.id })
+                        },
                         onOpen = { selectedProfile = it }
                     )
                     "Контакты" -> ContactsScreen(onStart = { selectedProfile = it; tab = "Чаты" })
@@ -2567,6 +2768,7 @@ private fun HeaderAction(symbol: String, onClick: () -> Unit) {
 private fun ChatsScreen(
     currentUserId: String,
     searchQuery: String,
+    onThreadsChanged: (List<ProfileDto>) -> Unit,
     onOpen: (ProfileDto) -> Unit
 ) {
     val threads = remember(currentUserId) { mutableStateListOf<ChatThread>() }
@@ -2602,6 +2804,7 @@ private fun ChatsScreen(
                     )
                     threads.clear()
                     threads.addAll(latest)
+                    onThreadsChanged(latest.map { it.peer })
                     hasLoadedInbox = true
                     loading = false
                     error = ""
@@ -2614,6 +2817,7 @@ private fun ChatsScreen(
                             )
                             threads.clear()
                             threads.addAll(completeHistory)
+                            onThreadsChanged(completeHistory.map { it.peer })
                         } catch (historyError: Exception) {
                             if (historyError is kotlinx.coroutines.CancellationException) throw historyError
                             // Keep the already rendered recent inbox; the next foreground
@@ -3706,7 +3910,10 @@ private fun RealConversationScreen(
     peer: ProfileDto,
     currentUserId: String,
     audioCoordinator: VoiceAudioSessionCoordinator,
+    appVoiceBusy: Boolean,
     wakeWordPending: Boolean,
+    wakeWordCommand: String,
+    savedChats: List<ProfileDto>,
     onWakeWordHandled: () -> Unit,
     onBack: () -> Unit,
     onOpenConversation: (ProfileDto) -> Unit,
@@ -3933,7 +4140,7 @@ private fun RealConversationScreen(
         }
     }
     val microphonePermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        errorText = if (granted) "Микрофон разрешён. Нажми 🎙 для помощника или удержи отправку для голосового сообщения." else "Для голосового управления и голосовых сообщений нужно разрешить доступ к микрофону."
+        errorText = if (granted) "Микрофон разрешён. Теперь можно записывать голосовые сообщения." else "Для записи голосовых сообщений нужно разрешить доступ к микрофону."
     }
 
     fun startVoiceRecording(): Boolean {
@@ -4449,14 +4656,22 @@ private fun RealConversationScreen(
         }
     }
 
-    suspend fun resolveVoiceProfile(reference: String): ProfileDto? {
-        val candidates = try {
-            findVoiceContactCandidates(reference)
-        } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
-            emptyList()
-        }
-        return candidates.singleOrNull()
+    fun resolveVoiceProfile(reference: String): ProfileDto? {
+        val normalized = reference.trim().lowercase().replace('ё', 'е')
+            .replace(Regex("[^\\p{L}\\p{N}]+"), " ").replace(Regex("\\s+"), " ")
+        if (normalized.isBlank()) return null
+        return savedChats.filter { profile ->
+            listOfNotNull(
+                profile.displayName,
+                profile.username,
+                profile.firstName,
+                profile.lastName,
+                listOfNotNull(profile.firstName, profile.lastName).joinToString(" ").takeIf { it.isNotBlank() }
+            ).any { label ->
+                label.trim().lowercase().replace('ё', 'е')
+                    .replace(Regex("[^\\p{L}\\p{N}]+"), " ").replace(Regex("\\s+"), " ") == normalized
+            }
+        }.distinctBy { it.id }.singleOrNull()
     }
 
     val voiceResolver = remember(peer.id) {
@@ -4619,8 +4834,12 @@ private fun RealConversationScreen(
                         }
                     }
                     VoiceAction.StopVoiceMessageRecording -> {
-                        finishVoiceRecording(true)
-                        VoiceExecutionResult.Success("Голосовое сообщение отправлено")
+                        if (recordingVoice) {
+                            finishVoiceRecording(true)
+                            VoiceExecutionResult.Success("Голосовое сообщение отправлено")
+                        } else {
+                            VoiceExecutionResult.Failure("Сейчас нет активной записи голосового сообщения")
+                        }
                     }
                     is VoiceAction.StartCall ->
                         VoiceExecutionResult.Failure("Голосовые и видеозвонки ещё не подключены")
@@ -4640,22 +4859,14 @@ private fun RealConversationScreen(
             VoiceAssistantOrchestrator(
                 binder = VoiceIntentBinder(voiceResolver),
                 executor = voiceExecutor,
-                confirmationGate = VoiceConfirmationGate(),
-                nowMillis = { System.currentTimeMillis() }
             )
         )
-    }
-    val voiceTts = remember(peer.id) { AndroidOfflineRussianTts(context) }
-    val ttsStatus by voiceTts.status.collectAsState()
-    val voiceSpeechOutput = remember(peer.id) {
-        AndroidVoiceSpeechOutput(voiceTts)
     }
     val voiceController = remember(peer.id) {
         AndroidOnDeviceVoiceController(
             context = context,
             coordinator = audioCoordinator,
             assistant = voiceAssistant,
-            speechOutput = voiceSpeechOutput,
             contextProvider = {
                 val latest = messages.lastOrNull()
                 VoiceConversationContext(
@@ -4686,25 +4897,32 @@ private fun RealConversationScreen(
 
     var rearmWakeWordAfterAssistant by remember(peer.id) { mutableStateOf(false) }
 
-    LaunchedEffect(wakeWordPending, voiceController, lifecycleOwner) {
+    LaunchedEffect(wakeWordPending, wakeWordCommand, voiceController, lifecycleOwner) {
         if (wakeWordPending) {
-            lifecycleOwner.lifecycle.currentStateFlow.collect { state ->
-                if (state.isAtLeast(Lifecycle.State.RESUMED)) {
-                    delay(150)
+            val resumed = withTimeoutOrNull(5000) {
+                lifecycleOwner.lifecycle.currentStateFlow.first { it.isAtLeast(Lifecycle.State.RESUMED) }
+            }
+            if (resumed != null) {
+                delay(150)
+                if (wakeWordCommand.isNotBlank()) {
+                    voiceController.processRecognizedCommand(wakeWordCommand)
+                    rearmWakeWordAfterAssistant = true
+                    onWakeWordHandled()
+                } else {
                     val started = voiceController.startListening()
                     if (started) rearmWakeWordAfterAssistant = true
-                    if (started || voiceController.state.value.phase == VoicePhase.ERROR) {
-                        onWakeWordHandled()
-                    }
+                    if (started || voiceController.state.value.phase == VoicePhase.ERROR) onWakeWordHandled()
                 }
+            } else {
+                onWakeWordHandled()
             }
         }
     }
 
-    LaunchedEffect(voiceState.phase, voiceState.responseText, rearmWakeWordAfterAssistant) {
+    LaunchedEffect(voiceState.phase, voiceState.recognizedText, rearmWakeWordAfterAssistant) {
         if (rearmWakeWordAfterAssistant &&
             voiceState.phase == VoicePhase.IDLE &&
-            !voiceState.responseText.isNullOrBlank()
+            voiceState.recognizedText.isNotBlank()
         ) {
             delay(500)
             val prefs = context.getSharedPreferences("floustream_voice", Context.MODE_PRIVATE)
@@ -4722,14 +4940,15 @@ private fun RealConversationScreen(
         }
     }
 
-    LaunchedEffect(audioCoordinator, lifecycleOwner, voiceController, wakeWordPending) {
+    LaunchedEffect(audioCoordinator, lifecycleOwner, voiceController, wakeWordPending, appVoiceBusy) {
         audioCoordinator.currentOwner.collect { owner ->
-            if (owner == null && !wakeWordPending) {
+            if (owner == null && !wakeWordPending && !appVoiceBusy) {
                 delay(350)
                 val prefs = context.getSharedPreferences("floustream_voice", Context.MODE_PRIVATE)
                 if (prefs.getBoolean("wake_word_enabled", false) &&
                     lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) &&
                     audioCoordinator.currentOwner.value == null &&
+                    !appVoiceBusy &&
                     voiceController.state.value.phase == VoicePhase.IDLE
                 ) {
                     runCatching {
@@ -5180,30 +5399,6 @@ private fun RealConversationScreen(
                 })
             )
             Surface(
-                modifier = Modifier.size(40.dp).clickable(
-                    enabled = !recordingVoice && !uploadingAttachment &&
-                        voiceState.phase !in setOf(VoicePhase.TRANSCRIBING, VoicePhase.THINKING, VoicePhase.SPEAKING)
-                ) {
-                    if (voiceState.phase == VoicePhase.LISTENING) {
-                        voiceController.stopListening()
-                    } else if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-                        microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
-                    } else {
-                        voiceController.startListening()
-                    }
-                },
-                color = if (voiceState.phase == VoicePhase.LISTENING) Violet else PanelSoft,
-                shape = CircleShape
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        if (voiceState.phase == VoicePhase.LISTENING) "■" else "🎙",
-                        color = White,
-                        fontSize = 17.sp
-                    )
-                }
-            }
-            Surface(
                 modifier = Modifier.size(44.dp).pointerInput(draft, sending, uploadingAttachment) {
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
@@ -5267,10 +5462,8 @@ private fun RealConversationScreen(
                 }
             }
             val voiceHint = voiceState.errorMessage
-                ?: voiceState.responseText.takeIf { it.isNotBlank() }
                 ?: voiceState.recognizedText.takeIf { it.isNotBlank() }
                 ?: (if (!voiceState.isModelReady) "Русский офлайн-пакет речи ещё не подтверждён" else null)
-                ?: ttsStatus.takeIf { !voiceSpeechOutput.isReady }
             voiceHint?.takeIf { it.isNotBlank() }?.let { hint ->
                 Text(
                     hint,

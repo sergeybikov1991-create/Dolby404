@@ -2,6 +2,8 @@ package com.dolby404.messenger.voice
 
 import android.content.Context
 import android.content.Intent
+import android.media.AudioManager
+import android.media.ToneGenerator
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -33,7 +35,6 @@ class AndroidOnDeviceVoiceController(
     context: Context,
     private val coordinator: VoiceAudioSessionCoordinator,
     private val assistant: VoiceAssistantEngine,
-    private val speechOutput: VoiceSpeechOutput,
     private val contextProvider: () -> VoiceConversationContext,
     private val hasRecordAudioPermission: () -> Boolean,
     private val isActivityForeground: () -> Boolean,
@@ -45,6 +46,7 @@ class AndroidOnDeviceVoiceController(
     private val mainHandler = Handler(Looper.getMainLooper())
     private val mainExecutor = Executor { command -> mainHandler.post(command) }
     private val _state = MutableStateFlow(VoiceAssistantState())
+    private val feedbackTone = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 70)
     val state: StateFlow<VoiceAssistantState> = _state.asStateFlow()
 
     private var recognizer: SpeechRecognizer? = null
@@ -190,10 +192,6 @@ class AndroidOnDeviceVoiceController(
     }
 
     fun startListening(): Boolean {
-        if (_state.value.phase == VoicePhase.SPEAKING) {
-            setError("Подожди, пока помощник закончит ответ")
-            return false
-        }
         if (!hasRecordAudioPermission()) {
             setError("Нужно разрешение на микрофон")
             return false
@@ -213,7 +211,6 @@ class AndroidOnDeviceVoiceController(
             return false
         }
 
-        speechOutput.stop()
         synchronized(lock) {
             if (closed || listening) return false
             val lease = coordinator.tryAcquire(VoiceAudioOwner.ASSISTANT)
@@ -270,28 +267,37 @@ class AndroidOnDeviceVoiceController(
             recognizer
         }
         runCatching { active?.cancel() }
-        assistant.cancelPendingConfirmation()
-        speechOutput.stop()
         _state.value = VoiceAssistantState(
             errorMessage = _state.value.errorMessage,
             isModelReady = _state.value.isModelReady
         )
     }
 
-    fun confirmPending(token: String) {
+    /** Executes a complete command already recognized by the foreground wake-word service. */
+    fun processRecognizedCommand(transcript: String) {
+        val clean = transcript.trim()
+        if (clean.isBlank()) {
+            startListening()
+            return
+        }
+        if (!isActivityForeground()) {
+            setError("Голосовая команда доступна после открытия FLOUSTREAM")
+            return
+        }
+        _state.value = VoiceAssistantState(
+            phase = VoicePhase.THINKING,
+            recognizedText = clean,
+            isModelReady = _state.value.isModelReady
+        )
         scope.launch {
             val result = try {
-                assistant.confirm(token, contextProvider())
+                assistant.onFinalTranscript(clean, contextProvider())
             } catch (error: Exception) {
                 if (error is kotlinx.coroutines.CancellationException) throw error
-                VoiceTurnResult.Rejected(error.message ?: "Не удалось подтвердить действие")
+                VoiceTurnResult.Rejected(error.message ?: "Не удалось выполнить голосовую команду")
             }
-            presentResult(result)
+            presentResult(result, clean)
         }
-    }
-
-    fun cancelPendingConfirmation() {
-        assistant.cancelPendingConfirmation()
     }
 
     private fun createRussianIntent() = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
@@ -371,28 +377,24 @@ class AndroidOnDeviceVoiceController(
         result: VoiceTurnResult,
         transcript: String = _state.value.recognizedText
     ) {
-        val response = when (result) {
-            is VoiceTurnResult.Executed -> when (val execution = result.result) {
-                is VoiceExecutionResult.Success -> execution.spokenSummary
-                is VoiceExecutionResult.NeedsDisambiguation -> execution.question
-                is VoiceExecutionResult.Failure -> execution.userMessage
-            }
-            is VoiceTurnResult.AwaitingConfirmation -> result.prompt
-            is VoiceTurnResult.ClarificationRequired -> result.question
-            is VoiceTurnResult.Rejected -> result.reason
-            is VoiceTurnResult.Cancelled -> result.spokenMessage
-        }
-        val ready = speechOutput.isReady
+        val succeeded = result is VoiceTurnResult.Executed &&
+            result.result is VoiceExecutionResult.Success
+        playFeedback(succeeded)
         _state.value = VoiceAssistantState(
-            phase = if (ready) VoicePhase.SPEAKING else VoicePhase.IDLE,
+            phase = VoicePhase.IDLE,
             recognizedText = transcript,
-            responseText = response,
+            errorMessage = null,
             isModelReady = _state.value.isModelReady
         )
-        val spoken = ready && speechOutput.speak(response) {
-            _state.value = _state.value.copy(phase = VoicePhase.IDLE)
+    }
+
+    private fun playFeedback(succeeded: Boolean) {
+        runCatching {
+            feedbackTone.startTone(
+                if (succeeded) ToneGenerator.TONE_PROP_ACK else ToneGenerator.TONE_PROP_NACK,
+                if (succeeded) 110 else 180
+            )
         }
-        if (!spoken) _state.value = _state.value.copy(phase = VoicePhase.IDLE)
     }
 
     private fun errorMessage(code: Int): String = when (code) {
@@ -418,6 +420,7 @@ class AndroidOnDeviceVoiceController(
     }
 
     private fun setError(message: String) {
+        playFeedback(false)
         _state.value = VoiceAssistantState(
             phase = VoicePhase.ERROR,
             errorMessage = message,
@@ -436,8 +439,7 @@ class AndroidOnDeviceVoiceController(
         }
         runCatching { active?.cancel() }
         active?.destroy()
-        speechOutput.stop()
-        (speechOutput as? AndroidVoiceSpeechOutput)?.close()
+        feedbackTone.release()
     }
 
     companion object {
