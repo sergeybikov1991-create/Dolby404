@@ -142,16 +142,6 @@ class VoskWakeWordModelInstaller(
         }
     }
 
-    internal fun resolveArchiveEntry(root: File, entryName: String): File {
-        require(entryName.isNotBlank()) { "Пустое имя файла в архиве" }
-        val candidate = File(root, entryName).canonicalFile
-        val rootPath = root.canonicalPath + File.separator
-        require(candidate.canonicalPath.startsWith(rootPath)) {
-            "Архив голосовой модели содержит небезопасный путь"
-        }
-        return candidate
-    }
-
     private fun isValidModel(directory: File): Boolean =
         directory.isDirectory &&
             File(directory, "am/final.mdl").isFile &&
@@ -159,6 +149,16 @@ class VoskWakeWordModelInstaller(
 
     companion object {
         const val MODEL_DIRECTORY = "vosk-model-small-ru-0.22"
+
+        internal fun resolveArchiveEntry(root: File, entryName: String): File {
+            require(entryName.isNotBlank()) { "Пустое имя файла в архиве" }
+            val candidate = File(root, entryName).canonicalFile
+            val rootPath = root.canonicalPath + File.separator
+            require(candidate.canonicalPath.startsWith(rootPath)) {
+                "Архив голосовой модели содержит небезопасный путь"
+            }
+            return candidate
+        }
         const val MODEL_URL = "https://alphacephei.com/vosk/models/vosk-model-small-ru-0.22.zip"
 
         private const val MODEL_ARCHIVE = "floustream-vosk-ru.zip"
