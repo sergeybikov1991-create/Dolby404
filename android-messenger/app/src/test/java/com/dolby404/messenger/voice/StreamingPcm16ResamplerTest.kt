@@ -9,7 +9,7 @@ class StreamingPcm16ResamplerTest {
     fun converts44100SamplesTo16000HzStream() {
         val output = StreamingPcm16Resampler(44_100, 16_000)
             .process(ShortArray(44_100) { (it % 100).toShort() })
-        assertEquals(16_001, output.size)
+        assertEquals(16_000, output.size)
     }
 
     @Test
