@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -12,6 +14,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.util.Locale
+import java.util.concurrent.Executor
 
 /**
  * First-choice Android 12+ on-device speech path.
@@ -38,15 +42,87 @@ class AndroidOnDeviceVoiceController(
 
     private val appContext = context.applicationContext
     private val lock = Any()
-    private val _state = MutableStateFlow(
-        VoiceAssistantState(isModelReady = isOnDeviceServiceAvailable(appContext))
-    )
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val mainExecutor = Executor { command -> mainHandler.post(command) }
+    private val _state = MutableStateFlow(VoiceAssistantState())
     val state: StateFlow<VoiceAssistantState> = _state.asStateFlow()
 
     private var recognizer: SpeechRecognizer? = null
     private var microphoneLease: VoiceAudioSessionCoordinator.Lease? = null
     private var listening = false
     private var closed = false
+    private var modelCheckInProgress = false
+    private var modelDownloadRequested = false
+
+    init {
+        refreshRussianModelSupport()
+    }
+
+    /** Android 13+ reports installed and supported offline language packs. */
+    fun refreshRussianModelSupport() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            _state.value = _state.value.copy(isModelReady = isOnDeviceServiceAvailable(appContext))
+            return
+        }
+        if (!isOnDeviceServiceAvailable(appContext)) {
+            _state.value = _state.value.copy(isModelReady = false, errorMessage = "На телефоне нет системного офлайн-распознавателя речи")
+            return
+        }
+        synchronized(lock) {
+            if (closed || modelCheckInProgress) return
+            modelCheckInProgress = true
+        }
+        mainHandler.post {
+            val probe = try {
+                SpeechRecognizer.createOnDeviceSpeechRecognizer(appContext)
+            } catch (error: Exception) {
+                finishModelCheck(false, error.message ?: "Не удалось проверить русский офлайн-пакет")
+                return@post
+            }
+            try {
+                probe.checkRecognitionSupport(createRussianIntent(), mainExecutor,
+                    object : SpeechRecognizer.RecognitionSupportCallback {
+                        override fun onSupportResult(support: android.speech.RecognitionSupport) {
+                            val supported = support.supportedOnDeviceLanguages.any(::isRussianTag)
+                            val installed = support.installedOnDeviceLanguages.any(::isRussianTag)
+                            when {
+                                installed -> finishModelCheck(true, null)
+                                supported -> {
+                                    val shouldRequest = synchronized(lock) {
+                                        if (modelDownloadRequested) false else { modelDownloadRequested = true; true }
+                                    }
+                                    if (shouldRequest) {
+                                        try {
+                                            probe.triggerModelDownload(createRussianIntent())
+                                            finishModelCheck(false, "Русский офлайн-пакет ещё не установлен. Запрошена загрузка; проверь позже.")
+                                        } catch (error: Exception) {
+                                            finishModelCheck(false, "Не удалось запросить загрузку русского офлайн-пакета")
+                                        }
+                                    } else finishModelCheck(false, "Загрузка русского офлайн-пакета запрошена. Проверь позже.")
+                                }
+                                else -> finishModelCheck(false, "Системный офлайн-распознаватель не предлагает русский язык")
+                            }
+                            runCatching { probe.destroy() }
+                        }
+                        override fun onError(error: Int) {
+                            finishModelCheck(false, "Не удалось проверить русский офлайн-пакет (код $error)")
+                            runCatching { probe.destroy() }
+                        }
+                    })
+            } catch (error: Exception) {
+                runCatching { probe.destroy() }
+                finishModelCheck(false, error.message ?: "Не удалось проверить русский офлайн-пакет")
+            }
+        }
+    }
+
+    private fun isRussianTag(tag: String): Boolean =
+        Locale.forLanguageTag(tag).language.equals("ru", ignoreCase = true)
+
+    private fun finishModelCheck(ready: Boolean, message: String?) {
+        synchronized(lock) { modelCheckInProgress = false }
+        _state.value = _state.value.copy(isModelReady = ready, errorMessage = message)
+    }
 
     fun startListening(): Boolean {
         if (_state.value.phase == VoicePhase.SPEAKING) {
@@ -63,6 +139,12 @@ class AndroidOnDeviceVoiceController(
         }
         if (!isOnDeviceServiceAvailable(appContext)) {
             setError("На телефоне нет системного офлайн-распознавателя речи")
+            return false
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !_state.value.isModelReady) {
+            refreshRussianModelSupport()
+            _state.value = _state.value.copy(phase = VoicePhase.ERROR,
+                errorMessage = _state.value.errorMessage ?: "Русский офлайн-пакет ещё не готов. Проверь загрузку и попробуй снова.")
             return false
         }
 
@@ -239,7 +321,7 @@ class AndroidOnDeviceVoiceController(
             phase = if (ready) VoicePhase.SPEAKING else VoicePhase.IDLE,
             recognizedText = transcript,
             responseText = response,
-            isModelReady = isOnDeviceServiceAvailable(appContext)
+            isModelReady = _state.value.isModelReady
         )
         val spoken = ready && speechOutput.speak(response) {
             _state.value = _state.value.copy(phase = VoicePhase.IDLE)
@@ -273,7 +355,7 @@ class AndroidOnDeviceVoiceController(
         _state.value = VoiceAssistantState(
             phase = VoicePhase.ERROR,
             errorMessage = message,
-            isModelReady = isOnDeviceServiceAvailable(appContext)
+            isModelReady = _state.value.isModelReady
         )
     }
 
