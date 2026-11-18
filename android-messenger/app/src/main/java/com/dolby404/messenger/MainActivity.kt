@@ -1770,7 +1770,7 @@ private fun MessengerHome(
 ) {
     var tab by remember { mutableStateOf("Чаты") }
     var selectedProfile by remember { mutableStateOf<ProfileDto?>(null) }
-    val voiceAudioCoordinator = remember { VoiceAudioSessionCoordinator() }
+    val voiceAudioCoordinator = VoiceAudioSessionCoordinator.shared
     val currentUserId = floustreamClient.auth.currentUserOrNull()?.id.orEmpty()
     var searchOpen by remember { mutableStateOf(false) }
     var search by remember { mutableStateOf("") }
