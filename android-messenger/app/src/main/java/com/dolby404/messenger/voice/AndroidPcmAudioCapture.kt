@@ -12,8 +12,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 /**
  * Push-to-talk PCM capture for the local speech recognizer.
  *
- * Audio format is mono, 16 kHz, PCM 16-bit, matching the upstream sherpa-onnx
- * Android streaming sample. The supplied coordinator serializes microphone use
+ * Audio format is mono PCM16; sample rate is configurable per model (16 kHz
+ * default, 8 kHz for T-one Russian). The coordinator serializes microphone use
  * with calls, voice messages and future wake-word capture.
  *
  * stop() releases AudioRecord before releasing the ownership lease. The client
