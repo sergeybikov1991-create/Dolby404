@@ -22,7 +22,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 class AndroidPcmAudioCapture(
     private val coordinator: VoiceAudioSessionCoordinator,
     private val onAudioFrame: (FloatArray, sampleRate: Int) -> Unit,
-    private val onError: (String) -> Unit = {}
+    private val onError: (String) -> Unit = {},
+    private val captureSampleRate: Int = SAMPLE_RATE
 ) {
 
     companion object {
@@ -60,7 +61,7 @@ class AndroidPcmAudioCapture(
         var createdRecorder: AudioRecord? = null
         try {
             val minBuffer = AudioRecord.getMinBufferSize(
-                SAMPLE_RATE,
+                captureSampleRate,
                 AudioFormat.CHANNEL_IN_MONO,
                 AudioFormat.ENCODING_PCM_16BIT
             )
@@ -68,12 +69,13 @@ class AndroidPcmAudioCapture(
                 throw IllegalStateException("Android не смог определить размер аудиобуфера")
             }
 
-            val frameSamples = SAMPLE_RATE * FRAME_DURATION_MS / 1000
+            require(captureSampleRate in 8_000..48_000) { "Неподдерживаемая частота захвата микрофона" }
+            val frameSamples = captureSampleRate * FRAME_DURATION_MS / 1000
             val bufferBytes = maxOf(minBuffer, frameSamples * 2 * 4)
 
             createdRecorder = AudioRecord(
                 MediaRecorder.AudioSource.VOICE_RECOGNITION,
-                SAMPLE_RATE,
+                captureSampleRate,
                 AudioFormat.CHANNEL_IN_MONO,
                 AudioFormat.ENCODING_PCM_16BIT,
                 bufferBytes
@@ -169,7 +171,7 @@ class AndroidPcmAudioCapture(
                     val floats = FloatArray(count) { index ->
                         pcm[index] / 32768.0f
                     }
-                    onAudioFrame(floats, SAMPLE_RATE)
+                    onAudioFrame(floats, captureSampleRate)
                 } else if (count < 0 && running.get()) {
                     throw IllegalStateException("Ошибка чтения микрофона: $count")
                 }
