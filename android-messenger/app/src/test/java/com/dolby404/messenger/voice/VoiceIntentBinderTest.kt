@@ -28,6 +28,8 @@ class VoiceIntentBinderTest {
                 "current" -> context.activeContactId
                 else -> null
             }
+        override suspend fun siteMediaId(reference: String, context: VoiceConversationContext) =
+            if (reference == "featured") "site-media-1" else null
     }
 
     @Test fun bindsActiveConversationFromAppContext() = runBlocking {
