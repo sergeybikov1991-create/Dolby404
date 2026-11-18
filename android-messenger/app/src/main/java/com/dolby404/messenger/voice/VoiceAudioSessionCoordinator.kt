@@ -55,6 +55,7 @@ class VoiceAudioSessionCoordinator {
 enum class VoiceAudioOwner {
     ASSISTANT,
     VOICE_MESSAGE,
+    VIDEO_MESSAGE,
     CALL,
     WAKE_WORD
 }
