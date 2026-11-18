@@ -4254,6 +4254,240 @@ private fun RealConversationScreen(
         }
     }
 
+    suspend fun resolveVoiceProfile(reference: String): ProfileDto? {
+        val candidates = try {
+            findVoiceContactCandidates(reference)
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            emptyList()
+        }
+        return candidates.singleOrNull()
+    }
+
+    val voiceResolver = remember(peer.id) {
+        object : VoiceEntityResolver {
+            override suspend fun conversationId(reference: String, context: VoiceConversationContext): String? =
+                if (reference.equals("active", ignoreCase = true)) context.activeConversationId
+                else resolveVoiceProfile(reference)?.id
+
+            override suspend fun messageId(reference: String, context: VoiceConversationContext): String? =
+                when (reference.lowercase()) {
+                    "last" -> context.lastMessageId ?: messages.lastOrNull()?.id
+                    "selected" -> context.selectedMessageId ?: pendingMessageActions?.id
+                    else -> messages.filter { it.content.contains(reference, ignoreCase = true) }
+                        .singleOrNull()?.id
+                }
+
+            override suspend fun attachmentId(reference: String, context: VoiceConversationContext): String? =
+                when (reference.lowercase()) {
+                    "selected" -> context.selectedAttachmentId
+                    else -> messages.filter {
+                        it.attachmentName?.contains(reference, ignoreCase = true) == true
+                    }.singleOrNull()?.attachmentPath
+                }
+
+            override suspend fun contactId(reference: String, context: VoiceConversationContext): String? =
+                if (reference.equals("current", ignoreCase = true)) context.activeContactId
+                else resolveVoiceProfile(reference)?.id
+
+            override suspend fun siteMediaId(reference: String, context: VoiceConversationContext): String? = null
+        }
+    }
+
+    val voiceExecutor = remember(peer.id) {
+        VoiceActionExecutor { action ->
+            try {
+                when (action) {
+                    VoiceAction.OpenChats -> {
+                        onBack()
+                        VoiceExecutionResult.Success("Открыл список чатов")
+                    }
+                    VoiceAction.OpenContacts -> {
+                        onOpenContacts()
+                        VoiceExecutionResult.Success("Открыл контакты")
+                    }
+                    VoiceAction.ShowMedia -> {
+                        onShowMedia()
+                        VoiceExecutionResult.Success("Открыл медиа FLOUSTREAM")
+                    }
+                    VoiceAction.ShowUnreadConversations -> {
+                        onBack()
+                        VoiceExecutionResult.Failure("Открыл список чатов. Фильтр непрочитанных пока не подключён")
+                    }
+                    is VoiceAction.OpenConversation -> {
+                        if (action.conversationId == peer.id) {
+                            VoiceExecutionResult.Success("Эта переписка уже открыта")
+                        } else {
+                            val target = withTransientNetworkRetry {
+                                floustreamClient.from("profiles").select {
+                                    filter { eq("id", action.conversationId) }
+                                }.decodeList<ProfileDto>().firstOrNull()
+                            }
+                            if (target == null || target.isDeleted) {
+                                VoiceExecutionResult.Failure("Не удалось открыть эту переписку")
+                            } else {
+                                onOpenConversation(target)
+                                VoiceExecutionResult.Success("Открыл переписку с ${target.displayName ?: target.username ?: "контактом"}")
+                            }
+                        }
+                    }
+                    is VoiceAction.SearchConversations -> {
+                        onSearchConversations(action.query)
+                        VoiceExecutionResult.Success("Нашёл переписки по запросу ${action.query}")
+                    }
+                    is VoiceAction.SearchMessages -> {
+                        if (action.conversationId != null && action.conversationId != peer.id) {
+                            VoiceExecutionResult.Failure("Поиск сообщений в другом чате пока не поддерживается")
+                        } else {
+                            chatSearchOpen = true
+                            chatSearchQuery = action.query
+                            chatSearchIndex = -1
+                            VoiceExecutionResult.Success("Ищу сообщения")
+                        }
+                    }
+                    is VoiceAction.SearchAttachments -> {
+                        if (action.conversationId != null && action.conversationId != peer.id) {
+                            VoiceExecutionResult.Failure("Поиск вложений в другом чате пока не поддерживается")
+                        } else {
+                            chatSearchOpen = true
+                            chatSearchMediaFilter = when (action.mediaKind) {
+                                MediaKind.PHOTO -> "Фото"
+                                MediaKind.VIDEO -> "Видео"
+                                MediaKind.FILE -> "Файлы"
+                                MediaKind.ANY -> "Все"
+                            }
+                            chatSearchQuery = action.query.orEmpty()
+                            chatSearchIndex = -1
+                            VoiceExecutionResult.Success("Фильтр вложений включён")
+                        }
+                    }
+                    is VoiceAction.PrepareMessageDraft -> {
+                        val target = resolveVoiceProfile(action.recipientQuery)
+                        if (target == null) {
+                            VoiceExecutionResult.NeedsDisambiguation("Не смог однозначно определить получателя. Назови его имя или username")
+                        } else {
+                            if (target.id != peer.id) onOpenConversation(target)
+                            draft = action.messageText
+                            VoiceExecutionResult.Success("Подготовил черновик. Проверь текст перед отправкой")
+                        }
+                    }
+                    is VoiceAction.SendMessage -> {
+                        if (action.conversationId != peer.id) {
+                            VoiceExecutionResult.Failure("Сначала открой нужную переписку")
+                        } else {
+                            sendDirectMessage(currentUserId, peer.id, action.messageText)
+                            draft = ""
+                            replyToMessage = null
+                            refresh()
+                            VoiceExecutionResult.Success("Сообщение отправлено")
+                        }
+                    }
+                    is VoiceAction.ReplyToMessage -> {
+                        if (action.conversationId != peer.id) {
+                            VoiceExecutionResult.Failure("Сначала открой нужную переписку")
+                        } else {
+                            sendDirectMessage(currentUserId, peer.id, action.messageText, action.messageId)
+                            draft = ""
+                            replyToMessage = null
+                            refresh()
+                            VoiceExecutionResult.Success("Ответ отправлен")
+                        }
+                    }
+                    is VoiceAction.PickAttachment -> {
+                        showGallerySourceDialog = true
+                        VoiceExecutionResult.Success("Открыл выбор вложения")
+                    }
+                    VoiceAction.CapturePhoto -> {
+                        showPhotoCamera = true
+                        VoiceExecutionResult.Success("Открыл камеру")
+                    }
+                    VoiceAction.CaptureVideo -> {
+                        videoCaptureMode = VideoCaptureMode.NORMAL_SWITCHABLE
+                        showVideoRecorder = true
+                        VoiceExecutionResult.Success("Открыл видеокамеру")
+                    }
+                    is VoiceAction.StartVoiceMessageRecording -> {
+                        if (action.conversationId == peer.id && startVoiceRecording()) {
+                            VoiceExecutionResult.Success("Запись голосового началась")
+                        } else {
+                            VoiceExecutionResult.Failure("Не удалось начать запись голосового")
+                        }
+                    }
+                    VoiceAction.StopVoiceMessageRecording -> {
+                        finishVoiceRecording(true)
+                        VoiceExecutionResult.Success("Голосовое сообщение отправлено")
+                    }
+                    is VoiceAction.StartCall ->
+                        VoiceExecutionResult.Failure("Голосовые и видеозвонки ещё не подключены")
+                    else -> VoiceExecutionResult.Failure("Эта функция пока не подключена к голосовому управлению")
+                }
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                VoiceExecutionResult.Failure(
+                    e.message?.takeIf { it.isNotBlank() } ?: "Не удалось выполнить команду"
+                )
+            }
+        }
+    }
+
+    val voiceAssistant = remember(peer.id) {
+        VoiceAssistantEngine(
+            VoiceAssistantOrchestrator(
+                binder = VoiceIntentBinder(voiceResolver),
+                executor = voiceExecutor,
+                confirmationGate = VoiceConfirmationGate(),
+                nowMillis = { System.currentTimeMillis() }
+            )
+        )
+    }
+    val voiceSpeechOutput = remember(peer.id) {
+        AndroidVoiceSpeechOutput(AndroidOfflineRussianTts(context))
+    }
+    val voiceController = remember(peer.id) {
+        AndroidOnDeviceVoiceController(
+            context = context,
+            coordinator = audioCoordinator,
+            assistant = voiceAssistant,
+            speechOutput = voiceSpeechOutput,
+            contextProvider = {
+                val latest = messages.lastOrNull()
+                VoiceConversationContext(
+                    screen = VoiceScreen.CONVERSATION,
+                    activeConversationId = peer.id,
+                    activeContactId = peer.id,
+                    selectedMessageId = pendingMessageActions?.id,
+                    lastMessageId = latest?.id,
+                    selectedAttachmentId = pendingMessageActions?.attachmentPath,
+                    activeConversationTitle = peer.displayName ?: peer.username,
+                    activeContactDisplayName = peer.displayName ?: peer.username,
+                    selectedMessagePreview = pendingMessageActions?.content,
+                    lastMessagePreview = latest?.content,
+                    selectedAttachmentName = pendingMessageActions?.attachmentName,
+                    revision = messages.size.toLong() + (pendingMessageActions?.id?.hashCode()?.toLong() ?: 0L)
+                )
+            },
+            hasRecordAudioPermission = {
+                context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+            },
+            isActivityForeground = {
+                lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+            },
+            scope = scope
+        )
+    }
+    val voiceState by voiceController.state.collectAsState()
+
+    DisposableEffect(voiceController) {
+        onDispose { voiceController.close() }
+    }
+    DisposableEffect(lifecycleOwner, voiceController) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_PAUSE) voiceController.cancelListening()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     Box(Modifier.fillMaxSize()) {
         ChatAtmosphereBackground()
         Column(Modifier.fillMaxSize()) {
