@@ -23,6 +23,7 @@ enum class CallType { AUDIO, VIDEO }
 sealed interface VoiceAction {
     data object OpenChats : VoiceAction
     data object OpenContacts : VoiceAction
+    data object OpenSettings : VoiceAction
     data object ShowMedia : VoiceAction
     data object ShowUnreadConversations : VoiceAction
 
