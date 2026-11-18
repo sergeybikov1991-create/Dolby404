@@ -82,7 +82,7 @@ class AndroidOnDeviceVoiceController(
             }
             try {
                 probe.checkRecognitionSupport(createRussianIntent(), mainExecutor,
-                    object : SpeechRecognizer.RecognitionSupportCallback {
+                    object : android.speech.RecognitionSupportCallback {
                         override fun onSupportResult(support: android.speech.RecognitionSupport) {
                             val supported = support.supportedOnDeviceLanguages.any(::isRussianTag)
                             val installed = support.installedOnDeviceLanguages.any(::isRussianTag)
