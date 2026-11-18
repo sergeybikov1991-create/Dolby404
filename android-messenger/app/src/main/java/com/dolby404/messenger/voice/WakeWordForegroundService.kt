@@ -13,6 +13,8 @@ import android.media.MediaRecorder
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
+import android.content.pm.ServiceInfo
 import androidx.core.content.ContextCompat
 import com.dolby404.messenger.MainActivity
 import com.dolby404.messenger.R
@@ -61,7 +63,7 @@ class WakeWordForegroundService : Service() {
             }
             ACTION_START -> {
                 // Android requires promotion immediately after a microphone FGS start.
-                startForeground(NOTIFICATION_ID, buildNotification("Ожидаю фразу «Флоу»"))
+                ServiceCompat.startForeground(\n                    this,\n                    NOTIFICATION_ID,\n                    buildNotification("Ожидаю фразу «Флоу»"),\n                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE else 0\n                )
                 if (captureThread == null) startCapture()
             }
             else -> {
@@ -176,7 +178,7 @@ class WakeWordForegroundService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .setContentTitle("FLOUSTREAM — голосовой помощник")
             .setContentText(message)
             .setContentIntent(pendingIntent)
