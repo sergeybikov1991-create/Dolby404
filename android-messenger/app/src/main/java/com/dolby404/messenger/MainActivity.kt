@@ -70,6 +70,8 @@ import java.io.EOFException
 import java.io.IOException
 import android.Manifest
 import android.content.Context
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
 import android.content.Intent
@@ -297,6 +299,12 @@ private val floustreamClient = createSupabaseClient(
 class MainActivity : ComponentActivity() {
     private var pendingLifecycleAction by mutableStateOf<String?>(null)
     private var pendingNotificationPeerId by mutableStateOf<String?>(null)
+    private var pendingWakeWord by mutableStateOf(false)
+    private val wakeWordReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == WakeWordForegroundService.ACTION_WAKE_DETECTED) pendingWakeWord = true
+        }
+    }
 
     private fun lifecycleActionFromIntent(intent: android.content.Intent): String? {
         val uri = intent.data ?: return null
@@ -312,6 +320,7 @@ class MainActivity : ComponentActivity() {
         RoundVideoDiagnostics.installCrashHandler(applicationContext)
         pendingLifecycleAction = lifecycleActionFromIntent(intent)
         pendingNotificationPeerId = intent.getStringExtra("sender_id")?.takeIf { it.isNotBlank() }
+        pendingWakeWord = intent.getBooleanExtra("wake_word_detected", false)
         floustreamClient.handleDeeplinks(intent)
         setContent {
             MaterialTheme(
@@ -323,8 +332,24 @@ class MainActivity : ComponentActivity() {
                     onBackground = White,
                     onSurface = White
                 )
-            ) { androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) { MessengerApp(pendingLifecycleAction, pendingNotificationPeerId, { pendingLifecycleAction = null }) { pendingNotificationPeerId = null }; AppUpdatePrompt() } }
+            ) { androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) { MessengerApp(pendingLifecycleAction, pendingNotificationPeerId, pendingWakeWord, { pendingLifecycleAction = null }, { pendingNotificationPeerId = null }, { pendingWakeWord = false }); AppUpdatePrompt() } }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        val filter = IntentFilter(WakeWordForegroundService.ACTION_WAKE_DETECTED)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(wakeWordReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("DEPRECATION")
+            registerReceiver(wakeWordReceiver, filter)
+        }
+    }
+
+    override fun onStop() {
+        runCatching { unregisterReceiver(wakeWordReceiver) }
+        super.onStop()
     }
 
     override fun onNewIntent(intent: android.content.Intent) {
@@ -332,6 +357,7 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         pendingLifecycleAction = lifecycleActionFromIntent(intent)
         pendingNotificationPeerId = intent.getStringExtra("sender_id")?.takeIf { it.isNotBlank() }
+        pendingWakeWord = intent.getBooleanExtra("wake_word_detected", false)
         floustreamClient.handleDeeplinks(intent)
     }
 }
@@ -1448,8 +1474,10 @@ private suspend fun callAccountLifecycle(action: String): String = withContext(D
 private fun MessengerApp(
     pendingLifecycleAction: String?,
     notificationPeerId: String?,
+    wakeWordPending: Boolean,
     onLifecycleHandled: () -> Unit,
-    onNotificationHandled: () -> Unit
+    onNotificationHandled: () -> Unit,
+    onWakeWordHandled: () -> Unit
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -1861,6 +1889,8 @@ private fun MessengerHome(
                     peer = selectedProfile!!,
                     currentUserId = currentUserId,
                     audioCoordinator = voiceAudioCoordinator,
+                    wakeWordPending = wakeWordPending,
+                    onWakeWordHandled = onWakeWordHandled,
                     onBack = { selectedProfile = null },
                     onOpenConversation = { profile -> selectedProfile = profile; tab = "Чаты" },
                     onOpenContacts = { selectedProfile = null; tab = "Контакты" },
@@ -3640,6 +3670,8 @@ private fun RealConversationScreen(
     peer: ProfileDto,
     currentUserId: String,
     audioCoordinator: VoiceAudioSessionCoordinator,
+    wakeWordPending: Boolean,
+    onWakeWordHandled: () -> Unit,
     onBack: () -> Unit,
     onOpenConversation: (ProfileDto) -> Unit,
     onOpenContacts: () -> Unit,
@@ -4615,6 +4647,20 @@ private fun RealConversationScreen(
         )
     }
     val voiceState by voiceController.state.collectAsState()
+
+    LaunchedEffect(wakeWordPending, voiceController, lifecycleOwner) {
+        if (wakeWordPending) {
+            lifecycleOwner.lifecycle.currentStateFlow.collect { state ->
+                if (state.isAtLeast(Lifecycle.State.RESUMED)) {
+                    delay(150)
+                    val started = voiceController.startListening()
+                    if (started || voiceController.state.value.phase == VoicePhase.ERROR) {
+                        onWakeWordHandled()
+                    }
+                }
+            }
+        }
+    }
 
     DisposableEffect(voiceController) {
         onDispose { voiceController.close() }
