@@ -3,8 +3,6 @@ package com.dolby404.messenger
 import com.dolby404.messenger.voice.VoiceAudioOwner
 import com.dolby404.messenger.voice.VoiceAudioSessionCoordinator
 import com.dolby404.messenger.voice.AndroidOnDeviceVoiceController
-import com.dolby404.messenger.voice.AndroidOfflineRussianTts
-import com.dolby404.messenger.voice.AndroidVoiceSpeechOutput
 import com.dolby404.messenger.voice.CallType
 import com.dolby404.messenger.voice.MediaKind
 import com.dolby404.messenger.voice.VoiceAction
@@ -1927,14 +1925,11 @@ private fun MessengerHome(
             )
         )
     }
-    val homeVoiceTts = remember { AndroidOfflineRussianTts(homeVoiceContext) }
-    val homeVoiceSpeechOutput = remember { AndroidVoiceSpeechOutput(homeVoiceTts) }
     val homeVoiceController = remember {
         AndroidOnDeviceVoiceController(
             context = homeVoiceContext,
             coordinator = voiceAudioCoordinator,
             assistant = homeVoiceAssistant,
-            speechOutput = homeVoiceSpeechOutput,
             contextProvider = {
                 val screen = when {
                     socialOpen -> VoiceScreen.MEDIA
@@ -4861,17 +4856,11 @@ private fun RealConversationScreen(
             )
         )
     }
-    val voiceTts = remember(peer.id) { AndroidOfflineRussianTts(context) }
-    val ttsStatus by voiceTts.status.collectAsState()
-    val voiceSpeechOutput = remember(peer.id) {
-        AndroidVoiceSpeechOutput(voiceTts)
-    }
     val voiceController = remember(peer.id) {
         AndroidOnDeviceVoiceController(
             context = context,
             coordinator = audioCoordinator,
             assistant = voiceAssistant,
-            speechOutput = voiceSpeechOutput,
             contextProvider = {
                 val latest = messages.lastOrNull()
                 VoiceConversationContext(
@@ -5487,7 +5476,6 @@ private fun RealConversationScreen(
                 ?: voiceState.responseText.takeIf { it.isNotBlank() }
                 ?: voiceState.recognizedText.takeIf { it.isNotBlank() }
                 ?: (if (!voiceState.isModelReady) "Русский офлайн-пакет речи ещё не подтверждён" else null)
-                ?: ttsStatus.takeIf { !voiceSpeechOutput.isReady }
             voiceHint?.takeIf { it.isNotBlank() }?.let { hint ->
                 Text(
                     hint,
