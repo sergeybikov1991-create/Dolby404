@@ -22,7 +22,7 @@ body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 18% 0%,#281
 .person{min-width:0;flex:1}.person-name{font-size:15px;font-weight:800;overflow-wrap:anywhere}.person-handle{margin-top:4px;color:#c59aff;font-size:12px}
 .messages{display:flex;flex:1;flex-direction:column;gap:10px;overflow:auto;padding:18px 14px;overscroll-behavior:contain}
 .empty{margin:auto;padding:24px;text-align:center;color:#a99bbd;line-height:1.6}
-.bubble-row{display:flex}.bubble-row.mine{justify-content:flex-end}
+.bubble-row{display:flex;flex:0 0 auto}.bubble-row.mine{justify-content:flex-end}
 .bubble{max-width:min(82%,520px);padding:10px 13px;border:1px solid #49385e;border-radius:15px 15px 15px 4px;background:#21192d;color:#f2eaff;white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:1.5}
 .mine .bubble{border-color:#7952a0;border-radius:15px 15px 4px 15px;background:linear-gradient(135deg,#553078,#342047)}
 .message-media-image{display:block;width:100%;max-width:420px;max-height:360px;object-fit:contain;border-radius:11px}.message-media-video{display:block;width:100%;max-width:420px;max-height:360px;border-radius:11px;background:#050509}.message-media-audio{display:block;width:min(360px,100%);height:42px}.message-file{display:inline-flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid #8c68ad;border-radius:10px;color:#f1e5ff;text-decoration:none;background:#171021}.attach{width:44px;height:44px;flex:0 0 44px;border:1px solid #65458a;border-radius:13px;background:#21172f;color:#e9d8ff;font-size:25px;cursor:pointer}.attach:disabled{opacity:.5}.time{display:block;margin-top:5px;color:#bca9d2;font-size:10px;text-align:right}
@@ -76,7 +76,7 @@ async function renderMessages(rows){
    try{
     const url=signedUrls.get(row.id);if(!url)throw new Error("Вложение недоступно");
     const mime=(row.attachment_mime||"").toLowerCase();
-    if(mime.startsWith("image/")){const media=document.createElement("img");media.className="message-media-image";media.src=url;media.alt=row.attachment_name||"Изображение";media.loading="lazy";bubble.append(media);}
+    if(mime.startsWith("image/")){const media=document.createElement("img");media.className="message-media-image";media.src=url;media.alt=row.attachment_name||"Изображение";media.loading="lazy";media.addEventListener("load",()=>{host.scrollTop=host.scrollHeight;},{once:true});bubble.append(media);}
     else if(mime.startsWith("video/")){const media=document.createElement("video");media.className="message-media-video";media.src=url;media.controls=true;media.playsInline=true;media.preload="metadata";bubble.append(media);}
     else if(mime.startsWith("audio/")){const media=document.createElement("audio");media.className="message-media-audio";media.src=url;media.controls=true;media.preload="metadata";bubble.append(media);}
     else{const link=document.createElement("a");link.className="message-file";link.href=url;link.target="_blank";link.rel="noopener";link.download=row.attachment_name||"";link.textContent="📄 "+(row.attachment_name||"Открыть файл");bubble.append(link);}
@@ -86,13 +86,14 @@ async function renderMessages(rows){
   const time=document.createElement("span");time.className="time";time.textContent=timeText(row.created_at);bubble.append(time);line.append(bubble);host.append(line);
  }
  host.scrollTop=host.scrollHeight;
+ requestAnimationFrame(()=>{host.scrollTop=host.scrollHeight;});
  lastMessageId=rows[rows.length-1]?.id||lastMessageId;
 }
 async function loadMessages(silent=false,forceRender=false){
  if(loading){refreshAfterLoad=true;return;}loading=true;
  try{
   const filter="and(sender_id.eq."+viewer.id+",recipient_id.eq."+peerId+"),and(sender_id.eq."+peerId+",recipient_id.eq."+viewer.id+")";
-  const result=await client.from("direct_messages").select("id,sender_id,recipient_id,content,attachment_path,attachment_name,attachment_mime,created_at").or(filter).order("created_at",{ascending:false}).limit(200);
+  const result=await client.from("direct_messages").select("id,sender_id,recipient_id,content,attachment_path,attachment_name,attachment_mime,created_at").or(filter).order("created_at",{ascending:false}).order("id",{ascending:false}).limit(200);
   if(result.error)throw result.error;
   const rows=(result.data||[]).reverse();
   const marked=await client.from("direct_messages").update({read_at:new Date().toISOString()}).eq("recipient_id",viewer.id).eq("sender_id",peerId).is("read_at",null);
@@ -163,10 +164,13 @@ async function start(){
   if(!deletedAccount){
    $("composer").addEventListener("submit",async event=>{
     event.preventDefault();const input=$("message-input"),content=input.value.trim();if(!content)return;
-    const button=$("send");button.disabled=true;showNotice("Отправляем…");
-    const result=await client.from("direct_messages").insert({sender_id:viewer.id,recipient_id:peerId,content});
-    if(result.error){showNotice("Не удалось отправить: "+result.error.message,true);button.disabled=false;return;}
-    input.value="";showNotice("Сообщение отправлено.");await loadMessages();button.disabled=false;input.focus();
+    const button=$("send");if(button.disabled)return;button.disabled=true;showNotice("Отправляем…");
+    try{
+     const result=await client.from("direct_messages").insert({sender_id:viewer.id,recipient_id:peerId,content});
+     if(result.error)throw result.error;
+     input.value="";showNotice("Сообщение отправлено.");await loadMessages();
+    }catch(error){showNotice("Не удалось отправить: "+(error.message||"ошибка соединения"),true);}
+    finally{button.disabled=false;input.focus();}
    });
    $("message-input").addEventListener("keydown",event=>{if(event.key==="Enter"&&!event.shiftKey){event.preventDefault();$("composer").requestSubmit();}});
    $("attach").addEventListener("click",()=>$("attachment-input").click());
