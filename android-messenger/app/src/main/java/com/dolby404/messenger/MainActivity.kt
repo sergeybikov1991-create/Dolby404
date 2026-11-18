@@ -1970,7 +1970,7 @@ private fun MessengerHome(
         val turnFinished = homeVoiceState.phase == VoicePhase.IDLE || homeVoiceState.phase == VoicePhase.ERROR
         val hasTurnResult = !homeVoiceState.responseText.isNullOrBlank() ||
             !homeVoiceState.errorMessage.isNullOrBlank()
-        if (rearmHomeWakeWord && turnFinished && hasTurnResult) {
+        if (selectedProfile == null && rearmHomeWakeWord && turnFinished && hasTurnResult) {
             delay(500)
             val prefs = homeVoiceContext.getSharedPreferences("floustream_voice", Context.MODE_PRIVATE)
             if (prefs.getBoolean("wake_word_enabled", false) &&
