@@ -12,8 +12,6 @@ object VoiceCommandRouter {
         arg(intent, key).takeIf { it.isNotBlank() }
 
     private fun safe(action: VoiceAction) = VoiceCommandDecision.ExecuteSafely(action)
-    private fun confirm(action: VoiceAction, prompt: String) =
-        VoiceCommandDecision.AskForConfirmation(action, prompt)
     private fun missing(message: String) = VoiceCommandDecision.Reject(message)
 
     fun route(intent: VoiceModelIntent): VoiceCommandDecision {
