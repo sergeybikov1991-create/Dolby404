@@ -4834,8 +4834,12 @@ private fun RealConversationScreen(
                         }
                     }
                     VoiceAction.StopVoiceMessageRecording -> {
-                        finishVoiceRecording(true)
-                        VoiceExecutionResult.Success("Голосовое сообщение отправлено")
+                        if (recordingVoice) {
+                            finishVoiceRecording(true)
+                            VoiceExecutionResult.Success("Голосовое сообщение отправлено")
+                        } else {
+                            VoiceExecutionResult.Failure("Сейчас нет активной записи голосового сообщения")
+                        }
                     }
                     is VoiceAction.StartCall ->
                         VoiceExecutionResult.Failure("Голосовые и видеозвонки ещё не подключены")
