@@ -1970,18 +1970,23 @@ private fun MessengerHome(
         val turnFinished = homeVoiceState.phase == VoicePhase.IDLE || homeVoiceState.phase == VoicePhase.ERROR
         val hasTurnResult = !homeVoiceState.responseText.isNullOrBlank() ||
             !homeVoiceState.errorMessage.isNullOrBlank()
-        if (selectedProfile == null && rearmHomeWakeWord && turnFinished && hasTurnResult) {
+        if (rearmHomeWakeWord && turnFinished && hasTurnResult) {
             delay(500)
-            val prefs = homeVoiceContext.getSharedPreferences("floustream_voice", Context.MODE_PRIVATE)
-            if (prefs.getBoolean("wake_word_enabled", false) &&
-                homeVoiceLifecycle.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) &&
-                voiceAudioCoordinator.currentOwner.value == null
-            ) {
-                runCatching {
-                    homeVoiceContext.startForegroundService(
-                        Intent(homeVoiceContext, WakeWordForegroundService::class.java)
-                            .setAction(WakeWordForegroundService.ACTION_START)
-                    )
+            if (selectedProfile == null) {
+                val microphoneIdle = withTimeoutOrNull(5000) {
+                    voiceAudioCoordinator.currentOwner.first { it == null }
+                }
+                val prefs = homeVoiceContext.getSharedPreferences("floustream_voice", Context.MODE_PRIVATE)
+                if (microphoneIdle != null &&
+                    prefs.getBoolean("wake_word_enabled", false) &&
+                    homeVoiceLifecycle.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+                ) {
+                    runCatching {
+                        homeVoiceContext.startForegroundService(
+                            Intent(homeVoiceContext, WakeWordForegroundService::class.java)
+                                .setAction(WakeWordForegroundService.ACTION_START)
+                        )
+                    }
                 }
             }
             rearmHomeWakeWord = false
