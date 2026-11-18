@@ -1826,7 +1826,13 @@ private fun MessengerHome(
                     .replace(Regex("[^\\p{L}\\p{N}]+"), " ").replace(Regex("\\s+"), " ")
                 if (normalized.isBlank()) return null
                 val matches = voiceSavedChats.filter { profile ->
-                    listOfNotNull(profile.displayName, profile.username).any { label ->
+                    listOfNotNull(
+                        profile.displayName,
+                        profile.username,
+                        profile.firstName,
+                        profile.lastName,
+                        listOfNotNull(profile.firstName, profile.lastName).joinToString(" ").takeIf { it.isNotBlank() }
+                    ).any { label ->
                         label.trim().lowercase().replace('ё', 'е')
                             .replace(Regex("[^\\p{L}\\p{N}]+"), " ").replace(Regex("\\s+"), " ") == normalized
                     }
@@ -4658,7 +4664,13 @@ private fun RealConversationScreen(
             .replace(Regex("[^\\p{L}\\p{N}]+"), " ").replace(Regex("\\s+"), " ")
         if (normalized.isBlank()) return null
         return savedChats.filter { profile ->
-            listOfNotNull(profile.displayName, profile.username).any { label ->
+            listOfNotNull(
+                profile.displayName,
+                profile.username,
+                profile.firstName,
+                profile.lastName,
+                listOfNotNull(profile.firstName, profile.lastName).joinToString(" ").takeIf { it.isNotBlank() }
+            ).any { label ->
                 label.trim().lowercase().replace('ё', 'е')
                     .replace(Regex("[^\\p{L}\\p{N}]+"), " ").replace(Regex("\\s+"), " ") == normalized
             }
