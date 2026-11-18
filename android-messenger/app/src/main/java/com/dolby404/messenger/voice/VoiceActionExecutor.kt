@@ -24,6 +24,7 @@ interface VoiceEntityResolver {
     suspend fun messageId(reference: String, context: VoiceConversationContext): String?
     suspend fun attachmentId(reference: String, context: VoiceConversationContext): String?
     suspend fun contactId(reference: String, context: VoiceConversationContext): String?
+    suspend fun siteMediaId(reference: String, context: VoiceConversationContext): String?
 }
 
 sealed interface VoiceBindingResult {
@@ -50,6 +51,7 @@ class VoiceIntentBinder(private val resolver: VoiceEntityResolver) {
         args.remove("attachment_id")
         args.remove("contact_id")
         args.remove("target_conversation_id")
+        args.remove("site_media_id")
 
         suspend fun bindReference(
             sourceKey: String,
@@ -68,7 +70,8 @@ class VoiceIntentBinder(private val resolver: VoiceEntityResolver) {
             "open_conversation", "mark_read", "mark_unread", "pin_conversation",
             "unpin_conversation", "archive_conversation", "unarchive_conversation",
             "mute_conversation", "unmute_conversation", "send_message",
-            "reply_to_message", "start_voice_recording", "send_attachment"
+            "reply_to_message", "start_voice_recording", "send_attachment",
+            "delete_conversation", "clear_conversation_history", "share_site_media"
         )
         if (conversationRequired) {
             if (!args.containsKey("conversation_ref") && modelIntent.name != "open_conversation" &&
@@ -97,11 +100,17 @@ class VoiceIntentBinder(private val resolver: VoiceEntityResolver) {
             bindReference("target_conversation_ref", "target_conversation_id", resolver::conversationId)?.let { return it }
         }
 
-        if (modelIntent.name == "open_attachment" || modelIntent.name == "send_attachment") {
+        if (modelIntent.name == "open_attachment" || modelIntent.name == "send_attachment" ||
+            modelIntent.name == "save_attachment_to_site_media"
+        ) {
             if (!args.containsKey("attachment_ref") && context.selectedAttachmentId != null) {
                 args["attachment_ref"] = "selected"
             }
             bindReference("attachment_ref", "attachment_id", resolver::attachmentId)?.let { return it }
+        }
+
+        if (modelIntent.name == "share_site_media") {
+            bindReference("site_media_ref", "site_media_id", resolver::siteMediaId)?.let { return it }
         }
 
         if (modelIntent.name in setOf("start_audio_call", "start_video_call")) {
