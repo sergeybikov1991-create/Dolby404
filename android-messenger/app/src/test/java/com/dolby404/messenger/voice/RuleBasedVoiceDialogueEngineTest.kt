@@ -17,7 +17,7 @@ class RuleBasedVoiceDialogueEngineTest {
     @Test fun keepsContactNamesAsReferencesNotDatabaseIds() {
         val result = parser.parse("Открой чат с Анной")
         assertEquals("open_conversation", result?.name)
-        assertEquals("Анной", result?.arguments?.get("conversation_ref"))
+        assertEquals("анной", result?.arguments?.get("conversation_ref"))
         assertEquals(false, result?.arguments?.containsKey("conversation_id"))
     }
 
@@ -36,7 +36,7 @@ class RuleBasedVoiceDialogueEngineTest {
 
     @Test fun mapsCallCommandsToContactReferences() {
         assertEquals("start_audio_call", parser.parse("Позвони Анне")?.name)
-        assertEquals("Анне", parser.parse("Позвони Анне")?.arguments?.get("contact_ref"))
+        assertEquals("анне", parser.parse("Позвони Анне")?.arguments?.get("contact_ref"))
         assertEquals("start_video_call", parser.parse("Начни видеозвонок Анне")?.name)
     }
 
