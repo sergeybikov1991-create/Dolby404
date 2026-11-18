@@ -7,13 +7,12 @@ package com.dolby404.messenger.voice
  * converted to these typed actions by VoiceCommandRouter before app execution.
  */
 enum class VoicePhase {
-    IDLE, LISTENING, TRANSCRIBING, THINKING, SPEAKING, ERROR
+    IDLE, LISTENING, TRANSCRIBING, THINKING, ERROR
 }
 
 data class VoiceAssistantState(
     val phase: VoicePhase = VoicePhase.IDLE,
     val recognizedText: String = "",
-    val responseText: String = "",
     val errorMessage: String? = null,
     val isModelReady: Boolean = false
 )
