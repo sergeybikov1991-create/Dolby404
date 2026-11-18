@@ -345,6 +345,21 @@ class MainActivity : ComponentActivity() {
             @Suppress("DEPRECATION")
             registerReceiver(wakeWordReceiver, filter)
         }
+
+        val voicePrefs = getSharedPreferences("floustream_voice", Context.MODE_PRIVATE)
+        val shouldResumeWakeWord = !pendingWakeWord &&
+            voicePrefs.getBoolean("wake_word_enabled", false) &&
+            checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED &&
+            WakeWordModelInstaller.isInstalled(this) &&
+            VoiceAudioSessionCoordinator.shared.currentOwner.value == null
+        if (shouldResumeWakeWord) {
+            runCatching {
+                startForegroundService(
+                    Intent(this, WakeWordForegroundService::class.java)
+                        .setAction(WakeWordForegroundService.ACTION_START)
+                )
+            }
+        }
     }
 
     override fun onStop() {
@@ -4665,17 +4680,41 @@ private fun RealConversationScreen(
     }
     val voiceState by voiceController.state.collectAsState()
 
+    var rearmWakeWordAfterAssistant by remember(peer.id) { mutableStateOf(false) }
+
     LaunchedEffect(wakeWordPending, voiceController, lifecycleOwner) {
         if (wakeWordPending) {
             lifecycleOwner.lifecycle.currentStateFlow.collect { state ->
                 if (state.isAtLeast(Lifecycle.State.RESUMED)) {
                     delay(150)
                     val started = voiceController.startListening()
+                    if (started) rearmWakeWordAfterAssistant = true
                     if (started || voiceController.state.value.phase == VoicePhase.ERROR) {
                         onWakeWordHandled()
                     }
                 }
             }
+        }
+    }
+
+    LaunchedEffect(voiceState.phase, voiceState.responseText, rearmWakeWordAfterAssistant) {
+        if (rearmWakeWordAfterAssistant &&
+            voiceState.phase == VoicePhase.IDLE &&
+            !voiceState.responseText.isNullOrBlank()
+        ) {
+            delay(500)
+            val prefs = context.getSharedPreferences("floustream_voice", Context.MODE_PRIVATE)
+            if (prefs.getBoolean("wake_word_enabled", false) &&
+                lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+            ) {
+                runCatching {
+                    context.startForegroundService(
+                        Intent(context, WakeWordForegroundService::class.java)
+                            .setAction(WakeWordForegroundService.ACTION_START)
+                    )
+                }
+            }
+            rearmWakeWordAfterAssistant = false
         }
     }
 
