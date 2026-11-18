@@ -6,6 +6,7 @@ sealed interface VoiceTurnResult {
     data class AwaitingConfirmation(val token: String, val prompt: String) : VoiceTurnResult
     data class ClarificationRequired(val question: String) : VoiceTurnResult
     data class Rejected(val reason: String) : VoiceTurnResult
+    data class Cancelled(val spokenMessage: String) : VoiceTurnResult
 }
 
 /**
