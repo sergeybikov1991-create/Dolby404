@@ -5015,6 +5015,7 @@ private fun RealConversationScreen(
             val voiceHint = voiceState.errorMessage
                 ?: voiceState.responseText.takeIf { it.isNotBlank() }
                 ?: voiceState.recognizedText.takeIf { it.isNotBlank() }
+                ?: (if (!voiceState.isModelReady) "На устройстве не найден системный офлайн-распознаватель речи" else null)
                 ?: ttsStatus.takeIf { !voiceSpeechOutput.isReady }
             voiceHint?.takeIf { it.isNotBlank() }?.let { hint ->
                 Text(
