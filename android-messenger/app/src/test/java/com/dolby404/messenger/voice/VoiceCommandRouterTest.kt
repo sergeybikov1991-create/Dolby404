@@ -62,7 +62,13 @@ class VoiceCommandRouterTest {
     @Test fun callsAndRecordingHaveExplicitTypedActions() {
         assertEquals(VoiceAction.ToggleCallMicrophone, (route("toggle_call_microphone") as VoiceCommandDecision.ExecuteSafely).action)
         assertEquals(VoiceAction.ToggleCallCamera, (route("toggle_call_camera") as VoiceCommandDecision.ExecuteSafely).action)
-        assertEquals(VoiceAction.StopVoiceMessageRecording, (route("stop_voice_recording") as VoiceCommandDecision.ExecuteSafely).action)
+        assertEquals(
+            VoiceCommandDecision.AskForConfirmation(
+                VoiceAction.StopVoiceMessageRecording,
+                "Отправить записанное голосовое сообщение?"
+            ),
+            route("stop_voice_recording")
+        )
     }
 
     @Test fun malformedAndUnknownIntentsAreRejected() {
