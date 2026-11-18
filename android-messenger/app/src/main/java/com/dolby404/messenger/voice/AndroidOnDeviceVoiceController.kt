@@ -132,7 +132,13 @@ class AndroidOnDeviceVoiceController(
 
     fun confirmPending(token: String) {
         scope.launch {
-            presentResult(assistant.confirm(token, contextProvider()))
+            val result = try {
+                assistant.confirm(token, contextProvider())
+            } catch (error: Exception) {
+                if (error is kotlinx.coroutines.CancellationException) throw error
+                VoiceTurnResult.Rejected(error.message ?: "Не удалось подтвердить действие")
+            }
+            presentResult(result)
         }
     }
 
@@ -187,7 +193,13 @@ class AndroidOnDeviceVoiceController(
                     recognizedText = transcript,
                     isModelReady = true
                 )
-                presentResult(assistant.onFinalTranscript(transcript, contextProvider()), transcript)
+                val result = try {
+                    assistant.onFinalTranscript(transcript, contextProvider())
+                } catch (error: Exception) {
+                    if (error is kotlinx.coroutines.CancellationException) throw error
+                    VoiceTurnResult.Rejected(error.message ?: "Не удалось выполнить голосовую команду")
+                }
+                presentResult(result, transcript)
             }
         }
 
