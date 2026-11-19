@@ -427,6 +427,11 @@ function renderPoint(index, position, state) {
         move.from === index && !move.bearOff && move.to === targetIndex
       ));
     }
+    for (const player of ["A", "B"]) {
+      const zone = $(`off-zone-${player.toLowerCase()}`);
+      zone.classList.toggle("legal-target", player === side &&
+        legalMoves.some(move => move.from === index && move.bearOff));
+    }
   });
   button.addEventListener("click", () => handlePointClick(index));
   return button;
@@ -458,6 +463,16 @@ function renderBoard(state) {
   }
   $("off-a").textContent = String(state.borneOff.A);
   $("off-b").textContent = String(state.borneOff.B);
+  const activeSide = currentMatch?.status === "active" &&
+    state.turn?.phase === "moving" && state.turn.player === sideFor(currentMatch)
+    ? state.turn.player : null;
+  for (const player of ["A", "B"]) {
+    const zone = $(`off-zone-${player.toLowerCase()}`);
+    const canDrop = activeSide === player && selectedFrom !== null &&
+      legalMoves.some(move => move.from === selectedFrom && move.bearOff);
+    zone.classList.toggle("legal-target", canDrop);
+    zone.setAttribute("aria-label", `Снятые шашки ${player}: ${state.borneOff[player]}`);
+  }
 }
 
 async function handlePointClick(index) {
@@ -799,18 +814,24 @@ function finishCheckerDrag(event) {
   }
   suppressNextPointClick = true;
   setTimeout(() => { suppressNextPointClick = false; }, 0);
-  const target = document.elementFromPoint(event.clientX, event.clientY)?.closest?.(".point");
-  const to = target ? Number(target.dataset.index) : -1;
-  const candidate = legalMoves.find(move =>
-    move.from === drag.from && !move.bearOff && move.to === to
-  );
+  const dropTarget = document.elementFromPoint(event.clientX, event.clientY);
+  const offZone = dropTarget?.closest?.(".off-zone");
+  const point = dropTarget?.closest?.(".point");
+  const to = point ? Number(point.dataset.index) : -1;
+  const side = sideFor(currentMatch);
+  const isOwnOffZone = offZone?.dataset.player === side;
+  const candidate = isOwnOffZone
+    ? legalMoves.find(move => move.from === drag.from && move.bearOff)
+    : legalMoves.find(move =>
+        move.from === drag.from && !move.bearOff && move.to === to
+      );
   if (candidate) {
     selectedFrom = null;
     invokeAction("move", { move: candidate });
   } else {
     selectedFrom = drag.from;
     renderGame();
-    setNotice("game-notice", "Перетащи шашку на подсвеченный разрешённый пункт.", true);
+    setNotice("game-notice", "Перетащи шашку на подсвеченный пункт или в свою круглую зону снятия.", true);
   }
 }
 function cancelCheckerDrag(event) {
