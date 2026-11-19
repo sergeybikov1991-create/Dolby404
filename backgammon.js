@@ -464,15 +464,35 @@ function captureCheckerMove(previousState, nextState) {
       return null;
     }
   }
-  if (from < 0 || to < 0 || Math.sign(nextState.points[to]) !== sign) return null;
-  const source = document.querySelector(`.point[data-index="${from}"] .stack .checker:last-child`);
+  const source = from >= 0
+    ? document.querySelector(`.point[data-index="${from}"] .stack .checker:last-child`)
+    : null;
   const rect = source?.getBoundingClientRect();
   if (!rect || !rect.width || !rect.height) return null;
+
+  // Bearing off changes exactly one player's off-board counter and removes
+  // one checker from a single point. Animate that checker into the counter.
+  if (from >= 0 && to < 0) {
+    const borneOffDeltaA = nextState.borneOff.A - previousState.borneOff.A;
+    const borneOffDeltaB = nextState.borneOff.B - previousState.borneOff.B;
+    if (sign > 0 && borneOffDeltaA === 1 && borneOffDeltaB === 0) {
+      return { to: "off", offId: "off-a", sign, rect };
+    }
+    if (sign < 0 && borneOffDeltaB === 1 && borneOffDeltaA === 0) {
+      return { to: "off", offId: "off-b", sign, rect };
+    }
+    return null;
+  }
+
+  if (from < 0 || to < 0 || Math.sign(nextState.points[to]) !== sign) return null;
   return { to, sign, rect };
 }
 function animateCheckerMove(transition) {
   if (!transition || window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) return;
-  const target = document.querySelector(`.point[data-index="${transition.to}"] .stack .checker:last-child`);
+  const isBearOff = transition.to === "off";
+  const target = isBearOff
+    ? document.getElementById(transition.offId)
+    : document.querySelector(`.point[data-index="${transition.to}"] .stack .checker:last-child`);
   if (!target || typeof Element.prototype.animate !== "function") return;
   const destination = target.getBoundingClientRect();
   if (!destination.width || !destination.height) return;
@@ -491,24 +511,24 @@ function animateCheckerMove(transition) {
     pointerEvents: "none",
   });
   document.body.append(piece);
-  target.style.visibility = "hidden";
-  const dx = destination.left - transition.rect.left;
-  const dy = destination.top - transition.rect.top;
+  if (!isBearOff) target.style.visibility = "hidden";
+  const dx = destination.left + destination.width / 2 - (transition.rect.left + transition.rect.width / 2);
+  const dy = destination.top + destination.height / 2 - (transition.rect.top + transition.rect.height / 2);
   const animation = piece.animate(
     [
-      { transform: "translate3d(0,0,0) scale(1)" },
-      { transform: `translate3d(${dx}px,${dy}px,0) scale(1.08)` },
+      { transform: "translate3d(0,0,0) scale(1)", opacity: 1 },
+      isBearOff
+        ? { transform: `translate3d(${dx}px,${dy}px,0) scale(.18) rotate(220deg)`, opacity: 0 }
+        : { transform: `translate3d(${dx}px,${dy}px,0) scale(1.08)`, opacity: 1 },
     ],
-    { duration: 390, easing: "cubic-bezier(.2,.78,.25,1)", fill: "forwards" }
+    { duration: isBearOff ? 520 : 390, easing: "cubic-bezier(.2,.78,.25,1)", fill: "forwards" }
   );
-  animation.onfinish = () => {
+  const cleanup = () => {
     piece.remove();
-    target.style.visibility = "";
+    if (!isBearOff) target.style.visibility = "";
   };
-  animation.oncancel = () => {
-    piece.remove();
-    target.style.visibility = "";
-  };
+  animation.onfinish = cleanup;
+  animation.oncancel = cleanup;
 }
 
 function renderGame(previousState = null) {
