@@ -310,7 +310,9 @@ body.embed .board{min-height:344px}
 .game-head h2{display:none}
 .game-status-wrap{width:100%}
 #game-status{margin:0;font-size:14px;font-weight:700;letter-spacing:.2px;color:#f0d9ae;text-shadow:0 0 12px #d5ad7055}
-#game-status:empty{display:none}\n.game-controls:empty{display:none}\n.game-status-win{font-size:19px!important;color:#ffe3a1!important;text-shadow:0 0 8px #f5ca70,0 0 22px #e4a83c!important;letter-spacing:1px}
+#game-status:empty{display:none}
+.game-controls:empty{display:none}
+.game-status-win{font-size:19px!important;color:#ffe3a1!important;text-shadow:0 0 8px #f5ca70,0 0 22px #e4a83c!important;letter-spacing:1px}
 .board{gap:2px!important;min-height:540px}
 .board::before{top:6px!important;bottom:6px!important;left:50%!important;right:auto!important;width:1px!important;height:auto!important;transform:translateX(-.5px);border:0!important;background:linear-gradient(180deg,transparent,#f1d5a7 14%,#f8e8ce 50%,#f1d5a7 86%,transparent)!important;box-shadow:0 0 3px #f5dfbd88!important}
 .board-row{gap:4px}
@@ -390,7 +392,8 @@ body.embed .restart-button{width:43px;height:43px;flex-basis:43px;font-size:26px
       <div class="game-controls" id="controls"></div>
       
       <div class="board-wrap">
-        <div class="board" id="board" aria-label="Игровая доска длинных нард">\n          <div class="dice-layer" id="dice" aria-label="Игровые кости"></div>
+        <div class="board" id="board" aria-label="Игровая доска длинных нард">
+          <div class="dice-layer" id="dice" aria-label="Игровые кости"></div>
           <div class="board-row" id="board-top"></div>
           <div class="board-row" id="board-bottom"></div>
         </div>
