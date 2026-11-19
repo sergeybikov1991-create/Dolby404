@@ -44,7 +44,12 @@ test("backgammon dice render six 3D faces and settle on the confirmed result", (
   expect(html).toContain(".die-face.front");
   expect(html).toContain(".die-face.back");
   expect(html).toContain("@keyframes cube-roll");
+  expect(html).toContain("translateY(-17px)");
+  expect(html).toContain("translateY(-11px)");
+  expect(html).toContain("translateY(-6px)");
   expect(script).toContain("finalTransforms");
+  expect(script).toContain("const randomTurn = ()");
+  expect(script).toContain("`--roll-${axis}-${index + 1}`");
   expect(script).toContain('side: "bottom"');
   expect(script).toContain('side: "top"');
 });
