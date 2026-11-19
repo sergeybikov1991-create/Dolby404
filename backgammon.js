@@ -119,9 +119,16 @@ async function createMatch(opponent) {
     setNotice(noticeId, message, true);
     return;
   }
-  setNotice(noticeId, "Приглашение отправлено собеседнику.");
+  setNotice(noticeId, "Партия найдена. Подключаем игровое поле…");
   await loadMatches();
-  if (data?.match) openMatch(data.match.id);
+  if (data?.match) {
+    await openMatch(data.match.id);
+    // If both chat windows opened at once, the server may return the other
+    // player's waiting invitation to this account. Accept it in the same flow.
+    if (currentMatch?.status === "waiting" && sideFor(currentMatch) === "B") {
+      await invokeAction("accept_match");
+    }
+  }
 }
 
 async function loadMatches() {
@@ -467,7 +474,17 @@ function renderControls(match) {
   const isMyTurn = state.turn?.player === side;
 
   if (match.status === "waiting") {
-    $("game-status").textContent = side === "A" ? "Приглашение отправлено. Ждём ответа соперника." : "Тебя пригласили сыграть. Прими партию в списке слева.";
+    if (side === "A") {
+      $("game-status").textContent = "Приглашение отправлено. Ждём ответа соперника.";
+    } else {
+      $("game-status").textContent = "Соперник приглашает тебя сыграть.";
+      if (new URLSearchParams(location.search).get("embed") === "1") {
+        addControl(container, "Принять игру", () => invokeAction("accept_match"));
+        addControl(container, "Отклонить", () => invokeAction("decline_match"), "danger");
+      } else {
+        $("game-status").textContent += " Прими партию в списке слева.";
+      }
+    }
     return;
   }
   if (match.status === "awaiting_opening_roll") {
@@ -594,7 +611,6 @@ function renderGame(previousState = null) {
   const hasMatch = !!currentMatch;
   $("empty-game").classList.toggle("hidden", hasMatch);
   $("game").classList.toggle("hidden", !hasMatch);
-  $("close-match").hidden = !hasMatch;
   if (!hasMatch) return;
   const state = currentMatch.state;
   const checkerTransition = captureCheckerMove(previousState, state);
@@ -676,13 +692,6 @@ $("invite-form").addEventListener("submit", async (event) => {
     return;
   }
   await createMatch(opponent);
-});
-
-$("close-match").addEventListener("click", () => {
-  currentMatch = null;
-  selectedFrom = null;
-  renderGame();
-  renderMatches();
 });
 
 function finishCheckerDrag(event) {
