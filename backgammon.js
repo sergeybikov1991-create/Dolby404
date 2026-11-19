@@ -527,6 +527,10 @@ function addControl(container, label, action, style = "primary") {
 }
 
 function renderRestart(match) {
+  if (restartExpiryTimer !== null) {
+    clearTimeout(restartExpiryTimer);
+    restartExpiryTimer = null;
+  }
   const button = $("restart-button");
   if (!button) return;
   button.onclick = null;
@@ -540,6 +544,11 @@ function renderRestart(match) {
   const request = match.restart_request;
   const expiresAt = request ? Date.parse(request.expires_at || "") : NaN;
   const expired = !!request && (!Number.isFinite(expiresAt) || expiresAt <= Date.now());
+  if (request && !expired && Number.isFinite(expiresAt)) {
+    restartExpiryTimer = setTimeout(() => {
+      if (currentMatch?.id === match.id) renderRestart(currentMatch);
+    }, Math.max(0, expiresAt - Date.now() + 20));
+  }
   if (!request || expired) {
     button.onclick = () => {
       if (window.confirm("Предложить начать партию заново?")) invokeAction("restart_request");
