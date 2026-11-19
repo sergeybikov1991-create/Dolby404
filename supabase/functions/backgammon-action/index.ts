@@ -126,15 +126,21 @@ Deno.serve(async (req: Request) => {
     });
 
     if (body.action_type === "create_match") {
-      if (!isUuid(body.match_id) || !isUuid(body.opponent_id)) {
+      const requestedMatchId = body.match_id;
+      const opponentId = body.opponent_id;
+      if (!isUuid(requestedMatchId) || !isUuid(opponentId)) {
         return json({ error: "Valid match_id and opponent_id are required" }, 400);
       }
-      if (body.opponent_id === actorId) return json({ error: "You cannot invite yourself" }, 400);
+      if (opponentId === actorId) return json({ error: "You cannot invite yourself" }, 400);
+      if (body.match_mode !== undefined &&
+          body.match_mode !== "casual" && body.match_mode !== "tournament") {
+        return json({ error: "match_mode must be casual or tournament" }, 400);
+      }
       const matchMode = body.match_mode === "tournament" ? "tournament" : "casual";
       const { data: opponent, error: opponentError } = await admin
         .from("profiles")
         .select("id, account_status")
-        .eq("id", body.opponent_id)
+        .eq("id", opponentId)
         .maybeSingle();
       if (opponentError) throw opponentError;
       if (!opponent || opponent.account_status !== "active") {
@@ -142,13 +148,13 @@ Deno.serve(async (req: Request) => {
       }
 
       const initialState = engine.createInitialState({
-        matchId: body.match_id,
-        players: { A: actorId, B: body.opponent_id },
+        matchId: requestedMatchId,
+        players: { A: actorId, B: opponentId },
       }, rules);
       const row = {
-        id: body.match_id,
+        id: requestedMatchId,
         player_a: actorId,
-        player_b: body.opponent_id,
+        player_b: opponentId,
         match_mode: matchMode,
         status: "waiting",
         state: initialState,
@@ -167,11 +173,11 @@ Deno.serve(async (req: Request) => {
       const { data: existing, error: existingError } = await admin
         .from("backgammon_matches")
         .select("*")
-        .eq("id", body.match_id)
+        .eq("id", requestedMatchId)
         .maybeSingle();
       if (existingError) throw existingError;
       if (existing && existing.player_a === actorId &&
-          existing.player_b === body.opponent_id && existing.match_mode === matchMode) {
+          existing.player_b === opponentId && existing.match_mode === matchMode) {
         return json({ match: existing });
       }
       return json({ error: "Could not create match" }, 409);
@@ -365,7 +371,9 @@ Deno.serve(async (req: Request) => {
               players: { A: match.player_a, B: match.player_b },
             }, rules);
             nextStatus = "awaiting_opening_roll";
-            nextTurnNumber = 0;
+            // Keep the match-wide turn sequence monotonic across a restart so
+            // the one-roll-per-turn ledger never collides with the prior game.
+            nextTurnNumber = match.turn_number + 1;
             nextRestartRequest = null;
           }
         }
