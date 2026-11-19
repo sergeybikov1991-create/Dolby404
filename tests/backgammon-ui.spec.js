@@ -154,19 +154,15 @@ test("authenticated game room renders 24 points and server-confirmed 3D dice", a
   await page.evaluate(async () => await window.__flouRealtimeStatus("SUBSCRIBED"));
   await expect(page.locator("#game-notice")).toContainText("Связь восстановлена. Состояние партии обновлено.");
 
-  // Drag A's checker from point 24 to the legal point 21 using die 3.
+  // Tap the stack: only its upper checker should be selected and enlarged.
   const source = page.locator('#board .point[data-index="23"]');
+  await source.click();
+  await expect(source.locator(".selected-checker")).toHaveCount(1);
+  await expect(page.locator("#board .selected-checker")).toHaveCount(1);
+
+  // Tap a legal destination to complete the move without dragging.
   const destination = page.locator('#board .point[data-index="20"]');
-  await source.scrollIntoViewIfNeeded();
-  await destination.scrollIntoViewIfNeeded();
-  const sourceBox = await source.boundingBox();
-  const destinationBox = await destination.boundingBox();
-  expect(sourceBox).not.toBeNull();
-  expect(destinationBox).not.toBeNull();
-  await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(destinationBox.x + destinationBox.width / 2, destinationBox.y + destinationBox.height / 2, { steps: 8 });
-  await page.mouse.up();
+  await destination.click();
   await expect.poll(() => page.evaluate(() => window.__flouActions?.length || 0)).toBe(1);
   const submitted = await page.evaluate(() => window.__flouActions[0]);
   expect(submitted.action_type).toBe("move");
@@ -296,4 +292,23 @@ test("opening rolls advance the match-wide turn number after a mutual restart", 
   const opening = edge.slice(edge.indexOf('case "opening_roll"'), edge.indexOf('case "roll"'));
   expect(opening).toContain("nextTurnNumber = match.turn_number + 1;");
   expect(opening).not.toContain("nextTurnNumber = 1;");
+});
+
+
+test("3D board enlarges only the selected top checker and gives the board more room", () => {
+  const html = fs.readFileSync(path.join(root, "backgammon.html"), "utf8");
+  const script = fs.readFileSync(path.join(root, "backgammon.js"), "utf8");
+  expect(html).toContain(".board-wrap{\n  position:relative;");
+  expect(html).toContain("min-height:500px;");
+  expect(html).toContain("width:min(90%,30px)");
+  expect(html).toContain("transform:translateY(-6px) scale(1.3)");
+  expect(html).toContain("body.embed .board-wrap");
+  expect(script).toContain('checker.classList.add("selected-checker")');
+  expect(script).toContain('if (selectedFrom === index) button.classList.add("selected")');
+  expect(script).toContain('position === "top" ? 0 : visible - 1');
+  expect(script).toContain("button.setPointerCapture(event.pointerId)");
+  expect(script).toContain('window.addEventListener("pointermove"');
+  expect(script).toContain('window.addEventListener("pointerup", finishCheckerDrag, true)');
+  expect(script).toContain('window.addEventListener("pointercancel", cancelCheckerDrag, true)');
+  expect(script).toContain('window.addEventListener("lostpointercapture", cancelCheckerDrag, true)');
 });

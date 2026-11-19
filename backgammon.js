@@ -378,16 +378,19 @@ function renderPoint(index, position, state) {
     const rect = source?.getBoundingClientRect();
     if (!rect) return;
     const ghost = source.cloneNode(true);
-    ghost.classList.add("drag-ghost");
+    ghost.classList.add("drag-ghost", "selected-checker");
     Object.assign(ghost.style, {
       position: "fixed", left: `${rect.left}px`, top: `${rect.top}px`,
       width: `${rect.width}px`, height: `${rect.height}px`,
       margin: "0", zIndex: "2000", pointerEvents: "none",
-      filter: "drop-shadow(0 8px 12px #000b)", transform: "scale(1.12)"
+      filter: "drop-shadow(0 8px 12px #000b)", transform: "translateY(-7px) scale(1.28)"
     });
     document.body.append(ghost);
     dragState = { from: index, pointerId: event.pointerId, startX: event.clientX,
       startY: event.clientY, moved: false, ghost };
+    try {
+      button.setPointerCapture(event.pointerId);
+    } catch {}
     selectedFrom = index;
     button.classList.add("selected");
     for (const point of document.querySelectorAll(".point")) {
@@ -726,6 +729,10 @@ function finishCheckerDrag(event) {
   drag.ghost.remove();
   if (!drag.moved) {
     selectedFrom = drag.from;
+    // The pointer interaction already selected this stack; ignore the synthetic click
+    // that follows pointerup so the selection is not immediately toggled off.
+    suppressNextPointClick = true;
+    setTimeout(() => { suppressNextPointClick = false; }, 0);
     renderGame();
     return;
   }
@@ -745,7 +752,16 @@ function finishCheckerDrag(event) {
     setNotice("game-notice", "Перетащи шашку на подсвеченный разрешённый пункт.", true);
   }
 }
-document.addEventListener("pointermove", event => {
+function cancelCheckerDrag(event) {
+  if (!dragState || event.pointerId !== dragState.pointerId) return;
+  const drag = dragState;
+  dragState = null;
+  drag.ghost.remove();
+  selectedFrom = drag.from;
+  renderGame();
+}
+
+window.addEventListener("pointermove", event => {
   if (!dragState || event.pointerId !== dragState.pointerId) return;
   const dx = event.clientX - dragState.startX;
   const dy = event.clientY - dragState.startY;
@@ -754,14 +770,10 @@ document.addEventListener("pointermove", event => {
     dragState.ghost.style.left = `${event.clientX - dragState.ghost.offsetWidth / 2}px`;
     dragState.ghost.style.top = `${event.clientY - dragState.ghost.offsetHeight / 2}px`;
   }
-}, { passive: true });
-document.addEventListener("pointerup", finishCheckerDrag);
-document.addEventListener("pointercancel", event => {
-  if (!dragState || event.pointerId !== dragState.pointerId) return;
-  dragState.ghost.remove();
-  dragState = null;
-  renderGame();
-});
+}, { passive: true, capture: true });
+window.addEventListener("pointerup", finishCheckerDrag, true);
+window.addEventListener("pointercancel", cancelCheckerDrag, true);
+window.addEventListener("lostpointercapture", cancelCheckerDrag, true);
 
 async function start() {
   try {
