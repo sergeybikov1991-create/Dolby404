@@ -1986,8 +1986,8 @@ async function ensureAvatarOriginalInAlbum(){
 
 async function start(){
  try{
-  await loadLibrary();client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
-  const auth=await client.auth.getUser();if(auth.error)throw auth.error;user=auth.data.user;
+  await loadLibrary();client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storage:window.localStorage,storageKey:"sb-qhpobdktlbhdqsnajypr-auth-token"}});
+  const stored=await client.auth.getSession();if(stored.error)throw stored.error;if(!stored.data?.session)throw new Error("Сессия не найдена в хранилище браузера. Вернись на страницу входа и авторизуйся снова.");const auth=await client.auth.getUser();if(auth.error)throw auth.error;user=auth.data.user;
   if(!user){location.replace("portal.html");return;}
   const lifecycleParams=new URLSearchParams(location.search);
   const lifecycleAction=lifecycleParams.has("confirm_delete")?"request_delete":(lifecycleParams.has("restore")?"restore":null);
