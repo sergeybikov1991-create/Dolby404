@@ -400,6 +400,7 @@ test("player B sees their own starting stack in the upper-right corner", async (
 test("compact backgammon table uses a thin vertical center divider without a horizontal rail", () => {
   const html = fs.readFileSync(path.join(root, "backgammon.html"), "utf8");
   expect(html).toContain("left:50%!important");
+  expect(html).toContain('.board::before{content:""!important;');
   expect(html).toContain("width:1px!important");
   expect(html).not.toMatch(/left:0;right:0;top:calc\\(50% - 5px\\)/);
   expect(html).not.toContain("\\n");
