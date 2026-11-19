@@ -102,8 +102,8 @@ test("messages page uses Supabase Realtime instead of five-second polling", asyn
   expect(messages).toContain('event:"INSERT"');
   expect(messages).toContain('event:"UPDATE"');
   expect(messages).toContain('client.channel("floustream-direct-"');
-  expect(messages).toContain("refreshAfterLoad");
-  expect(messages).toContain("inboxRefreshAfterLoad");
+  expect(messages).toContain("pendingMessageReload");
+  expect(messages).toContain("pendingInboxReload");
   expect(messages).toContain("let wasSubscribed=false");
   expect(messages).toContain("if(wasSubscribed)onChange();");
   expect(messages).not.toMatch(/setInterval\s*\([^)]*(?:loadMessages|loadInbox)/s);
