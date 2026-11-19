@@ -48,6 +48,8 @@ test("backgammon dice render six 3D faces and settle on the confirmed result", (
   expect(html).toContain(".die-face.front");
   expect(html).toContain(".die-face.back");
   expect(html).toContain("@keyframes cube-roll");
+  expect(html).toContain("@keyframes die-shadow");
+  expect(html).toContain(".die.rolling::after");
   expect(html).toContain("translateY(-17px)");
   expect(html).toContain("translateY(-11px)");
   expect(html).toContain("translateY(-6px)");
