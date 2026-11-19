@@ -346,6 +346,10 @@ function renderPoint(index, position, state) {
   for (let i = 0; i < visible; i += 1) {
     const checker = document.createElement("span");
     checker.className = "checker" + (count < 0 ? " b" : "");
+    if (selectedFrom === index && i === (position === "top" ? 0 : visible - 1)) {
+      checker.classList.add("selected-checker");
+      checker.setAttribute("aria-label", "Выбрана верхняя шашка");
+    }
     stack.append(checker);
   }
   button.append(stack);
@@ -368,7 +372,9 @@ function renderPoint(index, position, state) {
     if (currentMatch.state.points[index] * sign <= 0 ||
         !legalMoves.some(move => move.from === index)) return;
     event.preventDefault();
-    const source = button.querySelector(".checker:last-child");
+    const source = position === "top"
+      ? stack.querySelector(".checker:first-child")
+      : stack.querySelector(".checker:last-child");
     const rect = source?.getBoundingClientRect();
     if (!rect) return;
     const ghost = source.cloneNode(true);
@@ -560,7 +566,7 @@ function captureCheckerMove(previousState, nextState) {
     }
   }
   const source = from >= 0
-    ? document.querySelector(`.point[data-index="${from}"] .stack .checker:last-child`)
+    ? document.querySelector(`.point[data-index="${from}"] .stack .checker:${from >= 12 ? "first-child" : "last-child"}`)
     : null;
   const rect = source?.getBoundingClientRect();
   if (!rect || !rect.width || !rect.height) return null;
@@ -587,7 +593,7 @@ function animateCheckerMove(transition) {
   const isBearOff = transition.to === "off";
   const target = isBearOff
     ? document.getElementById(transition.offId)
-    : document.querySelector(`.point[data-index="${transition.to}"] .stack .checker:last-child`);
+    : document.querySelector(`.point[data-index="${transition.to}"] .stack .checker:${transition.to >= 12 ? "first-child" : "last-child"}`);
   if (!target || typeof Element.prototype.animate !== "function") return;
   const destination = target.getBoundingClientRect();
   if (!destination.width || !destination.height) return;
