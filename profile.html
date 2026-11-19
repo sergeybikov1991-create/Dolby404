@@ -3006,14 +3006,7 @@ start();
  $id("drawer-search-options").querySelectorAll("[data-drawer-search-action]").forEach(button=>button.addEventListener("click",()=>openDiscovery(button.dataset.drawerSearchAction)));
  async function runSearch(){
   const term=queryInput.value.trim();if(!term){status(results,"Введи слово или фразу для поиска.");return;}if(busy)return;busy=true;lastQuery=term;status(results,"Ищем…");
-  const pattern="%"+term.replace(/[\\%_]/g,"\\const pattern="%"+term.replace(/[\\%_]/g,"\\<script>
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register(new URL("./service-worker.js", document.baseURI).href, {
-    scope: new URL("./", document.baseURI).pathname
-  }).catch(error => console.warn("FLOUSTREAM page cache unavailable:", error));
-}
-</script>
-</body>")+"%";")+"%";
+  const pattern="%"+term.replace(/[\\%_]/g,"\\$&")+"%";
   try{
    const tasks=[];
    if(category==="all"||category==="people"){
