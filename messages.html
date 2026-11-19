@@ -227,6 +227,7 @@ async function start(){
     }finally{button.disabled=false;event.target.value="";}
    });
   }
+  let wasSubscribed=false;
   const chatChannel=client.channel("floustream-direct-"+[viewer.id,peerId].sort().join("-"))
    .on("postgres_changes",{event:"INSERT",schema:"public",table:"direct_messages"},payload=>{
     const row=payload.new||{};
@@ -236,7 +237,6 @@ async function start(){
     const row=payload.new||{};
     if((row.sender_id===viewer.id&&row.recipient_id===peerId)||(row.sender_id===peerId&&row.recipient_id===viewer.id))loadMessages(true);
    })
-   let wasSubscribed=false;
    .subscribe(status=>{
     if(status==="SUBSCRIBED"){
      if(wasSubscribed)loadMessages(true);
