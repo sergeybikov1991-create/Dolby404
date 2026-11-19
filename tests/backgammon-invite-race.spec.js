@@ -38,7 +38,7 @@ const match = {
   }
 };
 
-const supabaseStub = \`const match = \${JSON.stringify(match)};
+const supabaseStub = `const match = ${JSON.stringify(match)};
 export function createClient() {
   const query = table => ({
     select() { return this; },
@@ -90,7 +90,7 @@ export function createClient() {
       }
     }
   };
-}\`;
+}`;
 
 async function openIncomingInvite(page) {
   await page.route("https://esm.sh/@supabase/supabase-js@2*", route => route.fulfill({
