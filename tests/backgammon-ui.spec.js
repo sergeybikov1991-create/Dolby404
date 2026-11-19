@@ -162,7 +162,7 @@ test("a direct conversation can switch into an embedded game and return without 
   expect(messages).toContain('id="game-frame"');
   expect(messages).toContain('backgammon.html?embed=1&opponent=');
   expect(messages).toContain('gameToggle.textContent=opening?"Вернуться в чат":"Играть"');
-  expect(gamePage).toContain("body.embed .shell>aside{display:none}");
+  expect(gamePage).toContain("body.embed .shell>aside{display:block}");
   expect(gameScript).toContain('get("opponent")');
   expect(gameScript).toContain('invitedProfile?.username');
 });
