@@ -14,7 +14,7 @@ const LONG_BACKGAMMON_RULES = Object.freeze({
     B: Object.freeze([12, 17])
   }),
   forbidOpposingOccupiedPoint: true,
-  // Russian sport rules (Order No. 347, 30 Apr 2025), art. 20.5:
+  undefined
   // a move may not temporarily lock all 15 opposing checkers behind a six-point block.
   forbidFullBlockade: true
 });
