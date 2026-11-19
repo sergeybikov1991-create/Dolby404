@@ -205,7 +205,7 @@ function renderMatches() {
       accept.type = "button";
       accept.textContent = "Принять";
       accept.addEventListener("click", async () => {
-        openMatch(match.id);
+        await openMatch(match.id);
         await invokeAction("accept_match");
       });
       const decline = document.createElement("button");
@@ -213,7 +213,7 @@ function renderMatches() {
       decline.type = "button";
       decline.textContent = "Отклонить";
       decline.addEventListener("click", async () => {
-        openMatch(match.id);
+        await openMatch(match.id);
         await invokeAction("decline_match");
       });
       actions.append(accept, decline);
