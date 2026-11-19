@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import * as engine from "../_shared/engine.mjs";
 import { LONG_BACKGAMMON_RULES as rules } from "../_shared/rules.mjs";
-import { rollDice, rollOpeningDice } from "../_shared/dice.mjs";
+import { rollDice, secureDie, recordOpeningRoll } from "../_shared/dice.mjs";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -287,15 +287,35 @@ Deno.serve(async (req: Request) => {
         if (match.status !== "awaiting_opening_roll") {
           return json({ error: "Match is not waiting for an opening roll" }, 409);
         }
-        const opening = rollOpeningDice();
+        const openingState = match.state.opening ?? {};
+        let recorded;
+        try {
+          recorded = recordOpeningRoll(openingState, side, secureDie());
+        } catch (error) {
+          if (error instanceof Error && error.message === "This player has already rolled") {
+            return json({ error: "Your opening die is already recorded. Wait for your opponent." }, 409);
+          }
+          throw error;
+        }
+        if (!recorded.result) {
+          nextState = {
+            ...match.state,
+            opening: {
+              ...openingState,
+              rolls: recorded.rolls,
+              lastTie: recorded.tie,
+            },
+          };
+          break;
+        }
         nextState = engine.createInitialState({
           matchId,
           players: { A: match.player_a, B: match.player_b },
-          firstPlayer: opening.firstPlayer,
+          firstPlayer: recorded.result.firstPlayer,
         }, rules);
-        nextState = engine.startTurn(nextState, opening.dice, rules);
+        nextState = engine.startTurn(nextState, recorded.result.dice, rules);
         nextStatus = "active";
-        // Keep the match-wide turn sequence monotonic after mutual restart.
+        // Keep the match-wide turn sequence monotonic after the opening roll.
         nextTurnNumber = match.turn_number + 1;
         break;
       }
