@@ -104,7 +104,7 @@ test("authenticated game room renders 24 points and server-confirmed 3D dice", a
       winner: null
     }
   };
-  const stub = `const match = ${JSON.stringify(match)};
+  const stub = `const match = ${JSON.stringify(match)}; let latestMatch = match;
     export function createClient(){
       const query = (table) => ({
         select(){ return this; },
@@ -205,14 +205,14 @@ test("both players reveal the same server-confirmed opening dice from Realtime",
     export function createClient(){
       const query = table => ({
         select(){return this;}, or(){return this;}, order(){return this;}, limit(){return this;}, eq(){return this;},
-        maybeSingle(){return Promise.resolve({data:match,error:null});},
+        maybeSingle(){return Promise.resolve({data:latestMatch,error:null});},
         in(){return Promise.resolve({data:[],error:null});},
-        then(resolve,reject){return Promise.resolve({data:table === "backgammon_matches" ? [match] : [],error:null}).then(resolve,reject);}
+        then(resolve,reject){return Promise.resolve({data:table === "backgammon_matches" ? [latestMatch] : [],error:null}).then(resolve,reject);}
       });
       return {
         auth:{getSession:async()=>({data:{session:{user:{id:window.__testUserId,email:"player@floustream.local"}}},error:null})},
         from:query,
-        channel:()=>({on(_event,_filter,handler){window.__flouMatchUpdate=handler;return this;},subscribe(callback){window.__flouRealtimeStatus=callback;return this;}}),
+        channel:()=>({on(_event,_filter,handler){window.__flouMatchUpdate=payload=>{latestMatch=payload.new;return handler(payload);};return this;},subscribe(callback){window.__flouRealtimeStatus=callback;return this;}}),
         removeChannel:async()=>({})
       };
     }`;
@@ -240,6 +240,30 @@ test("both players reveal the same server-confirmed opening dice from Realtime",
   }
   const values = await Promise.all(pages.map(({ page }) => page.locator("#dice .dice-result").textContent()));
   expect(values).toEqual(["4 + 6", "4 + 6"]);
+
+  const moved = {
+    ...updated,
+    revision: 3,
+    state: {
+      ...updated.state,
+      points: updated.state.points.map((count, index) =>
+        index === 23 ? 14 : index === 19 ? 1 : count
+      ),
+      turn: {
+        ...updated.state.turn,
+        remainingDice: [6],
+        movesApplied: [{ player: "A", from: 23, to: 19, die: 4, bearOff: false }],
+        headMovesApplied: 1
+      }
+    }
+  };
+  for (const { page } of pages) {
+    await page.evaluate(async row => {
+      await window.__flouMatchUpdate({ new: row });
+    }, moved);
+    await expect(page.locator('#board .point[data-index="23"] .checker-count')).toHaveText("14");
+    await expect(page.locator('#board .point[data-index="19"] .checker')).toHaveCount(1);
+  }
   await Promise.all(pages.map(({ context }) => context.close()));
 });
 
