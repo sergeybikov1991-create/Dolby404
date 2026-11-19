@@ -13,6 +13,7 @@ let currentMatch = null;
 let selectedFrom = null;
 let realtimeChannel = null;
 let legalMoves = [];
+let animateNextDice = false;
 
 function setNotice(id, message, error = false) {
   const element = $(id);
@@ -83,7 +84,9 @@ async function invokeAction(actionType, payload = {}) {
     restart_request: data.restart_request ?? null,
   };
   selectedFrom = null;
+  animateNextDice = actionType === "roll" || actionType === "opening_roll";
   renderGame();
+  animateNextDice = false;
   setNotice("game-notice", "");
   await loadMatches();
   return true;
@@ -226,8 +229,23 @@ async function openMatch(matchId) {
 function makeDie(value, rolling = false) {
   const die = document.createElement("div");
   die.className = "die" + (rolling ? " rolling" : "");
-  die.textContent = value;
   die.setAttribute("aria-label", `Кость ${value}`);
+  const faces = {
+    1: [4],
+    2: [0, 8],
+    3: [0, 4, 8],
+    4: [0, 2, 6, 8],
+    5: [0, 2, 4, 6, 8],
+    6: [0, 2, 3, 5, 6, 8],
+  };
+  const pips = document.createElement("span");
+  pips.className = "die-pips";
+  for (let position = 0; position < 9; position += 1) {
+    const pip = document.createElement("span");
+    pip.className = "die-pip" + (faces[value]?.includes(position) ? " active" : "");
+    pips.append(pip);
+  }
+  die.append(pips);
   return die;
 }
 
@@ -235,7 +253,7 @@ function renderDice(state) {
   const container = $("dice");
   container.replaceChildren();
   const values = state?.turn?.dice || [];
-  values.slice(0, 2).forEach(value => container.append(makeDie(value)));
+  values.slice(0, 2).forEach(value => container.append(makeDie(value, animateNextDice)));
   if (!values.length) {
     const label = document.createElement("span");
     label.className = "subtle";
@@ -332,7 +350,7 @@ function renderRestart(match) {
   const box = $("restart-box");
   box.classList.add("hidden");
   box.replaceChildren();
-  if (match.status !== "active" || match.match_mode !== "casual") return;
+  if (!["active", "finished"].includes(match.status) || match.match_mode !== "casual") return;
   const request = match.restart_request;
   if (!request) {
     box.classList.remove("hidden");
@@ -420,9 +438,15 @@ async function startRealtime() {
   const refresh = async (payload) => {
     const row = payload.new;
     if (row?.id === currentMatch?.id) {
+      const previousDice = currentMatch.state?.turn?.dice || [];
+      const nextDice = row.state?.turn?.dice || [];
+      animateNextDice = row.state?.turn?.phase === "moving" &&
+        previousDice.join(",") !== nextDice.join(",");
       currentMatch = row;
+      await hydrateOpponentNames([currentMatch]);
       selectedFrom = null;
       renderGame();
+      animateNextDice = false;
     }
     await loadMatches();
   };
