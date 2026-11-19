@@ -335,6 +335,21 @@ function renderDice(state) {
     return;
   }
 
+  if (currentMatch?.status === "awaiting_opening_roll") {
+    const opening = state?.opening || {};
+    const rolls = opening.rolls || {};
+    const tie = opening.lastTie;
+    for (const player of ["A", "B"]) {
+      const value = rolls[player] ?? tie?.[player];
+      if (Number.isInteger(value)) {
+        const die = makeDie(value, animateNextDice);
+        die.classList.add("die-scattered", player === "A" ? "die-position-1" : "die-position-2");
+        container.append(die);
+      }
+    }
+    return;
+  }
+
   const values = state?.turn?.dice || [];
   if (currentMatch?.status === "active" && state?.turn?.phase === "moving") {
     values.slice(0, 2).forEach((value, index) => {
@@ -454,7 +469,10 @@ function renderBoard(state) {
   $("off-b").textContent = String(state.borneOff.B);
   // Each player sees their own home and checker tray on the right.
   const offRow = $("off-zone-a").parentElement;
-  offRow.style.flexDirection = sideFor(currentMatch) === "A" ? "row-reverse" : "row";
+  offRow.style.flexDirection = "row";
+  $("off-zone-a").style.order = sideFor(currentMatch) === "A" ? "3" : "1";
+  $("off-zone-b").style.order = sideFor(currentMatch) === "B" ? "3" : "1";
+  $("restart-button").style.order = "2";
   const activeSide = currentMatch?.status === "active" &&
     state.turn?.phase === "moving" && state.turn.player === sideFor(currentMatch)
     ? state.turn.player : null;
