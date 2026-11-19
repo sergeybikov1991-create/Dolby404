@@ -173,6 +173,21 @@ test("authenticated game room renders 24 points and server-confirmed 3D dice", a
   expect(submitted.payload.move.from).toBe(23);
   expect(submitted.payload.move.to).toBe(20);
   expect(submitted.payload.move.die).toBe(3);
+
+  // A second drag must still receive pointer movement and release after the
+  // first server response has re-rendered the board.
+  const secondDestination = page.locator('#board .point[data-index="18"]');
+  const secondBox = await secondDestination.boundingBox();
+  await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(secondBox.x + secondBox.width / 2, secondBox.y + secondBox.height / 2, { steps: 8 });
+  await page.mouse.up();
+  await expect.poll(() => page.evaluate(() => window.__flouActions?.length || 0)).toBe(2);
+  const secondSubmitted = await page.evaluate(() => window.__flouActions[1]);
+  expect(secondSubmitted.action_type).toBe("move");
+  expect(secondSubmitted.payload.move.from).toBe(23);
+  expect(secondSubmitted.payload.move.to).toBe(18);
+  expect(secondSubmitted.payload.move.die).toBe(5);
 });
 
 test("both players reveal the same server-confirmed opening dice from Realtime", async ({ browser }) => {
@@ -296,4 +311,17 @@ test("opening rolls advance the match-wide turn number after a mutual restart", 
   const opening = edge.slice(edge.indexOf('case "opening_roll"'), edge.indexOf('case "roll"'));
   expect(opening).toContain("nextTurnNumber = match.turn_number + 1;");
   expect(opening).not.toContain("nextTurnNumber = 1;");
+});
+
+
+test("checker drag keeps pointer capture and clears interrupted drags", () => {
+  const html = fs.readFileSync(path.join(root, "backgammon.html"), "utf8");
+  const script = fs.readFileSync(path.join(root, "backgammon.js"), "utf8");
+  expect(html).toContain(".point{touch-action:none;position:relative");
+  expect(script).toContain("button.setPointerCapture(event.pointerId)");
+  expect(script).toContain('window.addEventListener("pointermove"');
+  expect(script).toContain('window.addEventListener("pointerup", finishCheckerDrag, true)');
+  expect(script).toContain('window.addEventListener("pointercancel", cancelCheckerDrag, true)');
+  expect(script).toContain('window.addEventListener("lostpointercapture", cancelCheckerDrag, true)');
+  expect(script).toContain("drag.ghost.remove();");
 });
