@@ -138,6 +138,8 @@ test("authenticated game room renders 24 points and server-confirmed 3D dice", a
   await expect(page.locator("#dice .die-face")).toHaveCount(12);
   await expect(page.locator("#game-status")).toContainText("Твой ход");
 
+  // Establish the first subscription before simulating a later reconnect.
+  await page.evaluate(async () => await window.__flouRealtimeStatus("SUBSCRIBED"));
   await page.evaluate(() => window.__flouRealtimeStatus("CHANNEL_ERROR"));
   await expect(page.locator("#game-notice")).toContainText("Соединение с соперником прервано");
   await page.evaluate(async () => await window.__flouRealtimeStatus("SUBSCRIBED"));
