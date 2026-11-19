@@ -83,7 +83,7 @@ h2{font-size:16px;margin:0 0 14px}
 .point.bottom::before{top:auto;bottom:0;background:linear-gradient(0deg,#392b34,#4e3440);clip-path:polygon(0 100%,100% 100%,50% 0)}
 .point:nth-child(odd)::before{background:linear-gradient(180deg,#d7b07b,#8b6145)}
 .point.bottom:nth-child(odd)::before{background:linear-gradient(0deg,#d7b07b,#8b6145)}
-.point.selected{outline:2px solid #fff;outline-offset:-2px;box-shadow:0 0 14px #fff8}
+.checker.selected-checker{position:relative;z-index:4;outline:2px solid #fff;outline-offset:1px;box-shadow:0 0 8px #fff,0 0 16px #b58cff;transform:translateY(-3px) scale(1.08);filter:brightness(1.2)}
 .point.legal-target{outline:2px solid var(--cyan);outline-offset:-2px;box-shadow:0 0 14px #55e7d077}
 .point-number{position:absolute;z-index:2;top:3px;left:0;right:0;font-size:9px;color:#f9e8d2;text-align:center;text-shadow:0 1px 3px #000}
 .point.bottom .point-number{top:auto;bottom:3px}
