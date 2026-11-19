@@ -120,7 +120,12 @@ test("messages page keeps the newest messages at the bottom and guards sends", a
   expect(messages).toContain(".messages{display:flex;flex:1;min-height:0;flex-direction:column;");
   expect(messages).toContain("overflow-anchor:none");
   expect(messages).toContain('.order("created_at",{ascending:false}).order("id",{ascending:false}).limit(200)');
-  expect(messages).toContain("requestAnimationFrame(()=>{host.scrollTop=host.scrollHeight;});");
+  expect(messages).toContain("function scrollToNewestMessage(host)");
+  expect(messages).toContain("Date.parse(item.dataset.createdAt)");
+  expect(messages).toContain("messageRect.bottom-hostRect.bottom");
+  expect(messages).toContain("line.dataset.createdAt=row.created_at||\"\"");
+  expect(messages).toContain("requestAnimationFrame(()=>requestAnimationFrame(()=>scrollToNewestMessage(host)));");
+  expect(messages).toContain("return timeA-timeB||String(a.id||\"\").localeCompare(String(b.id||\"\")");
   expect(messages).toContain('finally{button.disabled=false;input.focus();}');
   expect(messages).toContain("attachment_path:path");
 });
