@@ -1,5 +1,5 @@
 /* FLOUSTREAM page-shell cache. Private Supabase data and uploaded media are never cached. */
-const CACHE_NAME = "floustream-shell-v1";
+const CACHE_NAME = "floustream-shell-v2";
 const SHELL_PAGES = [
   "./", "./index.html", "./portal.html", "./profile.html",
   "./public-profile.html", "./messages.html", "./friends.html",
