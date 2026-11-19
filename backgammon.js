@@ -346,6 +346,10 @@ function renderPoint(index, position, state) {
   for (let i = 0; i < visible; i += 1) {
     const checker = document.createElement("span");
     checker.className = "checker" + (count < 0 ? " b" : "");
+    if (selectedFrom === index && i === visible - 1) {
+      checker.classList.add("selected-checker");
+      checker.setAttribute("aria-label", "Выбрана верхняя шашка");
+    }
     stack.append(checker);
   }
   button.append(stack);
