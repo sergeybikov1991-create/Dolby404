@@ -150,9 +150,10 @@ test("authenticated game room renders 24 points and server-confirmed 3D dice", a
   await page.evaluate(async () => await window.__flouRealtimeStatus("SUBSCRIBED"));
   await expect(page.locator("#game-notice")).toContainText("Связь восстановлена. Состояние партии обновлено.");
 
-  // Drag A's checker from point 24 to the legal point 21 (die 3).
+  // The opening head rule allows only the higher die when both are playable.
+  // Drag A's checker from point 24 to point 19 using die 5.
   const source = page.locator('#board .point[data-index="23"] .checker').first();
-  const destination = page.locator('#board .point[data-index="20"]');
+  const destination = page.locator('#board .point[data-index="18"]');
   await source.scrollIntoViewIfNeeded();
   const sourceBox = await source.boundingBox();
   const destinationBox = await destination.boundingBox();
@@ -166,8 +167,8 @@ test("authenticated game room renders 24 points and server-confirmed 3D dice", a
   const submitted = await page.evaluate(() => window.__flouActions[0]);
   expect(submitted.action_type).toBe("move");
   expect(submitted.payload.move.from).toBe(23);
-  expect(submitted.payload.move.to).toBe(20);
-  expect(submitted.payload.move.die).toBe(3);
+  expect(submitted.payload.move.to).toBe(18);
+  expect(submitted.payload.move.die).toBe(5);
 });
 
 test("both players reveal the same server-confirmed opening dice from Realtime", async ({ browser }) => {
