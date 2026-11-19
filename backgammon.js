@@ -346,7 +346,7 @@ function renderPoint(index, position, state) {
   for (let i = 0; i < visible; i += 1) {
     const checker = document.createElement("span");
     checker.className = "checker" + (count < 0 ? " b" : "");
-    if (selectedFrom === index && i === visible - 1) {
+    if (selectedFrom === index && i === (position === "top" ? 0 : visible - 1)) {
       checker.classList.add("selected-checker");
       checker.setAttribute("aria-label", "Выбрана верхняя шашка");
     }
@@ -372,7 +372,9 @@ function renderPoint(index, position, state) {
     if (currentMatch.state.points[index] * sign <= 0 ||
         !legalMoves.some(move => move.from === index)) return;
     event.preventDefault();
-    const source = button.querySelector(".checker:last-child");
+    const source = position === "top"
+      ? stack.querySelector(".checker:first-child")
+      : stack.querySelector(".checker:last-child");
     const rect = source?.getBoundingClientRect();
     if (!rect) return;
     const ghost = source.cloneNode(true);
