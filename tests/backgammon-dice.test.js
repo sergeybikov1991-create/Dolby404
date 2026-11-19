@@ -2,7 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { secureDie, rollDice } = require("../backgammon/dice");
+const { secureDie, rollDice, rollOpeningDice } = require("../backgammon/dice");
 
 function byteStream(values) {
   let index = 0;
@@ -58,4 +58,13 @@ test("rollDice returns two independent die values and expands doubles to four mo
 
 test("secure dice fail closed when Web Crypto is unavailable", () => {
   assert.throws(() => secureDie(null), /Web Crypto provider/);
+});
+
+
+test("opening roll rerolls ties and awards the first turn to the higher die", () => {
+  const opening = rollOpeningDice(queuedBytes([0, 0, 2, 4]));
+  assert.deepEqual(opening.dice, [3, 5]);
+  assert.equal(opening.firstPlayer, "B");
+  assert.ok(Object.isFrozen(opening));
+  assert.ok(Object.isFrozen(opening.dice));
 });
