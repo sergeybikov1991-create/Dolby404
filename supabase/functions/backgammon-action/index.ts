@@ -329,7 +329,9 @@ Deno.serve(async (req: Request) => {
         if (match.match_mode !== "casual") {
           return json({ error: "Restart is available only in casual matches" }, 403);
         }
-        if (match.status !== "active") return json({ error: "Match is not active" }, 409);
+        if (match.status !== "active" && match.status !== "finished") {
+          return json({ error: "Match is not active or finished" }, 409);
+        }
         if (match.restart_request && Date.parse(match.restart_request.expires_at) > now) {
           return json({ error: "A restart request is already pending" }, 409);
         }
