@@ -566,7 +566,7 @@ function captureCheckerMove(previousState, nextState) {
     }
   }
   const source = from >= 0
-    ? document.querySelector(`.point[data-index="${from}"] .stack .checker:last-child`)
+    ? document.querySelector(`.point[data-index="${from}"] .stack .checker:${from >= 12 ? "first-child" : "last-child"}`)
     : null;
   const rect = source?.getBoundingClientRect();
   if (!rect || !rect.width || !rect.height) return null;
@@ -593,7 +593,7 @@ function animateCheckerMove(transition) {
   const isBearOff = transition.to === "off";
   const target = isBearOff
     ? document.getElementById(transition.offId)
-    : document.querySelector(`.point[data-index="${transition.to}"] .stack .checker:last-child`);
+    : document.querySelector(`.point[data-index="${transition.to}"] .stack .checker:${transition.to >= 12 ? "first-child" : "last-child"}`);
   if (!target || typeof Element.prototype.animate !== "function") return;
   const destination = target.getBoundingClientRect();
   if (!destination.width || !destination.height) return;
