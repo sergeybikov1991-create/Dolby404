@@ -650,6 +650,12 @@ async function start() {
     $("account-label").textContent = user.email || "Мой аккаунт";
     $("loading").hidden = true;
     $("app").hidden = false;
+    const invitedOpponentId = new URLSearchParams(location.search).get("opponent");
+    if (invitedOpponentId && invitedOpponentId !== user.id) {
+      const { data: invitedProfile } = await client.from("profiles")
+        .select("username").eq("id", invitedOpponentId).maybeSingle();
+      if (invitedProfile?.username) $("opponent-username").value = invitedProfile.username;
+    }
     await loadMatches();
     await startRealtime();
   } catch (error) {
