@@ -117,6 +117,8 @@ test("messages page keeps the newest messages at the bottom and guards sends", a
   const messages = fs.readFileSync(path.join(__dirname, "../messages.html"), "utf8");
 
   expect(messages).toContain(".bubble-row{display:flex;flex:0 0 auto}");
+  expect(messages).toContain(".messages{display:flex;flex:1;min-height:0;flex-direction:column;");
+  expect(messages).toContain("overflow-anchor:none");
   expect(messages).toContain('.order("created_at",{ascending:false}).order("id",{ascending:false}).limit(200)');
   expect(messages).toContain("requestAnimationFrame(()=>{host.scrollTop=host.scrollHeight;});");
   expect(messages).toContain('finally{button.disabled=false;input.focus();}');
