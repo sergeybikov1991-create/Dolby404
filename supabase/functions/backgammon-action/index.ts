@@ -51,6 +51,16 @@ function isUuid(value: unknown): value is string {
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
+function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+  if (isRecord(value)) {
+    return `{${Object.keys(value).sort().map(key =>
+      `${JSON.stringify(key)}:${stableStringify(value[key])}`
+    ).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
 async function sha256(value: string): Promise<string> {
   const bytes = new TextEncoder().encode(value);
   const digest = await crypto.subtle.digest("SHA-256", bytes);
@@ -187,7 +197,7 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Unsupported action_type" }, 400);
     }
 
-    const requestHash = await sha256(JSON.stringify({
+    const requestHash = await sha256(stableStringify({
       match_id: matchId,
       action_type: actionType,
       expected_revision: expectedRevision,
@@ -217,6 +227,17 @@ Deno.serve(async (req: Request) => {
     const side = playerSide(match, actorId);
     if (!side) return json({ error: "You are not a participant in this match" }, 403);
     if (Number(match.revision) !== expectedRevision) {
+      const { data: racedResult, error: racedError } = await admin.rpc(
+        "backgammon_get_action_result",
+        {
+          p_match_id: matchId,
+          p_action_id: actionId,
+          p_actor_id: actorId,
+          p_request_hash: requestHash,
+        },
+      );
+      if (racedError) throw racedError;
+      if (racedResult) return json(racedResult);
       return json({ error: "Revision conflict", revision: match.revision }, 409);
     }
 
@@ -384,7 +405,11 @@ Deno.serve(async (req: Request) => {
     }
     return json(committed);
   } catch (error) {
-    console.error("backgammon_action_failed", requestId, error);
+    const message = error instanceof Error ? error.message : "Unknown game error";
+    console.error("backgammon_action_failed", requestId, message);
+    if (/Illegal move|mandatory legal dice|moving phase|awaiting_roll/i.test(message)) {
+      return json({ error: message }, 400);
+    }
     return json({ error: "Game action failed", requestId }, 500);
   }
 });
