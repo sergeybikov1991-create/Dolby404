@@ -350,6 +350,13 @@ body.embed .restart-button{width:43px;height:43px;flex-basis:43px;font-size:26px
  body.embed .board{min-height:0}
 }
 
+
+/* Fit backgammon points exactly to the available board cells */
+.board{grid-template-rows:repeat(2,minmax(0,1fr))}
+.board-row{height:100%;min-height:0;align-self:stretch}
+.point,.point.bottom{height:100%;min-height:0;padding-top:0;padding-bottom:0}
+.point::before{top:0;bottom:auto;left:0;right:0;height:100%}
+.point.bottom::before{top:auto;bottom:0;left:0;right:0;height:100%}
 </style>
 </head>
 <body>
