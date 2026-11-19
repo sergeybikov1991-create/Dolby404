@@ -658,6 +658,36 @@ async function start() {
     }
     await loadMatches();
     await startRealtime();
+
+    // When launched from an existing FLOUSTREAM conversation, the opponent
+    // is already known. Reuse an existing live match or create the invitation
+    // directly; never ask the user to search for the same chat participant.
+    if (invitedOpponentId && invitedOpponentId !== user.id &&
+        new URLSearchParams(location.search).get("embed") === "1") {
+      setNotice("game-notice", "Подключаем собеседника из чата…");
+      const reusable = matches.find(match =>
+        opponentId(match) === invitedOpponentId &&
+        ["waiting", "awaiting_opening_roll", "active"].includes(match.status)
+      );
+      if (reusable) {
+        await openMatch(reusable.id);
+        if (reusable.status === "waiting" && sideFor(reusable) === "B") {
+          await invokeAction("accept_match");
+        }
+      } else {
+        const { data: opponent, error: opponentError } = await client
+          .from("profiles")
+          .select("id,username,display_name,account_status")
+          .eq("id", invitedOpponentId)
+          .maybeSingle();
+        if (opponentError) throw opponentError;
+        if (!opponent || opponent.account_status !== "active") {
+          setNotice("game-notice", "Собеседник недоступен для игры.", true);
+        } else {
+          await createMatch(opponent);
+        }
+      }
+    }
   } catch (error) {
     $("loading").textContent = `Не удалось подключить игровой зал: ${error.message}`;
   }
