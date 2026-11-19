@@ -29,6 +29,9 @@ test("long backgammon room exposes the real board and server action controls", (
   expect(script).toContain('stack.querySelector(".checker:first-child")');
   expect(html).toContain('.checker.selected-checker');
   expect(script).toContain('invokeAction("restart_vote"');
+  expect(script).toContain('Бросить один кубик');
+  expect(script).toContain('Твой результат:');
+  expect(script).toContain('recorded.result.firstPlayer');
   expect(script).toContain('die-face');
   expect(script).toContain('die-cube');
   expect(script).toContain('3: "rotateX(-90deg)');
