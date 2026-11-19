@@ -68,6 +68,8 @@ function getTurnOptions(state, player, rolledDice) {
 }
 
 function applyTurnSequence(state, player, sequence) {
+  const isDoubleSequence = sequence.length > 1 && sequence.every(move => move.die === sequence[0].die);
+  const headLimit = isDoubleSequence ? 2 : 1;
   let next = {
     ...state,
     board: state.board.map(point => point.slice()),
@@ -76,7 +78,7 @@ function applyTurnSequence(state, player, sequence) {
   };
   for (const move of sequence) {
     if (move.player !== player) throw new Error("move belongs to another player");
-    next = rules.applyMove({ ...next, headLimit: state.headLimit ?? 1 }, move);
+    next = rules.applyMove({ ...next, headLimit }, move);
   }
   return next;
 }
