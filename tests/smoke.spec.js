@@ -92,3 +92,73 @@ test("video album keeps public and private players, native controls and swipe na
   expect(profile).not.toContain("video-album-playmark");
   expect(profile).not.toContain("video-viewer-thumb-mark");
 });
+
+
+test("messages page uses Supabase Realtime instead of five-second polling", async () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const messages = fs.readFileSync(path.join(__dirname, "../messages.html"), "utf8");
+
+  expect(messages).toContain('event:"INSERT"');
+  expect(messages).toContain('event:"UPDATE"');
+  expect(messages).toContain('client.channel("floustream-direct-"');
+  expect(messages).toContain("refreshAfterLoad");
+  expect(messages).toContain("inboxRefreshAfterLoad");
+  expect(messages).toContain("let wasSubscribed=false");
+  expect(messages).toContain("if(wasSubscribed)onChange();");
+  expect(messages).not.toMatch(/setInterval\s*\([^)]*(?:loadMessages|loadInbox)/s);
+  expect(messages).not.toContain("},5000)");
+});
+
+
+test("messages page keeps the newest messages at the bottom and guards sends", async () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const messages = fs.readFileSync(path.join(__dirname, "../messages.html"), "utf8");
+
+  expect(messages).toContain(".bubble-row{display:flex;flex:0 0 auto}");
+  expect(messages).toContain(".messages{display:flex;flex:1;min-height:0;flex-direction:column;");
+  expect(messages).toContain("overflow-anchor:none");
+  expect(messages).toContain('.order("created_at",{ascending:false}).order("id",{ascending:false}).limit(200)');
+  expect(messages).toContain("function scrollToNewestMessage(host)");
+  expect(messages).toContain("Date.parse(item.dataset.createdAt)");
+  expect(messages).toContain("messageRect.bottom-hostRect.bottom");
+  expect(messages).toContain("line.dataset.createdAt=row.created_at||\"\"");
+  expect(messages).toContain("requestAnimationFrame(()=>requestAnimationFrame(()=>scrollToNewestMessage(host)));");
+  expect(messages).toContain("return timeA-timeB||String(a.id||\"\").localeCompare(String(b.id||\"\")");
+  expect(messages).toContain('finally{button.disabled=false;input.focus();}');
+  expect(messages).toContain("attachment_path:path");
+});
+
+test("read receipt failures do not block rendering the conversation", async () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const messages = fs.readFileSync(path.join(__dirname, "../messages.html"), "utf8");
+  const renderAt = messages.indexOf('await renderMessages(rows)');
+  const receiptAt = messages.indexOf('client.from("direct_messages").update({read_at:new Date().toISOString()})');
+  expect(renderAt).toBeGreaterThan(-1);
+  expect(receiptAt).toBeGreaterThan(renderAt);
+  expect(messages).toContain('if(marked.error)console.warn("FLOUSTREAM read receipt update:",marked.error)');
+  expect(messages).toContain('catch(markError){console.warn("FLOUSTREAM read receipt update:",markError);}');
+});
+
+
+test("FLOUSTREAM shell cache preloads pages without caching private API data", async () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const worker = fs.readFileSync(path.join(__dirname, "../service-worker.js"), "utf8");
+  for (const page of ["portal.html", "profile.html", "public-profile.html", "messages.html", "friends.html", "home.html", "music.html"]) {
+    expect(worker).toContain("./" + page);
+  }
+  expect(worker).toContain('request.mode === "navigate"');
+  expect(worker).toContain('request.method !== "GET"');
+  expect(worker).toContain('response.type === "basic"');
+  expect(worker).toContain('self.skipWaiting()');
+  expect(worker).toContain('self.clients.claim()');
+  expect(worker).not.toContain("supabase.co");
+  for (const page of ["portal.html", "profile.html", "public-profile.html", "messages.html", "friends.html", "home.html", "music.html"]) {
+    const html = fs.readFileSync(path.join(__dirname, "../" + page), "utf8");
+    expect(html).toContain('navigator.serviceWorker.register');
+  }
+  expect(worker).toContain('const CACHE_NAME = "floustream-shell-v2"');
+});

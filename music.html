@@ -45,5 +45,12 @@ button.addEventListener("click", function () {
  status.textContent = "Отправлена команда запуска. Если музыка не началась, нажми Play в плеере.";
 });
 </script>
+<script>
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register(new URL("./service-worker.js", document.baseURI).href, {
+    scope: new URL("./", document.baseURI).pathname
+  }).catch(error => console.warn("FLOUSTREAM page cache unavailable:", error));
+}
+</script>
 </body>
 </html>
