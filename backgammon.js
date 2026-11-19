@@ -231,7 +231,18 @@ async function openMatch(matchId) {
 function makeDie(value, rolling = false) {
   const die = document.createElement("div");
   die.className = "die" + (rolling ? " rolling" : "");
+  die.setAttribute("role", "img");
   die.setAttribute("aria-label", `Кость ${value}`);
+  const finalTransforms = {
+    1: "rotateX(0deg) rotateY(0deg) rotateZ(0deg)",
+    2: "rotateX(0deg) rotateY(-90deg) rotateZ(0deg)",
+    3: "rotateX(-90deg) rotateY(0deg) rotateZ(0deg)",
+    4: "rotateX(90deg) rotateY(0deg) rotateZ(0deg)",
+    5: "rotateX(0deg) rotateY(90deg) rotateZ(0deg)",
+    6: "rotateX(0deg) rotateY(180deg) rotateZ(0deg)",
+  };
+  die.style.setProperty("--die-final-transform", finalTransforms[value] || finalTransforms[1]);
+
   const faces = {
     1: [4],
     2: [0, 8],
@@ -240,17 +251,30 @@ function makeDie(value, rolling = false) {
     5: [0, 2, 4, 6, 8],
     6: [0, 2, 3, 5, 6, 8],
   };
-  const pips = document.createElement("span");
-  pips.className = "die-pips";
-  for (let position = 0; position < 9; position += 1) {
-    const pip = document.createElement("span");
-    pip.className = "die-pip" + (faces[value]?.includes(position) ? " active" : "");
-    pips.append(pip);
-  }
-  die.append(pips);
+  const cube = document.createElement("span");
+  cube.className = "die-cube";
+  const faceOrder = [
+    { value: 1, side: "front" },
+    { value: 6, side: "back" },
+    { value: 2, side: "right" },
+    { value: 5, side: "left" },
+    { value: 3, side: "top" },
+    { value: 4, side: "bottom" },
+  ];
+  faceOrder.forEach(({ value: faceValue, side }) => {
+    const face = document.createElement("span");
+    face.className = `die-face ${side}`;
+    face.setAttribute("aria-hidden", "true");
+    for (let position = 0; position < 9; position += 1) {
+      const pip = document.createElement("span");
+      pip.className = "die-pip" + (faces[faceValue].includes(position) ? " active" : "");
+      face.append(pip);
+    }
+    cube.append(face);
+  });
+  die.append(cube);
   return die;
 }
-
 function renderDice(state) {
   const container = $("dice");
   container.replaceChildren();
