@@ -1,0 +1,14 @@
+.fs-dice-stage{display:flex;align-items:center;justify-content:center;gap:18px;min-height:88px;perspective:700px}
+.fs-die{position:relative;width:54px;height:54px;transform-style:preserve-3d;transition:transform .55s cubic-bezier(.2,.8,.2,1);filter:drop-shadow(0 7px 10px #0007)}
+.fs-die.is-rolling{animation:fs-dice-tumble .82s cubic-bezier(.2,.7,.2,1)}
+.fs-die-face{position:absolute;inset:0;display:grid;grid-template:repeat(3,1fr)/repeat(3,1fr);gap:3px;padding:7px;border:1px solid #d9e5ff;border-radius:10px;background:linear-gradient(145deg,#f8fbff,#c8d8f5);backface-visibility:hidden;box-shadow:inset 0 1px 2px #fff}
+.fs-die-face:nth-child(1){transform:translateZ(27px)}
+.fs-die-face:nth-child(2){transform:rotateY(180deg) translateZ(27px)}
+.fs-die-face:nth-child(3){transform:rotateY(90deg) translateZ(27px)}
+.fs-die-face:nth-child(4){transform:rotateY(-90deg) translateZ(27px)}
+.fs-die-face:nth-child(5){transform:rotateX(90deg) translateZ(27px)}
+.fs-die-face:nth-child(6){transform:rotateX(-90deg) translateZ(27px)}
+.fs-die-pip{align-self:center;justify-self:center;width:7px;height:7px;border-radius:50%;background:#24345d;box-shadow:0 1px 1px #fff8}
+.fs-die-pip.is-hidden{visibility:hidden}
+@keyframes fs-dice-tumble{0%{transform:rotateX(0) rotateY(0) translateY(0)}35%{transform:rotateX(260deg) rotateY(210deg) translateY(-16px)}70%{transform:rotateX(560deg) rotateY(430deg) translateY(-5px)}100%{transform:rotateX(720deg) rotateY(720deg) translateY(0)}}
+@media(prefers-reduced-motion:reduce){.fs-die,.fs-die.is-rolling{animation:none;transition:none}}
