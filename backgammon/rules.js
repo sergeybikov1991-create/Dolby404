@@ -14,9 +14,9 @@ const LONG_BACKGAMMON_RULES = Object.freeze({
     B: Object.freeze([0, 5])
   }),
   forbidOpposingOccupiedPoint: true,
-  // Kept disabled until the exact tournament-regulation interpretation
-  // of the full-blockade restriction is locked and covered by fixtures.
-  forbidFullBlockade: false
+  // Russian sport rules (Order No. 347, 30 Apr 2025), art. 20.5:
+  // a move may not temporarily lock all 15 opposing checkers behind a six-point block.
+  forbidFullBlockade: true
 });
 
 module.exports = { LONG_BACKGAMMON_RULES };
