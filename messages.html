@@ -61,6 +61,18 @@ let client,viewer,peerId,lastMessageId="",loading=false,inboxLoading=false,refre
 function loadLibrary(){return new Promise((resolve,reject)=>{if(window.supabase?.createClient){resolve();return;}const script=document.createElement("script");script.src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";script.onload=()=>window.supabase?.createClient?resolve():reject(new Error("Supabase не загрузился"));script.onerror=()=>reject(new Error("Не удалось загрузить библиотеку Supabase"));document.head.append(script);});}
 function safeUrl(value){if(!value)return "";try{const u=new URL(value,location.href);return ["http:","https:"].includes(u.protocol)?u.href:"";}catch(_){return "";}}
 function timeText(value){const d=new Date(value);return Number.isNaN(d.getTime())?"":d.toLocaleString("ru-RU",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});}
+function scrollToNewestMessage(host){
+ const items=[...host.querySelectorAll(".bubble-row[data-created-at]")];
+ if(!items.length)return;
+ const newest=items.reduce((latest,item)=>{
+  const time=Date.parse(item.dataset.createdAt)||0;
+  const latestTime=Date.parse(latest.dataset.createdAt)||0;
+  return time>latestTime||(time===latestTime&&item.dataset.messageId>latest.dataset.messageId)?item:latest;
+ });
+ const hostRect=host.getBoundingClientRect();
+ const messageRect=newest.getBoundingClientRect();
+ host.scrollTop+=messageRect.bottom-hostRect.bottom;
+}
 function showNotice(message,error=false){$("notice").textContent=message||"";$("notice").style.color=error?"#ffb4c0":"#c8a7e8";}
 async function renderMessages(rows){
  const signedUrls=new Map();
@@ -70,13 +82,13 @@ async function renderMessages(rows){
  const host=$("messages");host.replaceChildren();
  if(!rows.length){const empty=document.createElement("div");empty.className="empty";empty.textContent="Это начало вашей переписки. Отправь первое сообщение!";host.append(empty);return;}
  for(const row of rows){
-  const line=document.createElement("div");line.className="bubble-row"+(row.sender_id===viewer.id?" mine":"");
+  const line=document.createElement("div");line.className="bubble-row"+(row.sender_id===viewer.id?" mine":"");line.dataset.createdAt=row.created_at||"";line.dataset.messageId=String(row.id||"");
   const bubble=document.createElement("div");bubble.className="bubble";
   if(row.attachment_path){
    try{
     const url=signedUrls.get(row.id);if(!url)throw new Error("Вложение недоступно");
     const mime=(row.attachment_mime||"").toLowerCase();
-    if(mime.startsWith("image/")){const media=document.createElement("img");media.className="message-media-image";media.src=url;media.alt=row.attachment_name||"Изображение";media.loading="lazy";media.addEventListener("load",()=>{host.scrollTop=host.scrollHeight;},{once:true});bubble.append(media);}
+    if(mime.startsWith("image/")){const media=document.createElement("img");media.className="message-media-image";media.src=url;media.alt=row.attachment_name||"Изображение";media.loading="lazy";media.addEventListener("load",()=>scrollToNewestMessage(host),{once:true});bubble.append(media);}
     else if(mime.startsWith("video/")){const media=document.createElement("video");media.className="message-media-video";media.src=url;media.controls=true;media.playsInline=true;media.preload="metadata";bubble.append(media);}
     else if(mime.startsWith("audio/")){const media=document.createElement("audio");media.className="message-media-audio";media.src=url;media.controls=true;media.preload="metadata";bubble.append(media);}
     else{const link=document.createElement("a");link.className="message-file";link.href=url;link.target="_blank";link.rel="noopener";link.download=row.attachment_name||"";link.textContent="📄 "+(row.attachment_name||"Открыть файл");bubble.append(link);}
@@ -85,8 +97,8 @@ async function renderMessages(rows){
   if(row.content&&row.content!==row.attachment_name){const body=document.createElement("div");body.textContent=row.content;bubble.append(body);}
   const time=document.createElement("span");time.className="time";time.textContent=timeText(row.created_at);bubble.append(time);line.append(bubble);host.append(line);
  }
- host.scrollTop=host.scrollHeight;
- requestAnimationFrame(()=>{host.scrollTop=host.scrollHeight;});
+ scrollToNewestMessage(host);
+ requestAnimationFrame(()=>requestAnimationFrame(()=>scrollToNewestMessage(host)));
  lastMessageId=rows[rows.length-1]?.id||lastMessageId;
 }
 async function loadMessages(silent=false,forceRender=false){
@@ -95,7 +107,10 @@ async function loadMessages(silent=false,forceRender=false){
   const filter="and(sender_id.eq."+viewer.id+",recipient_id.eq."+peerId+"),and(sender_id.eq."+peerId+",recipient_id.eq."+viewer.id+")";
   const result=await client.from("direct_messages").select("id,sender_id,recipient_id,content,attachment_path,attachment_name,attachment_mime,created_at").or(filter).order("created_at",{ascending:false}).order("id",{ascending:false}).limit(200);
   if(result.error)throw result.error;
-  const rows=(result.data||[]).reverse();
+  const rows=(result.data||[]).sort((a,b)=>{
+   const timeA=Date.parse(a.created_at)||0,timeB=Date.parse(b.created_at)||0;
+   return timeA-timeB||String(a.id||"").localeCompare(String(b.id||""));
+  });
   const newest=rows[rows.length-1]?.id||"";
   // Render the conversation independently from read-receipt permissions/network state.
   if(!silent||forceRender||newest!==lastMessageId)await renderMessages(rows);
