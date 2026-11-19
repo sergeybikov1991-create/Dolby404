@@ -401,7 +401,16 @@ async function initializeSupabase() {
 
         supabaseClient = window.supabase.createClient(
             SUPABASE_URL,
-            SUPABASE_KEY
+            SUPABASE_KEY,
+            {
+                auth: {
+                    persistSession: true,
+                    autoRefreshToken: true,
+                    detectSessionInUrl: true,
+                    storage: window.localStorage,
+                    storageKey: "sb-qhpobdktlbhdqsnajypr-auth-token"
+                }
+            }
         );
 
         registerButton.disabled = false;
@@ -564,7 +573,18 @@ async function loginUser() {
             return;
         }
 
-        message.textContent = "Вход выполнен!";
+        // Не уходим со страницы, пока не убедились, что сессия
+        // доступна из постоянного хранилища этого браузера.
+        const saved = await supabaseClient.auth.getSession();
+        if (saved.error) throw saved.error;
+        if (!data.session || !saved.data?.session ||
+            !window.localStorage.getItem("sb-qhpobdktlbhdqsnajypr-auth-token")) {
+            throw new Error(
+                "Вход подтверждён, но браузер не сохранил сессию. Разреши этому сайту использование локального хранилища и повтори вход."
+            );
+        }
+
+        message.textContent = "Вход выполнен! Открываем профиль…";
 
         window.location.href = new URL(
             "profile.html",
