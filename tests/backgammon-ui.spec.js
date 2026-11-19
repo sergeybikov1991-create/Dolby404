@@ -9,6 +9,7 @@ test("long backgammon room redirects signed-out visitors to FLOUSTREAM auth", as
   await page.route("https://esm.sh/@supabase/supabase-js@2*", route => route.fulfill({
     status: 200,
     contentType: "application/javascript",
+    headers: { "Access-Control-Allow-Origin": "*" },
     body: `export function createClient(){return {auth:{getSession:async()=>({data:{session:null},error:null})}}}`,
   }));
   await page.goto("/backgammon.html");
