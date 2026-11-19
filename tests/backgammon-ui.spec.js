@@ -159,6 +159,81 @@ test("authenticated game room renders 24 points and server-confirmed 3D dice", a
 });
 
 
+test("opening the chat game switch automatically creates a match with that conversation partner", async ({ page }) => {
+  const viewerId = "00000000-0000-4000-8000-000000000011";
+  const peerId = "00000000-0000-4000-8000-000000000022";
+  const profile = { id: peerId, username: "chatfriend", display_name: "Chat Friend", account_status: "active" };
+  const match = {
+    id: "10000000-0000-4000-8000-000000000011",
+    player_a: viewerId,
+    player_b: peerId,
+    match_mode: "casual",
+    status: "waiting",
+    revision: 0,
+    turn_number: 0,
+    restart_request: null,
+    updated_at: new Date().toISOString(),
+    state: {
+      schemaVersion: 1,
+      matchId: "10000000-0000-4000-8000-000000000011",
+      players: { A: viewerId, B: peerId },
+      points: Array.from({ length: 24 }, (_, i) => i === 23 ? 15 : i === 11 ? -15 : 0),
+      borneOff: { A: 0, B: 0 },
+      turn: { player: "A", phase: "awaiting_roll", dice: [], remainingDice: [], movesApplied: [], headMovesApplied: 0, headMovesLimit: 1 },
+      opening: { firstPlayer: "A", secondPlayer: "B", secondPlayerFirstTurnPending: true },
+      winner: null
+    }
+  };
+  const stub = `
+    const viewerId = ${JSON.stringify(viewerId)};
+    const peerId = ${JSON.stringify(peerId)};
+    const profile = ${JSON.stringify(profile)};
+    const match = ${JSON.stringify(match)};
+    let created = false;
+    window.__createMatchCalls = [];
+    function query(table) {
+      const q = {
+        select(){ return this; }, or(){ return this; }, order(){ return this; }, limit(){ return this; },
+        eq(){ return this; },
+        in(){ return Promise.resolve({ data: table === "profiles" ? [profile] : [], error: null }); },
+        maybeSingle(){ return Promise.resolve({ data: table === "profiles" ? profile : match, error: null }); },
+        then(resolve, reject) {
+          const rows = table === "backgammon_matches" && created ? [match] : [];
+          return Promise.resolve({ data: rows, error: null }).then(resolve, reject);
+        }
+      };
+      return q;
+    }
+    export function createClient() {
+      return {
+        auth: { getSession: async () => ({ data: { session: { user: { id: viewerId, email: "viewer@floustream.local" } } }, error: null }) },
+        from: query,
+        functions: { invoke: async (_name, options) => {
+          window.__createMatchCalls.push(options.body);
+          created = true;
+          return { data: { match }, error: null };
+        } },
+        channel: () => ({ on(){ return this; }, subscribe(){ return this; } }),
+        removeChannel: async () => ({})
+      };
+    }
+  `;
+  await page.route("https://esm.sh/@supabase/supabase-js@2*", route => route.fulfill({
+    status: 200,
+    contentType: "application/javascript",
+    headers: { "Access-Control-Allow-Origin": "*" },
+    body: stub
+  }));
+  await page.goto("/backgammon.html?embed=1&opponent=" + peerId, { waitUntil: "domcontentloaded" });
+  await expect(page.locator("#board .point")).toHaveCount(24);
+  await expect(page.locator("#game-title")).toContainText("Chat Friend");
+  await expect(page.locator("#game-status")).toContainText("Приглашение отправлено");
+  await expect(page.locator(".shell > aside")).toBeHidden();
+  const call = await page.evaluate(() => window.__createMatchCalls[0]);
+  expect(call.action_type).toBe("create_match");
+  expect(call.opponent_id).toBe(peerId);
+});
+
 test("a direct conversation can switch into an embedded game and return without losing chat", () => {
   const messages = fs.readFileSync(path.join(root, "messages.html"), "utf8");
   const gamePage = fs.readFileSync(path.join(root, "backgammon.html"), "utf8");
