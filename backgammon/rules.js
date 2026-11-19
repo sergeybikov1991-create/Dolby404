@@ -10,8 +10,8 @@ const LONG_BACKGAMMON_RULES = Object.freeze({
     maxFromHead: 2
   }),
   home: Object.freeze({
-    A: Object.freeze([18, 23]),
-    B: Object.freeze([0, 5])
+    A: Object.freeze([0, 5]),
+    B: Object.freeze([12, 17])
   }),
   forbidOpposingOccupiedPoint: true,
   // Russian sport rules (Order No. 347, 30 Apr 2025), art. 20.5:
