@@ -34,7 +34,7 @@ jobs:
         run: npm install
 
       - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
 
       - name: Run backgammon engine unit tests
         run: npm run test:unit
