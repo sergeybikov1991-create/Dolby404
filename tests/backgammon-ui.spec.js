@@ -121,7 +121,7 @@ test("authenticated game room renders 24 points and server-confirmed 3D dice", a
       return {
         auth:{getSession:async()=>({data:{session:{user:{id:match.player_a,email:"test@floustream.local"}}},error:null})},
         from:query,
-        channel:()=>({on(){return this;},subscribe(){return this;}}),
+        channel:()=>({on(){return this;},subscribe(callback){window.__flouRealtimeStatus=callback;return this;}}),
         removeChannel:async()=>({}),
         functions:{invoke:async()=>({data:null,error:null})}
       };
@@ -137,4 +137,9 @@ test("authenticated game room renders 24 points and server-confirmed 3D dice", a
   await expect(page.locator("#board .point")).toHaveCount(24);
   await expect(page.locator("#dice .die-face")).toHaveCount(12);
   await expect(page.locator("#game-status")).toContainText("Твой ход");
+
+  await page.evaluate(() => window.__flouRealtimeStatus("CHANNEL_ERROR"));
+  await expect(page.locator("#game-notice")).toContainText("Соединение с соперником прервано");
+  await page.evaluate(async () => await window.__flouRealtimeStatus("SUBSCRIBED"));
+  await expect(page.locator("#game-notice")).toContainText("Связь восстановлена. Состояние партии обновлено.");
 });
