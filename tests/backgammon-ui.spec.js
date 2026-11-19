@@ -278,6 +278,17 @@ test("a direct conversation can switch into an embedded game and return without 
   expect(gamePage).toContain("body.embed .shell>aside{display:none}");
   expect(gamePage).toContain("body.embed .game-panel{display:flex");
   expect(gamePage).toContain("body.embed .board-wrap{display:flex;flex:1");
+  expect(gamePage).not.toContain('id="close-match"');
+  expect(gameScript).not.toContain('close-match');
   expect(gameScript).toContain('get("opponent")');
-  expect(gameScript).toContain('invitedProfile?.username');
+  expect(gameScript).toContain("const reusable = matches.find");
+  expect(gameScript).toContain("await createMatch(opponent)");
+  expect(gameScript).toContain('await invokeAction("accept_match")');
+});
+
+test("opening rolls advance the match-wide turn number after a mutual restart", () => {
+  const edge = fs.readFileSync(path.join(root, "supabase/functions/backgammon-action/index.ts"), "utf8");
+  const opening = edge.slice(edge.indexOf('case "opening_roll"'), edge.indexOf('case "roll"'));
+  expect(opening).toContain("nextTurnNumber = match.turn_number + 1;");
+  expect(opening).not.toContain("nextTurnNumber = 1;");
 });
