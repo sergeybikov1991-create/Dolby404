@@ -173,6 +173,21 @@ test("authenticated game room renders 24 points and server-confirmed 3D dice", a
   expect(submitted.payload.move.from).toBe(23);
   expect(submitted.payload.move.to).toBe(20);
   expect(submitted.payload.move.die).toBe(3);
+
+  // A second drag must still receive pointer movement and release after the
+  // first server response has re-rendered the board.
+  const secondDestination = page.locator('#board .point[data-index="18"]');
+  const secondBox = await secondDestination.boundingBox();
+  await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(secondBox.x + secondBox.width / 2, secondBox.y + secondBox.height / 2, { steps: 8 });
+  await page.mouse.up();
+  await expect.poll(() => page.evaluate(() => window.__flouActions?.length || 0)).toBe(2);
+  const secondSubmitted = await page.evaluate(() => window.__flouActions[1]);
+  expect(secondSubmitted.action_type).toBe("move");
+  expect(secondSubmitted.payload.move.from).toBe(23);
+  expect(secondSubmitted.payload.move.to).toBe(18);
+  expect(secondSubmitted.payload.move.die).toBe(5);
 });
 
 test("both players reveal the same server-confirmed opening dice from Realtime", async ({ browser }) => {
