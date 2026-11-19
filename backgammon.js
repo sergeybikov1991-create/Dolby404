@@ -10,12 +10,13 @@ const client = createClient(SUPABASE_URL, SUPABASE_KEY);
 let user = null;
 let matches = [];
 let currentMatch = null;
-let gameCollapsed = false;
 let selectedFrom = null;
 let realtimeChannel = null;
 let realtimeWasConnected = false;
 let legalMoves = [];
 let animateNextDice = false;
+let dragState = null;
+let suppressNextPointClick = false;
 
 function setNotice(id, message, error = false) {
   const element = $(id);
@@ -118,9 +119,16 @@ async function createMatch(opponent) {
     setNotice(noticeId, message, true);
     return;
   }
-  setNotice(noticeId, "Приглашение отправлено собеседнику.");
+  setNotice(noticeId, "Партия найдена. Подключаем игровое поле…");
   await loadMatches();
-  if (data?.match) openMatch(data.match.id);
+  if (data?.match) {
+    await openMatch(data.match.id);
+    // If both chat windows opened at once, the server may return the other
+    // player's waiting invitation to this account. Accept it in the same flow.
+    if (currentMatch?.status === "waiting" && sideFor(currentMatch) === "B") {
+      await invokeAction("accept_match");
+    }
+  }
 }
 
 async function loadMatches() {
@@ -297,6 +305,13 @@ function renderDice(state) {
   container.replaceChildren();
   const values = state?.turn?.dice || [];
   values.slice(0, 2).forEach(value => container.append(makeDie(value, animateNextDice)));
+  if (animateNextDice && values.length >= 2) {
+    const result = document.createElement("span");
+    result.className = "dice-result";
+    result.setAttribute("aria-live", "polite");
+    result.textContent = `${values[0]} + ${values[1]}`;
+    container.append(result);
+  }
   if (!values.length) {
     const label = document.createElement("span");
     label.className = "subtle";
@@ -343,6 +358,38 @@ function renderPoint(index, position, state) {
   if (selectedFrom !== null && legalMoves.some(move => move.from === selectedFrom && !move.bearOff && move.to === index)) {
     button.classList.add("legal-target");
   }
+  button.addEventListener("pointerdown", event => {
+    if (!currentMatch || currentMatch.status !== "active" || event.button !== 0) return;
+    const side = sideFor(currentMatch);
+    const turn = currentMatch.state.turn;
+    if (turn.phase !== "moving" || turn.player !== side) return;
+    const sign = side === "A" ? 1 : -1;
+    if (currentMatch.state.points[index] * sign <= 0 ||
+        !legalMoves.some(move => move.from === index)) return;
+    event.preventDefault();
+    const source = button.querySelector(".checker:last-child");
+    const rect = source?.getBoundingClientRect();
+    if (!rect) return;
+    const ghost = source.cloneNode(true);
+    ghost.classList.add("drag-ghost");
+    Object.assign(ghost.style, {
+      position: "fixed", left: `${rect.left}px`, top: `${rect.top}px`,
+      width: `${rect.width}px`, height: `${rect.height}px`,
+      margin: "0", zIndex: "2000", pointerEvents: "none",
+      filter: "drop-shadow(0 8px 12px #000b)", transform: "scale(1.12)"
+    });
+    document.body.append(ghost);
+    dragState = { from: index, pointerId: event.pointerId, startX: event.clientX,
+      startY: event.clientY, moved: false, ghost };
+    selectedFrom = index;
+    button.classList.add("selected");
+    for (const point of document.querySelectorAll(".point")) {
+      const targetIndex = Number(point.dataset.index);
+      point.classList.toggle("legal-target", legalMoves.some(move =>
+        move.from === index && !move.bearOff && move.to === targetIndex
+      ));
+    }
+  });
   button.addEventListener("click", () => handlePointClick(index));
   return button;
 }
@@ -359,6 +406,7 @@ function renderBoard(state) {
 }
 
 async function handlePointClick(index) {
+  if (suppressNextPointClick) { suppressNextPointClick = false; return; }
   if (!currentMatch || currentMatch.status !== "active") return;
   const state = currentMatch.state;
   const side = sideFor(currentMatch);
@@ -426,7 +474,17 @@ function renderControls(match) {
   const isMyTurn = state.turn?.player === side;
 
   if (match.status === "waiting") {
-    $("game-status").textContent = side === "A" ? "Приглашение отправлено. Ждём ответа соперника." : "Тебя пригласили сыграть. Прими партию в списке слева.";
+    if (side === "A") {
+      $("game-status").textContent = "Приглашение отправлено. Ждём ответа соперника.";
+    } else {
+      $("game-status").textContent = "Соперник приглашает тебя сыграть.";
+      if (new URLSearchParams(location.search).get("embed") === "1") {
+        addControl(container, "Принять игру", () => invokeAction("accept_match"));
+        addControl(container, "Отклонить", () => invokeAction("decline_match"), "danger");
+      } else {
+        $("game-status").textContent += " Прими партию в списке слева.";
+      }
+    }
     return;
   }
   if (match.status === "awaiting_opening_roll") {
@@ -551,16 +609,9 @@ function animateCheckerMove(transition) {
 
 function renderGame(previousState = null) {
   const hasMatch = !!currentMatch;
-  $("empty-game").classList.toggle("hidden", hasMatch && !gameCollapsed);
-  $("game").classList.toggle("hidden", !hasMatch || gameCollapsed);
-  $("close-match").hidden = !hasMatch;
-  $("close-match").textContent = gameCollapsed ? "Развернуть" : "Свернуть";
-  if (gameCollapsed) {
-    $("empty-game").textContent = "Игра свёрнута только в этом окне. Нажми «Развернуть», чтобы вернуться к доске.";
-  } else if (!hasMatch) {
-    $("empty-game").innerHTML = "Создай партию или открой приглашение соперника.<br>Поле появится после выбора партии.";
-  }
-  if (!hasMatch || gameCollapsed) return;
+  $("empty-game").classList.toggle("hidden", hasMatch);
+  $("game").classList.toggle("hidden", !hasMatch);
+  if (!hasMatch) return;
   const state = currentMatch.state;
   const checkerTransition = captureCheckerMove(previousState, state);
   $("game-title").textContent = `Партия с ${matchLabel(currentMatch)}`;
@@ -582,8 +633,10 @@ async function startRealtime() {
     const row = payload.new;
     if (row?.id === currentMatch?.id) {
       const previousState = currentMatch.state;
-      animateNextDice = previousState?.turn?.phase === "awaiting_roll" &&
-        row.state?.turn?.phase === "moving";
+      animateNextDice = (
+        (previousState?.turn?.phase === "awaiting_roll" && row.state?.turn?.phase === "moving") ||
+        (currentMatch.status === "awaiting_opening_roll" && row.status === "active")
+      );
       currentMatch = row;
       await hydrateOpponentNames([currentMatch]);
       selectedFrom = null;
@@ -641,9 +694,47 @@ $("invite-form").addEventListener("submit", async (event) => {
   await createMatch(opponent);
 });
 
-$("close-match").addEventListener("click", () => {
-  if (!currentMatch) return;
-  gameCollapsed = !gameCollapsed;
+function finishCheckerDrag(event) {
+  if (!dragState || event.pointerId !== dragState.pointerId) return;
+  const drag = dragState;
+  dragState = null;
+  drag.ghost.remove();
+  if (!drag.moved) {
+    selectedFrom = drag.from;
+    renderGame();
+    return;
+  }
+  suppressNextPointClick = true;
+  setTimeout(() => { suppressNextPointClick = false; }, 0);
+  const target = document.elementFromPoint(event.clientX, event.clientY)?.closest?.(".point");
+  const to = target ? Number(target.dataset.index) : -1;
+  const candidate = legalMoves.find(move =>
+    move.from === drag.from && !move.bearOff && move.to === to
+  );
+  if (candidate) {
+    selectedFrom = null;
+    invokeAction("move", { move: candidate });
+  } else {
+    selectedFrom = drag.from;
+    renderGame();
+    setNotice("game-notice", "Перетащи шашку на подсвеченный разрешённый пункт.", true);
+  }
+}
+document.addEventListener("pointermove", event => {
+  if (!dragState || event.pointerId !== dragState.pointerId) return;
+  const dx = event.clientX - dragState.startX;
+  const dy = event.clientY - dragState.startY;
+  if (!dragState.moved && Math.hypot(dx, dy) > 5) dragState.moved = true;
+  if (dragState.moved) {
+    dragState.ghost.style.left = `${event.clientX - dragState.ghost.offsetWidth / 2}px`;
+    dragState.ghost.style.top = `${event.clientY - dragState.ghost.offsetHeight / 2}px`;
+  }
+}, { passive: true });
+document.addEventListener("pointerup", finishCheckerDrag);
+document.addEventListener("pointercancel", event => {
+  if (!dragState || event.pointerId !== dragState.pointerId) return;
+  dragState.ghost.remove();
+  dragState = null;
   renderGame();
 });
 

@@ -144,6 +144,21 @@ Deno.serve(async (req: Request) => {
         return json({ error: "Opponent is unavailable" }, 404);
       }
 
+      // Reuse an unfinished match between these two accounts. A partial
+      // unique index below makes the lookup safe even if both chat windows
+      // create a match at nearly the same time.
+      const findOpenMatch = () => admin
+        .from("backgammon_matches")
+        .select("*")
+        .in("status", ["waiting", "awaiting_opening_roll", "active"])
+        .or(`and(player_a.eq.${actorId},player_b.eq.${opponentId}),and(player_a.eq.${opponentId},player_b.eq.${actorId})`)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const { data: openMatch, error: openMatchError } = await findOpenMatch();
+      if (openMatchError) throw openMatchError;
+      if (openMatch) return json({ match: openMatch });
+
       const initialState = engine.createInitialState({
         matchId: requestedMatchId,
         players: { A: actorId, B: opponentId },
@@ -177,6 +192,9 @@ Deno.serve(async (req: Request) => {
           existing.player_b === opponentId && existing.match_mode === matchMode) {
         return json({ match: existing });
       }
+      const { data: racedOpenMatch, error: racedOpenMatchError } = await findOpenMatch();
+      if (racedOpenMatchError) throw racedOpenMatchError;
+      if (racedOpenMatch) return json({ match: racedOpenMatch });
       return json({ error: "Could not create match" }, 409);
     }
 
@@ -277,7 +295,8 @@ Deno.serve(async (req: Request) => {
         }, rules);
         nextState = engine.startTurn(nextState, opening.dice, rules);
         nextStatus = "active";
-        nextTurnNumber = 1;
+        // Keep the match-wide turn sequence monotonic after mutual restart.
+        nextTurnNumber = match.turn_number + 1;
         break;
       }
 

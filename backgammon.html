@@ -52,6 +52,7 @@ h2{font-size:16px;margin:0 0 14px}
 .die-face.bottom{transform:rotateX(-90deg) translateZ(21.5px)}
 .die-pip{border-radius:50%;background:transparent}
 .die-pip.active{background:radial-gradient(circle at 35% 30%,#51445e,#241d31 72%);box-shadow:inset 0 1px 2px #0008}
+.dice-result{display:inline-flex;align-items:center;gap:5px;margin-left:8px;padding:7px 12px;border:1px solid #9d78d0;border-radius:999px;background:linear-gradient(120deg,#392455,#172f38);color:#fff;font-weight:900;letter-spacing:2px;text-shadow:0 0 12px #b88aff;box-shadow:0 0 22px #9d78d055;animation:dice-result-pop .9s cubic-bezier(.16,.84,.28,1) both}@keyframes dice-result-pop{0%{opacity:0;transform:translateY(18px) scale(.35);filter:blur(5px)}55%{opacity:1;transform:translateY(-5px) scale(1.16);filter:blur(0)}78%{transform:translateY(2px) scale(.96)}100%{opacity:1;transform:translateY(0) scale(1)}}
 @keyframes cube-roll{
   0%{transform:translateY(-3px) rotateX(0) rotateY(0) rotateZ(0) scale(.88)}
   14%{transform:translateY(-17px) rotateX(var(--roll-x-1)) rotateY(var(--roll-y-1)) rotateZ(var(--roll-z-1)) scale(1.09)}
@@ -99,7 +100,7 @@ h2{font-size:16px;margin:0 0 14px}
 @media(max-width:850px){.shell{grid-template-columns:1fr}.board{min-height:390px}.topbar{padding:0 14px}}
 @media(max-width:520px){.shell{margin:14px auto;padding:0 9px;gap:12px}.panel{padding:13px;border-radius:15px}.logo{font-size:18px}.top-actions{font-size:11px}.top-actions .ghost{padding:8px}.board-wrap{padding:5px}.board{min-height:310px;gap:5px}.board-row{gap:2px}.point{border-radius:3px}.checker{width:min(90%,19px);border-width:1px}.point-number{font-size:7px}.checker-count{font-size:10px}.game-head{display:block}.game-head .subtle{margin-top:6px}.invite-form{flex-direction:column}.invite-form button{width:100%}}
 @media(prefers-reduced-motion:reduce){.die.rolling .die-cube,.die.rolling::after{animation:none}}
-body.embed .topbar{display:none}body.embed .shell{grid-template-columns:minmax(0,1fr);max-width:none;margin:0;padding:8px}body.embed .shell>aside{display:none}body.embed .panel{padding:12px;border-radius:12px}body.embed .game-head{margin-bottom:8px}body.embed .board{min-height:360px}@media(max-width:520px){body.embed .shell{padding:4px}body.embed .board{min-height:300px}}
+body.embed{height:100dvh;min-height:0;overflow:hidden}body.embed .topbar{display:none}body.embed .shell{display:flex;flex-direction:column;max-width:none;width:100%;height:100dvh;min-height:0;margin:0;padding:0;gap:0}body.embed .shell>aside{display:none}body.embed .game-panel{display:flex;flex:1;flex-direction:column;min-height:0;height:100%;padding:8px;border:0;border-radius:0;overflow:hidden}body.embed .game-head{flex:0 0 auto;margin-bottom:5px}body.embed #game{display:flex;flex:1;flex-direction:column;min-height:0;overflow:hidden}body.embed #game.hidden{display:none}body.embed .dice{flex:0 0 auto;min-height:44px}body.embed .game-controls{flex:0 0 auto;margin:5px 0}body.embed .restart-box{flex:0 0 auto;margin:5px 0}body.embed .board-wrap{display:flex;flex:1;min-height:0;padding:5px;overflow:hidden}body.embed .board{flex:1;width:100%;height:100%;min-height:0;grid-template-rows:1fr 1fr;gap:4px}body.embed .board-row{min-height:0;gap:3px}body.embed .point{touch-action:none}body.embed .off-row{flex:0 0 auto;margin-top:5px}body.embed .game-notice{flex:0 0 auto}@media(max-width:520px){body.embed .game-panel{padding:4px}body.embed .board-wrap{padding:3px}body.embed .board{gap:2px}body.embed .board-row{gap:1px}body.embed .checker{width:min(90%,22px)}body.embed .point-number{font-size:7px}}
 </style>
 </head>
 <body>
@@ -124,7 +125,6 @@ body.embed .topbar{display:none}body.embed .shell{grid-template-columns:minmax(0
   <section class="panel game-panel">
     <div class="game-head">
       <div><h2 id="game-title">Выбери партию</h2><p class="subtle" id="game-status">Здесь появится игровое поле и ход партии.</p></div>
-      <button class="ghost" id="close-match" type="button" hidden>Свернуть</button>
     </div>
     <div id="empty-game" class="empty-board">Создай партию или открой приглашение соперника.<br>Поле появится после выбора партии.</div>
     <div id="game" class="hidden">

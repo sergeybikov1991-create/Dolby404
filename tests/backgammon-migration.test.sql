@@ -19,6 +19,42 @@ INSERT INTO public.backgammon_matches (
    '00000000-0000-4000-8000-000000000004',
    'casual', 'waiting', '{"schemaVersion":1,"turn":{"phase":"awaiting_roll"}}', 0, 0);
 
+DO $duplicate_open_match$
+BEGIN
+  BEGIN
+    INSERT INTO public.backgammon_matches (
+      id, player_a, player_b, match_mode, status, state, turn_number, revision
+    ) VALUES (
+      '10000000-0000-4000-8000-000000000003',
+      '00000000-0000-4000-8000-000000000002',
+      '00000000-0000-4000-8000-000000000001',
+      'casual', 'active', '{"schemaVersion":1,"turn":{"phase":"awaiting_roll"}}', 0, 0
+    );
+    RAISE EXCEPTION 'duplicate open match for the same pair unexpectedly inserted';
+  EXCEPTION WHEN unique_violation THEN
+    NULL;
+  END;
+END;
+$duplicate_open_match$;
+
+DO $duplicate_open_match$
+BEGIN
+  BEGIN
+    INSERT INTO public.backgammon_matches (
+      id, player_a, player_b, match_mode, status, state, turn_number, revision
+    ) VALUES (
+      '10000000-0000-4000-8000-000000000003',
+      '00000000-0000-4000-8000-000000000002',
+      '00000000-0000-4000-8000-000000000001',
+      'casual', 'active', '{"schemaVersion":1,"turn":{"phase":"awaiting_roll"}}', 0, 0
+    );
+    RAISE EXCEPTION 'duplicate open match for the same pair unexpectedly inserted';
+  EXCEPTION WHEN unique_violation THEN
+    NULL;
+  END;
+END;
+$duplicate_open_match$;
+
 DO $$
 DECLARE
   first_result jsonb;
