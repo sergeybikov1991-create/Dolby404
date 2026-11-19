@@ -2,9 +2,9 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const engine = require("../../../backgammon/engine.js");
-const rules = require("../../../backgammon/rules.js").LONG_BACKGAMMON_RULES;
-const dice = require("../../../backgammon/dice.js");
+const engine = require("../_shared/engine.cjs");
+const rules = require("../_shared/rules.cjs").LONG_BACKGAMMON_RULES;
+const dice = require("../_shared/dice.cjs");
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
