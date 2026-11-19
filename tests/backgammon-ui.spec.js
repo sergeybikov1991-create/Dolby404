@@ -418,7 +418,7 @@ test("compact backgammon table uses a thin vertical center divider without a hor
   expect(html).toContain(".board-row::after{");
   expect(html).toContain("left:50%;");
   expect(html).toContain("width:4px;");
-  expect(html).toMatch(/\\.board\\s*\\{[^}]*gap:0;/s);
+  expect(html).toMatch(/\.board\s*\{[^}]*gap:0;/s);
   expect(html).not.toContain(".board::before{");
 });
 
