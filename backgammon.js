@@ -236,8 +236,8 @@ function makeDie(value, rolling = false) {
   const finalTransforms = {
     1: "rotateX(0deg) rotateY(0deg) rotateZ(0deg)",
     2: "rotateX(0deg) rotateY(-90deg) rotateZ(0deg)",
-    3: "rotateX(-90deg) rotateY(0deg) rotateZ(0deg)",
-    4: "rotateX(90deg) rotateY(0deg) rotateZ(0deg)",
+    3: "rotateX(90deg) rotateY(0deg) rotateZ(0deg)",
+    4: "rotateX(-90deg) rotateY(0deg) rotateZ(0deg)",
     5: "rotateX(0deg) rotateY(90deg) rotateZ(0deg)",
     6: "rotateX(0deg) rotateY(180deg) rotateZ(0deg)",
   };
