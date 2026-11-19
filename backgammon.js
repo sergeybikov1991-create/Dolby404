@@ -851,6 +851,10 @@ window.addEventListener("pointermove", event => {
   if (dragState.moved) {
     dragState.ghost.style.left = `${event.clientX - dragState.ghost.offsetWidth / 2}px`;
     dragState.ghost.style.top = `${event.clientY - dragState.ghost.offsetHeight / 2}px`;
+    const hoveredZone = document.elementFromPoint(event.clientX, event.clientY)?.closest?.(".off-zone");
+    for (const zone of document.querySelectorAll(".off-zone")) {
+      zone.classList.toggle("drop-hover", zone === hoveredZone && zone.classList.contains("legal-target"));
+    }
   }
 }, { passive: true, capture: true });
 window.addEventListener("pointerup", finishCheckerDrag, true);
