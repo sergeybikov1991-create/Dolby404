@@ -468,3 +468,49 @@ body.embed .point.bottom::before{
 <script type="module" src="backgammon.js"></script>
 </body>
 </html>
+
+ 
+/* FLOUSTREAM: single source of truth for embedded board sizing */
+body.embed .game-panel{
+  box-sizing:border-box;
+  width:100%;
+  min-width:0;
+  min-height:0;
+}
+body.embed #game{
+  box-sizing:border-box;
+  flex:1 1 0;
+  width:100%;
+  min-width:0;
+  min-height:0;
+  overflow:hidden;
+}
+body.embed .board-wrap{
+  box-sizing:border-box;
+  display:flex;
+  flex:1 1 0;
+  width:100%;
+  min-width:0;
+  min-height:0;
+  overflow:hidden;
+}
+body.embed .board{
+  box-sizing:border-box;
+  display:grid;
+  flex:1 1 0;
+  width:100%;
+  max-width:100%;
+  height:100%;
+  min-width:0;
+  min-height:0;
+  align-self:stretch;
+  grid-template-rows:repeat(2,minmax(0,1fr));
+  overflow:hidden;
+}
+body.embed .board-row{
+  box-sizing:border-box;
+  width:100%;
+  min-width:0;
+  min-height:0;
+  grid-template-columns:repeat(12,minmax(0,1fr));
+}
