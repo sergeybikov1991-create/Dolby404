@@ -111,6 +111,11 @@ jobs:
           PGPASSWORD: postgres
         run: psql -h 127.0.0.1 -U postgres -d floustream_test -v ON_ERROR_STOP=1 -f supabase/migrations/20261119030000_backgammon_match_actions.sql
 
+      - name: Apply open-match uniqueness migration
+        env:
+          PGPASSWORD: postgres
+        run: psql -h 127.0.0.1 -U postgres -d floustream_test -v ON_ERROR_STOP=1 -f supabase/migrations/20261119130000_backgammon_one_open_match_per_pair.sql
+
       - name: Verify idempotency, turn serialization and participant RLS
         env:
           PGPASSWORD: postgres
