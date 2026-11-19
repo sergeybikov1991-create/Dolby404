@@ -379,8 +379,12 @@ test("player B sees their own starting stack in the upper-right corner", async (
   // player A's stack (point 23) is mirrored to the bottom-left.
   const ownStack = page.locator('#board-top .point[data-index="11"]');
   const opponentStack = page.locator('#board-bottom .point[data-index="23"]');
-  await expect(ownStack.locator(".checker")).toHaveCount(15);
-  await expect(opponentStack.locator(".checker")).toHaveCount(15);
+  // The UI intentionally renders at most five checker discs and shows the
+  // exact stack size in the count badge for larger stacks.
+  await expect(ownStack.locator(".checker")).toHaveCount(5);
+  await expect(ownStack.locator(".checker-count")).toHaveText("15");
+  await expect(opponentStack.locator(".checker")).toHaveCount(5);
+  await expect(opponentStack.locator(".checker-count")).toHaveText("15");
   await ownStack.click();
   await expect(ownStack.locator(".selected-checker")).toHaveCount(1);
   await expect(page.locator("#board .selected-checker")).toHaveCount(1);
