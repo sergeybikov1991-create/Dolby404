@@ -43,7 +43,7 @@ h2{font-size:16px;margin:0 0 14px}
 .die.rolling::after{animation:die-shadow .82s cubic-bezier(.2,.78,.2,1) both}
 .die-cube{position:absolute;inset:0;transform-style:preserve-3d;transform:var(--die-final-transform);will-change:transform}
 .die.rolling .die-cube{animation:cube-roll .82s cubic-bezier(.2,.78,.2,1) both}
-.die-face{position:absolute;inset:0;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);padding:6px;gap:1px;border:1px solid #c9c0d4;border-radius:9px;background:linear-gradient(145deg,#fff,#d8d0e5);box-shadow:inset 0 1px 2px #fff,0 3px 8px #0007;backface-visibility:hidden}
+.die-face{position:absolute;inset:0;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);padding:6px;gap:1px;border:1px solid #c9c0d4;border-radius:12px;background:linear-gradient(145deg,#fff,#d8d0e5);box-shadow:inset 0 1px 2px #fff,0 3px 8px #0007;backface-visibility:hidden}
 .die-face.front{transform:translateZ(21.5px)}
 .die-face.back{transform:rotateY(180deg) translateZ(21.5px)}
 .die-face.right{transform:rotateY(90deg) translateZ(21.5px)}
@@ -86,9 +86,9 @@ body{background:radial-gradient(ellipse at 50% 0%,#39291f 0,transparent 48%),#10
   min-height:0;
   padding:8px;
   overflow:hidden;
-  border:3px solid #c49a60;
-  border-radius:17px;
-  background:linear-gradient(135deg,#9a7044 0%,#4a2e1e 16%,#211613 48%,#68452c 82%,#b58a54 100%);
+  border:2px solid #b78b5b;
+  border-radius:20px;
+  background:linear-gradient(145deg,#795034 0%,#38251f 24%,#21191b 52%,#69452f 100%);
   box-shadow:inset 0 2px 3px #fff6,inset 0 -7px 12px #100907,0 14px 30px #000b,0 0 0 1px #3b281b;
 }
 .board{
@@ -103,9 +103,9 @@ body{background:radial-gradient(ellipse at 50% 0%,#39291f 0,transparent 48%),#10
   padding:7px;
   gap:4px;
   overflow:hidden;
-  border:2px solid #d0a66b;
+  border:1px solid #c49a6b;
   border-radius:9px;
-  background:linear-gradient(90deg,#291a14,#69452c 9%,#3c261b 50%,#69452c 91%,#291a14);
+  background:linear-gradient(90deg,#36231e,#65432f 48%,#36231e);
   box-shadow:inset 0 3px 8px #100905,inset 0 -2px 4px #f4d5a055,0 2px 5px #0009;
 }
 .board::before{
@@ -148,7 +148,7 @@ body{background:radial-gradient(ellipse at 50% 0%,#39291f 0,transparent 48%),#10
   touch-action:none;
   border:1px solid #d5b17b55;
   border-radius:3px;
-  background:linear-gradient(145deg,#7a5133,#3b2418 75%);
+  background:linear-gradient(180deg,#b98b61,#815638);
   box-shadow:inset 1px 0 4px #f6d8a033,inset -2px 0 5px #10080599,0 2px 3px #0008;
 }
 .point.bottom{justify-content:flex-end}
@@ -160,22 +160,22 @@ body{background:radial-gradient(ellipse at 50% 0%,#39291f 0,transparent 48%),#10
   left:4%;
   right:4%;
   height:100%;
-  background:linear-gradient(135deg,#f0d4a0 0%,#c18d50 58%,#80502b 100%);
+  background:linear-gradient(180deg,#392b34,#4e3440);
   filter:drop-shadow(2px 3px 2px #100805aa);
   clip-path:polygon(0 0,100% 0,50% 100%);
   pointer-events:none;
 }
-.point:nth-child(even)::before{
-  background:linear-gradient(135deg,#6d2927 0%,#481b1b 58%,#281211 100%);
+.point:nth-child(odd)::before{
+  background:linear-gradient(180deg,#d7b07b,#8b6145);
 }
 .point.bottom::before{
   top:auto;
   bottom:0;
-  background:linear-gradient(35deg,#f0d4a0 0%,#c18d50 58%,#80502b 100%);
+  background:linear-gradient(0deg,#392b34,#4e3440);
   clip-path:polygon(0 100%,100% 100%,50% 0);
 }
-.point.bottom:nth-child(even)::before{
-  background:linear-gradient(35deg,#6d2927 0%,#481b1b 58%,#281211 100%);
+.point.bottom:nth-child(odd)::before{
+  background:linear-gradient(0deg,#d7b07b,#8b6145);
 }
 .point-number{
   position:absolute;
@@ -205,16 +205,16 @@ body{background:radial-gradient(ellipse at 50% 0%,#39291f 0,transparent 48%),#10
 .point.bottom .stack{flex-direction:column-reverse}
 .checker{
   flex:0 0 auto;
-  width:min(92%,30px);
+  width:min(78%,25px);
   aspect-ratio:1;
   border:2px solid #f3dfb8;
   border-radius:50%;
-  background:radial-gradient(circle at 30% 22%,#fffdf0 0%,#e8d7b4 28%,#b79a6c 72%,#695033 100%);
+  background:radial-gradient(circle at 35% 25%,#f5dcff,#9858dd 65%,#52258d);
   box-shadow:0 4px 5px #000c,inset 0 2px 3px #fff,inset 0 -3px 4px #695033aa,0 0 0 1px #6e512d;
 }
 .checker.b{
-  border-color:#e6c58e;
-  background:radial-gradient(circle at 30% 22%,#b97859 0%,#71372c 30%,#3d1918 72%,#1c0d0c 100%);
+  border-color:#d7fff8;
+  background:radial-gradient(circle at 35% 25%,#e5fff9,#54cbb7 65%,#166d69);
   box-shadow:0 4px 5px #000c,inset 0 2px 3px #f2c49a88,inset 0 -3px 4px #160807,0 0 0 1px #c49a60;
 }
 .checker.selected-checker{
