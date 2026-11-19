@@ -153,25 +153,27 @@ test("finishTurn refuses to skip available mandatory dice", () => {
 
 test("cannot create a six-point block that traps all 15 opposing checkers", () => {
   const points = Array(24).fill(0);
-  points[1] = 9;
-  points[9] = 1;
-  for (let point = 10; point <= 14; point += 1) points[point] = 1;
+  points[2] = 9;
+  points[4] = 1;
+  for (let point = 5; point <= 9; point += 1) points[point] = 1;
   points[23] = -15;
 
+  // The second die could move the checker from 10 to 11 and break the block,
+  // but the temporary six-point lock is illegal as soon as the first die lands.
   const moving = engine.startTurn(stateWith(points), [6, 1], rules);
   const moves = engine.getLegalMoves(moving, moving.turn.remainingDice, rules);
-  assert.ok(!moves.some(move => move.from === 9 && move.to === 15 && move.die === 6));
+  assert.ok(!moves.some(move => move.from === 4 && move.to === 10 && move.die === 6));
 });
 
 test("six-point block is allowed when even one opposing checker has passed it", () => {
   const points = Array(24).fill(0);
-  points[1] = 9;
-  points[9] = 1;
-  for (let point = 10; point <= 14; point += 1) points[point] = 1;
+  points[2] = 9;
+  points[4] = 1;
+  for (let point = 5; point <= 9; point += 1) points[point] = 1;
   points[23] = -14;
   points[0] = -1;
 
   const moving = engine.startTurn(stateWith(points), [6, 1], rules);
   const moves = engine.getLegalMoves(moving, moving.turn.remainingDice, rules);
-  assert.ok(moves.some(move => move.from === 9 && move.to === 15 && move.die === 6));
+  assert.ok(moves.some(move => move.from === 4 && move.to === 10 && move.die === 6));
 });
