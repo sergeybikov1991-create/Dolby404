@@ -317,3 +317,10 @@ The `backgammon-action` Edge Function is ACTIVE, version 4, with JWT verificatio
 The game-room UI now shows a six-face 3D die with the correct final face orientation, animates server-confirmed rolls and checker movement, and asks for confirmation before a restart. Mutual restart is available in casual matches both during a game and after it finishes; tournament matches do not allow restart. A root `.nojekyll` file ensures GitHub Pages serves the shared ESM modules under `supabase/functions/_shared`.
 
 Latest GitHub Actions run `#195` is green: 25 Node unit tests, all 12 Chromium smoke/game-room tests, Deno type-checking, browser-module syntax check, and migration/idempotency/RLS checks against disposable PostgreSQL 16. No paid Supabase branch or paid test server was created.
+
+
+## Chat entry and embedded game view — 19 Nov 2026
+
+The direct conversation now has a **«Играть»** switch. It opens the existing long-backgammon room inside the conversation as an embedded view; **«Вернуться в чат»** restores the same message list and composer without navigating away. The current chat partner's profile ID is passed to the embedded room and resolved to a username for the invitation field. The player still explicitly sends the invitation; opening the game view does not create a match or change chat data.
+
+The embedded room keeps the invitation form and match list visible, hides only its duplicate top bar, and uses a single-column mobile-friendly layout. Existing chat attachment, message rendering, and realtime code paths were not changed in this integration. Browser assertions cover the toggle, iframe route, partner prefill, and embedded layout. The new assertions and the dice landing-shadow change are awaiting the next GitHub Actions run; do not treat them as CI-verified until that run is green.
