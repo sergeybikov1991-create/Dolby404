@@ -165,11 +165,32 @@ begin
   if not found then
     raise exception 'match not found' using errcode = 'P0002';
   end if;
+
+  -- Recheck after acquiring the row lock: simultaneous retries with the same
+  -- action UUID must receive the first committed response, not a PK violation.
+  select a.actor_id, a.request_hash, a.response
+    into v_existing_actor, v_existing_hash, v_existing_response
+  from private.backgammon_actions a
+  where a.match_id = p_match_id and a.action_id = p_action_id;
+
+  if found then
+    if v_existing_actor <> p_actor_id then
+      raise exception 'action_id belongs to another actor' using errcode = '42501';
+    end if;
+    if v_existing_hash <> p_request_hash then
+      raise exception 'action_id reused with different request' using errcode = '22023';
+    end if;
+    return v_existing_response;
+  end if;
+
   if p_actor_id <> v_match.player_a and p_actor_id <> v_match.player_b then
     raise exception 'actor is not a match participant' using errcode = '42501';
   end if;
   if v_match.revision <> p_expected_revision then
     raise exception 'revision conflict' using errcode = '40001';
+  end if;
+  if v_match.turn_number <> p_turn_number then
+    raise exception 'turn number conflict' using errcode = '40001';
   end if;
 
   v_response := jsonb_build_object(
