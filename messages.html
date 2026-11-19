@@ -11,12 +11,9 @@
 :root{color-scheme:dark;--bg:#090910;--panel:#15121f;--line:#382b4b;--purple:#a66bff;--muted:#aaa0ba;--text:#f5f0ff}
 *{box-sizing:border-box}
 body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 18% 0%,#281342 0,transparent 38%),var(--bg);color:var(--text);font-family:Arial,sans-serif}
-.topbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;padding:12px max(calc((100% - 760px)/2),16px);border-bottom:1px solid var(--line);background:#0b0a12ed;backdrop-filter:blur(12px)}
-.back{width:40px;height:40px;display:grid;place-items:center;border:1px solid #65458a;border-radius:12px;background:#21172f;color:#eee2ff;text-decoration:none;font-size:22px}
-.brand{font-size:18px;font-weight:900;letter-spacing:3px;color:#e9d8ff;text-shadow:0 0 18px #7b4bff}
-.wrap{width:min(760px,100%);height:calc(100dvh - 65px);min-height:420px;margin:0 auto;padding:16px;display:flex;flex-direction:column}
+.wrap{width:min(760px,100%);height:100dvh;min-height:420px;margin:0 auto;padding:16px;display:flex;flex-direction:column}
 .chat{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;border:1px solid #49345f;border-radius:20px;background:linear-gradient(145deg,#171321,#0e0d16);box-shadow:0 12px 45px #0007}
-.chat-head{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid #382b4b;background:#171321}
+.chat-head{flex:0 0 auto;display:flex;align-items:center;gap:12px;padding:14px 16px;margin-bottom:10px;border:1px solid #49345f;border-radius:16px;background:linear-gradient(145deg,#171321,#0e0d16);box-shadow:0 8px 28px #0005}
 .avatar{width:44px;height:44px;flex:0 0 44px;display:grid;place-items:center;overflow:hidden;border:2px solid #b879e8;border-radius:50%;background:#352044;color:#fff;font-weight:800;box-shadow:0 0 12px #a66bff55}
 .avatar img{width:100%;height:100%;object-fit:cover}
 .person{min-width:0;flex:1}.person-name{font-size:15px;font-weight:800;overflow-wrap:anywhere}.person-handle{margin-top:4px;color:#c59aff;font-size:12px}
@@ -32,18 +29,17 @@ body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 18% 0%,#281
 .send{width:46px;height:44px;flex:0 0 46px;border:1px solid #9a69c7;border-radius:13px;background:linear-gradient(135deg,#7139c9,#48216f);color:#fff;font-size:21px;font-weight:800;cursor:pointer}
 .send:disabled{opacity:.5;cursor:default}
 .notice{min-height:19px;padding:0 14px 8px;color:#c8a7e8;font-size:11px}
-.inbox-list{display:flex;flex-direction:column;gap:9px;padding:12px;overflow:auto}.inbox-item{display:flex;align-items:center;gap:12px;width:100%;min-height:72px;padding:11px;border:1px solid #392b4b;border-radius:14px;background:linear-gradient(120deg,#21182d,#14111d);color:var(--text);text-align:left;text-decoration:none;cursor:pointer}.inbox-item:active{border-color:#a66bff;background:#2a1c3a}.inbox-avatar{width:48px;height:48px;flex:0 0 48px;display:grid;place-items:center;overflow:hidden;border:1px solid #9a69c7;border-radius:50%;background:#352044;font-weight:800}.inbox-avatar img{width:100%;height:100%;object-fit:cover}.inbox-copy{display:grid;gap:5px;min-width:0;flex:1}.inbox-name{font-size:14px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.inbox-preview{font-size:12px;color:#b9adc8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.inbox-meta{display:grid;justify-items:end;gap:7px;align-self:stretch}.inbox-time{font-size:10px;color:#a99bbd;white-space:nowrap}.inbox-unread{display:grid;min-width:20px;height:20px;padding:0 5px;place-items:center;border-radius:999px;background:linear-gradient(135deg,#ff4f91,#c51e68);color:white;font-size:11px;font-weight:800}.inbox-unread[hidden]{display:none}.inbox-empty{margin:auto;padding:26px;text-align:center;color:#a99bbd;line-height:1.6}.game-toggle{border:1px solid #8b63b1;border-radius:11px;padding:9px 13px;background:linear-gradient(135deg,#3d2458,#24182f);color:#f2e5ff;font-weight:700;cursor:pointer}.game-toggle[hidden]{display:none}.game-frame{display:block;width:100%;flex:1;min-height:0;border:0;background:#090811}.game-frame[hidden]{display:none}.messages[hidden],.composer[hidden]{display:none!important}@media(max-width:600px){.topbar{padding:10px 12px}.wrap{height:calc(100dvh - 61px);padding:9px}.chat{border-radius:15px}.messages{padding:14px 10px}.composer{padding:9px}}
+.inbox-list{display:flex;flex-direction:column;gap:9px;padding:12px;overflow:auto}.inbox-item{display:flex;align-items:center;gap:12px;width:100%;min-height:72px;padding:11px;border:1px solid #392b4b;border-radius:14px;background:linear-gradient(120deg,#21182d,#14111d);color:var(--text);text-align:left;text-decoration:none;cursor:pointer}.inbox-item:active{border-color:#a66bff;background:#2a1c3a}.inbox-avatar{width:48px;height:48px;flex:0 0 48px;display:grid;place-items:center;overflow:hidden;border:1px solid #9a69c7;border-radius:50%;background:#352044;font-weight:800}.inbox-avatar img{width:100%;height:100%;object-fit:cover}.inbox-copy{display:grid;gap:5px;min-width:0;flex:1}.inbox-name{font-size:14px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.inbox-preview{font-size:12px;color:#b9adc8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.inbox-meta{display:grid;justify-items:end;gap:7px;align-self:stretch}.inbox-time{font-size:10px;color:#a99bbd;white-space:nowrap}.inbox-unread{display:grid;min-width:20px;height:20px;padding:0 5px;place-items:center;border-radius:999px;background:linear-gradient(135deg,#ff4f91,#c51e68);color:white;font-size:11px;font-weight:800}.inbox-unread[hidden]{display:none}.inbox-empty{margin:auto;padding:26px;text-align:center;color:#a99bbd;line-height:1.6}.game-toggle{border:1px solid #8b63b1;border-radius:11px;padding:9px 13px;background:linear-gradient(135deg,#3d2458,#24182f);color:#f2e5ff;font-weight:700;cursor:pointer}.game-toggle[hidden]{display:none}.game-frame{display:block;width:100%;flex:1;min-height:0;border:0;background:#090811}.game-frame[hidden]{display:none}.messages[hidden],.composer[hidden]{display:none!important}@media(max-width:600px){.wrap{height:100dvh;padding:9px}.chat{border-radius:15px}.messages{padding:14px 10px}.composer{padding:9px}}
 </style>
 </head>
 <body>
-<header class="topbar"><a class="back" id="back" href="profile.html" aria-label="Назад">‹</a><div class="brand">FLOUSTREAM</div></header>
 <main class="wrap">
-<section class="chat">
  <header class="chat-head">
   <div class="avatar" id="peer-avatar">◉</div>
   <div class="person"><div class="person-name" id="peer-name">Открываем переписку…</div><div class="person-handle" id="peer-handle"></div></div>
   <button class="game-toggle" id="game-toggle" type="button" hidden>Играть</button>
  </header>
+<section class="chat">
  <div class="messages" id="messages"><div class="empty">Подключаем сообщения…</div></div>
  <iframe class="game-frame" id="game-frame" title="Игра в длинные нарды" hidden loading="lazy"></iframe>
  <div class="notice" id="notice" aria-live="polite"></div>
@@ -207,7 +203,6 @@ async function start(){
   $("peer-name").textContent=deletedAccount?"Удалённый аккаунт":(p.display_name||p.username||"Пользователь");
   $("peer-handle").textContent=deletedAccount?"История переписки сохранена":(p.username?"@"+p.username:"");
   const avatar=safeUrl(p.avatar_url);if(avatar){const img=document.createElement("img");img.src=avatar;img.alt="";$("peer-avatar").replaceChildren(img);}else $("peer-avatar").textContent=($("peer-name").textContent.trim()[0]||"◉").toUpperCase();
-  $("back").href=deletedAccount?"messages.html":"public-profile.html?id="+encodeURIComponent(peerId);
   if(!deletedAccount){
    const gameToggle=$("game-toggle"),gameFrame=$("game-frame");
    gameToggle.hidden=false;
