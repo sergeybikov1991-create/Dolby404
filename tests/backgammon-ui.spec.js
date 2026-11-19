@@ -306,4 +306,9 @@ test("3D board enlarges only the selected top checker and gives the board more r
   expect(script).toContain('checker.classList.add("selected-checker")');
   expect(script).toContain('if (selectedFrom === index) button.classList.add("selected")');
   expect(script).toContain('position === "top" ? 0 : visible - 1');
+  expect(script).toContain("button.setPointerCapture(event.pointerId)");
+  expect(script).toContain('window.addEventListener("pointermove"');
+  expect(script).toContain('window.addEventListener("pointerup", finishCheckerDrag, true)');
+  expect(script).toContain('window.addEventListener("pointercancel", cancelCheckerDrag, true)');
+  expect(script).toContain('window.addEventListener("lostpointercapture", cancelCheckerDrag, true)');
 });
