@@ -153,6 +153,7 @@ test("authenticated game room renders 24 points and server-confirmed 3D dice", a
   // Drag A's checker from point 24 to the legal point 21 (die 3).
   const source = page.locator('#board .point[data-index="23"] .checker').first();
   const destination = page.locator('#board .point[data-index="20"]');
+  await source.scrollIntoViewIfNeeded();
   const sourceBox = await source.boundingBox();
   const destinationBox = await destination.boundingBox();
   expect(sourceBox).not.toBeNull();
