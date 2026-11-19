@@ -31,3 +31,25 @@ test("long backgammon room exposes the real board and server action controls", (
   expect(script).toContain('window.confirm("Предложить начать партию заново?")');
   expect(script).toContain('animateCheckerMove');
 });
+
+
+test("backgammon dice render six 3D faces and settle on the confirmed result", () => {
+  const html = fs.readFileSync(path.join(root, "backgammon.html"), "utf8");
+  const script = fs.readFileSync(path.join(root, "backgammon.js"), "utf8");
+  expect(html).toContain(".die-cube");
+  expect(html).toContain(".die-face.front");
+  expect(html).toContain(".die-face.back");
+  expect(html).toContain("@keyframes cube-roll");
+  expect(script).toContain("finalTransforms");
+  expect(script).toContain('side: "bottom"');
+  expect(script).toContain('side: "top"');
+});
+
+test("checker movement animation is shared by local and Realtime state updates", () => {
+  const script = fs.readFileSync(path.join(root, "backgammon.js"), "utf8");
+  expect(script).toContain("function captureCheckerMove");
+  expect(script).toContain("function animateCheckerMove");
+  expect(script).toContain("piece.animate(");
+  expect(script).toContain('"(prefers-reduced-motion: reduce)"');
+  expect(script).toContain("renderGame(previousState)");
+});
