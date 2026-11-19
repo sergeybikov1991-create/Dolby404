@@ -99,6 +99,7 @@ h2{font-size:16px;margin:0 0 14px}
 @media(max-width:850px){.shell{grid-template-columns:1fr}.board{min-height:390px}.topbar{padding:0 14px}}
 @media(max-width:520px){.shell{margin:14px auto;padding:0 9px;gap:12px}.panel{padding:13px;border-radius:15px}.logo{font-size:18px}.top-actions{font-size:11px}.top-actions .ghost{padding:8px}.board-wrap{padding:5px}.board{min-height:310px;gap:5px}.board-row{gap:2px}.point{border-radius:3px}.checker{width:min(90%,19px);border-width:1px}.point-number{font-size:7px}.checker-count{font-size:10px}.game-head{display:block}.game-head .subtle{margin-top:6px}.invite-form{flex-direction:column}.invite-form button{width:100%}}
 @media(prefers-reduced-motion:reduce){.die.rolling .die-cube,.die.rolling::after{animation:none}}
+body.embed .topbar{display:none}body.embed .shell{grid-template-columns:minmax(0,1fr);max-width:none;margin:0;padding:8px}body.embed .shell>aside{display:none}body.embed .panel{padding:12px;border-radius:12px}body.embed .game-head{margin-bottom:8px}body.embed .board{min-height:360px}@media(max-width:520px){body.embed .shell{padding:4px}body.embed .board{min-height:300px}}
 </style>
 </head>
 <body>
@@ -142,6 +143,7 @@ h2{font-size:16px;margin:0 0 14px}
   </section>
 </main>
 <div id="loading" class="empty-board">Подключаем игровой зал FLOUSTREAM…</div>
+<script>if(new URLSearchParams(location.search).get("embed")==="1")document.body.classList.add("embed");</script>
 <script type="module" src="backgammon.js"></script>
 </body>
 </html>
