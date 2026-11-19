@@ -123,6 +123,18 @@ test("messages page keeps the newest messages at the bottom and guards sends", a
   expect(messages).toContain("attachment_path:path");
 });
 
+test("read receipt failures do not block rendering the conversation", async () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const messages = fs.readFileSync(path.join(__dirname, "../messages.html"), "utf8");
+  const renderAt = messages.indexOf('await renderMessages(rows)');
+  const receiptAt = messages.indexOf('client.from("direct_messages").update({read_at:new Date().toISOString()})');
+  expect(renderAt).toBeGreaterThan(-1);
+  expect(receiptAt).toBeGreaterThan(renderAt);
+  expect(messages).toContain('if(marked.error)console.warn("FLOUSTREAM read receipt update:",marked.error)');
+  expect(messages).toContain('catch(markError){console.warn("FLOUSTREAM read receipt update:",markError);}');
+});
+
 
 test("FLOUSTREAM shell cache preloads pages without caching private API data", async () => {
   const fs = require("node:fs");
