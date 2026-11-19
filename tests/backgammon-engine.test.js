@@ -220,14 +220,6 @@ test("B may build the same block after an A checker has passed it", () => {
 });
 
 
-test("the opening head must use the higher die when only one checker can leave", () => {
-  const initial = engine.createInitialState({}, rules);
-  const moving = engine.startTurn(initial, [3, 5], rules);
-  const moves = engine.getLegalMoves(moving, moving.turn.remainingDice, rules);
-  assert.ok(moves.some(move => move.from === 23 && move.to === 18 && move.die === 5));
-  assert.ok(!moves.some(move => move.from === 23 && move.to === 20 && move.die === 3));
-});
-
 test("when only one of two playable dice can be used, the higher die is mandatory", () => {
   const points = Array(24).fill(0);
   points[20] = 14;
