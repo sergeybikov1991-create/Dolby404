@@ -9,12 +9,14 @@ function otherPlayer(player) {
   return player === PLAYER_A ? PLAYER_B : PLAYER_A;
 }
 
-function direction(player) {
-  return player === PLAYER_A ? 1 : -1;
+function direction() {
+  // Both players travel counterclockwise along the same shared 24-point path.
+  return -1;
 }
 
 function headPoint(player) {
-  return player === PLAYER_A ? 0 : BOARD_POINTS - 1;
+  // A starts on point 24; B starts on point 12 (zero-based indexes 23 and 11).
+  return player === PLAYER_A ? 23 : 11;
 }
 
 function isHomePoint(player, point, rules) {
@@ -152,18 +154,17 @@ function canBearOffFrom(state, player, from, die, rules) {
     return false;
   }
 
-  const distance = player === PLAYER_A ? BOARD_POINTS - from : from + 1;
+  // Point 1 (A) and point 13 (B) are the respective exits from home.
+  const distance = player === PLAYER_A ? from + 1 : from - 11;
   if (die === distance) return true;
   if (die < distance) return false;
 
-  if (player === PLAYER_A) {
-    for (let point = from + 1; point < BOARD_POINTS; point += 1) {
-      if (state.points[point] > 0) return false;
-    }
-  } else {
-    for (let point = 0; point < from; point += 1) {
-      if (state.points[point] < 0) return false;
-    }
+  // An oversized die may bear off only when no checker remains farther
+  // from the exit (at a higher point index) in that player's home.
+  const homeEnd = rules.home[player][1];
+  for (let point = from + 1; point <= homeEnd; point += 1) {
+    const count = state.points[point] * (player === PLAYER_A ? 1 : -1);
+    if (count > 0) return false;
   }
   return true;
 }
@@ -195,18 +196,30 @@ function generateMoves(state, die, rules) {
     if (state.points[from] * sign <= 0) continue;
     if (from === head && state.turn.headMovesApplied >= headLimit) continue;
 
-    const to = from + step * die;
-    if (to >= 0 && to < BOARD_POINTS) {
-      if (state.points[to] * sign < 0) continue;
-      const move = { player, from, to, die, bearOff: false };
-      if (rules.forbidFullBlockade &&
-          createsFullBlockade(applyMoveUnchecked(state, move), player, rules)) {
-        continue;
+    const rawTo = from + step * die;
+    const crossesHomeExit = player === PLAYER_A
+      ? rawTo < 0
+      : from >= rules.home.B[0] && rawTo < rules.home.B[0];
+
+    if (crossesHomeExit) {
+      if (canBearOffFrom(state, player, from, die, rules)) {
+        moves.push({ player, from, to: "off", die, bearOff: true });
       }
-      moves.push(move);
-    } else if (canBearOffFrom(state, player, from, die, rules)) {
-      moves.push({ player, from, to: "off", die, bearOff: true });
+      continue;
     }
+
+    // B's route crosses point 1 -> point 24 before reaching its home.
+    const to = player === PLAYER_B && rawTo < 0
+      ? rawTo + BOARD_POINTS
+      : rawTo;
+    if (to < 0 || to >= BOARD_POINTS || state.points[to] * sign < 0) continue;
+
+    const move = { player, from, to, die, bearOff: false };
+    if (rules.forbidFullBlockade &&
+        createsFullBlockade(applyMoveUnchecked(state, move), player, rules)) {
+      continue;
+    }
+    moves.push(move);
   }
 
   return moves;
@@ -218,8 +231,11 @@ function createsFullBlockade(state, blockOwner, rules) {
   const opponent = otherPlayer(blockOwner);
   const ownerSign = blockOwner === PLAYER_A ? 1 : -1;
   const opponentSign = -ownerSign;
-  const pointAtOpponentPath = pathIndex =>
-    opponent === PLAYER_A ? pathIndex : BOARD_POINTS - 1 - pathIndex;
+  const pointAtOpponentPath = pathIndex => {
+    if (opponent === PLAYER_A) return BOARD_POINTS - 1 - pathIndex;
+    // B starts at point 12, crosses 1 -> 24, and finishes at point 13.
+    return pathIndex <= 11 ? 11 - pathIndex : 35 - pathIndex;
+  };
 
   // Opponent path is linear from its head to its home. A block is six
   // consecutive points on that path; it is forbidden only when all 15
