@@ -98,8 +98,6 @@ test("video album keeps public and private players, native controls and swipe na
 
 
 test("messages page uses Supabase Realtime instead of five-second polling", async () => {
-  const fs = require("node:fs");
-  const path = require("node:path");
   const messages = fs.readFileSync(path.join(__dirname, "../messages.html"), "utf8");
 
   expect(messages).toContain('event:"INSERT"');
@@ -115,8 +113,6 @@ test("messages page uses Supabase Realtime instead of five-second polling", asyn
 
 
 test("messages page keeps the newest messages at the bottom and guards sends", async () => {
-  const fs = require("node:fs");
-  const path = require("node:path");
   const messages = fs.readFileSync(path.join(__dirname, "../messages.html"), "utf8");
 
   expect(messages).toContain(".bubble-row{display:flex;flex:0 0 auto}");
@@ -134,8 +130,6 @@ test("messages page keeps the newest messages at the bottom and guards sends", a
 });
 
 test("read receipt failures do not block rendering the conversation", async () => {
-  const fs = require("node:fs");
-  const path = require("node:path");
   const messages = fs.readFileSync(path.join(__dirname, "../messages.html"), "utf8");
   const renderAt = messages.indexOf('await renderMessages(rows)');
   const receiptAt = messages.indexOf('client.from("direct_messages").update({read_at:new Date().toISOString()})');
@@ -147,8 +141,6 @@ test("read receipt failures do not block rendering the conversation", async () =
 
 
 test("FLOUSTREAM shell cache preloads pages without caching private API data", async () => {
-  const fs = require("node:fs");
-  const path = require("node:path");
   const worker = fs.readFileSync(path.join(__dirname, "../service-worker.js"), "utf8");
   for (const page of ["portal.html", "profile.html", "public-profile.html", "messages.html", "friends.html", "home.html", "music.html"]) {
     expect(worker).toContain("./" + page);
