@@ -241,6 +241,19 @@ function makeDie(value, rolling = false) {
     6: "rotateX(0deg) rotateY(180deg) rotateZ(0deg)",
   };
   die.style.setProperty("--die-final-transform", finalTransforms[value] || finalTransforms[1]);
+  if (rolling) {
+    // Visual spin is cosmetic only; the server-authoritative value above
+    // determines the face on which the die settles.
+    const randomTurn = () => (2 + Math.floor(Math.random() * 3)) * 360 *
+      (Math.random() < 0.5 ? -1 : 1);
+    const axes = { x: randomTurn(), y: randomTurn(), z: randomTurn() };
+    const progress = [0.34, 0.72, 1.08, 1.43, 1.78, 2.08, 2.27];
+    for (const axis of ["x", "y", "z"]) {
+      progress.forEach((factor, index) => {
+        die.style.setProperty(`--roll-${axis}-${index + 1}`, `${axes[axis] * factor}deg`);
+      });
+    }
+  }
 
   const faces = {
     1: [4],
