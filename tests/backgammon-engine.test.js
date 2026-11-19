@@ -192,3 +192,29 @@ test("six-point block is allowed when one opposing checker has passed it", () =>
   const moves = engine.getLegalMoves(moving, moving.turn.remainingDice, rules);
   assert.ok(moves.some(move => move.from === 10 && move.to === 4 && move.die === 6));
 });
+
+
+test("the full-blockade rule is symmetric when B builds the block", () => {
+  const points = Array(24).fill(0);
+  points[23] = 15;
+  points[22] = -1;
+  for (let point = 17; point <= 21; point += 1) points[point] = -1;
+  points[12] = -9;
+
+  const moving = engine.startTurn(stateWith(points, "B"), [6, 1], rules);
+  const moves = engine.getLegalMoves(moving, moving.turn.remainingDice, rules);
+  assert.ok(!moves.some(move => move.from === 22 && move.to === 16 && move.die === 6));
+});
+
+test("B may build the same block after an A checker has passed it", () => {
+  const points = Array(24).fill(0);
+  points[23] = 14;
+  points[15] = 1;
+  points[22] = -1;
+  for (let point = 17; point <= 21; point += 1) points[point] = -1;
+  points[12] = -9;
+
+  const moving = engine.startTurn(stateWith(points, "B"), [6, 1], rules);
+  const moves = engine.getLegalMoves(moving, moving.turn.remainingDice, rules);
+  assert.ok(moves.some(move => move.from === 22 && move.to === 16 && move.die === 6));
+});
