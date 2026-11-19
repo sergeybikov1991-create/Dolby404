@@ -132,9 +132,14 @@ test("authenticated game room renders 24 points and server-confirmed 3D dice", a
     headers: { "Access-Control-Allow-Origin": "*" },
     body: stub,
   }));
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/backgammon.html", { waitUntil: "domcontentloaded" });
   await page.getByRole("button", { name: "Открыть" }).click();
   await expect(page.locator("#board .point")).toHaveCount(24);
+  const hasHorizontalOverflow = await page.evaluate(() =>
+    document.documentElement.scrollWidth > document.documentElement.clientWidth
+  );
+  expect(hasHorizontalOverflow).toBe(false);
   await expect(page.locator("#dice .die-face")).toHaveCount(12);
   await expect(page.locator("#game-status")).toContainText("Твой ход");
 
