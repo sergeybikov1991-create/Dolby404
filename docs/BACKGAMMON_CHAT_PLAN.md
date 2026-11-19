@@ -236,3 +236,29 @@ The engine uses one shared 24-point board, not two mirrored player-local arrays:
 - The head exception applies to the second player on the opening turn for doubles 3-3, 4-4 and 6-6.
 
 This coordinate convention follows the Russian sport rules approved by Ministry of Sport Order No. 347 of 30 April 2025, Articles 20.2–20.6. The earlier prototype coordinates (heads at indexes 0 and 23 with opposite directions) are superseded.
+
+
+## Server persistence and security boundary — implementation contract
+
+The production project currently has no `private` schema, no backgammon tables, and no development branches. The existing `public` application tables are RLS-enabled and must remain untouched by the game migration.
+
+Planned isolated game storage:
+- `public.backgammon_matches`: match id, player A/B auth UUIDs, status, authoritative engine state JSON, turn number, revision, restart request, timestamps. RLS is enabled. Authenticated players receive SELECT only when their UUID is one of the two participants; they receive no direct INSERT/UPDATE/DELETE.
+- `private.backgammon_actions`: idempotency ledger keyed by (match_id, action_id), with actor, action type, committed result and timestamp. The `private` schema is created by the game migration and is not exposed through the Data API.
+- The match table is added to `supabase_realtime` publication only after checking publication membership. Realtime SELECT is limited to the two participants by RLS.
+
+Trusted action path:
+1. Edge Function validates the bearer token with Supabase Auth `getUser(token)`; it derives the actor UUID from the verified user, never from request JSON.
+2. The Edge Function's server-only `SUPABASE_SERVICE_ROLE_KEY` is used only inside the function, never sent to a browser. This matches the existing `account-lifecycle` server-side pattern.
+3. The Edge Function reads the current match, applies `engine.js` / `dice.js`, then calls one database transaction RPC with the expected revision and a client-generated action UUID.
+4. The RPC locks the match row with `FOR UPDATE`, checks the action ledger first (a retry returns the original committed result), validates participant and revision, writes the next state and action result atomically, and increments revision. Competing actions based on stale state receive a conflict and must reload.
+5. The RPC is `SECURITY INVOKER`, executable only by `service_role`; no `SECURITY DEFINER` escape hatch and no direct client write grants. The service-role key remains exclusively server-side.
+6. A separate action-result lookup lets the Edge Function return a prior response before it re-evaluates a retried roll. A second action UUID cannot create a second roll for the same turn because the locked row and expected revision serialize the race.
+
+Restart protocol:
+- Store a pending request id, initiator, base revision, expiry and both participants' decisions.
+- The initiator's UI confirmation creates the request; the opponent must accept the same request id.
+- Only the transaction that observes both approvals may reset the board, dice, turn, winner and move history. Decline, expiry or a stale revision leaves the current board unchanged.
+- Keep the players' A/B sides fixed across a restart; only reset the game state.
+
+No SQL has been applied to the production project and no Edge Function has been deployed. A separate development branch costs $0.01344/hour and is awaiting explicit approval before creation.
