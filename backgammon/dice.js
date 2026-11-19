@@ -1,4 +1,1 @@
-"use strict";
-
-// Canonical secure dice are shared with the Supabase Edge Function.
-module.exports = require("../supabase/functions/_shared/dice.cjs");
+export { secureDie, rollDice, rollOpeningDice } from "../supabase/functions/_shared/dice.mjs";
