@@ -6,6 +6,7 @@ const SUPABASE_URL = "https://qhpobdktlbhdqsnajypr.supabase.co";
 const SUPABASE_KEY = "sb_publishable_tzG1qVsbjaW8YE_LBVN87Q_v0CahKN5";
 
 const $ = (id) => document.getElementById(id);
+const IS_EMBEDDED = new URLSearchParams(location.search).get("embed") === "1";
 const client = createClient(SUPABASE_URL, SUPABASE_KEY);
 let user = null;
 let matches = [];
@@ -96,7 +97,8 @@ async function invokeAction(actionType, payload = {}) {
 
 async function createMatch(opponent) {
   const matchId = crypto.randomUUID();
-  setNotice("invite-notice", "Отправляем приглашение…");
+  const noticeId = IS_EMBEDDED ? "game-notice" : "invite-notice";
+  setNotice(noticeId, "Подключаем соперника из этой переписки…");
   const { data, error } = await client.functions.invoke("backgammon-action", {
     body: {
       action_type: "create_match",
@@ -111,10 +113,10 @@ async function createMatch(opponent) {
       const body = await error.context?.json?.();
       if (body?.error) message = body.error;
     } catch {}
-    setNotice("invite-notice", message, true);
+    setNotice(noticeId, message, true);
     return;
   }
-  setNotice("invite-notice", `Приглашение отправлено: ${opponent.display_name || opponent.username}`);
+  setNotice(noticeId, "Партия найдена. Подключаем игровое поле…");
   await loadMatches();
   if (data?.match) openMatch(data.match.id);
 }
@@ -131,14 +133,16 @@ async function loadMatches() {
     const item = document.createElement("div");
     item.className = "subtle";
     item.textContent = /backgammon_matches|schema cache|does not exist/i.test(error.message)
-      ? "Игровая схема ещё не подключена к серверу. Код и миграция готовы, ожидается установка на бесплатный проект."
+      ? "Игровая схема пока недоступна."
       : `Не удалось загрузить партии: ${error.message}`;
     $("matches").append(item);
-    return;
+    if (IS_EMBEDDED) setNotice("game-notice", item.textContent, true);
+    return false;
   }
   matches = data || [];
   await hydrateOpponentNames(matches);
   renderMatches();
+  return true;
   if (currentMatch) {
     const latest = matches.find(match => match.id === currentMatch.id);
     if (latest && latest.revision !== currentMatch.revision) {
@@ -422,7 +426,17 @@ function renderControls(match) {
   const isMyTurn = state.turn?.player === side;
 
   if (match.status === "waiting") {
-    $("game-status").textContent = side === "A" ? "Приглашение отправлено. Ждём ответа соперника." : "Тебя пригласили сыграть. Прими партию в списке слева.";
+    if (side === "A") {
+      $("game-status").textContent = "Приглашение отправлено. Ждём ответа соперника.";
+    } else {
+      $("game-status").textContent = "Соперник приглашает тебя сыграть.";
+      if (IS_EMBEDDED) {
+        addControl(container, "Принять игру", () => invokeAction("accept_match"));
+        addControl(container, "Отклонить", () => invokeAction("decline_match"), "danger");
+      } else {
+        $("game-status").textContent += " Прими партию в списке слева.";
+      }
+    }
     return;
   }
   if (match.status === "awaiting_opening_roll") {
@@ -633,6 +647,25 @@ $("invite-form").addEventListener("submit", async (event) => {
   await createMatch(opponent);
 });
 
+async function openChatMatch(opponentUserId, opponentProfile) {
+  if (!opponentProfile || opponentProfile.account_status !== "active") {
+    setNotice("game-notice", "Собеседник недоступен для игры.", true);
+    return;
+  }
+  const existing = matches
+    .filter(match =>
+      opponentId(match) === opponentUserId &&
+      ["waiting", "awaiting_opening_roll", "active"].includes(match.status)
+    )
+    .sort((a, b) => Date.parse(b.updated_at || 0) - Date.parse(a.updated_at || 0))[0];
+
+  if (existing) {
+    await openMatch(existing.id);
+    return;
+  }
+  await createMatch(opponentProfile);
+}
+
 async function start() {
   try {
     const { data, error } = await client.auth.getSession();
@@ -646,12 +679,18 @@ async function start() {
     $("loading").hidden = true;
     $("app").hidden = false;
     const invitedOpponentId = new URLSearchParams(location.search).get("opponent");
-    if (invitedOpponentId && invitedOpponentId !== user.id) {
-      const { data: invitedProfile } = await client.from("profiles")
-        .select("username").eq("id", invitedOpponentId).maybeSingle();
-      if (invitedProfile?.username) $("opponent-username").value = invitedProfile.username;
-    }
     await loadMatches();
+    if (invitedOpponentId && invitedOpponentId !== user.id) {
+      const { data: invitedProfile, error: invitedProfileError } = await client.from("profiles")
+        .select("id,username,display_name,account_status")
+        .eq("id", invitedOpponentId)
+        .maybeSingle();
+      if (invitedProfileError) {
+        setNotice("game-notice", invitedProfileError.message, true);
+      } else {
+        await openChatMatch(invitedOpponentId, invitedProfile);
+      }
+    }
     await startRealtime();
   } catch (error) {
     $("loading").textContent = `Не удалось подключить игровой зал: ${error.message}`;
