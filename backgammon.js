@@ -609,8 +609,10 @@ async function startRealtime() {
     const row = payload.new;
     if (row?.id === currentMatch?.id) {
       const previousState = currentMatch.state;
-      animateNextDice = previousState?.turn?.phase === "awaiting_roll" &&
-        row.state?.turn?.phase === "moving";
+      animateNextDice = (
+        (previousState?.turn?.phase === "awaiting_roll" && row.state?.turn?.phase === "moving") ||
+        (currentMatch.status === "awaiting_opening_roll" && row.status === "active")
+      );
       currentMatch = row;
       await hydrateOpponentNames([currentMatch]);
       selectedFrom = null;
