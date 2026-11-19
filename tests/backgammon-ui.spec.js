@@ -297,3 +297,17 @@ test("opening rolls advance the match-wide turn number after a mutual restart", 
   expect(opening).toContain("nextTurnNumber = match.turn_number + 1;");
   expect(opening).not.toContain("nextTurnNumber = 1;");
 });
+
+
+test("3D board enlarges only the selected top checker and gives the board more room", () => {
+  const html = fs.readFileSync(path.join(root, "backgammon.html"), "utf8");
+  const script = fs.readFileSync(path.join(root, "backgammon.js"), "utf8");
+  expect(html).toContain(".board-wrap{\n  position:relative;");
+  expect(html).toContain("min-height:500px;");
+  expect(html).toContain("width:min(90%,30px)");
+  expect(html).toContain("transform:translateY(-6px) scale(1.3)");
+  expect(html).toContain("body.embed .board-wrap");
+  expect(script).toContain('checker.classList.add("selected-checker")');
+  expect(script).toContain('if (selectedFrom === index) button.classList.add("selected")');
+  expect(script).toContain('position === "top" ? 0 : visible - 1');
+});
