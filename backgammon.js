@@ -297,6 +297,13 @@ function renderDice(state) {
   container.replaceChildren();
   const values = state?.turn?.dice || [];
   values.slice(0, 2).forEach(value => container.append(makeDie(value, animateNextDice)));
+  if (animateNextDice && values.length >= 2) {
+    const result = document.createElement("span");
+    result.className = "dice-result";
+    result.setAttribute("aria-live", "polite");
+    result.textContent = `${values[0]} + ${values[1]}`;
+    container.append(result);
+  }
   if (!values.length) {
     const label = document.createElement("span");
     label.className = "subtle";
