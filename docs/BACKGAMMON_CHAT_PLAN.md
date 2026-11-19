@@ -275,3 +275,16 @@ The 2025 International Backgammon Federation rules, Article 15.3, state that a p
 
 
 Rules source: [International Backgammon Federation — Rules of Backgammon (2025)](https://i-bg-federation.com/upload/iblock/b82/kvrmfzcgvr0pm63huk0khx17v0n9uo0j.pdf). Relevant provisions: long-nardy setup and movement (Articles 4 and 12), bearing off (Article 13), and no agreement-based replay in competition (Article 15.3).
+
+
+## Free server implementation — feature branch only
+
+The first online-server slice is now authored in this branch:
+- `supabase/migrations/20261119030000_backgammon_match_actions.sql` creates isolated match storage, participant-only SELECT RLS, a private idempotency ledger, atomic row-locked commit RPCs, and a Realtime publication entry when that publication exists.
+- `supabase/functions/backgammon-action/index.ts` authenticates the bearer token with Supabase Auth, derives the actor from the verified user, handles match invitations, opening roll, normal rolls, validated moves, turn completion, and casual-only mutual restart.
+- The Edge Function uses the same canonical CommonJS engine/rules/dice files under `supabase/functions/_shared`; `backgammon/*.js` are thin Node wrappers for unit tests.
+- Every state-changing request includes an action UUID and expected revision. The database locks the match row, rechecks the idempotency ledger after acquiring the lock, rejects stale revisions, and returns the first committed response for a retry.
+- A unique partial index permits only one opening/normal roll per match turn. Match-wide turn numbers remain monotonic across casual restarts.
+- `tests/backgammon-migration.test.sql` checks idempotent retries, stale revision rejection, one roll per turn, participant-only RLS, and denial of client writes/private-ledger reads.
+
+Validation is performed on free GitHub-hosted runners with a disposable PostgreSQL 16 service. The migration and Edge Function have **not** been applied/deployed to the live Supabase project; the existing site/chat tables and production data remain untouched.
