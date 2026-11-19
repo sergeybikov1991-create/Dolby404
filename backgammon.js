@@ -17,6 +17,7 @@ let legalMoves = [];
 let animateNextDice = false;
 let dragState = null;
 let suppressNextPointClick = false;
+let restartExpiryTimer = null;
 
 function setNotice(id, message, error = false) {
   const element = $(id);
@@ -438,13 +439,26 @@ function addControl(container, label, action, style = "primary") {
 }
 
 function renderRestart(match) {
+  if (restartExpiryTimer !== null) {
+    clearTimeout(restartExpiryTimer);
+    restartExpiryTimer = null;
+  }
   const box = $("restart-box");
   box.classList.add("hidden");
   box.replaceChildren();
   if (!["active", "finished"].includes(match.status) || match.match_mode !== "casual") return;
+
   const request = match.restart_request;
-  if (!request) {
+  const expiresAt = request ? Date.parse(request.expires_at || "") : NaN;
+  const requestExpired = !!request && (!Number.isFinite(expiresAt) || expiresAt <= Date.now());
+
+  if (!request || requestExpired) {
     box.classList.remove("hidden");
+    if (requestExpired) {
+      const notice = document.createElement("div");
+      notice.textContent = "Время предложения истекло. Можно предложить рестарт снова.";
+      box.append(notice);
+    }
     addControl(box, "Предложить рестарт", () => {
       if (window.confirm("Предложить начать партию заново?")) {
         invokeAction("restart_request");
@@ -452,6 +466,11 @@ function renderRestart(match) {
     }, "ghost");
     return;
   }
+
+  restartExpiryTimer = setTimeout(() => {
+    if (currentMatch?.id === match.id) renderRestart(currentMatch);
+  }, Math.max(0, expiresAt - Date.now() + 20));
+
   box.classList.remove("hidden");
   const message = document.createElement("div");
   message.textContent = request.initiator_id === user.id
