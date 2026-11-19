@@ -288,3 +288,15 @@ The first online-server slice is now authored in this branch:
 - `tests/backgammon-migration.test.sql` checks idempotent retries, stale revision rejection, one roll per turn, participant-only RLS, and denial of client writes/private-ledger reads.
 
 Validation is performed on free GitHub-hosted runners with a disposable PostgreSQL 16 service. The migration and Edge Function have **not** been applied/deployed to the live Supabase project; the existing site/chat tables and production data remain untouched.
+
+
+## First game-room UI
+
+A responsive `backgammon.html` and `backgammon.js` game room now exist on the feature branch and are linked from the FLOUSTREAM home page. The page includes:
+- username-based invitations, incoming accept/decline, and a list of a user's matches;
+- a shared 24-point board with the correct two heads and player homes;
+- selection of a checker and legal destination, plus bearing-off;
+- opening roll, normal dice roll, automatic turn completion when no dice remain, and mutual casual restart controls;
+- Realtime refresh of match state for both participants.
+
+The browser test checks the signed-out redirect and the board/action surface. The page is ready to use once the isolated migration and `backgammon-action` Edge Function are deployed to the existing free Supabase project. The migration and function are still not applied/deployed to the live project.
