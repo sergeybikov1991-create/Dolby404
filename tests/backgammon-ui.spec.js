@@ -144,6 +144,22 @@ test("authenticated game room renders 24 points and server-confirmed 3D dice", a
   await page.goto("/backgammon.html", { waitUntil: "domcontentloaded" });
   await page.getByRole("button", { name: "Открыть" }).click();
   await expect(page.locator("#board .point")).toHaveCount(24);
+
+  // Exercise the embedded layout at a narrow phone viewport and verify that
+  // the playing surface occupies the wooden frame instead of shrinking inside it.
+  await page.locator("body").evaluate(el => el.classList.add("embed"));
+  const boardFill = await page.evaluate(() => {
+    const frame = document.querySelector(".board-wrap").getBoundingClientRect();
+    const board = document.querySelector(".board").getBoundingClientRect();
+    return {
+      frameWidth: frame.width,
+      frameHeight: frame.height,
+      boardWidth: board.width,
+      boardHeight: board.height
+    };
+  });
+  expect(boardFill.boardWidth).toBeGreaterThanOrEqual(boardFill.frameWidth * 0.9);
+  expect(boardFill.boardHeight).toBeGreaterThanOrEqual(boardFill.frameHeight * 0.9);
   const hasHorizontalOverflow = await page.evaluate(() =>
     document.documentElement.scrollWidth > document.documentElement.clientWidth
   );
