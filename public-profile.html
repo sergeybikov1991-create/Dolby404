@@ -458,8 +458,8 @@ async function loadPublicAlbums(){
 
 async function start(){
  try{
-  await loadLibrary();client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
-  const auth=await client.auth.getUser();if(auth.error)throw auth.error;viewer=auth.data.user;
+  await loadLibrary();client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storage:window.localStorage,storageKey:"sb-qhpobdktlbhdqsnajypr-auth-token"}});
+  const stored=await client.auth.getSession();if(stored.error)throw stored.error;const auth=await client.auth.getUser();if(auth.error)throw auth.error;viewer=auth.data.user;
   if(viewer){window.initFloustreamMessageNotifications?.(client,viewer.id);window.initFloustreamFriendNotifications?.(client,viewer.id);}
   const targetId=new URLSearchParams(location.search).get("id");if(!targetId){showError("Не указан профиль для просмотра.");return;}
   if(viewer&&targetId===viewer.id){location.replace("profile.html");return;}
