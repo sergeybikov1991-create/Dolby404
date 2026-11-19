@@ -28,4 +28,6 @@ test("long backgammon room exposes the real board and server action controls", (
   expect(script).toContain('invokeAction("restart_vote"');
   expect(script).toContain('die-pips');
   expect(script).toContain('animateNextDice');
+  expect(script).toContain('window.confirm("Предложить начать партию заново?")');
+  expect(script).toContain('animateCheckerMove');
 });
