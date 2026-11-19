@@ -1,8 +1,8 @@
 "use strict";
 
-const test = require("node:test");
-const assert = require("node:assert/strict");
-const { secureDie, rollDice, rollOpeningDice } = require("../backgammon/dice");
+import test from "node:test";
+import assert from "node:assert/strict";
+import { secureDie, rollDice, rollOpeningDice } from "../backgammon/dice.js";
 
 function byteStream(values) {
   let index = 0;
