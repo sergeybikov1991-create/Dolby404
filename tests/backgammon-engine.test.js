@@ -218,3 +218,18 @@ test("B may build the same block after an A checker has passed it", () => {
   const moves = engine.getLegalMoves(moving, moving.turn.remainingDice, rules);
   assert.ok(moves.some(move => move.from === 22 && move.to === 16 && move.die === 6));
 });
+
+
+test("when only one of two playable dice can be used, the higher die is mandatory", () => {
+  const points = Array(24).fill(0);
+  points[20] = 14;
+  points[10] = 1;
+  points[18] = -1;
+  points[16] = -1;
+  points[4] = -13;
+
+  const moving = engine.startTurn(stateWith(points), [2, 4], rules);
+  const moves = engine.getLegalMoves(moving, moving.turn.remainingDice, rules);
+  assert.ok(moves.some(move => move.from === 10 && move.to === 6 && move.die === 4));
+  assert.ok(!moves.some(move => move.from === 10 && move.to === 8 && move.die === 2));
+});
