@@ -60,7 +60,32 @@ const SUPABASE_URL="https://qhpobdktlbhdqsnajypr.supabase.co";
 const SUPABASE_KEY="sb_publishable_tzG1qVsbjaW8YE_LBVN87Q_v0CahKN5";
 const $=id=>document.getElementById(id);
 let client,viewer,peerId,lastMessageId="",loading=false,inboxLoading=false,pendingMessageReload=false,pendingInboxReload=false;
-function loadLibrary(){return new Promise((resolve,reject)=>{if(window.supabase?.createClient){resolve();return;}const script=document.createElement("script");script.src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";script.onload=()=>window.supabase?.createClient?resolve():reject(new Error("Supabase не загрузился"));script.onerror=()=>reject(new Error("Не удалось загрузить библиотеку Supabase"));document.head.append(script);});}
+async function loadLibrary(){
+ if(window.supabase?.createClient)return;
+ const sources=[
+  "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2",
+  "https://unpkg.com/@supabase/supabase-js@2"
+ ];
+ let lastError;
+ for(const src of sources){
+  try{
+   await new Promise((resolve,reject)=>{
+    const script=document.createElement("script");let settled=false;
+    const finish=(error)=>{if(settled)return;settled=true;clearTimeout(timer);if(error){script.remove();reject(error);}else resolve();};
+    const timer=setTimeout(()=>finish(new Error("Тайм-аут загрузки Supabase: "+src)),8000);
+    script.src=src;script.onload=()=>window.supabase?.createClient?finish():finish(new Error("Библиотека загружена без createClient"));
+    script.onerror=()=>finish(new Error("Не удалось загрузить библиотеку: "+src));
+    document.head.append(script);
+   });
+   if(window.supabase?.createClient)return;
+  }catch(error){lastError=error;console.warn("FLOUSTREAM Supabase CDN:",error);}
+ }
+ throw lastError||new Error("Не удалось загрузить библиотеку Supabase");
+}
+function withTimeout(promise,ms,message){
+ let timer;
+ return Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(message)),ms);})]).finally(()=>clearTimeout(timer));
+}
 function safeUrl(value){if(!value)return "";try{const u=new URL(value,location.href);return ["http:","https:"].includes(u.protocol)?u.href:"";}catch(_){return "";}}
 function timeText(value){const d=new Date(value);return Number.isNaN(d.getTime())?"":d.toLocaleString("ru-RU",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});}
 function scrollToNewestMessage(host){
@@ -150,8 +175,11 @@ async function loadInbox(){
 }
 async function start(){
  try{
+  showNotice("Подключаем библиотеку чата…");
   await loadLibrary();client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
-  const auth=await client.auth.getUser();if(auth.error)throw auth.error;viewer=auth.data.user;
+  showNotice("Проверяем вход в аккаунт…");
+  const auth=await withTimeout(client.auth.getUser(),12000,"Проверка входа в аккаунт не ответила за 12 секунд. Обнови страницу; если ошибка повторится, проверим сессию Supabase.");
+  if(auth.error)throw auth.error;viewer=auth.data.user;
   if(!viewer){location.replace("portal.html");return;}
   peerId=new URLSearchParams(location.search).get("with");
   if(!peerId){$("peer-name").textContent="Сообщения";$("peer-handle").textContent="Все диалоги";$("peer-avatar").textContent="✉";$("composer").hidden=true;await loadInbox();
@@ -171,7 +199,8 @@ async function start(){
    window.addEventListener("pagehide",()=>client.removeChannel(inboxChannel),{once:true});
    return;}
   if(peerId===viewer.id){showNotice("Открой профиль другого пользователя, чтобы начать переписку.",true);$("composer").hidden=true;return;}
-  const profile=await client.from("profiles").select("id,username,display_name,avatar_url").eq("id",peerId).maybeSingle();
+  showNotice("Загружаем профиль собеседника…");
+  const profile=await withTimeout(client.from("profiles").select("id,username,display_name,avatar_url").eq("id",peerId).maybeSingle(),12000,"Профиль собеседника не ответил за 12 секунд. Проверь подключение и повтори.");
   if(profile.error)throw profile.error;
   const deletedAccount=!profile.data;
   const p=profile.data||{};
