@@ -77,7 +77,7 @@ h2{font-size:16px;margin:0 0 14px}
 .board-wrap{padding:10px;border:1px solid #715437;border-radius:16px;background:linear-gradient(135deg,#382a23,#201a1a 48%,#382a23);box-shadow:inset 0 0 0 3px #171018,0 15px 35px #0006}
 .board{display:grid;grid-template-rows:1fr 1fr;gap:8px;min-height:440px}
 .board-row{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:4px;min-height:0}
-.point{position:relative;min-width:0;border:0;border-radius:5px;padding:0 0 7px;background:linear-gradient(180deg,#b98b61,#815638);overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:flex-start}
+.point{touch-action:none;position:relative;min-width:0;border:0;border-radius:5px;padding:0 0 7px;background:linear-gradient(180deg,#b98b61,#815638);overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:flex-start}
 .point.bottom{justify-content:flex-end;padding:7px 0 0;background:linear-gradient(0deg,#b98b61,#815638)}
 .point::before{content:"";position:absolute;left:8%;right:8%;top:0;height:62%;background:linear-gradient(180deg,#392b34,#4e3440);clip-path:polygon(0 0,100% 0,50% 100%);opacity:.85}
 .point.bottom::before{top:auto;bottom:0;background:linear-gradient(0deg,#392b34,#4e3440);clip-path:polygon(0 100%,100% 100%,50% 0)}
