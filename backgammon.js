@@ -15,6 +15,7 @@ let realtimeChannel = null;
 let realtimeWasConnected = false;
 let legalMoves = [];
 let animateNextDice = false;
+let dragState = null;
 
 function setNotice(id, message, error = false) {
   const element = $(id);
@@ -342,6 +343,32 @@ function renderPoint(index, position, state) {
   if (selectedFrom !== null && legalMoves.some(move => move.from === selectedFrom && !move.bearOff && move.to === index)) {
     button.classList.add("legal-target");
   }
+  button.addEventListener("pointerdown", event => {
+    if (!currentMatch || currentMatch.status !== "active" || event.button !== 0) return;
+    const side = sideFor(currentMatch);
+    const turn = currentMatch.state.turn;
+    if (turn.phase !== "moving" || turn.player !== side) return;
+    const sign = side === "A" ? 1 : -1;
+    if (currentMatch.state.points[index] * sign <= 0 ||
+        !legalMoves.some(move => move.from === index)) return;
+    event.preventDefault();
+    const source = button.querySelector(".checker:last-child");
+    const rect = source?.getBoundingClientRect();
+    if (!rect) return;
+    const ghost = source.cloneNode(true);
+    ghost.classList.add("drag-ghost");
+    Object.assign(ghost.style, {
+      position: "fixed", left: `${rect.left}px`, top: `${rect.top}px`,
+      width: `${rect.width}px`, height: `${rect.height}px`,
+      margin: "0", zIndex: "2000", pointerEvents: "none",
+      filter: "drop-shadow(0 8px 12px #000b)", transform: "scale(1.12)"
+    });
+    document.body.append(ghost);
+    dragState = { from: index, pointerId: event.pointerId, startX: event.clientX,
+      startY: event.clientY, moved: false, ghost };
+    selectedFrom = index;
+    renderGame();
+  });
   button.addEventListener("click", () => handlePointClick(index));
   return button;
 }
@@ -639,6 +666,48 @@ $("close-match").addEventListener("click", () => {
   selectedFrom = null;
   renderGame();
   renderMatches();
+});
+
+function finishCheckerDrag(event) {
+  if (!dragState || event.pointerId !== dragState.pointerId) return;
+  const drag = dragState;
+  dragState = null;
+  drag.ghost.remove();
+  if (!drag.moved) {
+    selectedFrom = drag.from;
+    renderGame();
+    return;
+  }
+  const target = document.elementFromPoint(event.clientX, event.clientY)?.closest?.(".point");
+  const to = target ? Number(target.dataset.index) : -1;
+  const candidate = legalMoves.find(move =>
+    move.from === drag.from && !move.bearOff && move.to === to
+  );
+  if (candidate) {
+    selectedFrom = null;
+    invokeAction("move", { move: candidate });
+  } else {
+    selectedFrom = drag.from;
+    renderGame();
+    setNotice("game-notice", "Перетащи шашку на подсвеченный разрешённый пункт.", true);
+  }
+}
+document.addEventListener("pointermove", event => {
+  if (!dragState || event.pointerId !== dragState.pointerId) return;
+  const dx = event.clientX - dragState.startX;
+  const dy = event.clientY - dragState.startY;
+  if (!dragState.moved && Math.hypot(dx, dy) > 5) dragState.moved = true;
+  if (dragState.moved) {
+    dragState.ghost.style.left = `${event.clientX - dragState.ghost.offsetWidth / 2}px`;
+    dragState.ghost.style.top = `${event.clientY - dragState.ghost.offsetHeight / 2}px`;
+  }
+}, { passive: true });
+document.addEventListener("pointerup", finishCheckerDrag);
+document.addEventListener("pointercancel", event => {
+  if (!dragState || event.pointerId !== dragState.pointerId) return;
+  dragState.ghost.remove();
+  dragState = null;
+  renderGame();
 });
 
 async function start() {
