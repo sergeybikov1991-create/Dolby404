@@ -413,6 +413,63 @@ body.embed .point.bottom::before{
   right:0;
   height:100%;
 }
+
+/* Final embedded sizing experiment: resolve earlier flex/overflow overrides and test 150% board scale */
+body.embed #game{
+  display:flex;
+  flex:1 1 0;
+  min-height:0;
+  overflow:hidden;
+}
+body.embed .board-wrap{
+  display:flex;
+  flex:1 1 0;
+  min-width:0;
+  min-height:0;
+  align-items:stretch;
+  justify-content:center;
+  overflow:hidden;
+  padding:8px;
+}
+body.embed .board{
+  flex:0 0 150%;
+  width:150%;
+  height:150%;
+  min-width:0;
+  min-height:0;
+  align-self:center;
+  zoom:1.5;
+  box-sizing:border-box;
+  grid-template-rows:repeat(2,minmax(0,1fr));
+}
+body.embed .board-row{
+  height:100%;
+  min-height:0;
+  align-self:stretch;
+  grid-template-columns:repeat(12,minmax(0,1fr));
+}
+body.embed .point,
+body.embed .point.bottom{
+  height:100%;
+  min-height:0;
+  align-self:stretch;
+  padding-top:0;
+  padding-bottom:0;
+}
+body.embed .point::before{
+  top:0;
+  bottom:auto;
+  left:0;
+  right:0;
+  height:100%;
+}
+body.embed .point.bottom::before{
+  top:auto;
+  bottom:0;
+  left:0;
+  right:0;
+  height:100%;
+}
 </style>
 </head>
 <body>
