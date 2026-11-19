@@ -75,6 +75,7 @@ async function invokeAction(actionType, payload = {}) {
     setNotice("game-notice", "Сервер не вернул состояние партии", true);
     return false;
   }
+  const previousState = currentMatch.state;
   currentMatch = {
     ...currentMatch,
     status: data.status,
@@ -85,7 +86,7 @@ async function invokeAction(actionType, payload = {}) {
   };
   selectedFrom = null;
   animateNextDice = actionType === "roll" || actionType === "opening_roll";
-  renderGame();
+  renderGame(previousState);
   animateNextDice = false;
   setNotice("game-notice", "");
   await loadMatches();
@@ -414,13 +415,82 @@ function renderControls(match) {
   }
 }
 
-function renderGame() {
+function captureCheckerMove(previousState, nextState) {
+  if (!previousState?.points || !nextState?.points) return null;
+  let from = -1;
+  let to = -1;
+  let sign = 0;
+  for (let index = 0; index < 24; index += 1) {
+    const before = previousState.points[index];
+    const after = nextState.points[index];
+    if (before === after) continue;
+    if (Math.abs(before) === Math.abs(after) + 1 && Math.sign(before) === Math.sign(after || before)) {
+      if (from !== -1) return null;
+      from = index;
+      sign = Math.sign(before);
+    } else if (Math.abs(after) === Math.abs(before) + 1 && Math.sign(after) === sign) {
+      if (to !== -1) return null;
+      to = index;
+    } else {
+      return null;
+    }
+  }
+  if (from < 0 || to < 0) return null;
+  const source = document.querySelector(`.point[data-index="${from}"] .stack .checker:last-child`);
+  const rect = source?.getBoundingClientRect();
+  if (!rect || !rect.width || !rect.height) return null;
+  return { to, sign, rect };
+}
+
+function animateCheckerMove(transition) {
+  if (!transition || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+  const target = document.querySelector(`.point[data-index="${transition.to}"] .stack .checker:last-child`);
+  if (!target) return;
+  const destination = target.getBoundingClientRect();
+  if (!destination.width || !destination.height) return;
+
+  const piece = document.createElement("span");
+  piece.className = "checker" + (transition.sign < 0 ? " b" : "");
+  piece.setAttribute("aria-hidden", "true");
+  Object.assign(piece.style, {
+    position: "fixed",
+    left: `${transition.rect.left}px`,
+    top: `${transition.rect.top}px`,
+    width: `${transition.rect.width}px`,
+    height: `${transition.rect.height}px`,
+    margin: "0",
+    zIndex: "1000",
+    pointerEvents: "none",
+  });
+  document.body.append(piece);
+  target.style.visibility = "hidden";
+  const dx = destination.left - transition.rect.left;
+  const dy = destination.top - transition.rect.top;
+  const animation = piece.animate(
+    [
+      { transform: "translate3d(0,0,0) scale(1)" },
+      { transform: `translate3d(${dx}px,${dy}px,0) scale(1.08)` },
+    ],
+    { duration: 390, easing: "cubic-bezier(.2,.78,.25,1)", fill: "forwards" }
+  );
+  animation.onfinish = () => {
+    piece.remove();
+    target.style.visibility = "";
+  };
+  animation.oncancel = () => {
+    piece.remove();
+    target.style.visibility = "";
+  };
+}
+
+function renderGame(previousState = null) {
   const hasMatch = !!currentMatch;
   $("empty-game").classList.toggle("hidden", hasMatch);
   $("game").classList.toggle("hidden", !hasMatch);
   $("close-match").hidden = !hasMatch;
   if (!hasMatch) return;
   const state = currentMatch.state;
+  const checkerTransition = captureCheckerMove(previousState, state);
   $("game-title").textContent = `Партия с ${matchLabel(currentMatch)}`;
   legalMoves = currentMatch.status === "active" && state.turn.phase === "moving" &&
     state.turn.player === sideFor(currentMatch)
@@ -430,6 +500,7 @@ function renderGame() {
   renderControls(currentMatch);
   renderRestart(currentMatch);
   renderBoard(state);
+  animateCheckerMove(checkerTransition);
 }
 
 async function startRealtime() {
@@ -438,14 +509,15 @@ async function startRealtime() {
   const refresh = async (payload) => {
     const row = payload.new;
     if (row?.id === currentMatch?.id) {
-      const previousDice = currentMatch.state?.turn?.dice || [];
+      const previousState = currentMatch.state;
+      const previousDice = previousState?.turn?.dice || [];
       const nextDice = row.state?.turn?.dice || [];
       animateNextDice = row.state?.turn?.phase === "moving" &&
         previousDice.join(",") !== nextDice.join(",");
       currentMatch = row;
       await hydrateOpponentNames([currentMatch]);
       selectedFrom = null;
-      renderGame();
+      renderGame(previousState);
       animateNextDice = false;
     }
     await loadMatches();
