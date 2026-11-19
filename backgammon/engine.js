@@ -247,10 +247,17 @@ function moveKey(move) {
 
 function getLegalTurnSequences(state, dice, rules) {
   assertRules(rules);
+  if (state.turn.phase === "finished") return [];
   const availableDice = state.turn.phase === "moving"
     ? [...state.turn.remainingDice]
     : normalizeDice(dice);
-  if (state.turn.phase === "finished") return [];
+  const startingState = state.turn.phase === "awaiting_roll"
+    ? cloneState(state)
+    : state;
+  if (startingState.turn.phase === "awaiting_roll") {
+    startingState.turn.dice = [...dice];
+    startingState.turn.headMovesLimit = currentHeadLimit(startingState, rules);
+  }
 
   const results = [];
   const seen = new Set();
@@ -287,7 +294,7 @@ function getLegalTurnSequences(state, dice, rules) {
     }
   }
 
-  walk(state, availableDice, []);
+  walk(startingState, availableDice, []);
 
   const maxMoves = Math.max(0, ...results.map(sequence => sequence.length));
   let filtered = results.filter(sequence => sequence.length === maxMoves);
