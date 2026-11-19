@@ -199,10 +199,13 @@ async function start(){
   if(!deletedAccount){
    $("composer").addEventListener("submit",async event=>{
     event.preventDefault();const input=$("message-input"),content=input.value.trim();if(!content)return;
-    const button=$("send");button.disabled=true;showNotice("Отправляем…");
-    const result=await client.from("direct_messages").insert({sender_id:viewer.id,recipient_id:peerId,content});
-    if(result.error){showNotice("Не удалось отправить: "+result.error.message,true);button.disabled=false;return;}
-    input.value="";showNotice("Сообщение отправлено.");await loadMessages();button.disabled=false;input.focus();
+    const button=$("send");if(button.disabled)return;button.disabled=true;showNotice("Отправляем…");
+    try{
+     const result=await client.from("direct_messages").insert({sender_id:viewer.id,recipient_id:peerId,content});
+     if(result.error)throw result.error;
+     input.value="";showNotice("Сообщение отправлено.");await loadMessages();
+    }catch(error){showNotice("Не удалось отправить: "+(error.message||"ошибка соединения"),true);}
+    finally{button.disabled=false;input.focus();}
    });
    $("message-input").addEventListener("keydown",event=>{if(event.key==="Enter"&&!event.shiftKey){event.preventDefault();$("composer").requestSubmit();}});
    $("attach").addEventListener("click",()=>$("attachment-input").click());
