@@ -10,7 +10,6 @@ const client = createClient(SUPABASE_URL, SUPABASE_KEY);
 let user = null;
 let matches = [];
 let currentMatch = null;
-let gameCollapsed = false;
 let selectedFrom = null;
 let realtimeChannel = null;
 let realtimeWasConnected = false;
@@ -548,16 +547,12 @@ function animateCheckerMove(transition) {
 
 function renderGame(previousState = null) {
   const hasMatch = !!currentMatch;
-  $("empty-game").classList.toggle("hidden", hasMatch && !gameCollapsed);
-  $("game").classList.toggle("hidden", !hasMatch || gameCollapsed);
-  $("close-match").hidden = !hasMatch;
-  $("close-match").textContent = gameCollapsed ? "Развернуть" : "Свернуть";
-  if (gameCollapsed) {
-    $("empty-game").textContent = "Игра свёрнута только в этом окне. Нажми «Развернуть», чтобы вернуться к доске.";
-  } else if (!hasMatch) {
+  $("empty-game").classList.toggle("hidden", hasMatch);
+  $("game").classList.toggle("hidden", !hasMatch);
+  if (!hasMatch) {
     $("empty-game").innerHTML = "Создай партию или открой приглашение соперника.<br>Поле появится после выбора партии.";
+    return;
   }
-  if (!hasMatch || gameCollapsed) return;
   const state = currentMatch.state;
   const checkerTransition = captureCheckerMove(previousState, state);
   $("game-title").textContent = `Партия с ${matchLabel(currentMatch)}`;
@@ -636,12 +631,6 @@ $("invite-form").addEventListener("submit", async (event) => {
     return;
   }
   await createMatch(opponent);
-});
-
-$("close-match").addEventListener("click", () => {
-  if (!currentMatch) return;
-  gameCollapsed = !gameCollapsed;
-  renderGame();
 });
 
 async function start() {
