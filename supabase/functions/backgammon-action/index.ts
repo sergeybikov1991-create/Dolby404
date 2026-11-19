@@ -24,7 +24,7 @@ function getPublishableKey(): string | null {
       const keys = JSON.parse(keysJson);
       if (typeof keys.default === "string" && keys.default.length > 0) return keys.default;
     } catch {
-      return null;
+      // Fall back to the legacy key name when the optional key map is malformed.
     }
   }
   return Deno.env.get("SUPABASE_ANON_KEY") ?? null;
@@ -37,7 +37,7 @@ function getSecretKey(): string | null {
       const keys = JSON.parse(keysJson);
       if (typeof keys.default === "string" && keys.default.length > 0) return keys.default;
     } catch {
-      return null;
+      // Fall back to the legacy server-only service role key.
     }
   }
   return Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? null;
