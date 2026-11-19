@@ -123,7 +123,7 @@ test("authenticated game room renders 24 points and server-confirmed 3D dice", a
         from:query,
         channel:()=>({on(){return this;},subscribe(callback){window.__flouRealtimeStatus=callback;return this;}}),
         removeChannel:async()=>({}),
-        functions:{invoke:async()=>({data:null,error:null})}
+        functions:{invoke:async(_name,options)=>{window.__flouActions=window.__flouActions||[];window.__flouActions.push(options.body);return {data:{status:"active",state:match.state,turn_number:1,revision:3,restart_request:null},error:null};}}
       };
     }`;
   await page.route("https://esm.sh/@supabase/supabase-js@2*", route => route.fulfill({
@@ -149,6 +149,24 @@ test("authenticated game room renders 24 points and server-confirmed 3D dice", a
   await expect(page.locator("#game-notice")).toContainText("Соединение с соперником прервано");
   await page.evaluate(async () => await window.__flouRealtimeStatus("SUBSCRIBED"));
   await expect(page.locator("#game-notice")).toContainText("Связь восстановлена. Состояние партии обновлено.");
+
+  // Drag A's checker from point 24 to the legal point 21 (die 3).
+  const source = page.locator('#board .point[data-index="23"] .checker').first();
+  const destination = page.locator('#board .point[data-index="20"]');
+  const sourceBox = await source.boundingBox();
+  const destinationBox = await destination.boundingBox();
+  expect(sourceBox).not.toBeNull();
+  expect(destinationBox).not.toBeNull();
+  await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(destinationBox.x + destinationBox.width / 2, destinationBox.y + destinationBox.height / 2, { steps: 8 });
+  await page.mouse.up();
+  await expect.poll(() => page.evaluate(() => window.__flouActions?.length || 0)).toBe(1);
+  const submitted = await page.evaluate(() => window.__flouActions[0]);
+  expect(submitted.action_type).toBe("move");
+  expect(submitted.payload.move.from).toBe(23);
+  expect(submitted.payload.move.to).toBe(20);
+  expect(submitted.payload.move.die).toBe(3);
 });
 
 test("a direct conversation can switch into an embedded game and return without losing chat", () => {
@@ -159,7 +177,9 @@ test("a direct conversation can switch into an embedded game and return without 
   expect(messages).toContain('id="game-frame"');
   expect(messages).toContain('backgammon.html?embed=1&opponent=');
   expect(messages).toContain('gameToggle.textContent=opening?"Вернуться в чат":"Играть"');
-  expect(gamePage).toContain("body.embed .shell>aside{display:block}");
+  expect(gamePage).toContain("body.embed .shell>aside{display:none}");
+  expect(gamePage).toContain("body.embed .game-panel{display:flex");
+  expect(gamePage).toContain("body.embed .board-wrap{display:flex;flex:1");
   expect(gameScript).toContain('get("opponent")');
   expect(gameScript).toContain('invitedProfile?.username');
 });
