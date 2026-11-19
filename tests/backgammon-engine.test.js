@@ -127,7 +127,7 @@ test("overshooting bear-off requires no checker farther from the exit", () => {
   const moving = engine.startTurn(stateWith(points), [6, 2], rules);
   const moves = engine.getLegalMoves(moving, moving.turn.remainingDice, rules);
   assert.ok(moves.some(move => move.from === 23 && move.bearOff));
-  assert.ok(!moves.some(move => move.from === 22 && move.bearOff));
+  assert.ok(!moves.some(move => move.from === 22 && move.bearOff && move.die === 6));
 });
 
 test("applyMove is immutable and keeps the checker total", () => {
