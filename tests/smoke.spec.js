@@ -143,22 +143,23 @@ test("read receipt failures do not block rendering the conversation", async () =
 });
 
 
-test("FLOUSTREAM shell cache preloads pages without caching private API data", async () => {
+test("FLOUSTREAM service worker leaves pages uncached and clears obsolete shell caches", async () => {
   const fs = require("node:fs");
   const path = require("node:path");
   const worker = fs.readFileSync(path.join(__dirname, "../service-worker.js"), "utf8");
-  for (const page of ["portal.html", "profile.html", "public-profile.html", "messages.html", "friends.html", "home.html", "music.html"]) {
-    expect(worker).toContain("./" + page);
-  }
-  expect(worker).toContain('request.mode === "navigate"');
-  expect(worker).toContain('request.method !== "GET"');
-  expect(worker).toContain('response.type === "basic"');
-  expect(worker).toContain('self.skipWaiting()');
-  expect(worker).toContain('self.clients.claim()');
+
+  expect(worker).toContain("page caching disabled");
+  expect(worker).toContain("Intentionally no fetch handler");
+  expect(worker).not.toContain('addEventListener("fetch"');
+  expect(worker).toContain("const names = await caches.keys()");
+  expect(worker).toContain('name.startsWith("floustream-shell-")');
+  expect(worker).toContain("caches.delete(name)");
+  expect(worker).toContain("self.skipWaiting()");
+  expect(worker).toContain("self.clients.claim()");
   expect(worker).not.toContain("supabase.co");
   for (const page of ["portal.html", "public-profile.html", "messages.html", "friends.html", "home.html", "music.html"]) {
     const html = fs.readFileSync(path.join(__dirname, "../" + page), "utf8");
-    expect(html).toContain('navigator.serviceWorker.register');
+    expect(html).toContain("navigator.serviceWorker.register");
   }
-  expect(worker).toContain('const CACHE_NAME = "floustream-shell-v2"');
+  expect(worker).not.toContain('const CACHE_NAME = "floustream-shell-v2"');
 });
