@@ -240,7 +240,7 @@ async function start(){
    .subscribe(status=>{
     if(status==="SUBSCRIBED"){
      if(wasSubscribed)loadMessages(true);
-     else{wasSubscribed=true;loadMessages(true);}
+     wasSubscribed=true;
      showNotice("");
     }else if(status==="CHANNEL_ERROR"||status==="TIMED_OUT"||status==="CLOSED"){
      showNotice("Восстанавливаем соединение…",true);
