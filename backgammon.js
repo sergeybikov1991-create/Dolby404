@@ -443,9 +443,9 @@ function captureCheckerMove(previousState, nextState) {
   return { to, sign, rect };
 }
 function animateCheckerMove(transition) {
-  if (!transition || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+  if (!transition || window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) return;
   const target = document.querySelector(`.point[data-index="${transition.to}"] .stack .checker:last-child`);
-  if (!target) return;
+  if (!target || typeof Element.prototype.animate !== "function") return;
   const destination = target.getBoundingClientRect();
   if (!destination.width || !destination.height) return;
 
