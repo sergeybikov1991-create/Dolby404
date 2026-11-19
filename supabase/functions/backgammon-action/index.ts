@@ -1,10 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { createRequire } from "node:module";
-
-const require = createRequire(import.meta.url);
-const engine = require("../_shared/engine.cjs");
-const rules = require("../_shared/rules.cjs").LONG_BACKGAMMON_RULES;
-const dice = require("../_shared/dice.cjs");
+import * as engine from "../_shared/engine.mjs";
+import { LONG_BACKGAMMON_RULES as rules } from "../_shared/rules.mjs";
+import { rollDice, rollOpeningDice } from "../_shared/dice.mjs";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -272,7 +269,7 @@ Deno.serve(async (req: Request) => {
         if (match.status !== "awaiting_opening_roll") {
           return json({ error: "Match is not waiting for an opening roll" }, 409);
         }
-        const opening = dice.rollOpeningDice();
+        const opening = rollOpeningDice();
         nextState = engine.createInitialState({
           matchId,
           players: { A: match.player_a, B: match.player_b },
@@ -291,7 +288,7 @@ Deno.serve(async (req: Request) => {
         if (match.state.turn.player !== side) {
           return json({ error: "It is not your turn" }, 403);
         }
-        nextState = engine.startTurn(match.state, dice.rollDice().dice, rules);
+        nextState = engine.startTurn(match.state, rollDice().dice, rules);
         break;
       }
 
