@@ -76,6 +76,7 @@ async function invokeAction(actionType, payload = {}) {
     return false;
   }
   const previousState = currentMatch.state;
+  const previousState = currentMatch.state;
   currentMatch = {
     ...currentMatch,
     status: data.status,
@@ -355,7 +356,11 @@ function renderRestart(match) {
   const request = match.restart_request;
   if (!request) {
     box.classList.remove("hidden");
-    addControl(box, "Предложить рестарт", () => invokeAction("restart_request"), "ghost");
+    addControl(box, "Предложить рестарт", () => {
+      if (window.confirm("Предложить начать партию заново?")) {
+        invokeAction("restart_request");
+      }
+    }, "ghost");
     return;
   }
   box.classList.remove("hidden");
@@ -510,10 +515,8 @@ async function startRealtime() {
     const row = payload.new;
     if (row?.id === currentMatch?.id) {
       const previousState = currentMatch.state;
-      const previousDice = previousState?.turn?.dice || [];
-      const nextDice = row.state?.turn?.dice || [];
-      animateNextDice = row.state?.turn?.phase === "moving" &&
-        previousDice.join(",") !== nextDice.join(",");
+      animateNextDice = previousState?.turn?.phase === "awaiting_roll" &&
+        row.state?.turn?.phase === "moving";
       currentMatch = row;
       await hydrateOpponentNames([currentMatch]);
       selectedFrom = null;
