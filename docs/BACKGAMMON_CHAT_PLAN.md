@@ -217,3 +217,10 @@
 ### Рестарт онлайн-партии — серверное состояние
 
 Для запроса рестарта хранится инициатор, статус и версия партии. Оба игрока должны подтвердить один и тот же запрос. Только атомарная операция при двух согласиях сбрасывает доску, очередь, кости, номер хода и историю текущей партии. Отказ, истечение запроса или уход игрока не сбрасывают доску. Клиентское подтверждение «ОК» само по себе не изменяет игровое состояние.
+
+
+## Rule clarification — six-point blockade
+
+The engine now follows the Russian sport rules approved by Ministry of Sport Order No. 347 of 30 April 2025, Article 20.5: a six-point block is not prohibited by itself; it is illegal only when it traps all 15 opposing checkers. The prohibition applies even to a temporary intermediate position during the same turn. A block is allowed when at least one opposing checker has already passed it. This is intentionally stricter and more precise than the simplified “never make six in a row” interpretation.
+
+Implementation: `rules.forbidFullBlockade = true`; legal move generation checks every intermediate board position before allowing the next die to be played. Tests cover both a full lock and the passed-checker exception. No live Supabase schema or production data was changed.
