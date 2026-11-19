@@ -91,7 +91,7 @@ async function loadAll(){
  finally{refreshing=false;}
 }
 async function start(){
- try{await loadLibrary();client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);const auth=await client.auth.getUser();if(auth.error)throw auth.error;viewer=auth.data.user;if(!viewer){location.replace("portal.html");return;}window.initFloustreamFriendNotifications?.(client,viewer.id);await loadAll();
+ try{await loadLibrary();client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storage:window.localStorage,storageKey:"sb-qhpobdktlbhdqsnajypr-auth-token"}});const stored=await client.auth.getSession();if(stored.error)throw stored.error;if(!stored.data?.session)throw new Error("Сессия не найдена в хранилище браузера. Вернись на страницу входа и авторизуйся снова.");const auth=await client.auth.getUser();if(auth.error)throw auth.error;viewer=auth.data.user;if(!viewer){location.replace("portal.html");return;}window.initFloustreamFriendNotifications?.(client,viewer.id);await loadAll();
  const channel=client.channel("floustream-friends-page-"+viewer.id).on("postgres_changes",{event:"*",schema:"public",table:"friend_requests"},()=>loadAll()).subscribe();
  window.addEventListener("beforeunload",()=>client.removeChannel(channel),{once:true});
  }catch(error){notice("Не удалось открыть раздел друзей: "+error.message,true);}
