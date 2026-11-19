@@ -216,7 +216,7 @@ function startDolbyOnlinePresence(client,userId){
 async function start(){
   try{
     await loadSupabase();
-    const client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+    const client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storage:window.localStorage,storageKey:"sb-qhpobdktlbhdqsnajypr-auth-token"}});
     const {data,error}=await client.auth.getSession();
     if(error) throw error;
     if(!data.session){
