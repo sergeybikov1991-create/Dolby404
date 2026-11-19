@@ -312,8 +312,8 @@ Live privilege verification:
 - `backgammon_get_action_result` and `backgammon_commit_action` are SECURITY INVOKER, use an empty search_path, and are executable by `service_role` only.
 - Participant RLS is the sole SELECT policy.
 
-The `backgammon-action` Edge Function is ACTIVE, version 3, with JWT verification enabled. Version 3 includes the casual rematch option after a finished game. It uses the shared ESM rules, engine and Web Crypto dice modules; the service-role secret is never sent to the browser.
+The `backgammon-action` Edge Function is ACTIVE, version 4, with JWT verification enabled. Version 3 includes the casual rematch option after a finished game. It uses the shared ESM rules, engine and Web Crypto dice modules; the service-role secret is never sent to the browser.
 
-The game-room UI now shows real pip faces and animates only after a server-confirmed opening/normal roll. Mutual restart is available in casual matches both during a game and after it finishes; tournament matches do not allow restart.
+The game-room UI now shows a six-face 3D die with the correct final face orientation, animates server-confirmed rolls and checker movement, and asks for confirmation before a restart. Mutual restart is available in casual matches both during a game and after it finishes; tournament matches do not allow restart. A root `.nojekyll` file ensures GitHub Pages serves the shared ESM modules under `supabase/functions/_shared`.
 
-Latest GitHub Actions run `#174` validates 25 Node unit tests, Chromium smoke/game-room tests, Deno type-checking, and the migration/idempotency/RLS checks against disposable PostgreSQL 16. No paid Supabase branch or paid test server was created.
+Latest GitHub Actions run `#195` is green: 25 Node unit tests, all 12 Chromium smoke/game-room tests, Deno type-checking, browser-module syntax check, and migration/idempotency/RLS checks against disposable PostgreSQL 16. No paid Supabase branch or paid test server was created.
