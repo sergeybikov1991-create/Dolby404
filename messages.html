@@ -176,9 +176,9 @@ async function loadInbox(){
 async function start(){
  try{
   showNotice("Подключаем библиотеку чата…");
-  await loadLibrary();client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+  await loadLibrary();client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storage:window.localStorage,storageKey:"sb-qhpobdktlbhdqsnajypr-auth-token"}});
   showNotice("Проверяем вход в аккаунт…");
-  const auth=await withTimeout(client.auth.getUser(),12000,"Проверка входа в аккаунт не ответила за 12 секунд. Обнови страницу; если ошибка повторится, проверим сессию Supabase.");
+  const stored=await withTimeout(client.auth.getSession(),12000,"Не удалось восстановить сессию браузера за 12 секунд.");if(stored.error)throw stored.error;if(!stored.data?.session)throw new Error("Сессия не найдена в хранилище браузера. Вернись на страницу входа и авторизуйся снова.");const auth=await withTimeout(client.auth.getUser(),12000,"Проверка входа в аккаунт не ответила за 12 секунд.");
   if(auth.error)throw auth.error;viewer=auth.data.user;
   if(!viewer){location.replace("portal.html");return;}
   peerId=new URLSearchParams(location.search).get("with");
