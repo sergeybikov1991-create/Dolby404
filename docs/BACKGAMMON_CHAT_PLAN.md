@@ -262,3 +262,8 @@ Restart protocol:
 - Keep the players' A/B sides fixed across a restart; only reset the game state.
 
 No SQL has been applied to the production project and no Edge Function has been deployed. A separate development branch costs $0.01344/hour and is awaiting explicit approval before creation.
+
+
+### Opening roll
+
+The opening is not a normal two-dice roll: each player rolls one secure die; if the values tie, both roll again. The player with the higher value moves first and uses both opening values as that turn's two dice. The server uses `rollOpeningDice()` for this, then records the first player and starts the first turn with those exact values. Subsequent turns use `rollDice()`; doubles expand to four moves. The opening-tie rule is covered by a unit test.
