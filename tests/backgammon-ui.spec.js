@@ -149,9 +149,10 @@ test("authenticated game room renders 24 points and server-confirmed 3D dice", a
   // and the same board can be restored without reopening or losing its state.
   await page.getByRole("button", { name: "Свернуть" }).click();
   await expect(page.getByRole("button", { name: "Развернуть" })).toBeVisible();
-  await expect(page.locator("#board .point")).toHaveCount(0);
+  await expect(page.locator("#game")).toBeHidden();
   await expect(page.locator("#game-title")).toContainText("Партия с");
   await page.getByRole("button", { name: "Развернуть" }).click();
+  await expect(page.locator("#game")).toBeVisible();
   await expect(page.locator("#board .point")).toHaveCount(24);
   await expect(page.locator("#dice .die-face")).toHaveCount(12);
 
