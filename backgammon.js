@@ -96,7 +96,10 @@ async function invokeAction(actionType, payload = {}) {
 
 async function createMatch(opponent) {
   const matchId = crypto.randomUUID();
-  setNotice("invite-notice", "Отправляем приглашение…");
+  const noticeId = new URLSearchParams(location.search).get("embed") === "1"
+    ? "game-notice"
+    : "invite-notice";
+  setNotice(noticeId, "Отправляем приглашение…");
   const { data, error } = await client.functions.invoke("backgammon-action", {
     body: {
       action_type: "create_match",
@@ -111,10 +114,10 @@ async function createMatch(opponent) {
       const body = await error.context?.json?.();
       if (body?.error) message = body.error;
     } catch {}
-    setNotice("invite-notice", message, true);
+    setNotice(noticeId, message, true);
     return;
   }
-  setNotice("invite-notice", `Приглашение отправлено: ${opponent.display_name || opponent.username}`);
+  setNotice(noticeId, "Приглашение отправлено собеседнику.");
   await loadMatches();
   if (data?.match) openMatch(data.match.id);
 }
