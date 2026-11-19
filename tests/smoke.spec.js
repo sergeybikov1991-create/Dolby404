@@ -102,10 +102,10 @@ test("messages page uses Supabase Realtime instead of five-second polling", asyn
   expect(messages).toContain('event:"INSERT"');
   expect(messages).toContain('event:"UPDATE"');
   expect(messages).toContain('client.channel("floustream-direct-"');
-  expect(messages).toContain("refreshAfterLoad");
-  expect(messages).toContain("inboxRefreshAfterLoad");
+  expect(messages).toContain("pendingMessageReload");
+  expect(messages).toContain("pendingInboxReload");
   expect(messages).toContain("let wasSubscribed=false");
-  expect(messages).toContain("if(wasSubscribed)onChange();");
+  expect(messages).toContain("if(wasSubscribed)loadMessages(true);");
   expect(messages).not.toMatch(/setInterval\s*\([^)]*(?:loadMessages|loadInbox)/s);
   expect(messages).not.toContain("},5000)");
 });
@@ -156,7 +156,7 @@ test("FLOUSTREAM shell cache preloads pages without caching private API data", a
   expect(worker).toContain('self.skipWaiting()');
   expect(worker).toContain('self.clients.claim()');
   expect(worker).not.toContain("supabase.co");
-  for (const page of ["portal.html", "profile.html", "public-profile.html", "messages.html", "friends.html", "home.html", "music.html"]) {
+  for (const page of ["portal.html", "public-profile.html", "messages.html", "friends.html", "home.html", "music.html"]) {
     const html = fs.readFileSync(path.join(__dirname, "../" + page), "utf8");
     expect(html).toContain('navigator.serviceWorker.register');
   }

@@ -99,7 +99,7 @@ test("messenger uses realtime subscriptions instead of five-second polling", () 
   const messages = fs.readFileSync(path.join(__dirname, "../messages.html"), "utf8");
 
   expect(messages).toContain('floustream-inbox-');
-  expect(messages).toContain('floustream-chat-');
+  expect(messages).toContain('floustream-direct-');
   expect(messages).toContain('.on("postgres_changes"');
   expect(messages).toContain('pendingMessageReload');
   expect(messages).not.toContain('setInterval(()=>{if(!document.hidden)loadInbox();},5000);');

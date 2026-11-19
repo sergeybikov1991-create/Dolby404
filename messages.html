@@ -32,7 +32,7 @@ body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 18% 0%,#281
 .send{width:46px;height:44px;flex:0 0 46px;border:1px solid #9a69c7;border-radius:13px;background:linear-gradient(135deg,#7139c9,#48216f);color:#fff;font-size:21px;font-weight:800;cursor:pointer}
 .send:disabled{opacity:.5;cursor:default}
 .notice{min-height:19px;padding:0 14px 8px;color:#c8a7e8;font-size:11px}
-.inbox-list{display:flex;flex-direction:column;gap:9px;padding:12px;overflow:auto}.inbox-item{display:flex;align-items:center;gap:12px;width:100%;min-height:72px;padding:11px;border:1px solid #392b4b;border-radius:14px;background:linear-gradient(120deg,#21182d,#14111d);color:var(--text);text-align:left;text-decoration:none;cursor:pointer}.inbox-item:active{border-color:#a66bff;background:#2a1c3a}.inbox-avatar{width:48px;height:48px;flex:0 0 48px;display:grid;place-items:center;overflow:hidden;border:1px solid #9a69c7;border-radius:50%;background:#352044;font-weight:800}.inbox-avatar img{width:100%;height:100%;object-fit:cover}.inbox-copy{display:grid;gap:5px;min-width:0;flex:1}.inbox-name{font-size:14px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.inbox-preview{font-size:12px;color:#b9adc8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.inbox-meta{display:grid;justify-items:end;gap:7px;align-self:stretch}.inbox-time{font-size:10px;color:#a99bbd;white-space:nowrap}.inbox-unread{display:grid;min-width:20px;height:20px;padding:0 5px;place-items:center;border-radius:999px;background:linear-gradient(135deg,#ff4f91,#c51e68);color:white;font-size:11px;font-weight:800}.inbox-unread[hidden]{display:none}.inbox-empty{margin:auto;padding:26px;text-align:center;color:#a99bbd;line-height:1.6}@media(max-width:600px){.topbar{padding:10px 12px}.wrap{height:calc(100dvh - 61px);padding:9px}.chat{border-radius:15px}.messages{padding:14px 10px}.composer{padding:9px}}
+.inbox-list{display:flex;flex-direction:column;gap:9px;padding:12px;overflow:auto}.inbox-item{display:flex;align-items:center;gap:12px;width:100%;min-height:72px;padding:11px;border:1px solid #392b4b;border-radius:14px;background:linear-gradient(120deg,#21182d,#14111d);color:var(--text);text-align:left;text-decoration:none;cursor:pointer}.inbox-item:active{border-color:#a66bff;background:#2a1c3a}.inbox-avatar{width:48px;height:48px;flex:0 0 48px;display:grid;place-items:center;overflow:hidden;border:1px solid #9a69c7;border-radius:50%;background:#352044;font-weight:800}.inbox-avatar img{width:100%;height:100%;object-fit:cover}.inbox-copy{display:grid;gap:5px;min-width:0;flex:1}.inbox-name{font-size:14px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.inbox-preview{font-size:12px;color:#b9adc8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.inbox-meta{display:grid;justify-items:end;gap:7px;align-self:stretch}.inbox-time{font-size:10px;color:#a99bbd;white-space:nowrap}.inbox-unread{display:grid;min-width:20px;height:20px;padding:0 5px;place-items:center;border-radius:999px;background:linear-gradient(135deg,#ff4f91,#c51e68);color:white;font-size:11px;font-weight:800}.inbox-unread[hidden]{display:none}.inbox-empty{margin:auto;padding:26px;text-align:center;color:#a99bbd;line-height:1.6}.game-toggle{border:1px solid #8b63b1;border-radius:11px;padding:9px 13px;background:linear-gradient(135deg,#3d2458,#24182f);color:#f2e5ff;font-weight:700;cursor:pointer}.game-toggle[hidden]{display:none}.game-frame{display:block;width:100%;flex:1;min-height:0;border:0;background:#090811}.game-frame[hidden]{display:none}.messages[hidden],.composer[hidden]{display:none!important}@media(max-width:600px){.topbar{padding:10px 12px}.wrap{height:calc(100dvh - 61px);padding:9px}.chat{border-radius:15px}.messages{padding:14px 10px}.composer{padding:9px}}
 </style>
 </head>
 <body>
@@ -42,8 +42,10 @@ body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 18% 0%,#281
  <header class="chat-head">
   <div class="avatar" id="peer-avatar">◉</div>
   <div class="person"><div class="person-name" id="peer-name">Открываем переписку…</div><div class="person-handle" id="peer-handle"></div></div>
+  <button class="game-toggle" id="game-toggle" type="button" hidden>Играть</button>
  </header>
  <div class="messages" id="messages"><div class="empty">Подключаем сообщения…</div></div>
+ <iframe class="game-frame" id="game-frame" title="Игра в длинные нарды" hidden loading="lazy"></iframe>
  <div class="notice" id="notice" aria-live="polite"></div>
  <form class="composer" id="composer">
   <input id="attachment-input" type="file" hidden accept="image/*,video/*,audio/*,.pdf,.zip,.doc,.docx,.xls,.xlsx,.txt">
@@ -57,7 +59,7 @@ body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 18% 0%,#281
 const SUPABASE_URL="https://qhpobdktlbhdqsnajypr.supabase.co";
 const SUPABASE_KEY="sb_publishable_tzG1qVsbjaW8YE_LBVN87Q_v0CahKN5";
 const $=id=>document.getElementById(id);
-let client,viewer,peerId,lastMessageId="",loading=false,inboxLoading=false,refreshAfterLoad=false,inboxRefreshAfterLoad=false;
+let client,viewer,peerId,lastMessageId="",loading=false,inboxLoading=false,pendingMessageReload=false,pendingInboxReload=false;
 function loadLibrary(){return new Promise((resolve,reject)=>{if(window.supabase?.createClient){resolve();return;}const script=document.createElement("script");script.src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";script.onload=()=>window.supabase?.createClient?resolve():reject(new Error("Supabase не загрузился"));script.onerror=()=>reject(new Error("Не удалось загрузить библиотеку Supabase"));document.head.append(script);});}
 function safeUrl(value){if(!value)return "";try{const u=new URL(value,location.href);return ["http:","https:"].includes(u.protocol)?u.href:"";}catch(_){return "";}}
 function timeText(value){const d=new Date(value);return Number.isNaN(d.getTime())?"":d.toLocaleString("ru-RU",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});}
@@ -102,7 +104,7 @@ async function renderMessages(rows){
  lastMessageId=rows[rows.length-1]?.id||lastMessageId;
 }
 async function loadMessages(silent=false,forceRender=false){
- if(loading){refreshAfterLoad=true;return;}loading=true;
+ if(loading){pendingMessageReload=true;return;}loading=true;
  try{
   const filter="and(sender_id.eq."+viewer.id+",recipient_id.eq."+peerId+"),and(sender_id.eq."+peerId+",recipient_id.eq."+viewer.id+")";
   const result=await client.from("direct_messages").select("id,sender_id,recipient_id,content,attachment_path,attachment_name,attachment_mime,created_at").or(filter).order("created_at",{ascending:false}).order("id",{ascending:false}).limit(200);
@@ -121,7 +123,7 @@ async function loadMessages(silent=false,forceRender=false){
    }catch(markError){console.warn("FLOUSTREAM read receipt update:",markError);}
   }
  }catch(error){if(!silent)showNotice("Не удалось загрузить сообщения: "+error.message,true);}
- finally{loading=false;if(refreshAfterLoad){refreshAfterLoad=false;loadMessages(true,true);}}
+ finally{loading=false;if(pendingMessageReload){pendingMessageReload=false;loadMessages(true,true);}}
 }
 function renderInbox(rows,profiles){
  const host=$("messages");host.replaceChildren();host.classList.add("inbox-list");
@@ -129,7 +131,7 @@ function renderInbox(rows,profiles){
  const profileMap=new Map((profiles||[]).map(p=>[p.id,p]));const threads=new Map();
  for(const row of rows){const other=row.sender_id===viewer.id?row.recipient_id:row.sender_id;if(!threads.has(other))threads.set(other,{last:row,unread:0});if(row.recipient_id===viewer.id&&row.sender_id===other&&!row.read_at)threads.get(other).unread++;}
  for(const [id,thread] of threads){
-  const deletedAccount=!profileMap.has(id);const person=profileMap.get(id)||{};const link=document.createElement("a");link.className="inbox-item";link.href="messages.html?v=20261119-realtime-2&with="+encodeURIComponent(id);
+  const deletedAccount=!profileMap.has(id);const person=profileMap.get(id)||{};const link=document.createElement("a");link.className="inbox-item";link.href="messages.html?v=20261115-2&with="+encodeURIComponent(id);
   const avatar=document.createElement("div");avatar.className="inbox-avatar";const avatarUrl=safeUrl(person.avatar_url);
   if(avatarUrl){const img=document.createElement("img");img.src=avatarUrl;img.alt="";avatar.append(img);}else avatar.textContent=((person.display_name||person.username||"◉").trim()[0]||"◉").toUpperCase();
   const copy=document.createElement("div");copy.className="inbox-copy";const name=document.createElement("div");name.className="inbox-name";name.textContent=deletedAccount?"Удалённый аккаунт":(person.display_name||person.username||"Пользователь");
@@ -140,34 +142,11 @@ function renderInbox(rows,profiles){
  }
 }
 async function loadInbox(){
- if(inboxLoading){inboxRefreshAfterLoad=true;return;}inboxLoading=true;
+ if(inboxLoading){pendingInboxReload=true;return;}inboxLoading=true;
  try{const result=await client.from("direct_messages").select("id,sender_id,recipient_id,content,attachment_name,created_at,read_at").or("sender_id.eq."+viewer.id+",recipient_id.eq."+viewer.id).order("created_at",{ascending:false}).limit(500);
   if(result.error)throw result.error;const rows=result.data||[];const ids=[...new Set(rows.map(row=>row.sender_id===viewer.id?row.recipient_id:row.sender_id).filter(Boolean))];let profiles=[];
   if(ids.length){const people=await client.from("profiles").select("id,username,display_name,avatar_url").in("id",ids);if(people.error)throw people.error;profiles=people.data||[];}renderInbox(rows,profiles);
- }catch(error){showNotice("Не удалось загрузить список сообщений: "+error.message,true);}finally{inboxLoading=false;if(inboxRefreshAfterLoad){inboxRefreshAfterLoad=false;loadInbox();}}
-}
-function watchDirectMessages(onChange,watchReadState){
- const channel=client.channel("floustream-direct-"+viewer.id+"-"+(peerId||"inbox"));
- const receive=payload=>{
-  const row=payload.new||{};
-  if(row.sender_id!==viewer.id&&row.recipient_id!==viewer.id)return;
-  if(peerId&&row.sender_id!==peerId&&row.recipient_id!==peerId)return;
-  onChange();
- };
- channel.on("postgres_changes",{event:"INSERT",schema:"public",table:"direct_messages",filter:"recipient_id=eq."+viewer.id},receive)
-  .on("postgres_changes",{event:"INSERT",schema:"public",table:"direct_messages",filter:"sender_id=eq."+viewer.id},receive)
-  .on("postgres_changes",{event:"UPDATE",schema:"public",table:"direct_messages",filter:"recipient_id=eq."+viewer.id},receive)
-  .on("postgres_changes",{event:"UPDATE",schema:"public",table:"direct_messages",filter:"sender_id=eq."+viewer.id},receive);
- let wasSubscribed=false;
- channel.subscribe(status=>{
-  if(status==="SUBSCRIBED"){
-   if(wasSubscribed)onChange();
-   wasSubscribed=true;
-  }else if(status==="CHANNEL_ERROR"||status==="TIMED_OUT"||status==="CLOSED"){
-   console.warn("FLOUSTREAM Realtime:",status);
-  }
- });
- return channel;
+ }catch(error){showNotice("Не удалось загрузить список сообщений: "+error.message,true);}finally{inboxLoading=false;if(pendingInboxReload){pendingInboxReload=false;queueMicrotask(()=>loadInbox());}}
 }
 async function start(){
  try{
@@ -175,7 +154,22 @@ async function start(){
   const auth=await client.auth.getUser();if(auth.error)throw auth.error;viewer=auth.data.user;
   if(!viewer){location.replace("portal.html");return;}
   peerId=new URLSearchParams(location.search).get("with");
-  if(!peerId){$("peer-name").textContent="Сообщения";$("peer-handle").textContent="Все диалоги";$("peer-avatar").textContent="✉";$("composer").hidden=true;watchDirectMessages(()=>loadInbox(),true);await loadInbox();return;}
+  if(!peerId){$("peer-name").textContent="Сообщения";$("peer-handle").textContent="Все диалоги";$("peer-avatar").textContent="✉";$("composer").hidden=true;await loadInbox();
+   const inboxChannel=client.channel("floustream-inbox-"+viewer.id)
+    .on("postgres_changes",{event:"INSERT",schema:"public",table:"direct_messages"},payload=>{
+     const row=payload.new||{};
+     if(row.sender_id===viewer.id||row.recipient_id===viewer.id)loadInbox();
+    })
+    .on("postgres_changes",{event:"UPDATE",schema:"public",table:"direct_messages"},payload=>{
+     const row=payload.new||{};
+     if(row.sender_id===viewer.id||row.recipient_id===viewer.id)loadInbox();
+    })
+    .subscribe(status=>{
+     if(status==="SUBSCRIBED"){showNotice("");loadInbox();}
+     else if(status==="CHANNEL_ERROR"||status==="TIMED_OUT")showNotice("Восстанавливаем связь со списком диалогов…",true);
+    });
+   window.addEventListener("pagehide",()=>client.removeChannel(inboxChannel),{once:true});
+   return;}
   if(peerId===viewer.id){showNotice("Открой профиль другого пользователя, чтобы начать переписку.",true);$("composer").hidden=true;return;}
   const profile=await client.from("profiles").select("id,username,display_name,avatar_url").eq("id",peerId).maybeSingle();
   if(profile.error)throw profile.error;
@@ -185,9 +179,22 @@ async function start(){
   $("peer-handle").textContent=deletedAccount?"История переписки сохранена":(p.username?"@"+p.username:"");
   const avatar=safeUrl(p.avatar_url);if(avatar){const img=document.createElement("img");img.src=avatar;img.alt="";$("peer-avatar").replaceChildren(img);}else $("peer-avatar").textContent=($("peer-name").textContent.trim()[0]||"◉").toUpperCase();
   $("back").href=deletedAccount?"messages.html":"public-profile.html?id="+encodeURIComponent(peerId);
+  if(!deletedAccount){
+   const gameToggle=$("game-toggle"),gameFrame=$("game-frame");
+   gameToggle.hidden=false;
+   gameToggle.addEventListener("click",()=>{
+    const opening=gameFrame.hidden;
+    if(opening&&!gameFrame.src)gameFrame.src="backgammon.html?embed=1&opponent="+encodeURIComponent(peerId);
+    gameFrame.hidden=!opening;
+    $("messages").hidden=opening;
+    $("composer").hidden=opening;
+    $("notice").hidden=opening;
+    gameToggle.textContent=opening?"Вернуться в чат":"Играть";
+    gameToggle.setAttribute("aria-pressed",String(opening));
+   });
+  }
   $("composer").hidden=deletedAccount;
   if(deletedAccount)showNotice("Этот аккаунт удалён. История переписки сохранена; отправлять новые сообщения нельзя.");
-  watchDirectMessages(()=>loadMessages(true,true),false);
   await loadMessages();
   if(!deletedAccount){
    $("composer").addEventListener("submit",async event=>{
@@ -220,6 +227,26 @@ async function start(){
     }finally{button.disabled=false;event.target.value="";}
    });
   }
+  const chatChannel=client.channel("floustream-direct-"+[viewer.id,peerId].sort().join("-"))
+   .on("postgres_changes",{event:"INSERT",schema:"public",table:"direct_messages"},payload=>{
+    const row=payload.new||{};
+    if((row.sender_id===viewer.id&&row.recipient_id===peerId)||(row.sender_id===peerId&&row.recipient_id===viewer.id))loadMessages(true);
+   })
+   .on("postgres_changes",{event:"UPDATE",schema:"public",table:"direct_messages"},payload=>{
+    const row=payload.new||{};
+    if((row.sender_id===viewer.id&&row.recipient_id===peerId)||(row.sender_id===peerId&&row.recipient_id===viewer.id))loadMessages(true);
+   })
+   let wasSubscribed=false;
+   .subscribe(status=>{
+    if(status==="SUBSCRIBED"){
+     if(wasSubscribed)loadMessages(true);
+     wasSubscribed=true;
+     showNotice("");
+    }else if(status==="CHANNEL_ERROR"||status==="TIMED_OUT"||status==="CLOSED"){
+     showNotice("Восстанавливаем соединение…",true);
+    }
+   });
+  window.addEventListener("pagehide",()=>client.removeChannel(chatChannel),{once:true});
  }catch(error){$("peer-name").textContent="Не удалось открыть переписку";showNotice(error.message,true);$("messages").replaceChildren();}
 }
 start();
