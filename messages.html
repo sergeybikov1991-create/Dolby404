@@ -138,7 +138,15 @@ function watchDirectMessages(onChange,watchReadState){
   .on("postgres_changes",{event:"INSERT",schema:"public",table:"direct_messages",filter:"sender_id=eq."+viewer.id},receive)
   .on("postgres_changes",{event:"UPDATE",schema:"public",table:"direct_messages",filter:"recipient_id=eq."+viewer.id},receive)
   .on("postgres_changes",{event:"UPDATE",schema:"public",table:"direct_messages",filter:"sender_id=eq."+viewer.id},receive);
- channel.subscribe(status=>{if(status==="CHANNEL_ERROR"||status==="TIMED_OUT")console.warn("FLOUSTREAM Realtime:",status);});
+ let wasSubscribed=false;
+ channel.subscribe(status=>{
+  if(status==="SUBSCRIBED"){
+   if(wasSubscribed)onChange();
+   wasSubscribed=true;
+  }else if(status==="CHANNEL_ERROR"||status==="TIMED_OUT"||status==="CLOSED"){
+   console.warn("FLOUSTREAM Realtime:",status);
+  }
+ });
  return channel;
 }
 async function start(){
