@@ -170,6 +170,79 @@ test("authenticated game room renders 24 points and server-confirmed 3D dice", a
   expect(submitted.payload.move.die).toBe(3);
 });
 
+test("both players reveal the same server-confirmed opening dice from Realtime", async ({ browser }) => {
+  const match = {
+    id: "10000000-0000-4000-8000-000000000010",
+    player_a: "00000000-0000-4000-8000-000000000001",
+    player_b: "00000000-0000-4000-8000-000000000002",
+    match_mode: "casual",
+    status: "awaiting_opening_roll",
+    revision: 1,
+    turn_number: 0,
+    restart_request: null,
+    state: {
+      schemaVersion: 1,
+      matchId: "10000000-0000-4000-8000-000000000010",
+      players: { A: "00000000-0000-4000-8000-000000000001", B: "00000000-0000-4000-8000-000000000002" },
+      points: Array.from({ length: 24 }, (_, i) => i === 23 ? 15 : i === 11 ? -15 : 0),
+      borneOff: { A: 0, B: 0 },
+      turn: { player: "A", phase: "awaiting_roll", dice: [], remainingDice: [], movesApplied: [], headMovesApplied: 0, headMovesLimit: 1 },
+      opening: { firstPlayer: "A", secondPlayer: "B", secondPlayerFirstTurnPending: true },
+      winner: null
+    }
+  };
+  const updated = {
+    ...match,
+    status: "active",
+    revision: 2,
+    turn_number: 1,
+    state: {
+      ...match.state,
+      turn: { ...match.state.turn, player: "A", phase: "moving", dice: [4, 6], remainingDice: [4, 6] }
+    }
+  };
+  const stub = `const match = ${JSON.stringify(match)};
+    export function createClient(){
+      const query = table => ({
+        select(){return this;}, or(){return this;}, order(){return this;}, limit(){return this;}, eq(){return this;},
+        maybeSingle(){return Promise.resolve({data:match,error:null});},
+        in(){return Promise.resolve({data:[],error:null});},
+        then(resolve,reject){return Promise.resolve({data:table === "backgammon_matches" ? [match] : [],error:null}).then(resolve,reject);}
+      });
+      return {
+        auth:{getSession:async()=>({data:{session:{user:{id:window.__testUserId,email:"player@floustream.local"}}},error:null})},
+        from:query,
+        channel:()=>({on(_event,_filter,handler){window.__flouMatchUpdate=handler;return this;},subscribe(callback){window.__flouRealtimeStatus=callback;return this;}}),
+        removeChannel:async()=>({})
+      };
+    }`;
+  const pages = [];
+  for (const userId of [match.player_a, match.player_b]) {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const page = await context.newPage();
+    await page.addInitScript(id => { window.__testUserId = id; }, userId);
+    await page.route("https://esm.sh/@supabase/supabase-js@2*", route => route.fulfill({
+      status: 200, contentType: "application/javascript",
+      headers: { "Access-Control-Allow-Origin": "*" }, body: stub
+    }));
+    await page.goto("/backgammon.html", { waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: "Открыть" }).click();
+    await expect(page.locator("#game")).toBeVisible();
+    pages.push({ page, context });
+  }
+
+  for (const { page } of pages) {
+    await page.evaluate(async row => {
+      await window.__flouMatchUpdate({ new: row });
+    }, updated);
+    await expect(page.locator("#dice .dice-result")).toHaveText("4 + 6");
+    await expect(page.locator("#dice .die")).toHaveCount(2);
+  }
+  const values = await Promise.all(pages.map(({ page }) => page.locator("#dice .dice-result").textContent()));
+  expect(values).toEqual(["4 + 6", "4 + 6"]);
+  await Promise.all(pages.map(({ context }) => context.close()));
+});
+
 test("a direct conversation can switch into an embedded game and return without losing chat", () => {
   const messages = fs.readFileSync(path.join(root, "messages.html"), "utf8");
   const gamePage = fs.readFileSync(path.join(root, "backgammon.html"), "utf8");
