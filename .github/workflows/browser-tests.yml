@@ -2,7 +2,7 @@ name: FLOUSTREAM browser tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, feature/floustream-backgammon-chat]
   pull_request:
     branches: [main]
   workflow_dispatch:
