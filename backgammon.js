@@ -12,6 +12,7 @@ let matches = [];
 let currentMatch = null;
 let selectedFrom = null;
 let realtimeChannel = null;
+let realtimeWasConnected = false;
 let legalMoves = [];
 let animateNextDice = false;
 
@@ -590,7 +591,20 @@ async function startRealtime() {
       event: "*", schema: "public", table: "backgammon_matches",
       filter: `player_b=eq.${user.id}`,
     }, refresh)
-    .subscribe();
+    .subscribe(async status => {
+      if (status === "SUBSCRIBED") {
+        const reconnected = realtimeWasConnected;
+        realtimeWasConnected = true;
+        // Fetch one authoritative snapshot after connection and each reconnect;
+        // no timer-based polling is needed to catch up with the opponent.
+        await loadMatches();
+        if (reconnected) {
+          setNotice("game-notice", "Связь восстановлена. Состояние партии обновлено.");
+        }
+      } else if (["CHANNEL_ERROR", "TIMED_OUT", "CLOSED"].includes(status)) {
+        setNotice("game-notice", "Соединение с соперником прервано. Повторно подключаемся…", true);
+      }
+    });
 }
 
 $("invite-form").addEventListener("submit", async (event) => {
