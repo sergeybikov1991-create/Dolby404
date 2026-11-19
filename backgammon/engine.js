@@ -198,13 +198,52 @@ function generateMoves(state, die, rules) {
     const to = from + step * die;
     if (to >= 0 && to < BOARD_POINTS) {
       if (state.points[to] * sign < 0) continue;
-      moves.push({ player, from, to, die, bearOff: false });
+      const move = { player, from, to, die, bearOff: false };
+      if (rules.forbidFullBlockade &&
+          createsFullBlockade(applyMoveUnchecked(state, move), player, rules)) {
+        continue;
+      }
+      moves.push(move);
     } else if (canBearOffFrom(state, player, from, die, rules)) {
       moves.push({ player, from, to: "off", die, bearOff: true });
     }
   }
 
   return moves;
+}
+
+function createsFullBlockade(state, blockOwner, rules) {
+  if (!rules.forbidFullBlockade) return false;
+
+  const opponent = otherPlayer(blockOwner);
+  const ownerSign = blockOwner === PLAYER_A ? 1 : -1;
+  const opponentSign = -ownerSign;
+  const pointAtOpponentPath = pathIndex =>
+    opponent === PLAYER_A ? pathIndex : BOARD_POINTS - 1 - pathIndex;
+
+  // Opponent path is linear from its head to its home. A block is six
+  // consecutive points on that path; it is forbidden only when all 15
+  // opposing checkers are still behind that block.
+  for (let start = 0; start <= BOARD_POINTS - 6; start += 1) {
+    let completeBlock = true;
+    for (let offset = 0; offset < 6; offset += 1) {
+      const point = pointAtOpponentPath(start + offset);
+      if (state.points[point] * ownerSign <= 0) {
+        completeBlock = false;
+        break;
+      }
+    }
+    if (!completeBlock) continue;
+
+    let opposingCheckersBehind = 0;
+    for (let pathIndex = 0; pathIndex < start; pathIndex += 1) {
+      const point = pointAtOpponentPath(pathIndex);
+      opposingCheckersBehind += Math.max(0, state.points[point] * opponentSign);
+    }
+    if (opposingCheckersBehind === CHECKERS_PER_PLAYER) return true;
+  }
+
+  return false;
 }
 
 function applyMoveUnchecked(state, move) {
