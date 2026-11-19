@@ -51,10 +51,14 @@ h2{font-size:16px;margin:0 0 14px}
 .die-pip{border-radius:50%;background:transparent}
 .die-pip.active{background:radial-gradient(circle at 35% 30%,#51445e,#241d31 72%);box-shadow:inset 0 1px 2px #0008}
 @keyframes cube-roll{
-  0%{transform:translateY(-5px) rotateX(0) rotateY(0) rotateZ(0) scale(.82)}
-  24%{transform:translateY(-13px) rotateX(210deg) rotateY(145deg) rotateZ(95deg) scale(1.08)}
-  48%{transform:translateY(-3px) rotateX(420deg) rotateY(310deg) rotateZ(190deg) scale(1.04)}
-  72%{transform:translateY(-1px) rotateX(575deg) rotateY(475deg) rotateZ(265deg) scale(1.02)}
+  0%{transform:translateY(-3px) rotateX(0) rotateY(0) rotateZ(0) scale(.88)}
+  14%{transform:translateY(-17px) rotateX(var(--roll-x-1)) rotateY(var(--roll-y-1)) rotateZ(var(--roll-z-1)) scale(1.09)}
+  29%{transform:translateY(-2px) rotateX(var(--roll-x-2)) rotateY(var(--roll-y-2)) rotateZ(var(--roll-z-2)) scale(1.03)}
+  43%{transform:translateY(-11px) rotateX(var(--roll-x-3)) rotateY(var(--roll-y-3)) rotateZ(var(--roll-z-3)) scale(1.06)}
+  57%{transform:translateY(-1px) rotateX(var(--roll-x-4)) rotateY(var(--roll-y-4)) rotateZ(var(--roll-z-4)) scale(1.02)}
+  70%{transform:translateY(-6px) rotateX(var(--roll-x-5)) rotateY(var(--roll-y-5)) rotateZ(var(--roll-z-5)) scale(1.035)}
+  82%{transform:translateY(0) rotateX(var(--roll-x-6)) rotateY(var(--roll-y-6)) rotateZ(var(--roll-z-6)) scale(1)}
+  91%{transform:translateY(-2px) rotateX(var(--roll-x-7)) rotateY(var(--roll-y-7)) rotateZ(var(--roll-z-7)) scale(1.015)}
   100%{transform:var(--die-final-transform) translateY(0) scale(1)}
 }
 .board-wrap{padding:10px;border:1px solid #715437;border-radius:16px;background:linear-gradient(135deg,#382a23,#201a1a 48%,#382a23);box-shadow:inset 0 0 0 3px #171018,0 15px 35px #0006}
