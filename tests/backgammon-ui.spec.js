@@ -145,6 +145,16 @@ test("authenticated game room renders 24 points and server-confirmed 3D dice", a
   await expect(page.locator("#dice .die-face")).toHaveCount(12);
   await expect(page.locator("#game-status")).toContainText("Твой ход");
 
+  // Collapsing is a local presentation change: the match remains selected,
+  // and the same board can be restored without reopening or losing its state.
+  await page.getByRole("button", { name: "Свернуть" }).click();
+  await expect(page.getByRole("button", { name: "Развернуть" })).toBeVisible();
+  await expect(page.locator("#board .point")).toHaveCount(0);
+  await expect(page.locator("#game-title")).toContainText("Партия с");
+  await page.getByRole("button", { name: "Развернуть" }).click();
+  await expect(page.locator("#board .point")).toHaveCount(24);
+  await expect(page.locator("#dice .die-face")).toHaveCount(12);
+
   // Establish the first subscription before simulating a later reconnect.
   await page.evaluate(async () => await window.__flouRealtimeStatus("SUBSCRIBED"));
   await page.evaluate(() => window.__flouRealtimeStatus("CHANNEL_ERROR"));
