@@ -36,6 +36,34 @@ function rollDice(cryptoProvider = globalThis.crypto) {
 
 // The opening roll uses one die per player. Ties are rerolled; the winner
 // starts and uses both values as the first turn's dice.
+function recordOpeningRoll(opening = {}, side, die) {
+  if (side !== "A" && side !== "B") throw new TypeError("side must be A or B");
+  if (!Number.isInteger(die) || die < 1 || die > 6) {
+    throw new RangeError("die must be an integer from 1 to 6");
+  }
+  const rolls = { ...(opening.rolls || {}) };
+  if (Object.hasOwn(rolls, side)) throw new Error("This player has already rolled");
+  rolls[side] = die;
+  if (!Object.hasOwn(rolls, "A") || !Object.hasOwn(rolls, "B")) {
+    return Object.freeze({ rolls: Object.freeze(rolls), result: null, tie: null });
+  }
+  if (rolls.A === rolls.B) {
+    return Object.freeze({
+      rolls: Object.freeze({}),
+      result: null,
+      tie: Object.freeze({ A: rolls.A, B: rolls.B })
+    });
+  }
+  return Object.freeze({
+    rolls: Object.freeze(rolls),
+    result: Object.freeze({
+      firstPlayer: rolls.A > rolls.B ? "A" : "B",
+      dice: Object.freeze([rolls.A, rolls.B])
+    }),
+    tie: null
+  });
+}
+
 function rollOpeningDice(cryptoProvider = globalThis.crypto) {
   let dieA;
   let dieB;
@@ -50,4 +78,4 @@ function rollOpeningDice(cryptoProvider = globalThis.crypto) {
   });
 }
 
-export { secureDie, rollDice, rollOpeningDice };
+export { secureDie, rollDice, rollOpeningDice, recordOpeningRoll };

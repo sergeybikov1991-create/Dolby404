@@ -249,8 +249,8 @@ function makeDie(value, rolling = false) {
   const finalTransforms = {
     1: "rotateX(0deg) rotateY(0deg) rotateZ(0deg)",
     2: "rotateX(0deg) rotateY(-90deg) rotateZ(0deg)",
-    3: "rotateX(90deg) rotateY(0deg) rotateZ(0deg)",
-    4: "rotateX(-90deg) rotateY(0deg) rotateZ(0deg)",
+    3: "rotateX(-90deg) rotateY(0deg) rotateZ(0deg)",
+    4: "rotateX(90deg) rotateY(0deg) rotateZ(0deg)",
     5: "rotateX(0deg) rotateY(90deg) rotateZ(0deg)",
     6: "rotateX(0deg) rotateY(180deg) rotateZ(0deg)",
   };
@@ -304,6 +304,34 @@ function makeDie(value, rolling = false) {
 function renderDice(state) {
   const container = $("dice");
   container.replaceChildren();
+  if (currentMatch?.status === "awaiting_opening_roll") {
+    const opening = state?.opening || {};
+    const rolls = opening.rolls || {};
+    const tie = opening.lastTie;
+    const side = sideFor(currentMatch);
+    const labels = [
+      ["A", "Игрок 1"],
+      ["B", "Игрок 2"],
+    ];
+    for (const [player, labelText] of labels) {
+      const value = rolls[player] ?? tie?.[player];
+      const group = document.createElement("span");
+      group.className = "opening-die-result";
+      const label = document.createElement("span");
+      label.className = "subtle";
+      label.textContent = player === side ? "Ты" : labelText;
+      group.append(label);
+      if (Number.isInteger(value)) group.append(makeDie(value, animateNextDice));
+      else {
+        const waiting = document.createElement("span");
+        waiting.className = "subtle";
+        waiting.textContent = "Ожидает броска";
+        group.append(waiting);
+      }
+      container.append(group);
+    }
+    return;
+  }
   const values = state?.turn?.dice || [];
   values.slice(0, 2).forEach(value => container.append(makeDie(value, animateNextDice)));
   if (animateNextDice && values.length >= 2) {
@@ -533,8 +561,24 @@ function renderControls(match) {
     return;
   }
   if (match.status === "awaiting_opening_roll") {
-    $("game-status").textContent = "Партия принята. Каждый игрок получает по одной кости; равенство перебрасывается.";
-    addControl(container, "Бросить на начало", () => invokeAction("opening_roll"));
+    const opening = state.opening || {};
+    const rolls = opening.rolls || {};
+    const ownRoll = rolls[side];
+    const opponentSide = side === "A" ? "B" : "A";
+    const opponentRoll = rolls[opponentSide];
+    const tie = opening.lastTie;
+    if (tie) {
+      $("game-status").textContent = `Равенство ${tie.A} : ${tie.B}. Оба игрока бросают заново.`;
+    } else if (Number.isInteger(ownRoll)) {
+      $("game-status").textContent = `Твой результат: ${ownRoll}. Ждём броска соперника.`;
+    } else if (Number.isInteger(opponentRoll)) {
+      $("game-status").textContent = `Соперник выбросил ${opponentRoll}. Теперь твой бросок.`;
+    } else {
+      $("game-status").textContent = "Каждый игрок бросает по одному кубику. Больший результат начинает партию.";
+    }
+    if (!Number.isInteger(ownRoll)) {
+      addControl(container, "Бросить один кубик", () => invokeAction("opening_roll"));
+    }
     return;
   }
   if (match.status === "finished") {

@@ -2,7 +2,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { secureDie, rollDice, rollOpeningDice } from "../backgammon/dice.js";
+import { secureDie, rollDice, rollOpeningDice, recordOpeningRoll } from "../backgammon/dice.js";
 
 function byteStream(values) {
   let index = 0;
@@ -81,4 +81,28 @@ test("all 36 ordered two-die outcomes have equal representation across the accep
   for (const row of counts) {
     for (const count of row) assert.equal(count, 1764);
   }
+});
+
+
+test("opening rolls are submitted independently by each player and higher die starts", () => {
+  const first = recordOpeningRoll({}, "A", 2);
+  assert.deepEqual(first.rolls, { A: 2 });
+  assert.equal(first.result, null);
+  const second = recordOpeningRoll(first, "B", 5);
+  assert.deepEqual(second.result, { firstPlayer: "B", dice: [2, 5] });
+});
+
+test("opening roll ties reset both player submissions for a fresh round", () => {
+  const first = recordOpeningRoll({}, "B", 4);
+  const tied = recordOpeningRoll(first, "A", 4);
+  assert.deepEqual(tied.rolls, {});
+  assert.deepEqual(tied.tie, { A: 4, B: 4 });
+  const nextA = recordOpeningRoll({ rolls: {} }, "A", 1);
+  const resolved = recordOpeningRoll(nextA, "B", 6);
+  assert.deepEqual(resolved.result, { firstPlayer: "B", dice: [1, 6] });
+});
+
+test("a player cannot submit a second opening die while waiting for the opponent", () => {
+  const first = recordOpeningRoll({}, "A", 3);
+  assert.throws(() => recordOpeningRoll(first, "A", 6), /already rolled/);
 });
