@@ -1,9 +1,9 @@
 "use strict";
 
-const test = require("node:test");
-const assert = require("node:assert/strict");
-const rules = require("../backgammon/rules").LONG_BACKGAMMON_RULES;
-const engine = require("../backgammon/engine");
+import test from "node:test";
+import assert from "node:assert/strict";
+import { LONG_BACKGAMMON_RULES as rules } from "../backgammon/rules.js";
+import * as engine from "../backgammon/engine.js";
 
 function stateWith(points, player = "A", borneOff = { A: 0, B: 0 }) {
   return {
