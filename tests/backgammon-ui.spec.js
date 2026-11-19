@@ -152,3 +152,17 @@ test("authenticated game room renders 24 points and server-confirmed 3D dice", a
   await page.evaluate(async () => await window.__flouRealtimeStatus("SUBSCRIBED"));
   await expect(page.locator("#game-notice")).toContainText("Связь восстановлена. Состояние партии обновлено.");
 });
+
+
+test("a direct conversation can switch into an embedded game and return without losing chat", () => {
+  const messages = fs.readFileSync(path.join(root, "messages.html"), "utf8");
+  const gamePage = fs.readFileSync(path.join(root, "backgammon.html"), "utf8");
+  const gameScript = fs.readFileSync(path.join(root, "backgammon.js"), "utf8");
+  expect(messages).toContain('id="game-toggle"');
+  expect(messages).toContain('id="game-frame"');
+  expect(messages).toContain('backgammon.html?embed=1&opponent=');
+  expect(messages).toContain('gameToggle.textContent=opening?"Вернуться в чат":"Играть"');
+  expect(gamePage).toContain("body.embed .shell>aside{display:none}");
+  expect(gameScript).toContain('get("opponent")');
+  expect(gameScript).toContain('invitedProfile?.username');
+});
