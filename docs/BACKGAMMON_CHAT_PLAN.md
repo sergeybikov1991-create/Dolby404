@@ -300,3 +300,20 @@ A responsive `backgammon.html` and `backgammon.js` game room now exist on the fe
 - Realtime refresh of match state for both participants.
 
 The browser test checks the signed-out redirect and the board/action surface. The page is ready to use once the isolated migration and `backgammon-action` Edge Function are deployed to the existing free Supabase project. The migration and function are still not applied/deployed to the live project.
+
+
+## Free deployment status — 19 Nov 2026
+
+The isolated game schema has now been applied to the existing FLOUSTREAM Supabase project (migration recorded as `20261119023324 / backgammon_match_actions`). The new `public.backgammon_matches` table is RLS-enabled and currently empty. It is included in `supabase_realtime`. Existing public site/chat tables were not altered.
+
+Live privilege verification:
+- `authenticated` has SELECT only on `public.backgammon_matches`; no direct INSERT/UPDATE/DELETE.
+- `service_role` has the server-side table privileges.
+- `backgammon_get_action_result` and `backgammon_commit_action` are SECURITY INVOKER, use an empty search_path, and are executable by `service_role` only.
+- Participant RLS is the sole SELECT policy.
+
+The `backgammon-action` Edge Function is ACTIVE, version 3, with JWT verification enabled. Version 3 includes the casual rematch option after a finished game. It uses the shared ESM rules, engine and Web Crypto dice modules; the service-role secret is never sent to the browser.
+
+The game-room UI now shows real pip faces and animates only after a server-confirmed opening/normal roll. Mutual restart is available in casual matches both during a game and after it finishes; tournament matches do not allow restart.
+
+Latest GitHub Actions run `#174` validates 25 Node unit tests, Chromium smoke/game-room tests, Deno type-checking, and the migration/idempotency/RLS checks against disposable PostgreSQL 16. No paid Supabase branch or paid test server was created.
