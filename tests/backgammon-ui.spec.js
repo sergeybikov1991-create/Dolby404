@@ -297,3 +297,16 @@ test("opening rolls advance the match-wide turn number after a mutual restart", 
   expect(opening).toContain("nextTurnNumber = match.turn_number + 1;");
   expect(opening).not.toContain("nextTurnNumber = 1;");
 });
+
+
+test("checker drag keeps pointer capture and clears interrupted drags", () => {
+  const html = fs.readFileSync(path.join(root, "backgammon.html"), "utf8");
+  const script = fs.readFileSync(path.join(root, "backgammon.js"), "utf8");
+  expect(html).toContain(".point{touch-action:none;position:relative");
+  expect(script).toContain("button.setPointerCapture(event.pointerId)");
+  expect(script).toContain('window.addEventListener("pointermove"');
+  expect(script).toContain('window.addEventListener("pointerup", finishCheckerDrag, true)');
+  expect(script).toContain('window.addEventListener("pointercancel", cancelCheckerDrag, true)');
+  expect(script).toContain('window.addEventListener("lostpointercapture", cancelCheckerDrag, true)');
+  expect(script).toContain("drag.ghost.remove();");
+});
