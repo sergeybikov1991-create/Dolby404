@@ -58,7 +58,7 @@ function stableStringify(value: unknown): string {
       `${JSON.stringify(key)}:${stableStringify(value[key])}`
     ).join(",")}}`;
   }
-  return JSON.stringify(value);
+  return JSON.stringify(value) ?? "null";
 }
 
 async function sha256(value: string): Promise<string> {
