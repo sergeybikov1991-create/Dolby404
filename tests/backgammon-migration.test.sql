@@ -19,7 +19,7 @@ INSERT INTO public.backgammon_matches (
    '00000000-0000-4000-8000-000000000004',
    'casual', 'waiting', '{"schemaVersion":1,"turn":{"phase":"awaiting_roll"}}', 0, 0);
 
-DO $
+DO $duplicate_open_match$
 BEGIN
   BEGIN
     INSERT INTO public.backgammon_matches (
@@ -35,9 +35,9 @@ BEGIN
     NULL;
   END;
 END;
-$;
+$duplicate_open_match$;
 
-DO $$
+DO $
 DECLARE
   first_result jsonb;
   retry_result jsonb;
