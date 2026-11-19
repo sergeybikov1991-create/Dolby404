@@ -30,8 +30,24 @@ function rollDice(cryptoProvider = globalThis.crypto) {
   return Object.freeze({
     dice: Object.freeze([first, second]),
     isDouble: first === second,
-    moves: first === second ? [first, first, first, first] : [first, second]
+    moves: Object.freeze(first === second ? [first, first, first, first] : [first, second])
   });
 }
 
-module.exports = { secureDie, rollDice };
+// The opening roll uses one die per player. Ties are rerolled; the winner
+// starts and uses both values as the first turn's dice.
+function rollOpeningDice(cryptoProvider = globalThis.crypto) {
+  let dieA;
+  let dieB;
+  do {
+    dieA = secureDie(cryptoProvider);
+    dieB = secureDie(cryptoProvider);
+  } while (dieA === dieB);
+
+  return Object.freeze({
+    firstPlayer: dieA > dieB ? "A" : "B",
+    dice: Object.freeze([dieA, dieB])
+  });
+}
+
+module.exports = { secureDie, rollDice, rollOpeningDice };
