@@ -109,7 +109,7 @@ jobs:
       - name: Apply backgammon migration to disposable Postgres
         env:
           PGPASSWORD: postgres
-        run: psql -h 127.0.0.1 -U postgres -d floustream_test -v ON_ERROR_STOP=1 -f supabase/migrations/20261119030000_backgammon_match_actions.sql
+        run: psql -h 127.0.0.1 -U postgres -d floustream_test -v ON_ERROR_STOP=1 -f supabase/migrations/20261119023324_backgammon_match_actions.sql
 
       - name: Apply open-match uniqueness migration
         env:
