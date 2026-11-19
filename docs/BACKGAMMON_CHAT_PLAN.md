@@ -221,7 +221,7 @@
 
 ## Rule clarification — six-point blockade
 
-The engine now follows the Russian sport rules approved by Ministry of Sport Order No. 347 of 30 April 2025, Article 20.5: a six-point block is not prohibited by itself; it is illegal only when it traps all 15 opposing checkers. The prohibition applies even to a temporary intermediate position during the same turn. A block is allowed when at least one opposing checker has already passed it. This is intentionally stricter and more precise than the simplified “never make six in a row” interpretation.
+The engine now follows the International Backgammon Federation Rules (2025), Article 4.4: a six-point block is not prohibited by itself; it is illegal only when it traps all 15 opposing checkers. The prohibition applies even to a temporary intermediate position during the same turn. A block is allowed when at least one opposing checker has already passed it. This is intentionally stricter and more precise than the simplified “never make six in a row” interpretation.
 
 Implementation: `rules.forbidFullBlockade = true`; legal move generation checks every intermediate board position before allowing the next die to be played. Tests cover both a full lock and the passed-checker exception. No live Supabase schema or production data was changed.
 
@@ -272,3 +272,6 @@ The opening is not a normal two-dice roll: each player rolls one secure die; if 
 ### Restart is a casual-mode feature, not a tournament rule
 
 The 2025 International Backgammon Federation rules, Article 15.3, state that a party may not be cancelled, replayed or completed by agreement (apart from the specified resignation case). The requested two-player restart is therefore implemented only for explicitly casual/unrated matches. Tournament/rated matches must not expose or accept restart actions. This preserves the user's convenient restart in friendly play without silently violating the competition rules.
+
+
+Rules source: [International Backgammon Federation — Rules of Backgammon (2025)](https://i-bg-federation.com/upload/iblock/b82/kvrmfzcgvr0pm63huk0khx17v0n9uo0j.pdf). Relevant provisions: long-nardy setup and movement (Articles 4 and 12), bearing off (Article 13), and no agreement-based replay in competition (Article 15.3).
