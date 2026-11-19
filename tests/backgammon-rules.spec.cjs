@@ -56,3 +56,15 @@ test("last checker can bear off and finish the game", () => {
   expect(next.off[0]).toBe(15);
   expect(next.status).toBe("finished");
 });
+
+test("dice roll produces two values from one through six", () => {
+  const dice = require("../backgammon/dice.cjs");
+  expect(dice.rollDice(() => 0)).toEqual([1, 1]);
+  expect(dice.rollDice(() => 0.999999)).toEqual([6, 6]);
+});
+
+test("doubles grant four moves; different dice grant two", () => {
+  const dice = require("../backgammon/dice.cjs");
+  expect(dice.expandDice([4, 4])).toEqual([4, 4, 4, 4]);
+  expect(dice.expandDice([2, 5])).toEqual([2, 5]);
+});
