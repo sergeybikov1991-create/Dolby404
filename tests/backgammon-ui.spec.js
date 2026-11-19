@@ -145,16 +145,10 @@ test("authenticated game room renders 24 points and server-confirmed 3D dice", a
   await expect(page.locator("#dice .die-face")).toHaveCount(12);
   await expect(page.locator("#game-status")).toContainText("Твой ход");
 
-  // Collapsing is a local presentation change: the match remains selected,
-  // and the same board can be restored without reopening or losing its state.
-  await page.getByRole("button", { name: "Свернуть" }).click();
-  await expect(page.getByRole("button", { name: "Развернуть" })).toBeVisible();
-  await expect(page.locator("#game")).toBeHidden();
-  await expect(page.locator("#game-title")).toContainText("Партия с");
-  await page.getByRole("button", { name: "Развернуть" }).click();
   await expect(page.locator("#game")).toBeVisible();
   await expect(page.locator("#board .point")).toHaveCount(24);
   await expect(page.locator("#dice .die-face")).toHaveCount(12);
+  await expect(page.locator("#close-match")).toHaveCount(0);
 
   // Establish the first subscription before simulating a later reconnect.
   await page.evaluate(async () => await window.__flouRealtimeStatus("SUBSCRIBED"));
@@ -173,7 +167,10 @@ test("a direct conversation can switch into an embedded game and return without 
   expect(messages).toContain('id="game-frame"');
   expect(messages).toContain('backgammon.html?embed=1&opponent=');
   expect(messages).toContain('gameToggle.textContent=opening?"Вернуться в чат":"Играть"');
-  expect(gamePage).toContain("body.embed .shell>aside{display:block}");
+  expect(gamePage).toContain("body.embed .shell>aside{display:none}");
   expect(gameScript).toContain('get("opponent")');
-  expect(gameScript).toContain('invitedProfile?.username');
+  expect(gameScript).toContain("async function openChatMatch");
+  expect(gameScript).toContain("await createMatch(opponentProfile)");
+  expect(gameScript).toContain('addControl(container, "Принять игру"');
+  expect(gameScript).not.toContain('invitedProfile?.username) $("opponent-username").value');
 });
