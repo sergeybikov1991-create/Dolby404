@@ -236,9 +236,15 @@ async function start(){
     const row=payload.new||{};
     if((row.sender_id===viewer.id&&row.recipient_id===peerId)||(row.sender_id===peerId&&row.recipient_id===viewer.id))loadMessages(true);
    })
+   let wasSubscribed=false;
    .subscribe(status=>{
-    if(status==="SUBSCRIBED"){showNotice("");loadMessages(true);}
-    else if(status==="CHANNEL_ERROR"||status==="TIMED_OUT")showNotice("Восстанавливаем соединение…",true);
+    if(status==="SUBSCRIBED"){
+     if(wasSubscribed)loadMessages(true);
+     else{wasSubscribed=true;loadMessages(true);}
+     showNotice("");
+    }else if(status==="CHANNEL_ERROR"||status==="TIMED_OUT"||status==="CLOSED"){
+     showNotice("Восстанавливаем соединение…",true);
+    }
    });
   window.addEventListener("pagehide",()=>client.removeChannel(chatChannel),{once:true});
  }catch(error){$("peer-name").textContent="Не удалось открыть переписку";showNotice(error.message,true);$("messages").replaceChildren();}
