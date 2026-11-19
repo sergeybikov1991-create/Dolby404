@@ -393,3 +393,18 @@ test("player B sees their own starting stack in the upper-right corner", async (
   await expect(ownStack.locator(".selected-checker")).toHaveCount(1);
   await expect(page.locator("#board .selected-checker")).toHaveCount(1);
 });
+
+
+test("compact backgammon table uses a thin vertical center divider without a horizontal rail", () => {
+  const html = fs.readFileSync(path.join(root, "backgammon.html"), "utf8");
+  expect(html).toContain("left:50%!important");
+  expect(html).toContain("width:1px!important");
+  expect(html).not.toContain("top:calc(50% - 6px);height:12px");
+  expect(html).not.toContain("\\n");
+});
+
+test("compact restart control keeps automatic request expiry refresh", () => {
+  const script = fs.readFileSync(path.join(root, "backgammon.js"), "utf8");
+  expect(script).toContain("restartExpiryTimer = setTimeout");
+  expect(script).toContain("renderRestart(currentMatch)");
+});
