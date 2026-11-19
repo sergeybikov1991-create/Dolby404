@@ -267,3 +267,8 @@ No SQL has been applied to the production project and no Edge Function has been 
 ### Opening roll
 
 The opening is not a normal two-dice roll: each player rolls one secure die; if the values tie, both roll again. The player with the higher value moves first and uses both opening values as that turn's two dice. The server uses `rollOpeningDice()` for this, then records the first player and starts the first turn with those exact values. Subsequent turns use `rollDice()`; doubles expand to four moves. The opening-tie rule is covered by a unit test.
+
+
+### Restart is a casual-mode feature, not a tournament rule
+
+The 2025 International Backgammon Federation rules, Article 15.3, state that a party may not be cancelled, replayed or completed by agreement (apart from the specified resignation case). The requested two-player restart is therefore implemented only for explicitly casual/unrated matches. Tournament/rated matches must not expose or accept restart actions. This preserves the user's convenient restart in friendly play without silently violating the competition rules.
