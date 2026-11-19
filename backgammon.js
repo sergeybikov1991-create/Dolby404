@@ -374,7 +374,13 @@ function renderPoint(index, position, state) {
     dragState = { from: index, pointerId: event.pointerId, startX: event.clientX,
       startY: event.clientY, moved: false, ghost };
     selectedFrom = index;
-    renderGame();
+    button.classList.add("selected");
+    for (const point of document.querySelectorAll(".point")) {
+      const targetIndex = Number(point.dataset.index);
+      point.classList.toggle("legal-target", legalMoves.some(move =>
+        move.from === index && !move.bearOff && move.to === targetIndex
+      ));
+    }
   });
   button.addEventListener("click", () => handlePointClick(index));
   return button;
