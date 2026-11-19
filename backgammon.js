@@ -79,15 +79,19 @@ async function invokeAction(actionType, payload = {}) {
     setNotice("game-notice", "Сервер не вернул состояние партии", true);
     return false;
   }
+  // Realtime can deliver a newer committed revision before this request
+  // finishes. Never let a delayed action response roll the local board back.
   const previousState = currentMatch.state;
-  currentMatch = {
-    ...currentMatch,
-    status: data.status,
-    state: data.state,
-    turn_number: data.turn_number,
-    revision: data.revision,
-    restart_request: data.restart_request ?? null,
-  };
+  if (Number(data.revision) >= Number(currentMatch.revision)) {
+    currentMatch = {
+      ...currentMatch,
+      status: data.status,
+      state: data.state,
+      turn_number: data.turn_number,
+      revision: data.revision,
+      restart_request: data.restart_request ?? null,
+    };
+  }
   selectedFrom = null;
   animateNextDice = actionType === "roll" || actionType === "opening_roll";
   renderGame(previousState);
@@ -154,7 +158,9 @@ async function loadMatches() {
   renderMatches();
   if (currentMatch) {
     const latest = matches.find(match => match.id === currentMatch.id);
-    if (latest && latest.revision !== currentMatch.revision) {
+    // Parallel realtime refreshes and action responses may finish out of
+    // order. Only accept a strictly newer authoritative match revision.
+    if (latest && Number(latest.revision) > Number(currentMatch.revision)) {
       currentMatch = latest;
       selectedFrom = null;
       renderGame();
@@ -463,6 +469,9 @@ function renderBoard(state) {
   }
   $("off-a").textContent = String(state.borneOff.A);
   $("off-b").textContent = String(state.borneOff.B);
+  // Each player sees their own home and checker tray on the right.
+  const offRow = $("off-zone-a").parentElement;
+  offRow.style.flexDirection = sideFor(currentMatch) === "A" ? "row-reverse" : "row";
   const activeSide = currentMatch?.status === "active" &&
     state.turn?.phase === "moving" && state.turn.player === sideFor(currentMatch)
     ? state.turn.player : null;
@@ -735,7 +744,8 @@ async function startRealtime() {
   realtimeChannel = client.channel(`floustream-backgammon-${user.id}`);
   const refresh = async (payload) => {
     const row = payload.new;
-    if (row?.id === currentMatch?.id) {
+    if (row?.id === currentMatch?.id &&
+        Number(row.revision) > Number(currentMatch.revision)) {
       const previousState = currentMatch.state;
       animateNextDice = (
         (previousState?.turn?.phase === "awaiting_roll" && row.state?.turn?.phase === "moving") ||

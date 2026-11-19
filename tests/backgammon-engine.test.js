@@ -233,3 +233,38 @@ test("when only one of two playable dice can be used, the higher die is mandator
   assert.ok(moves.some(move => move.from === 10 && move.to === 6 && move.die === 4));
   assert.ok(!moves.some(move => move.from === 10 && move.to === 8 && move.die === 2));
 });
+
+
+test("a 6-6 double allows four consecutive bear-offs for player A", () => {
+  const points = Array(24).fill(0);
+  points[5] = 15;
+  points[11] = -15;
+  let moving = engine.startTurn(stateWith(points), [6, 6], rules);
+
+  for (let index = 0; index < 4; index += 1) {
+    const move = engine.getLegalMoves(moving, moving.turn.remainingDice, rules)
+      .find(candidate => candidate.from === 5 && candidate.bearOff && candidate.die === 6);
+    assert.ok(move, `A must be allowed to bear off checker ${index + 1}`);
+    moving = engine.applyMove(moving, move, rules);
+  }
+
+  assert.equal(moving.borneOff.A, 4);
+  assert.deepEqual(moving.turn.remainingDice, []);
+});
+
+test("a 6-6 double allows four consecutive bear-offs for player B", () => {
+  const points = Array(24).fill(0);
+  points[23] = 15;
+  points[17] = -15;
+  let moving = engine.startTurn(stateWith(points, "B"), [6, 6], rules);
+
+  for (let index = 0; index < 4; index += 1) {
+    const move = engine.getLegalMoves(moving, moving.turn.remainingDice, rules)
+      .find(candidate => candidate.from === 17 && candidate.bearOff && candidate.die === 6);
+    assert.ok(move, `B must be allowed to bear off checker ${index + 1}`);
+    moving = engine.applyMove(moving, move, rules);
+  }
+
+  assert.equal(moving.borneOff.B, 4);
+  assert.deepEqual(moving.turn.remainingDice, []);
+});
