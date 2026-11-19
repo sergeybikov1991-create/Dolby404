@@ -313,6 +313,13 @@ function renderDice(state) {
   container.className = "dice-layer";
   const side = sideFor(currentMatch);
   const isMyTurn = currentMatch?.status === "active" && state?.turn?.player === side;
+  const placeDie = (die, index) => {
+    const left = animateNextDice ? 14 + Math.random() * 66 : (index === 0 ? 23 : 69);
+    const top = animateNextDice ? 18 + Math.random() * 62 : (index === 0 ? 38 : 57);
+    die.style.setProperty("--die-left", `${left}%`);
+    die.style.setProperty("--die-top", `${top}%`);
+    if (!animateNextDice) { die.style.left = `${left}%`; die.style.top = `${top}%`; }
+  };
 
   if (currentMatch?.status === "active" && state?.turn?.phase === "awaiting_roll") {
     if (isMyTurn) {
@@ -344,6 +351,7 @@ function renderDice(state) {
       if (Number.isInteger(value)) {
         const die = makeDie(value, animateNextDice);
         die.classList.add("die-scattered", player === "A" ? "die-position-1" : "die-position-2");
+        placeDie(die, player === "A" ? 0 : 1);
         container.append(die);
       }
     }
@@ -355,6 +363,7 @@ function renderDice(state) {
     values.slice(0, 2).forEach((value, index) => {
       const die = makeDie(value, animateNextDice);
       die.classList.add("die-scattered", `die-position-${index + 1}`);
+      placeDie(die, index);
       container.append(die);
     });
   }
@@ -562,6 +571,7 @@ function renderControls(match) {
   container.replaceChildren();
   const state = match.state;
   const side = sideFor(match);
+  $("game-status").classList.remove("game-status-win", "game-status-loss");
   const isMyTurn = state.turn?.player === side;
 
   if (match.status === "waiting") {
@@ -600,7 +610,9 @@ function renderControls(match) {
     return;
   }
   if (match.status === "finished") {
-    $("game-status").textContent = state.winner === side ? "Ты выиграл партию!" : "Партия завершена. Победил соперник.";
+    const won = state.winner === side;
+    $("game-status").classList.add(won ? "game-status-win" : "game-status-loss");
+    $("game-status").textContent = won ? "ПОБЕДА! Великолепная партия!" : "Партия завершена. Победил соперник.";
     return;
   }
   if (match.status !== "active") {
