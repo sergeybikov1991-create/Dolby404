@@ -634,7 +634,7 @@ function renderControls(match) {
     return;
   }
   if (state.turn.phase === "moving") {
-    $("game-status").textContent = isMyTurn ? "Твой ход. Выбери свою шашку, затем пункт назначения." : "Соперник перемещает шашки.";
+    $("game-status").textContent = isMyTurn ? "Твой ход." : "Соперник перемещает шашки.";
     if (!isMyTurn) return;
     if (legalMoves.length === 0) {
       addControl(container, "Завершить ход", () => invokeAction("finish_turn"));
