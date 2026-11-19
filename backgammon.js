@@ -409,8 +409,25 @@ function renderBoard(state) {
   const bottom = $("board-bottom");
   top.replaceChildren();
   bottom.replaceChildren();
-  for (let index = 12; index <= 23; index += 1) top.append(renderPoint(index, "top", state));
-  for (let index = 11; index >= 0; index -= 1) bottom.append(renderPoint(index, "bottom", state));
+
+  // Keep the same server point indexes and move rules, but rotate the
+  // presentation 180 degrees for player B so each player sees their own
+  // 15-checker starting stack in the upper-right corner.
+  if (sideFor(currentMatch) === "B") {
+    for (let index = 0; index <= 11; index += 1) {
+      top.append(renderPoint(index, "top", state));
+    }
+    for (let index = 23; index >= 12; index -= 1) {
+      bottom.append(renderPoint(index, "bottom", state));
+    }
+  } else {
+    for (let index = 12; index <= 23; index += 1) {
+      top.append(renderPoint(index, "top", state));
+    }
+    for (let index = 11; index >= 0; index -= 1) {
+      bottom.append(renderPoint(index, "bottom", state));
+    }
+  }
   $("off-a").textContent = String(state.borneOff.A);
   $("off-b").textContent = String(state.borneOff.B);
 }
