@@ -234,6 +234,13 @@ test("opening the chat game switch automatically creates a match with that conve
   expect(call.opponent_id).toBe(peerId);
 });
 
+test("opening rolls advance the persistent turn counter after a casual restart", () => {
+  const edge = fs.readFileSync(path.join(root, "supabase/functions/backgammon-action/index.ts"), "utf8");
+  const opening = edge.slice(edge.indexOf('case "opening_roll"'), edge.indexOf('case "roll"'));
+  expect(opening).toContain("nextTurnNumber = match.turn_number + 1;");
+  expect(opening).not.toContain("nextTurnNumber = 1;");
+});
+
 test("a direct conversation can switch into an embedded game and return without losing chat", () => {
   const messages = fs.readFileSync(path.join(root, "messages.html"), "utf8");
   const gamePage = fs.readFileSync(path.join(root, "backgammon.html"), "utf8");
