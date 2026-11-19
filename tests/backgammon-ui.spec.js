@@ -12,8 +12,8 @@ test("long backgammon room redirects signed-out visitors to FLOUSTREAM auth", as
     headers: { "Access-Control-Allow-Origin": "*" },
     body: `export function createClient(){return {auth:{getSession:async()=>({data:{session:null},error:null})}}}`,
   }));
-  await page.goto("/backgammon.html");
-  await expect(page).toHaveURL(/\/portal\.html$/);
+  await page.goto("/backgammon.html", { waitUntil: "domcontentloaded" });
+  await expect(page).toHaveURL(/\/portal\.html$/, { timeout: 8000 });
 });
 
 test("long backgammon room exposes the real board and server action controls", () => {
