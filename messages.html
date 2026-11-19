@@ -13,7 +13,7 @@
 body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 18% 0%,#281342 0,transparent 38%),var(--bg);color:var(--text);font-family:Arial,sans-serif}
 .wrap{width:min(760px,100%);height:100dvh;min-height:420px;margin:0 auto;padding:16px;display:flex;flex-direction:column}
 .chat{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;border:1px solid #49345f;border-radius:20px;background:linear-gradient(145deg,#171321,#0e0d16);box-shadow:0 12px 45px #0007}
-.chat-head{flex:0 0 auto;display:flex;align-items:center;gap:12px;padding:14px 16px;margin-bottom:10px;border:1px solid #49345f;border-radius:16px;background:linear-gradient(145deg,#171321,#0e0d16);box-shadow:0 8px 28px #0005}
+.back{width:40px;height:40px;flex:0 0 40px;display:grid;place-items:center;border:1px solid #65458a;border-radius:12px;background:#21172f;color:#eee2ff;text-decoration:none;font-size:22px}.chat-head{flex:0 0 auto;display:flex;align-items:center;gap:12px;padding:14px 16px;margin-bottom:10px;border:1px solid #49345f;border-radius:16px;background:linear-gradient(145deg,#171321,#0e0d16);box-shadow:0 8px 28px #0005}
 .avatar{width:44px;height:44px;flex:0 0 44px;display:grid;place-items:center;overflow:hidden;border:2px solid #b879e8;border-radius:50%;background:#352044;color:#fff;font-weight:800;box-shadow:0 0 12px #a66bff55}
 .avatar img{width:100%;height:100%;object-fit:cover}
 .person{min-width:0;flex:1}.person-name{font-size:15px;font-weight:800;overflow-wrap:anywhere}.person-handle{margin-top:4px;color:#c59aff;font-size:12px}
@@ -199,6 +199,7 @@ async function start(){
   const profile=await withTimeout(client.from("profiles").select("id,username,display_name,avatar_url").eq("id",peerId).maybeSingle(),12000,"Профиль собеседника не ответил за 12 секунд. Проверь подключение и повтори.");
   if(profile.error)throw profile.error;
   const deletedAccount=!profile.data;
+  $("back").href=deletedAccount?"messages.html":"public-profile.html?id="+encodeURIComponent(peerId);
   const p=profile.data||{};
   $("peer-name").textContent=deletedAccount?"Удалённый аккаунт":(p.display_name||p.username||"Пользователь");
   $("peer-handle").textContent=deletedAccount?"История переписки сохранена":(p.username?"@"+p.username:"");
