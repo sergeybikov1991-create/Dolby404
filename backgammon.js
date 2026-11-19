@@ -217,6 +217,7 @@ async function openMatch(matchId) {
     return;
   }
   currentMatch = data;
+  await hydrateOpponentNames([currentMatch]);
   selectedFrom = null;
   renderGame();
   renderMatches();
@@ -439,7 +440,7 @@ async function startRealtime() {
 
 $("invite-form").addEventListener("submit", async (event) => {
   event.preventDefault();
-  const username = $("opponent-username").value.trim().replace(/^@/, "");
+  const username = $("opponent-username").value.trim().replace(/^@/, "").toLowerCase();
   if (!username) return;
   const { data: opponent, error } = await client
     .from("profiles")
