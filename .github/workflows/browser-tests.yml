@@ -11,8 +11,10 @@ permissions:
   contents: read
 
 concurrency:
-  group: browser-tests-${{ github.ref }}
-  cancel-in-progress: true
+  # Keep each feature-branch validation independent so a stalled runner
+  # cannot hold newer rule/game-room checks in the queue.
+  group: browser-tests-${{ github.ref }}-${{ github.run_id }}
+  cancel-in-progress: false
 
 jobs:
   browser-tests:
