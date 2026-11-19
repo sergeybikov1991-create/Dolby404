@@ -312,3 +312,76 @@ test("3D board enlarges only the selected top checker and gives the board more r
   expect(script).toContain('window.addEventListener("pointercancel", cancelCheckerDrag, true)');
   expect(script).toContain('window.addEventListener("lostpointercapture", cancelCheckerDrag, true)');
 });
+
+
+test("player B sees their own starting stack in the upper-right corner", async ({ page }) => {
+  const match = {
+    id: "10000000-0000-4000-8000-000000000021",
+    player_a: "00000000-0000-4000-8000-000000000001",
+    player_b: "00000000-0000-4000-8000-000000000002",
+    match_mode: "casual",
+    status: "active",
+    revision: 2,
+    turn_number: 1,
+    restart_request: null,
+    state: {
+      schemaVersion: 1,
+      matchId: "10000000-0000-4000-8000-000000000021",
+      players: {
+        A: "00000000-0000-4000-8000-000000000001",
+        B: "00000000-0000-4000-8000-000000000002"
+      },
+      points: Array.from({ length: 24 }, (_, i) => i === 23 ? 15 : i === 11 ? -15 : 0),
+      borneOff: { A: 0, B: 0 },
+      turn: {
+        player: "B", phase: "moving", dice: [2, 4], remainingDice: [2, 4],
+        movesApplied: [], headMovesApplied: 0, headMovesLimit: 1
+      },
+      opening: {
+        firstPlayer: "B", secondPlayer: "A", secondPlayerFirstTurnPending: true
+      },
+      winner: null
+    }
+  };
+  const stub = `const match = ${JSON.stringify(match)};
+    export function createClient(){
+      const query = table => ({
+        select(){return this;}, or(){return this;}, order(){return this;}, limit(){return this;},
+        eq(){return this;}, maybeSingle(){return Promise.resolve({data:match,error:null});},
+        in(){return Promise.resolve({data:[],error:null});},
+        then(resolve,reject){return Promise.resolve({data:table === "backgammon_matches" ? [match] : [],error:null}).then(resolve,reject);}
+      });
+      return {
+        auth:{getSession:async()=>({data:{session:{user:{id:match.player_b,email:"player-b@floustream.local"}}},error:null})},
+        from:query,
+        channel:()=>({on(){return this;},subscribe(){return this;}}),
+        removeChannel:async()=>({})
+      };
+    }`;
+  await page.route("https://esm.sh/@supabase/supabase-js@2*", route => route.fulfill({
+    status: 200, contentType: "application/javascript",
+    headers: { "Access-Control-Allow-Origin": "*" }, body: stub
+  }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/backgammon.html", { waitUntil: "domcontentloaded" });
+  await page.getByRole("button", { name: "Открыть" }).click();
+
+  const topIndexes = await page.locator("#board-top .point").evaluateAll(nodes =>
+    nodes.map(node => Number(node.dataset.index))
+  );
+  const bottomIndexes = await page.locator("#board-bottom .point").evaluateAll(nodes =>
+    nodes.map(node => Number(node.dataset.index))
+  );
+  expect(topIndexes).toEqual(Array.from({ length: 12 }, (_, i) => i));
+  expect(bottomIndexes).toEqual(Array.from({ length: 12 }, (_, i) => 23 - i));
+
+  // Player B's 15 checkers (point 11) are now at the top-right;
+  // player A's stack (point 23) is mirrored to the bottom-left.
+  const ownStack = page.locator('#board-top .point[data-index="11"]');
+  const opponentStack = page.locator('#board-bottom .point[data-index="23"]');
+  await expect(ownStack.locator(".checker")).toHaveCount(15);
+  await expect(opponentStack.locator(".checker")).toHaveCount(15);
+  await ownStack.click();
+  await expect(ownStack.locator(".selected-checker")).toHaveCount(1);
+  await expect(page.locator("#board .selected-checker")).toHaveCount(1);
+});
