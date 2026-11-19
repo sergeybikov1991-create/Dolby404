@@ -3,7 +3,7 @@
 <body><div class="load"><div class="logo">FLOUSTREAM</div><p id="message">Открываем твою страницу…</p></div>
 <script>
 const URL="https://qhpobdktlbhdqsnajypr.supabase.co";
-const KEY="sb_publishable_tzG1qVsbja8WYE_LBVN87Q_v0CahKN5";
+const KEY="sb_publishable_tzG1qVsbjaW8YE_LBVN87Q_v0CahKN5";
 function go(path){location.replace(path);}
 (async()=>{try{if(!window.supabase?.createClient){await new Promise((resolve,reject)=>{const s=document.createElement("script");s.src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";s.onload=resolve;s.onerror=reject;document.head.appendChild(s);});}const client=window.supabase.createClient(URL,KEY);const {data,error}=await client.auth.getSession();if(error)throw error;go(data.session?"profile.html":"portal.html");}catch(e){document.getElementById("message").textContent="Не удалось подключиться. Переходим ко входу…";setTimeout(()=>go("portal.html"),900);}})();
 </script></body></html>
