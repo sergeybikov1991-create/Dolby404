@@ -53,7 +53,8 @@ test("an opponent's checker is never hit or removed", () => {
 test("bearing off is unavailable until all remaining checkers reach home", () => {
   const state = rules.createInitialState();
   state.board = Array.from({ length: 24 }, () => [0, 0]);
-  state.off = [14, 0];
+  state.off = [13, 0];
+  state.board[17][0] = 1;
   state.board[23][0] = 1;
   state.board[12][1] = 15;
   assert.equal(rules.canMove(state, 0, 23, 1), false);
