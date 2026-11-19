@@ -814,16 +814,29 @@ function finishCheckerDrag(event) {
   }
   suppressNextPointClick = true;
   setTimeout(() => { suppressNextPointClick = false; }, 0);
-  const dropTarget = document.elementFromPoint(event.clientX, event.clientY);
-  const offZone = dropTarget?.closest?.(".off-zone");
-  const point = dropTarget?.closest?.(".point");
+  // Pointer capture can keep pointer events targeted at the source stack on
+  // mobile browsers. Resolve the drop using the actual screen coordinates and
+  // the target rectangles first; elementFromPoint is only a fallback.
+  const x = event.clientX;
+  const y = event.clientY;
+  const containsPoint = element => {
+    if (!element) return false;
+    const rect = element.getBoundingClientRect();
+    return x >= rect.left - 8 && x <= rect.right + 8 &&
+      y >= rect.top - 8 && y <= rect.bottom + 8;
+  };
+  const offZones = [...document.querySelectorAll(".off-zone")];
+  const offZone = offZones.find(zone => containsPoint(zone)) ||
+    document.elementFromPoint(x, y)?.closest?.(".off-zone");
+  const point = [...document.querySelectorAll(".point")].find(item => containsPoint(item)) ||
+    document.elementFromPoint(x, y)?.closest?.(".point");
   const to = point ? Number(point.dataset.index) : -1;
   const side = sideFor(currentMatch);
   const isOwnOffZone = offZone?.dataset.player === side;
   const candidate = isOwnOffZone
-    ? legalMoves.find(move => move.from === drag.from && move.bearOff)
+    ? legalMoves.find(move => move.from === drag.from && move.bearOff === true)
     : legalMoves.find(move =>
-        move.from === drag.from && !move.bearOff && move.to === to
+        move.from === drag.from && move.bearOff !== true && move.to === to
       );
   if (candidate) {
     selectedFrom = null;
