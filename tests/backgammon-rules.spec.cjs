@@ -93,6 +93,7 @@ test("turn engine enforces the higher die when only one die can be played", () =
   state.board[0][0] = 1;
   state.board[1][1] = 1;
   state.board[2][1] = 1;
+  state.board[4][1] = 1;
   state.board[12][1] = 10;
   const options = turn.getTurnOptions(state, 0, [1, 3]);
   expect(options.length).toBeGreaterThan(0);
