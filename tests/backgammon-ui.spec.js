@@ -411,3 +411,9 @@ test("compact restart control keeps automatic request expiry refresh", () => {
   expect(script).toContain("restartExpiryTimer = setTimeout");
   expect(script).toContain("renderRestart(currentMatch)");
 });
+
+test("compact restart button is centered between the checker trays", () => {
+  const html = fs.readFileSync(path.join(root, "backgammon.html"), "utf8");
+  expect(html).toContain(".restart-button{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)");
+  expect(html).toContain(".restart-button:not(.hidden):active{transform:translate(-50%,-50%) rotate(-35deg) scale(.92)}");
+});
