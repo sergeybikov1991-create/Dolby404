@@ -19,6 +19,7 @@ test("long backgammon room redirects signed-out visitors to FLOUSTREAM auth", as
 test("long backgammon room exposes the real board and server action controls", () => {
   const html = fs.readFileSync(path.join(root, "backgammon.html"), "utf8");
   const script = fs.readFileSync(path.join(root, "backgammon.js"), "utf8");
+  expect(fs.existsSync(path.join(root, ".nojekyll"))).toBe(true);
   expect(html).toContain('id="board-top"');
   expect(html).toContain('id="board-bottom"');
   expect(html).toContain('id="invite-form"');
