@@ -424,24 +424,24 @@ function captureCheckerMove(previousState, nextState) {
     const before = previousState.points[index];
     const after = nextState.points[index];
     if (before === after) continue;
-    if (Math.abs(before) === Math.abs(after) + 1 && Math.sign(before) === Math.sign(after || before)) {
+    if (before !== 0 && Math.abs(before) === Math.abs(after) + 1 &&
+        Math.sign(before) === Math.sign(after || before)) {
       if (from !== -1) return null;
       from = index;
       sign = Math.sign(before);
-    } else if (Math.abs(after) === Math.abs(before) + 1 && Math.sign(after) === sign) {
+    } else if (after !== 0 && Math.abs(after) === Math.abs(before) + 1) {
       if (to !== -1) return null;
       to = index;
     } else {
       return null;
     }
   }
-  if (from < 0 || to < 0) return null;
+  if (from < 0 || to < 0 || Math.sign(nextState.points[to]) !== sign) return null;
   const source = document.querySelector(`.point[data-index="${from}"] .stack .checker:last-child`);
   const rect = source?.getBoundingClientRect();
   if (!rect || !rect.width || !rect.height) return null;
   return { to, sign, rect };
 }
-
 function animateCheckerMove(transition) {
   if (!transition || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
   const target = document.querySelector(`.point[data-index="${transition.to}"] .stack .checker:last-child`);
