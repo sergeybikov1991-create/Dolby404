@@ -26,4 +26,6 @@ test("long backgammon room exposes the real board and server action controls", (
   expect(script).toContain('client.functions.invoke("backgammon-action"');
   expect(script).toContain('engine.getLegalMoves');
   expect(script).toContain('invokeAction("restart_vote"');
+  expect(script).toContain('die-pips');
+  expect(script).toContain('animateNextDice');
 });
