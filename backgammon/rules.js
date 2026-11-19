@@ -14,8 +14,7 @@ const LONG_BACKGAMMON_RULES = Object.freeze({
     B: Object.freeze([12, 17])
   }),
   forbidOpposingOccupiedPoint: true,
-  undefined
-  // a move may not temporarily lock all 15 opposing checkers behind a six-point block.
+  // A move may not temporarily lock all 15 opposing checkers behind a six-point block.
   forbidFullBlockade: true
 });
 
