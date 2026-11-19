@@ -358,33 +358,37 @@ body.embed .restart-button{width:43px;height:43px;flex-basis:43px;font-size:26px
 .point::before{top:0;bottom:auto;left:0;right:0;height:100%}
 .point.bottom::before{top:auto;bottom:0;left:0;right:0;height:100%}
 
-/* Final embedded board sizing: let the playing surface fill the frame */
+/* Restore the original embedded flex sizing while keeping the refreshed board visuals */
+body.embed #game{
+  overflow:hidden;
+}
 body.embed .board-wrap{
   display:flex;
   flex:1 1 0;
   min-width:0;
   min-height:0;
   align-items:stretch;
+  overflow:hidden;
 }
 body.embed .board{
   flex:1 1 0;
   align-self:stretch;
   width:100%;
-  height:auto;
+  height:100%;
   min-width:0;
   min-height:0;
   box-sizing:border-box;
-  grid-template-rows:minmax(0,1fr) minmax(0,1fr);
+  grid-template-rows:repeat(2,minmax(0,1fr));
 }
 body.embed .board-row{
-  height:auto;
+  height:100%;
   min-height:0;
   align-self:stretch;
   grid-template-columns:repeat(12,minmax(0,1fr));
 }
 body.embed .point,
 body.embed .point.bottom{
-  height:auto;
+  height:100%;
   min-height:0;
   align-self:stretch;
   padding-top:0;
