@@ -378,7 +378,7 @@ function renderPoint(index, position, state) {
     const rect = source?.getBoundingClientRect();
     if (!rect) return;
     const ghost = source.cloneNode(true);
-    ghost.classList.add("drag-ghost");
+    ghost.classList.add("drag-ghost", "selected-checker");
     Object.assign(ghost.style, {
       position: "fixed", left: `${rect.left}px`, top: `${rect.top}px`,
       width: `${rect.width}px`, height: `${rect.height}px`,
@@ -726,6 +726,10 @@ function finishCheckerDrag(event) {
   drag.ghost.remove();
   if (!drag.moved) {
     selectedFrom = drag.from;
+    // The pointer interaction already selected this stack; ignore the synthetic click
+    // that follows pointerup so the selection is not immediately toggled off.
+    suppressNextPointClick = true;
+    setTimeout(() => { suppressNextPointClick = false; }, 0);
     renderGame();
     return;
   }
