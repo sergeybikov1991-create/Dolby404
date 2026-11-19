@@ -21,7 +21,7 @@ test("long backgammon room exposes the real board and server action controls", (
   expect(html).toContain('id="board-top"');
   expect(html).toContain('id="board-bottom"');
   expect(html).toContain('id="invite-form"');
-  expect(html).toContain('id="restart-box"');
+  expect(html).toContain('id="restart-button"');
   expect(script).toContain('client.functions.invoke("backgammon-action"');
   expect(script).toContain('engine.getLegalMoves');
   expect(script).toContain('selected-checker');
@@ -240,11 +240,13 @@ test("both players reveal the same server-confirmed opening dice from Realtime",
     await page.evaluate(async row => {
       await window.__flouMatchUpdate({ new: row });
     }, updated);
-    await expect(page.locator("#dice .dice-result")).toHaveText("4 + 6");
+    await expect(page.locator("#dice .die")).toHaveCount(2);
+    await expect(page.locator('#dice .die[aria-label="Кость 4"]')).toHaveCount(1);
+    await expect(page.locator('#dice .die[aria-label="Кость 6"]')).toHaveCount(1);
     await expect(page.locator("#dice .die")).toHaveCount(2);
   }
-  const values = await Promise.all(pages.map(({ page }) => page.locator("#dice .dice-result").textContent()));
-  expect(values).toEqual(["4 + 6", "4 + 6"]);
+  const values = await Promise.all(pages.map(({ page }) => page.locator("#dice .die").evaluateAll(dice => dice.map(die => die.getAttribute("aria-label")))));
+  expect(values).toEqual([["Кость 4", "Кость 6"], ["Кость 4", "Кость 6"]]);
 
   const moved = {
     ...updated,
@@ -392,4 +394,26 @@ test("player B sees their own starting stack in the upper-right corner", async (
   await ownStack.click();
   await expect(ownStack.locator(".selected-checker")).toHaveCount(1);
   await expect(page.locator("#board .selected-checker")).toHaveCount(1);
+});
+
+
+test("compact backgammon table uses a thin vertical center divider without a horizontal rail", () => {
+  const html = fs.readFileSync(path.join(root, "backgammon.html"), "utf8");
+  expect(html).toContain("left:50%!important");
+  expect(html).toContain('.board::before{content:""!important;');
+  expect(html).toContain("width:1px!important");
+  expect(html).not.toMatch(/left:0;right:0;top:calc\\(50% - 5px\\)/);
+  expect(html).not.toContain("\\n");
+});
+
+test("compact restart control keeps automatic request expiry refresh", () => {
+  const script = fs.readFileSync(path.join(root, "backgammon.js"), "utf8");
+  expect(script).toContain("restartExpiryTimer = setTimeout");
+  expect(script).toContain("renderRestart(currentMatch)");
+});
+
+test("compact restart button is centered between the checker trays", () => {
+  const html = fs.readFileSync(path.join(root, "backgammon.html"), "utf8");
+  expect(html).toContain(".restart-button{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)");
+  expect(html).toContain(".restart-button:not(.hidden):active{transform:translate(-50%,-50%) rotate(-35deg) scale(.92)}");
 });

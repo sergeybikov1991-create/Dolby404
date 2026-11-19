@@ -143,18 +143,7 @@ body.embed{height:100dvh;min-height:0;overflow:hidden}body.embed .topbar{display
   background:linear-gradient(90deg,#36231e,#65432f 48%,#36231e);
   box-shadow:inset 0 2px 8px #100b0a,inset 0 -2px 4px #d9ae7a55;
 }
-.board::before{
-  content:"";
-  position:absolute;
-  z-index:2;
-  left:0;right:0;top:calc(50% - 5px);
-  height:10px;
-  border-top:1px solid #d0a477;
-  border-bottom:1px solid #1b1110;
-  background:linear-gradient(180deg,#8a5d3d,#38251e);
-  box-shadow:0 2px 5px #0009;
-  pointer-events:none;
-}
+
 .board-row{position:relative;z-index:1;gap:5px}
 .point{
   border:1px solid #d4b18a66;
@@ -217,7 +206,7 @@ body.embed .board-wrap{
   min-height:360px;
   padding:8px;
 }
-body.embed .board{min-height:344px;gap:13px;padding:5px}
+body.embed .board{min-height:344px;gap:2px;padding:5px}
 body.embed .board-row{gap:3px}
 body.embed .checker{width:min(94%,28px)}
 @media(max-width:520px){
@@ -227,7 +216,7 @@ body.embed .checker{width:min(94%,28px)}
   .checker{width:min(94%,27px)}
   .checker.selected-checker{transform:translateY(-5px) scale(1.24)}
   body.embed .board-wrap{min-height:340px;padding:5px}
-  body.embed .board{min-height:324px;gap:10px}
+  body.embed .board{min-height:324px;gap:2px}
   body.embed .checker{width:min(96%,26px)}
   body.embed .point-number{font-size:8px}
 }
@@ -304,6 +293,63 @@ body.embed .board{min-height:344px}
  body.embed .board-wrap{padding:5px}
 }
 
+
+/* Compact FLOUSTREAM visual table */
+.game-head{justify-content:center;text-align:center;margin:0 0 7px}
+.game-head h2{display:none}
+.game-status-wrap{width:100%}
+#game-status{margin:0;font-size:14px;font-weight:700;letter-spacing:.2px;color:#f0d9ae;text-shadow:0 0 12px #d5ad7055}
+#game-status:empty{display:none}
+.game-controls:empty{display:none}
+.game-status-win{font-size:19px!important;color:#ffe3a1!important;text-shadow:0 0 8px #f5ca70,0 0 22px #e4a83c!important;letter-spacing:1px}
+.board{gap:2px!important;min-height:540px}
+.board::before{content:""!important;top:6px!important;bottom:6px!important;left:50%!important;right:auto!important;width:1px!important;height:auto!important;transform:translateX(-.5px);border:0!important;background:linear-gradient(180deg,transparent,#f1d5a7 14%,#f8e8ce 50%,#f1d5a7 86%,transparent)!important;box-shadow:0 0 3px #f5dfbd88!important}
+.board-row{gap:4px}
+.dice-layer{position:absolute;inset:0;z-index:6;pointer-events:none}
+.dice-layer .die{position:absolute;width:clamp(34px,5vw,48px);height:clamp(34px,5vw,48px);flex:none;pointer-events:none}
+.dice-layer .die-face.front{transform:translateZ(24px)}
+.dice-layer .die-face.back{transform:rotateY(180deg) translateZ(24px)}
+.dice-layer .die-face.right{transform:rotateY(90deg) translateZ(24px)}
+.dice-layer .die-face.left{transform:rotateY(-90deg) translateZ(24px)}
+.dice-layer .die-face.top{transform:rotateX(90deg) translateZ(24px)}
+.dice-layer .die-face.bottom{transform:rotateX(-90deg) translateZ(24px)}
+.dice-layer .die-placeholder{top:50%;transform:translate(-50%,-50%) scale(.9);opacity:.65}
+.dice-layer .die-placeholder:nth-child(1){left:calc(50% - 25px)}
+.dice-layer .die-placeholder:nth-child(2){left:calc(50% + 25px)}
+.dice-layer .die-placeholder .die-pip{visibility:hidden}
+.dice-roll-trigger{position:absolute;left:50%;top:calc(50% + 43px);transform:translateX(-50%);pointer-events:auto;border:1px solid #e0bd82;border-radius:999px;padding:7px 17px;background:linear-gradient(135deg,#5b3c27,#211713);color:#f8e6c8;font-size:10px;font-weight:900;letter-spacing:1.8px;box-shadow:0 0 18px #d5ad7044}
+.dice-roll-trigger:active{transform:translateX(-50%) scale(.94)}
+.dice-scattered{animation:die-scatter-in .85s cubic-bezier(.18,.8,.2,1) both}
+.die-position-1{left:23%;top:38%}
+.die-position-2{left:69%;top:57%}
+@keyframes die-scatter-in{0%{left:50%;top:50%;transform:translate(-50%,-50%) rotate(0) scale(.65)}18%{transform:translate(-50%,-90%) rotate(160deg) scale(1.18)}42%{transform:translate(-50%,12%) rotate(430deg) scale(1.04)}68%{transform:translate(-50%,-12%) rotate(680deg) scale(1.02)}100%{left:var(--die-left);top:var(--die-top);transform:translate(0,0) rotate(900deg) scale(1)}}
+.dice-waiting{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);padding:8px 13px;border:1px solid #c49a6066;border-radius:999px;background:#160f0ddd;color:#e6cda5;font-size:11px;white-space:nowrap}
+.off-row{position:relative;justify-content:space-between;gap:10px}
+.restart-button{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:48px;height:48px;flex:0 0 48px;display:grid;place-items:center;border:2px solid #b99564;border-radius:50%;background:radial-gradient(circle at 35% 28%,#725238 0%,#33231b 58%,#171111 100%);box-shadow:inset 0 2px 5px #fff2,inset 0 -5px 9px #000b,0 3px 8px #0008;color:#f5dfb8;font-size:29px;line-height:1;transition:transform .2s,box-shadow .2s}
+.restart-button:not(.hidden):active{transform:translate(-50%,-50%) rotate(-35deg) scale(.92)}
+.restart-button.hidden{display:none}
+#game-title,.dice-result,.dice,.restart-box{display:none!important}
+body.embed .game-panel{gap:0}
+body.embed .game-head{margin:0 0 4px}
+body.embed .board-wrap{flex:1 1 auto;min-height:0;padding:7px}
+body.embed .board{min-height:0;height:100%;gap:2px;padding:5px}
+body.embed .board-row{gap:2px}
+body.embed .off-row{margin-top:5px}
+body.embed .restart-button{width:43px;height:43px;flex-basis:43px;font-size:26px}
+@media(max-width:520px){
+ .board{min-height:470px}
+ .board-row{gap:2px}
+ .dice-layer .die{width:36px;height:36px}
+ .dice-layer .die-face.front{transform:translateZ(18px)}
+ .dice-layer .die-face.back{transform:rotateY(180deg) translateZ(18px)}
+ .dice-layer .die-face.right{transform:rotateY(90deg) translateZ(18px)}
+ .dice-layer .die-face.left{transform:rotateY(-90deg) translateZ(18px)}
+ .dice-layer .die-face.top{transform:rotateX(90deg) translateZ(18px)}
+ .dice-layer .die-face.bottom{transform:rotateX(-90deg) translateZ(18px)}
+ .dice-roll-trigger{top:calc(50% + 34px)}
+ body.embed .board{min-height:0}
+}
+
 </style>
 </head>
 <body>
@@ -327,15 +373,16 @@ body.embed .board{min-height:344px}
   </aside>
   <section class="panel game-panel">
     <div class="game-head">
-      <div><h2 id="game-title">Выбери партию</h2><p class="subtle" id="game-status">Здесь появится игровое поле и ход партии.</p></div>
+      <div class="game-status-wrap"><p class="subtle" id="game-status">Здесь появится игровой ход.</p></div>
     </div>
     <div id="empty-game" class="empty-board">Создай партию или открой приглашение соперника.<br>Поле появится после выбора партии.</div>
     <div id="game" class="hidden">
-      <div class="dice" id="dice" aria-label="Игровые кости"></div>
+      
       <div class="game-controls" id="controls"></div>
-      <div class="restart-box hidden" id="restart-box"></div>
+      
       <div class="board-wrap">
         <div class="board" id="board" aria-label="Игровая доска длинных нард">
+          <div class="dice-layer" id="dice" aria-label="Игровые кости"></div>
           <div class="board-row" id="board-top"></div>
           <div class="board-row" id="board-bottom"></div>
         </div>
@@ -347,6 +394,7 @@ body.embed .board{min-height:344px}
         <div class="off-zone" id="off-zone-b" data-player="B" aria-label="Снятые шашки B">
           <strong id="off-b">0</strong>
         </div>
+        <button type="button" class="restart-button hidden" id="restart-button" aria-label="Предложить перезапуск партии" title="Предложить перезапуск партии">↻</button>
       </div>
     </div>
     <div class="notice" id="game-notice" aria-live="polite"></div>

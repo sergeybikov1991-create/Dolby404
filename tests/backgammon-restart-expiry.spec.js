@@ -89,15 +89,9 @@ test("an open restart request expires on screen and allows a fresh proposal", as
   await page.goto("/backgammon.html", { waitUntil: "domcontentloaded" });
   await page.getByRole("button", { name: "Открыть" }).click();
 
-  await expect(page.locator("#restart-box")).toContainText("Соперник предлагает начать партию заново.");
-  await expect(page.getByRole("button", { name: "Согласиться" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Отказаться" })).toBeVisible();
+  const restart = page.getByRole("button", { name: "Принять или отклонить рестарт" });
+  await expect(restart).toBeVisible();
+  await expect(restart).toHaveAttribute("title", "Соперник предлагает новую партию");
 
-  await expect(page.locator("#restart-box")).toContainText(
-    "Время предложения истекло. Можно предложить рестарт снова.",
-    { timeout: 4000 }
-  );
-  await expect(page.getByRole("button", { name: "Предложить рестарт" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Согласиться" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Отказаться" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Предложить перезапуск партии" })).toBeVisible({ timeout: 4000 });
 });

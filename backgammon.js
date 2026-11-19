@@ -310,57 +310,64 @@ function makeDie(value, rolling = false) {
 function renderDice(state) {
   const container = $("dice");
   container.replaceChildren();
+  container.className = "dice-layer";
+  const side = sideFor(currentMatch);
+  const isMyTurn = currentMatch?.status === "active" && state?.turn?.player === side;
+  const placeDie = (die, index) => {
+    const left = animateNextDice ? 14 + Math.random() * 66 : (index === 0 ? 23 : 69);
+    const top = animateNextDice ? 18 + Math.random() * 62 : (index === 0 ? 38 : 57);
+    die.style.setProperty("--die-left", `${left}%`);
+    die.style.setProperty("--die-top", `${top}%`);
+    if (!animateNextDice) { die.style.left = `${left}%`; die.style.top = `${top}%`; }
+  };
+
+  if (currentMatch?.status === "active" && state?.turn?.phase === "awaiting_roll") {
+    if (isMyTurn) {
+      const first = makeDie(1); first.classList.add("die-placeholder");
+      const second = makeDie(1); second.classList.add("die-placeholder");
+      container.append(first, second);
+      const roll = document.createElement("button");
+      roll.type = "button";
+      roll.className = "dice-roll-trigger";
+      roll.textContent = "БРОСИТЬ";
+      roll.setAttribute("aria-label", "Бросить игровые кубики");
+      roll.addEventListener("click", () => invokeAction("roll"));
+      container.append(roll);
+    } else {
+      const waiting = document.createElement("span");
+      waiting.className = "dice-waiting";
+      waiting.textContent = "Ход соперника";
+      container.append(waiting);
+    }
+    return;
+  }
+
   if (currentMatch?.status === "awaiting_opening_roll") {
     const opening = state?.opening || {};
     const rolls = opening.rolls || {};
     const tie = opening.lastTie;
-    const side = sideFor(currentMatch);
-    const labels = [
-      ["A", "Игрок 1"],
-      ["B", "Игрок 2"],
-    ];
-    for (const [player, labelText] of labels) {
+    for (const player of ["A", "B"]) {
       const value = rolls[player] ?? tie?.[player];
-      const group = document.createElement("span");
-      group.className = "opening-die-result";
-      const label = document.createElement("span");
-      label.className = "subtle";
-      label.textContent = player === side ? "Ты" : labelText;
-      group.append(label);
-      if (Number.isInteger(value)) group.append(makeDie(value, animateNextDice));
-      else {
-        const waiting = document.createElement("span");
-        waiting.className = "subtle";
-        waiting.textContent = "Ожидает броска";
-        group.append(waiting);
+      if (Number.isInteger(value)) {
+        const die = makeDie(value, animateNextDice);
+        die.classList.add("die-scattered", player === "A" ? "die-position-1" : "die-position-2");
+        placeDie(die, player === "A" ? 0 : 1);
+        container.append(die);
       }
-      container.append(group);
     }
     return;
   }
+
   const values = state?.turn?.dice || [];
-  values.slice(0, 2).forEach(value => container.append(makeDie(value, animateNextDice)));
-  if (animateNextDice && values.length >= 2) {
-    const result = document.createElement("span");
-    result.className = "dice-result";
-    result.setAttribute("aria-live", "polite");
-    result.textContent = `${values[0]} + ${values[1]}`;
-    container.append(result);
-  }
-  if (!values.length) {
-    const label = document.createElement("span");
-    label.className = "subtle";
-    label.textContent = "Кости появятся после броска";
-    container.append(label);
-  }
-  if (state?.turn?.phase === "moving" && state.turn.remainingDice?.length) {
-    const remaining = document.createElement("span");
-    remaining.className = "subtle";
-    remaining.textContent = `Осталось ходов по костям: ${state.turn.remainingDice.join(" · ")}`;
-    container.append(remaining);
+  if (currentMatch?.status === "active" && state?.turn?.phase === "moving") {
+    values.slice(0, 2).forEach((value, index) => {
+      const die = makeDie(value, animateNextDice);
+      die.classList.add("die-scattered", `die-position-${index + 1}`);
+      placeDie(die, index);
+      container.append(die);
+    });
   }
 }
-
 function renderPoint(index, position, state) {
   const button = document.createElement("button");
   button.type = "button";
@@ -471,7 +478,10 @@ function renderBoard(state) {
   $("off-b").textContent = String(state.borneOff.B);
   // Each player sees their own home and checker tray on the right.
   const offRow = $("off-zone-a").parentElement;
-  offRow.style.flexDirection = sideFor(currentMatch) === "A" ? "row-reverse" : "row";
+  offRow.style.flexDirection = "row";
+  $("off-zone-a").style.order = sideFor(currentMatch) === "A" ? "3" : "1";
+  $("off-zone-b").style.order = sideFor(currentMatch) === "B" ? "3" : "1";
+  $("restart-button").style.order = "2";
   const activeSide = currentMatch?.status === "active" &&
     state.turn?.phase === "moving" && state.turn.player === sideFor(currentMatch)
     ? state.turn.player : null;
@@ -521,53 +531,56 @@ function renderRestart(match) {
     clearTimeout(restartExpiryTimer);
     restartExpiryTimer = null;
   }
-  const box = $("restart-box");
-  box.classList.add("hidden");
-  box.replaceChildren();
-  if (!["active", "finished"].includes(match.status) || match.match_mode !== "casual") return;
-
-  const request = match.restart_request;
-  const expiresAt = request ? Date.parse(request.expires_at || "") : NaN;
-  const requestExpired = !!request && (!Number.isFinite(expiresAt) || expiresAt <= Date.now());
-
-  if (!request || requestExpired) {
-    box.classList.remove("hidden");
-    if (requestExpired) {
-      const notice = document.createElement("div");
-      notice.textContent = "Время предложения истекло. Можно предложить рестарт снова.";
-      box.append(notice);
-    }
-    addControl(box, "Предложить рестарт", () => {
-      if (window.confirm("Предложить начать партию заново?")) {
-        invokeAction("restart_request");
-      }
-    }, "ghost");
+  const button = $("restart-button");
+  if (!button) return;
+  button.onclick = null;
+  button.title = "Предложить перезапуск партии";
+  button.setAttribute("aria-label", "Предложить перезапуск партии");
+  if (![ "active", "finished" ].includes(match.status) || match.match_mode !== "casual") {
+    button.classList.add("hidden");
     return;
   }
-
-  restartExpiryTimer = setTimeout(() => {
-    if (currentMatch?.id === match.id) renderRestart(currentMatch);
-  }, Math.max(0, expiresAt - Date.now() + 20));
-
-  box.classList.remove("hidden");
-  const message = document.createElement("div");
-  message.textContent = request.initiator_id === user.id
-    ? "Запрос на рестарт отправлен. Ждём согласия соперника."
-    : "Соперник предлагает начать партию заново.";
-  box.append(message);
-  if (request.initiator_id !== user.id) {
-    addControl(box, "Согласиться", () => invokeAction("restart_vote", { request_id: request.id, accept: true }));
-    addControl(box, "Отказаться", () => invokeAction("restart_vote", { request_id: request.id, accept: false }), "danger");
+  button.classList.remove("hidden");
+  const request = match.restart_request;
+  const expiresAt = request ? Date.parse(request.expires_at || "") : NaN;
+  const expired = !!request && (!Number.isFinite(expiresAt) || expiresAt <= Date.now());
+  if (request && !expired && Number.isFinite(expiresAt)) {
+    restartExpiryTimer = setTimeout(() => {
+      if (currentMatch?.id === match.id) renderRestart(currentMatch);
+    }, Math.max(0, expiresAt - Date.now() + 20));
+  }
+  if (!request || expired) {
+    button.onclick = () => {
+      if (window.confirm("Предложить начать партию заново?")) invokeAction("restart_request");
+    };
+    return;
+  }
+  if (request.initiator_id === user.id) {
+    button.title = "Отменить предложение рестарта";
+    button.setAttribute("aria-label", "Отменить предложение рестарта");
+    button.onclick = () => {
+      if (window.confirm("Отменить предложение новой партии?")) {
+        invokeAction("restart_cancel", { request_id: request.id });
+      }
+    };
   } else {
-    addControl(box, "Отменить запрос", () => invokeAction("restart_cancel", { request_id: request.id }), "ghost");
+    button.title = "Соперник предлагает новую партию";
+    button.setAttribute("aria-label", "Принять или отклонить рестарт");
+    button.onclick = () => {
+      if (window.confirm("Соперник предлагает начать новую партию. Согласиться?")) {
+        invokeAction("restart_vote", { request_id: request.id, accept: true });
+      } else if (window.confirm("Отклонить предложение?")) {
+        invokeAction("restart_vote", { request_id: request.id, accept: false });
+      }
+    };
   }
 }
-
 function renderControls(match) {
   const container = $("controls");
   container.replaceChildren();
   const state = match.state;
   const side = sideFor(match);
+  $("game-status").classList.remove("game-status-win", "game-status-loss");
   const isMyTurn = state.turn?.player === side;
 
   if (match.status === "waiting") {
@@ -606,7 +619,9 @@ function renderControls(match) {
     return;
   }
   if (match.status === "finished") {
-    $("game-status").textContent = state.winner === side ? "Ты выиграл партию!" : "Партия завершена. Победил соперник.";
+    const won = state.winner === side;
+    $("game-status").classList.add(won ? "game-status-win" : "game-status-loss");
+    $("game-status").textContent = won ? "ПОБЕДА! Великолепная партия!" : "Партия завершена. Победил соперник.";
     return;
   }
   if (match.status !== "active") {
@@ -616,7 +631,6 @@ function renderControls(match) {
 
   if (state.turn.phase === "awaiting_roll") {
     $("game-status").textContent = isMyTurn ? "Твой ход. Бросай кости." : "Сейчас ход соперника.";
-    if (isMyTurn) addControl(container, "Бросить кости", () => invokeAction("roll"));
     return;
   }
   if (state.turn.phase === "moving") {
@@ -727,7 +741,6 @@ function renderGame(previousState = null) {
   if (!hasMatch) return;
   const state = currentMatch.state;
   const checkerTransition = captureCheckerMove(previousState, state);
-  $("game-title").textContent = `Партия с ${matchLabel(currentMatch)}`;
   legalMoves = currentMatch.status === "active" && state.turn.phase === "moving" &&
     state.turn.player === sideFor(currentMatch)
     ? engine.getLegalMoves(state, state.turn.remainingDice, LONG_BACKGAMMON_RULES)
