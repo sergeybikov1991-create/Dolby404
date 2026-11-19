@@ -68,3 +68,35 @@ test("doubles grant four moves; different dice grant two", () => {
   expect(dice.expandDice([4, 4])).toEqual([4, 4, 4, 4]);
   expect(dice.expandDice([2, 5])).toEqual([2, 5]);
 });
+
+
+test("turn engine finds sequences that use the maximum number of dice", () => {
+  const turn = require("../backgammon/turn.cjs");
+  const state = rules.createInitialState();
+  const options = turn.getTurnOptions(state, 0, [1, 2]);
+  expect(options.length).toBeGreaterThan(0);
+  expect(options.every(sequence => sequence.length === 2)).toBe(true);
+});
+
+test("doubles provide up to four moves and allow two checkers from the head", () => {
+  const turn = require("../backgammon/turn.cjs");
+  const state = rules.createInitialState();
+  const options = turn.getTurnOptions(state, 0, [2, 2]);
+  expect(options.length).toBeGreaterThan(0);
+  expect(options.every(sequence => sequence.length === 4)).toBe(true);
+});
+
+test("turn engine enforces the higher die when only one die can be played", () => {
+  const turn = require("../backgammon/turn.cjs");
+  const state = rules.createInitialState();
+  state.board = Array.from({ length: 24 }, () => [0, 0]);
+  state.board[0][0] = 1;
+  state.board[1][1] = 1;
+  state.board[2][1] = 1;
+  state.board[3][1] = 1;
+  state.board[4][1] = 1;
+  state.board[12][1] += 10;
+  const options = turn.getTurnOptions(state, 0, [1, 3]);
+  expect(options.length).toBeGreaterThan(0);
+  expect(options.every(sequence => sequence[0].die === 3)).toBe(true);
+});
