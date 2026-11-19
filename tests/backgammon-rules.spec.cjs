@@ -99,3 +99,34 @@ test("turn engine enforces the higher die when only one die can be played", () =
   expect(options.length).toBeGreaterThan(0);
   expect(options.every(sequence => sequence[0].die === 3)).toBe(true);
 });
+
+
+test("game alternates turns after a legal sequence", () => {
+  const game = require("../backgammon/game.cjs");
+  let state = game.createGame();
+  state = game.rollCurrentTurn(state, () => 0.1);
+  const chosen = state.legalTurnOptions[0];
+  state = game.completeTurn(state, chosen);
+  expect(state.currentPlayer).toBe(1);
+  expect(state.turnNumber).toBe(2);
+  expect(state.rolledDice).toBeNull();
+});
+
+test("game rejects a move sequence that was not offered as legal", () => {
+  const game = require("../backgammon/game.cjs");
+  let state = game.createGame();
+  state = game.rollCurrentTurn(state, () => 0.1);
+  expect(() => game.completeTurn(state, [{ player: 0, from: 0, to: 23, die: 1 }])).toThrow(/not legal/);
+});
+
+test("restart restores the original board and first player's turn", () => {
+  const game = require("../backgammon/game.cjs");
+  let state = game.createGame();
+  state = game.rollCurrentTurn(state, () => 0.3);
+  state = game.completeTurn(state, state.legalTurnOptions[0]);
+  const restarted = game.restartGame();
+  expect(restarted.currentPlayer).toBe(0);
+  expect(restarted.turnNumber).toBe(1);
+  expect(restarted.board[0][0]).toBe(15);
+  expect(restarted.board[12][1]).toBe(15);
+});
