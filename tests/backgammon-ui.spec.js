@@ -104,7 +104,7 @@ test("authenticated game room renders 24 points and server-confirmed 3D dice", a
       winner: null
     }
   };
-  const stub = `const match = ${JSON.stringify(match)};
+  const stub = `const match = ${JSON.stringify(match)}; let latestMatch = match;
     export function createClient(){
       const query = (table) => ({
         select(){ return this; },
@@ -123,7 +123,7 @@ test("authenticated game room renders 24 points and server-confirmed 3D dice", a
         from:query,
         channel:()=>({on(){return this;},subscribe(callback){window.__flouRealtimeStatus=callback;return this;}}),
         removeChannel:async()=>({}),
-        functions:{invoke:async()=>({data:null,error:null})}
+        functions:{invoke:async(_name,options)=>{window.__flouActions=window.__flouActions||[];window.__flouActions.push(options.body);return {data:{status:"active",state:match.state,turn_number:1,revision:3,restart_request:null},error:null};}}
       };
     }`;
   await page.route("https://esm.sh/@supabase/supabase-js@2*", route => route.fulfill({
@@ -149,6 +149,122 @@ test("authenticated game room renders 24 points and server-confirmed 3D dice", a
   await expect(page.locator("#game-notice")).toContainText("Соединение с соперником прервано");
   await page.evaluate(async () => await window.__flouRealtimeStatus("SUBSCRIBED"));
   await expect(page.locator("#game-notice")).toContainText("Связь восстановлена. Состояние партии обновлено.");
+
+  // Drag A's checker from point 24 to the legal point 21 (die 3).
+  const source = page.locator('#board .point[data-index="23"] .checker').first();
+  const destination = page.locator('#board .point[data-index="20"]');
+  await source.scrollIntoViewIfNeeded();
+  const sourceBox = await source.boundingBox();
+  const destinationBox = await destination.boundingBox();
+  expect(sourceBox).not.toBeNull();
+  expect(destinationBox).not.toBeNull();
+  await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(destinationBox.x + destinationBox.width / 2, destinationBox.y + destinationBox.height / 2, { steps: 8 });
+  await page.mouse.up();
+  await expect.poll(() => page.evaluate(() => window.__flouActions?.length || 0)).toBe(1);
+  const submitted = await page.evaluate(() => window.__flouActions[0]);
+  expect(submitted.action_type).toBe("move");
+  expect(submitted.payload.move.from).toBe(23);
+  expect(submitted.payload.move.to).toBe(20);
+  expect(submitted.payload.move.die).toBe(3);
+});
+
+test("both players reveal the same server-confirmed opening dice from Realtime", async ({ browser }) => {
+  const match = {
+    id: "10000000-0000-4000-8000-000000000010",
+    player_a: "00000000-0000-4000-8000-000000000001",
+    player_b: "00000000-0000-4000-8000-000000000002",
+    match_mode: "casual",
+    status: "awaiting_opening_roll",
+    revision: 1,
+    turn_number: 0,
+    restart_request: null,
+    state: {
+      schemaVersion: 1,
+      matchId: "10000000-0000-4000-8000-000000000010",
+      players: { A: "00000000-0000-4000-8000-000000000001", B: "00000000-0000-4000-8000-000000000002" },
+      points: Array.from({ length: 24 }, (_, i) => i === 23 ? 15 : i === 11 ? -15 : 0),
+      borneOff: { A: 0, B: 0 },
+      turn: { player: "A", phase: "awaiting_roll", dice: [], remainingDice: [], movesApplied: [], headMovesApplied: 0, headMovesLimit: 1 },
+      opening: { firstPlayer: "A", secondPlayer: "B", secondPlayerFirstTurnPending: true },
+      winner: null
+    }
+  };
+  const updated = {
+    ...match,
+    status: "active",
+    revision: 2,
+    turn_number: 1,
+    state: {
+      ...match.state,
+      turn: { ...match.state.turn, player: "A", phase: "moving", dice: [4, 6], remainingDice: [4, 6] }
+    }
+  };
+  const stub = `const match = ${JSON.stringify(match)}; let latestMatch = match;
+    export function createClient(){
+      const query = table => ({
+        select(){return this;}, or(){return this;}, order(){return this;}, limit(){return this;}, eq(){return this;},
+        maybeSingle(){return Promise.resolve({data:latestMatch,error:null});},
+        in(){return Promise.resolve({data:[],error:null});},
+        then(resolve,reject){return Promise.resolve({data:table === "backgammon_matches" ? [latestMatch] : [],error:null}).then(resolve,reject);}
+      });
+      return {
+        auth:{getSession:async()=>({data:{session:{user:{id:window.__testUserId,email:"player@floustream.local"}}},error:null})},
+        from:query,
+        channel:()=>({on(_event,_filter,handler){window.__flouMatchUpdate=payload=>{latestMatch=payload.new;return handler(payload);};return this;},subscribe(callback){window.__flouRealtimeStatus=callback;return this;}}),
+        removeChannel:async()=>({})
+      };
+    }`;
+  const pages = [];
+  for (const userId of [match.player_a, match.player_b]) {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const page = await context.newPage();
+    await page.addInitScript(id => { window.__testUserId = id; }, userId);
+    await page.route("https://esm.sh/@supabase/supabase-js@2*", route => route.fulfill({
+      status: 200, contentType: "application/javascript",
+      headers: { "Access-Control-Allow-Origin": "*" }, body: stub
+    }));
+    await page.goto("/backgammon.html", { waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: "Открыть" }).click();
+    await expect(page.locator("#game")).toBeVisible();
+    pages.push({ page, context });
+  }
+
+  for (const { page } of pages) {
+    await page.evaluate(async row => {
+      await window.__flouMatchUpdate({ new: row });
+    }, updated);
+    await expect(page.locator("#dice .dice-result")).toHaveText("4 + 6");
+    await expect(page.locator("#dice .die")).toHaveCount(2);
+  }
+  const values = await Promise.all(pages.map(({ page }) => page.locator("#dice .dice-result").textContent()));
+  expect(values).toEqual(["4 + 6", "4 + 6"]);
+
+  const moved = {
+    ...updated,
+    revision: 3,
+    state: {
+      ...updated.state,
+      points: updated.state.points.map((count, index) =>
+        index === 23 ? 14 : index === 19 ? 1 : count
+      ),
+      turn: {
+        ...updated.state.turn,
+        remainingDice: [6],
+        movesApplied: [{ player: "A", from: 23, to: 19, die: 4, bearOff: false }],
+        headMovesApplied: 1
+      }
+    }
+  };
+  for (const { page } of pages) {
+    await page.evaluate(async row => {
+      await window.__flouMatchUpdate({ new: row });
+    }, moved);
+    await expect(page.locator('#board .point[data-index="23"] .checker-count')).toHaveText("14");
+    await expect(page.locator('#board .point[data-index="19"] .checker')).toHaveCount(1);
+  }
+  await Promise.all(pages.map(({ context }) => context.close()));
 });
 
 test("a direct conversation can switch into an embedded game and return without losing chat", () => {
@@ -159,7 +275,20 @@ test("a direct conversation can switch into an embedded game and return without 
   expect(messages).toContain('id="game-frame"');
   expect(messages).toContain('backgammon.html?embed=1&opponent=');
   expect(messages).toContain('gameToggle.textContent=opening?"Вернуться в чат":"Играть"');
-  expect(gamePage).toContain("body.embed .shell>aside{display:block}");
+  expect(gamePage).toContain("body.embed .shell>aside{display:none}");
+  expect(gamePage).toContain("body.embed .game-panel{display:flex");
+  expect(gamePage).toContain("body.embed .board-wrap{display:flex;flex:1");
+  expect(gamePage).not.toContain('id="close-match"');
+  expect(gameScript).not.toContain('close-match');
   expect(gameScript).toContain('get("opponent")');
-  expect(gameScript).toContain('invitedProfile?.username');
+  expect(gameScript).toContain("const reusable = matches.find");
+  expect(gameScript).toContain("await createMatch(opponent)");
+  expect(gameScript).toContain('await invokeAction("accept_match")');
+});
+
+test("opening rolls advance the match-wide turn number after a mutual restart", () => {
+  const edge = fs.readFileSync(path.join(root, "supabase/functions/backgammon-action/index.ts"), "utf8");
+  const opening = edge.slice(edge.indexOf('case "opening_roll"'), edge.indexOf('case "roll"'));
+  expect(opening).toContain("nextTurnNumber = match.turn_number + 1;");
+  expect(opening).not.toContain("nextTurnNumber = 1;");
 });
