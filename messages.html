@@ -132,7 +132,7 @@ async function loadMessages(silent=false,forceRender=false){
  if(loading){pendingMessageReload=true;return;}loading=true;
  try{
   const filter="and(sender_id.eq."+viewer.id+",recipient_id.eq."+peerId+"),and(sender_id.eq."+peerId+",recipient_id.eq."+viewer.id+")";
-  const result=await client.from("direct_messages").select("id,sender_id,recipient_id,content,attachment_path,attachment_name,attachment_mime,created_at").or(filter).order("created_at",{ascending:false}).order("id",{ascending:false}).limit(200);
+  const result=await withTimeout(client.from("direct_messages").select("id,sender_id,recipient_id,content,attachment_path,attachment_name,attachment_mime,created_at").or(filter).order("created_at",{ascending:false}).order("id",{ascending:false}).limit(200),15000,"Запрос переписки к Supabase не ответил за 15 секунд.");
   if(result.error)throw result.error;
   const rows=(result.data||[]).sort((a,b)=>{
    const timeA=Date.parse(a.created_at)||0,timeB=Date.parse(b.created_at)||0;
@@ -147,7 +147,7 @@ async function loadMessages(silent=false,forceRender=false){
     if(marked.error)console.warn("FLOUSTREAM read receipt update:",marked.error);
    }catch(markError){console.warn("FLOUSTREAM read receipt update:",markError);}
   }
- }catch(error){if(!silent)showNotice("Не удалось загрузить сообщения: "+error.message,true);}
+ }catch(error){if(!silent){showNotice("Не удалось загрузить сообщения: "+(error.message||String(error)),true);const host=$("messages");host.replaceChildren();const failed=document.createElement("div");failed.className="empty";failed.textContent="Не удалось загрузить переписку. "+(error.message||String(error));host.append(failed);}}
  finally{loading=false;if(pendingMessageReload){pendingMessageReload=false;loadMessages(true,true);}}
 }
 function renderInbox(rows,profiles){
