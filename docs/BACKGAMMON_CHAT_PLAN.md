@@ -224,3 +224,15 @@
 The engine now follows the Russian sport rules approved by Ministry of Sport Order No. 347 of 30 April 2025, Article 20.5: a six-point block is not prohibited by itself; it is illegal only when it traps all 15 opposing checkers. The prohibition applies even to a temporary intermediate position during the same turn. A block is allowed when at least one opposing checker has already passed it. This is intentionally stricter and more precise than the simplified “never make six in a row” interpretation.
 
 Implementation: `rules.forbidFullBlockade = true`; legal move generation checks every intermediate board position before allowing the next die to be played. Tests cover both a full lock and the passed-checker exception. No live Supabase schema or production data was changed.
+
+
+## Shared board coordinates — corrected to the long-nardy layout
+
+The engine uses one shared 24-point board, not two mirrored player-local arrays:
+- A starts on point 24 (array index 23); B starts on point 12 (index 11).
+- Both players travel counterclockwise in the same direction.
+- A's home is points 1–6 (indexes 0–5); B's home is points 13–18 (indexes 12–17).
+- B's route crosses point 1 to point 24 before entering its home. Each player's exit is handled at the end of that player's own route.
+- The head exception applies to the second player on the opening turn for doubles 3-3, 4-4 and 6-6.
+
+This coordinate convention follows the Russian sport rules approved by Ministry of Sport Order No. 347 of 30 April 2025, Articles 20.2–20.6. The earlier prototype coordinates (heads at indexes 0 and 23 with opposite directions) are superseded.
