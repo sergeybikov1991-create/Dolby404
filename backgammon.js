@@ -16,6 +16,7 @@ let realtimeWasConnected = false;
 let legalMoves = [];
 let animateNextDice = false;
 let dragState = null;
+let suppressNextPointClick = false;
 
 function setNotice(id, message, error = false) {
   const element = $(id);
@@ -398,6 +399,7 @@ function renderBoard(state) {
 }
 
 async function handlePointClick(index) {
+  if (suppressNextPointClick) { suppressNextPointClick = false; return; }
   if (!currentMatch || currentMatch.status !== "active") return;
   const state = currentMatch.state;
   const side = sideFor(currentMatch);
@@ -693,6 +695,8 @@ function finishCheckerDrag(event) {
     renderGame();
     return;
   }
+  suppressNextPointClick = true;
+  setTimeout(() => { suppressNextPointClick = false; }, 0);
   const target = document.elementFromPoint(event.clientX, event.clientY)?.closest?.(".point");
   const to = target ? Number(target.dataset.index) : -1;
   const candidate = legalMoves.find(move =>
