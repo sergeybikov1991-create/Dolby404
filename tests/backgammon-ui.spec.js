@@ -34,6 +34,10 @@ test("long backgammon room exposes the real board and server action controls", (
   expect(script).toContain('animateNextDice');
   expect(script).toContain('window.confirm("Предложить начать партию заново?")');
   expect(script).toContain('animateCheckerMove');
+  expect(script).toContain("let realtimeWasConnected = false;");
+  expect(script).toContain('.subscribe(async status =>');
+  expect(script).toContain('"CHANNEL_ERROR", "TIMED_OUT", "CLOSED"');
+  expect(script).toContain("Связь восстановлена. Состояние партии обновлено.");
 });
 
 
