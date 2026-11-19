@@ -201,7 +201,7 @@ test("both players reveal the same server-confirmed opening dice from Realtime",
       turn: { ...match.state.turn, player: "A", phase: "moving", dice: [4, 6], remainingDice: [4, 6] }
     }
   };
-  const stub = `const match = ${JSON.stringify(match)};
+  const stub = `const match = ${JSON.stringify(match)}; let latestMatch = match;
     export function createClient(){
       const query = table => ({
         select(){return this;}, or(){return this;}, order(){return this;}, limit(){return this;}, eq(){return this;},
