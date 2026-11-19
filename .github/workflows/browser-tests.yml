@@ -82,6 +82,9 @@ jobs:
       - name: Type-check the game Edge Function
         run: deno check --node-modules-dir=auto supabase/functions/backgammon-action/index.ts
 
+      - name: Parse browser game module
+        run: node --check backgammon.js
+
       - name: Install PostgreSQL client
         run: |
           sudo apt-get update
