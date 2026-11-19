@@ -68,3 +68,17 @@ test("opening roll rerolls ties and awards the first turn to the higher die", ()
   assert.ok(Object.isFrozen(opening));
   assert.ok(Object.isFrozen(opening.dice));
 });
+
+
+test("all 36 ordered two-die outcomes have equal representation across the accepted byte domain", () => {
+  const counts = Array.from({ length: 6 }, () => Array(6).fill(0));
+  for (let first = 0; first < 252; first += 1) {
+    for (let second = 0; second < 252; second += 1) {
+      const result = rollDice(queuedBytes([first, second]));
+      counts[result.dice[0] - 1][result.dice[1] - 1] += 1;
+    }
+  }
+  for (const row of counts) {
+    for (const count of row) assert.equal(count, 1764);
+  }
+});
