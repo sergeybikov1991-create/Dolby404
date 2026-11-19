@@ -76,7 +76,6 @@ async function invokeAction(actionType, payload = {}) {
     return false;
   }
   const previousState = currentMatch.state;
-  const previousState = currentMatch.state;
   currentMatch = {
     ...currentMatch,
     status: data.status,
