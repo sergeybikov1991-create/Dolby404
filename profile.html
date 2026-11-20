@@ -766,7 +766,7 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
   </section>
  <div class="side-drawer-divider"></div><p class="side-drawer-caption">Медиа и общение</p><nav class="side-drawer-links">
  <a class="side-drawer-link" id="friends-nav-link" href="friends.html?v=20261114-1"><span class="side-drawer-icon">♧</span>Друзья</a>
- <a class="side-drawer-link" id="messages-nav-link" href="messages.html?v=20261113-2"><span class="side-drawer-icon">✉</span>Сообщения</a>
+ <a class="side-drawer-link" id="messages-nav-link" href="messages.html?v=20261119-realtime-2"><span class="side-drawer-icon">✉</span>Сообщения</a>
  <button class="side-drawer-link" data-drawer-soon="Сообщества"><span class="side-drawer-icon">◎</span>Сообщества</button>
  <button class="side-drawer-link" data-drawer-soon="Музыка"><span class="side-drawer-icon">♫</span>Музыка</button>
  <button class="side-drawer-link" data-drawer-soon="Видео"><span class="side-drawer-icon">▶</span>Видео</button>
@@ -1986,8 +1986,8 @@ async function ensureAvatarOriginalInAlbum(){
 
 async function start(){
  try{
-  await loadLibrary();client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
-  const auth=await client.auth.getUser();if(auth.error)throw auth.error;user=auth.data.user;
+  await loadLibrary();client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storage:window.localStorage,storageKey:"sb-qhpobdktlbhdqsnajypr-auth-token"}});
+  const stored=await client.auth.getSession();if(stored.error)throw stored.error;if(!stored.data?.session)throw new Error("Сессия не найдена в хранилище браузера. Вернись на страницу входа и авторизуйся снова.");const auth=await client.auth.getUser();if(auth.error)throw auth.error;user=auth.data.user;
   if(!user){location.replace("portal.html");return;}
   const lifecycleParams=new URLSearchParams(location.search);
   const lifecycleAction=lifecycleParams.has("confirm_delete")?"request_delete":(lifecycleParams.has("restore")?"restore":null);
@@ -3006,7 +3006,7 @@ start();
  $id("drawer-search-options").querySelectorAll("[data-drawer-search-action]").forEach(button=>button.addEventListener("click",()=>openDiscovery(button.dataset.drawerSearchAction)));
  async function runSearch(){
   const term=queryInput.value.trim();if(!term){status(results,"Введи слово или фразу для поиска.");return;}if(busy)return;busy=true;lastQuery=term;status(results,"Ищем…");
-  const pattern="%"+term.replace(/[\\%_]/g,"\\</body>")+"%";
+  const pattern="%"+term.replace(/[\\%_]/g,"\\$&")+"%";
   try{
    const tasks=[];
    if(category==="all"||category==="people"){
