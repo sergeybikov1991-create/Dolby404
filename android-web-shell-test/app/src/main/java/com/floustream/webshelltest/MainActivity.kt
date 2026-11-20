@@ -52,7 +52,7 @@ class MainActivity : Activity() {
                     }
 
                     // Existing sessions and successful authentication both land on Home.
-                    if (target.startsWith(PROFILE_URL) && (!entryResolved || authFlowActive)) {
+                    if (target.startsWith(PROFILE_URL)) {
                         entryResolved = true
                         authFlowActive = false
                         view?.stopLoading()
@@ -80,7 +80,7 @@ class MainActivity : Activity() {
                         return true
                     }
 
-                    if (target.startsWith(PROFILE_URL) && (!entryResolved || authFlowActive)) {
+                    if (target.startsWith(PROFILE_URL)) {
                         entryResolved = true
                         authFlowActive = false
                         view?.loadUrl(HOME_URL)
