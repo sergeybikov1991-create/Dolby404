@@ -45,6 +45,11 @@ h1{font-size:clamp(25px,5vw,36px);margin:12px 0 8px}
 .post-date{font-size:11px;color:var(--muted);margin-top:4px}
 .post-content{font-size:14px;line-height:1.6;color:#e9e4f2;white-space:pre-wrap;overflow-wrap:anywhere}
 .post-image{display:block;width:100%;max-height:520px;object-fit:contain;border-radius:12px;margin-top:13px;background:#090910}
+.post-media{display:grid;gap:12px;margin-top:13px;min-width:0}
+.post-media-item{min-width:0;overflow:hidden;border-radius:12px;background:#090910}
+.post-media-item img,.post-media-item video{display:block;width:100%;max-height:520px;object-fit:contain;border-radius:12px;background:#090910}
+.post-media-item audio{display:block;width:100%;min-height:42px;border-radius:10px}
+.post-media-error{padding:8px 10px;color:#ffb4c0;font-size:11px;line-height:1.4;background:#21101a}
 .feed-loading,.feed-error{padding:16px;text-align:center;color:var(--muted);font-size:13px}
 .feed-error{color:#ffb4c0}
 .feed-more{align-self:center;border:1px solid #62458b;border-radius:22px;padding:10px 18px;background:#2a1b3d;color:#f1e7ff}
@@ -369,8 +374,56 @@ async function initFeed(client){
     const dateEl=document.createElement("div");dateEl.className="post-date";dateEl.textContent=formatDate(post.created_at);
     identity.append(authorEl,dateEl);head.append(avatarBox,identity);card.appendChild(head);
     if(post.content){const content=document.createElement("div");content.className="post-content";content.textContent=post.content;card.appendChild(content);}
-    const imageUrl=safeImageUrl(post.image_url);
-    if(imageUrl){const image=document.createElement("img");image.className="post-image";image.src=imageUrl;image.alt="Фото публикации";image.loading="lazy";image.decoding="async";card.appendChild(image);}
+    const mediaItems=Array.isArray(post.media)&&post.media.length
+      ?post.media
+      :(post.image_url?[{type:"photo",url:post.image_url,name:"Фото"}]:[]);
+    if(mediaItems.length){
+      const mediaBox=document.createElement("div");
+      mediaBox.className="post-media";
+      for(const item of mediaItems){
+        if(!item||typeof item!=="object")continue;
+        const mediaUrl=safeImageUrl(item.url);
+        if(!mediaUrl)continue;
+        const type=String(item.type||"").toLowerCase();
+        const wrapper=document.createElement("div");
+        wrapper.className="post-media-item";
+        let media;
+        if(type==="photo"||type==="image"){
+          media=document.createElement("img");
+          media.alt=item.name||"Фото публикации";
+          media.loading="lazy";
+          media.decoding="async";
+          media.src=mediaUrl;
+        }else if(type==="music"||type==="audio"){
+          media=document.createElement("audio");
+          media.controls=true;
+          media.preload="metadata";
+          media.setAttribute("aria-label",item.name||"Аудио публикации");
+          media.src=mediaUrl;
+        }else if(type==="video"){
+          media=document.createElement("video");
+          media.controls=true;
+          media.playsInline=true;
+          media.preload="metadata";
+          media.setAttribute("aria-label",item.name||"Видео публикации");
+          media.src=mediaUrl;
+        }else{
+          continue;
+        }
+        media.addEventListener("error",()=>{
+          if(wrapper.querySelector(".post-media-error"))return;
+          const note=document.createElement("div");
+          note.className="post-media-error";
+          note.textContent=type==="video"
+            ?"Не удалось загрузить видео. Проверьте доступность файла и его формат."
+            :"Не удалось загрузить аудио. Проверьте доступность файла и его формат.";
+          wrapper.appendChild(note);
+        },{once:true});
+        wrapper.appendChild(media);
+        mediaBox.appendChild(wrapper);
+      }
+      if(mediaBox.children.length)card.appendChild(mediaBox);
+    }
     if(userId)attachPostActions(post,card);
     return card;
   }

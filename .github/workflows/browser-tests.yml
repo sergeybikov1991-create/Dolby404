@@ -2,9 +2,9 @@ name: FLOUSTREAM browser tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, APK-2.0]
   pull_request:
-    branches: [main]
+    branches: [main, APK-2.0]
   workflow_dispatch:
 
 permissions:

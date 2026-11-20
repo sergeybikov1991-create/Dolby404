@@ -92,3 +92,19 @@ test("video album keeps public and private players, native controls and swipe na
   expect(profile).not.toContain("video-album-playmark");
   expect(profile).not.toContain("video-viewer-thumb-mark");
 });
+
+
+test("home feed renders stored photo, audio and video post media", async () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const home = fs.readFileSync(path.join(__dirname, "../home.html"), "utf8");
+
+  expect(home).toContain("Array.isArray(post.media)");
+  expect(home).toContain('media=document.createElement("audio")');
+  expect(home).toContain('media=document.createElement("video")');
+  expect(home).toContain("media.controls=true");
+  expect(home).toContain("media.playsInline=true");
+  expect(home).toContain('type==="music"||type==="audio"');
+  expect(home).toContain('type==="video"');
+  expect(home).toContain("post.image_url");
+});
