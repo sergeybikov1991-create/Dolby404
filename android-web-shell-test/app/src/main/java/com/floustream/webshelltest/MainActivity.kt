@@ -3,8 +3,9 @@ package com.floustream.webshelltest
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.View
-import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
@@ -12,6 +13,7 @@ import android.webkit.WebViewClient
 
 class MainActivity : Activity() {
     private lateinit var webView: WebView
+    private val mainHandler = Handler(Looper.getMainLooper())
     private var entryResolved = false
     private var sessionCheckInProgress = false
 
@@ -137,9 +139,9 @@ class MainActivity : Activity() {
     /**
      * Check the persisted Supabase session from the existing website origin.
      *
-     * The SDK uses its normal localStorage key (sb-<project-ref>-auth-token),
-     * the same storage used by the website. No website source is edited and
-     * no credentials or session tokens are copied into native preferences.
+     * Supabase uses its normal localStorage key for this project, the same storage
+     * used by the website. No website source is edited and no session tokens are
+     * copied into native preferences.
      */
     private fun checkSavedSupabaseSession(view: WebView?) {
         if (entryResolved || sessionCheckInProgress) return
@@ -153,8 +155,8 @@ class MainActivity : Activity() {
 
         val checkScript = """
             (function () {
-              const finish = (value) => value ? "FLOUSTREAM_AUTHENTICATED" : "FLOUSTREAM_SIGNED_OUT";
-              const check = async () => {
+              window.__floustreamAuthCheckResult = "PENDING";
+              (async function () {
                 try {
                   if (!window.supabase || !window.supabase.createClient) {
                     await new Promise((resolve, reject) => {
@@ -170,29 +172,48 @@ class MainActivity : Activity() {
                     "$SUPABASE_PUBLISHABLE_KEY"
                   );
                   const result = await client.auth.getSession();
-                  if (result.error) return finish(false);
-                  return finish(!!(result.data && result.data.session));
+                  window.__floustreamAuthCheckResult =
+                    result.error || !(result.data && result.data.session)
+                      ? "FLOUSTREAM_SIGNED_OUT"
+                      : "FLOUSTREAM_AUTHENTICATED";
                 } catch (error) {
-                  return finish(false);
+                  window.__floustreamAuthCheckResult = "FLOUSTREAM_SIGNED_OUT";
                 }
-              };
-              return check();
+              })();
+              return "PENDING";
             })();
         """.trimIndent()
 
-        view.evaluateJavascript(checkScript, ValueCallback { result ->
-            if (entryResolved) return@ValueCallback
-            sessionCheckInProgress = false
+        // evaluateJavascript does not await JavaScript Promises. The page writes
+        // the result to a temporary marker, which the native side polls briefly.
+        view.evaluateJavascript(checkScript) {
+            pollSupabaseSessionResult(view, attemptsLeft = 80)
+        }
+    }
 
-            val authenticated = result?.contains("FLOUSTREAM_AUTHENTICATED") == true
-            if (authenticated) {
-                entryResolved = true
-                view.visibility = View.VISIBLE
-                view.loadUrl(HOME_URL)
-            } else {
-                showBundledWelcome(view)
+    private fun pollSupabaseSessionResult(view: WebView, attemptsLeft: Int) {
+        if (entryResolved) return
+
+        view.evaluateJavascript("window.__floustreamAuthCheckResult || 'PENDING'") { result ->
+            when {
+                result?.contains("FLOUSTREAM_AUTHENTICATED") == true -> {
+                    sessionCheckInProgress = false
+                    entryResolved = true
+                    view.visibility = View.VISIBLE
+                    view.loadUrl(HOME_URL)
+                }
+                result?.contains("FLOUSTREAM_SIGNED_OUT") == true -> {
+                    showBundledWelcome(view)
+                }
+                attemptsLeft > 0 -> {
+                    mainHandler.postDelayed(
+                        { pollSupabaseSessionResult(view, attemptsLeft - 1) },
+                        100L
+                    )
+                }
+                else -> showBundledWelcome(view)
             }
-        })
+        }
     }
 
     private fun showBundledWelcome(view: WebView?) {
@@ -213,6 +234,7 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        mainHandler.removeCallbacksAndMessages(null)
         if (::webView.isInitialized) {
             webView.stopLoading()
             webView.destroy()
