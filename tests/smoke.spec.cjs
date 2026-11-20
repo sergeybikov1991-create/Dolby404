@@ -4,7 +4,7 @@ const supabaseBrowserStub = `
   window.supabase = {
     createClient: () => ({
       auth: {
-        getSession: async () => ({ data: { session: null }, error: null }),
+        getSession: async () => ({ data: { session: window.__mockSession || null }, error: null }),
         getUser: async () => ({ data: { user: null }, error: null }),
         signUp: async () => ({ data: { session: null }, error: null }),
         signInWithPassword: async () => ({ data: { session: null }, error: null })
