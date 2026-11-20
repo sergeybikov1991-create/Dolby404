@@ -156,40 +156,61 @@ class MainActivity : Activity() {
         if (view == null || isFinishing || isDestroyed) return
 
         val script = """
-            (async function() {
+            (function() {
                 try {
                     if (typeof $clientExpression === 'undefined' || !$clientExpression) {
                         return { state: 'pending' };
                     }
-                    const authClient = $clientExpression;
-                    const stored = await authClient.auth.getSession();
-                    if (stored.error) {
-                        const status = Number(stored.error.status || 0);
-                        if (status === 400 || status === 401 || status === 403) {
-                            return { state: 'unauthenticated' };
-                        }
-                        return { state: 'offline' };
-                    }
-                    if (!stored.data || !stored.data.session) {
-                        return { state: 'unauthenticated' };
+
+                    if (!window.__floustreamAuthCheckRunning &&
+                        !window.__floustreamAuthCheckState) {
+                        window.__floustreamAuthCheckRunning = true;
+                        window.__floustreamAuthCheckState = 'pending';
+
+                        (async function() {
+                            try {
+                                const authClient = $clientExpression;
+                                const stored = await authClient.auth.getSession();
+                                if (stored.error) {
+                                    const storedStatus = Number(stored.error.status || 0);
+                                    if (storedStatus === 400 || storedStatus === 401 || storedStatus === 403) {
+                                        return 'unauthenticated';
+                                    }
+                                    return 'offline';
+                                }
+                                if (!stored.data || !stored.data.session) {
+                                    return 'unauthenticated';
+                                }
+
+                                // getUser() contacts Supabase Auth; getSession() alone
+                                // only reads the local token cache.
+                                const confirmed = await authClient.auth.getUser();
+                                if (!confirmed.error && confirmed.data && confirmed.data.user) {
+                                    return 'verified';
+                                }
+
+                                const error = confirmed.error || {};
+                                const status = Number(error.status || 0);
+                                const code = String(error.code || '').toLowerCase();
+                                if (status === 400 || status === 401 || status === 403 ||
+                                    code.includes('invalid') || code.includes('expired') ||
+                                    code.includes('not_found')) {
+                                    return 'unauthenticated';
+                                }
+                                return 'offline';
+                            } catch (error) {
+                                return 'offline';
+                            }
+                        })().then(function(state) {
+                            window.__floustreamAuthCheckState = state;
+                            window.__floustreamAuthCheckRunning = false;
+                        }).catch(function() {
+                            window.__floustreamAuthCheckState = 'offline';
+                            window.__floustreamAuthCheckRunning = false;
+                        });
                     }
 
-                    // getUser() contacts Supabase Auth; getSession() alone only
-                    // reads the local token cache and is not identity verification.
-                    const confirmed = await authClient.auth.getUser();
-                    if (!confirmed.error && confirmed.data && confirmed.data.user) {
-                        return { state: 'verified' };
-                    }
-
-                    const error = confirmed.error || {};
-                    const status = Number(error.status || 0);
-                    const code = String(error.code || '').toLowerCase();
-                    if (status === 400 || status === 401 || status === 403 ||
-                        code.includes('invalid') || code.includes('expired') ||
-                        code.includes('not_found')) {
-                        return { state: 'unauthenticated' };
-                    }
-                    return { state: 'offline' };
+                    return { state: window.__floustreamAuthCheckState || 'pending' };
                 } catch (error) {
                     return { state: 'offline' };
                 }
