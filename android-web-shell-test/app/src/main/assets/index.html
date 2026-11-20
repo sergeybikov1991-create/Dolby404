@@ -190,7 +190,7 @@ body.welcome-mode .side-drawer { display: none !important; }
     <p class="welcome-copy">Твой мир общения, друзей и впечатлений. Всё самое важное — в одном месте.</p>
     <button id="welcome-start" type="button">Начать</button>
     <div class="welcome-swipe">
-      <span>Смахни вправо, чтобы продолжить</span>
+      <span>Смахни влево, чтобы продолжить</span>
       <span class="welcome-swipe-arrow" aria-hidden="true">→</span>
     </div>
     <div class="welcome-footer">MESSENGER · SOCIAL · MEDIA</div>
@@ -329,7 +329,7 @@ setDrawerOpen(false);
   document.body.classList.add("welcome-mode");
   const welcome = document.getElementById("welcome-screen");
   const startButton = document.getElementById("welcome-start");
-  const SITE_HOME_URL = "https://sergeybikov1991-create.github.io/Dolby404/home.html";
+  const SITE_AUTH_URL = "https://sergeybikov1991-create.github.io/Dolby404/portal.html";
   let startPoint = null;
   let navigating = false;
 
@@ -338,7 +338,7 @@ setDrawerOpen(false);
     navigating = true;
     startButton.disabled = true;
     startButton.textContent = "Открываем FLOUSTREAM…";
-    window.location.assign(SITE_HOME_URL);
+    window.location.assign(SITE_AUTH_URL);
   }
 
   startButton.addEventListener("click", continueToFloustream);
@@ -351,7 +351,7 @@ setDrawerOpen(false);
     const dx = event.clientX - startPoint.x;
     const dy = event.clientY - startPoint.y;
     startPoint = null;
-    if (dx >= 68 && Math.abs(dx) > Math.abs(dy) * 1.25) continueToFloustream();
+    if (dx <= -68 && Math.abs(dx) > Math.abs(dy) * 1.25) continueToFloustream();
   }, { passive: true });
   welcome.addEventListener("pointercancel", function () { startPoint = null; }, { passive: true });
   document.addEventListener("keydown", function (event) {
