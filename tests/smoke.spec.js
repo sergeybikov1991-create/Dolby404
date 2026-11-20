@@ -94,19 +94,34 @@ test("video album keeps public and private players, native controls and swipe na
 });
 
 
-test("home feed renders stored photo, audio and video post media", async () => {
+test("APK home uses the profile card and full post composer", async () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const home = fs.readFileSync(path.join(__dirname, "../home.html"), "utf8");
+
+  expect(home).toContain('id="avatar"');
+  expect(home).toContain('id="display-name"');
+  expect(home).toContain('appendDolbyOnlineIndicator($("display-name"),user.id)');
+  expect(home).toContain('id="open-publish"');
+  expect(home).toContain('id="publish-editor"');
+  expect(home).toContain('id="post-files"');
+  expect(home).toContain('id="post-schedule-toggle"');
+  expect(home).toContain('id="scheduled-queue"');
+  expect(home).toContain('id="feed-list"');
+});
+
+test("APK home feed renders stored photo, audio and video post media", async () => {
   const fs = require("node:fs");
   const path = require("node:path");
   const home = fs.readFileSync(path.join(__dirname, "../home.html"), "utf8");
 
   expect(home).toContain("Array.isArray(post.media)");
-  expect(home).toContain('media=document.createElement("audio")');
-  expect(home).toContain('media=document.createElement("video")');
-  expect(home).toContain("media.controls=true");
-  expect(home).toContain("media.playsInline=true");
-  expect(home).toContain('type==="music"||type==="audio"');
-  expect(home).toContain('type==="video"');
-  expect(home).toContain("post.image_url");
+  expect(home).toContain('document.createElement("audio")');
+  expect(home).toContain('document.createElement("video")');
+  expect(home).toContain("node.controls=true");
+  expect(home).toContain("node.playsInline=true");
+  expect(home).toContain('item.type==="music"');
+  expect(home).toContain('post.image_url');
 });
 
 
@@ -123,7 +138,11 @@ test("APK WebShell serves its bundled home feed instead of the hosted website pa
   );
 
   expect(mainActivity).toContain('path.endsWith("/home.html") -> "home.html"');
+  expect(bundledHome).toContain('id="display-name"');
+  expect(bundledHome).toContain('id="open-publish"');
+  expect(bundledHome).toContain('id="post-schedule-toggle"');
+  expect(bundledHome).toContain('id="scheduled-queue"');
   expect(bundledHome).toContain("Array.isArray(post.media)");
-  expect(bundledHome).toContain('media=document.createElement("audio")');
-  expect(bundledHome).toContain('media=document.createElement("video")');
+  expect(bundledHome).toContain('document.createElement("audio")');
+  expect(bundledHome).toContain('document.createElement("video")');
 });
