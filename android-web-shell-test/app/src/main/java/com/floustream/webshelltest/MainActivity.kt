@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.os.Bundle
 import android.view.View
+import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
@@ -12,7 +13,7 @@ import android.webkit.WebViewClient
 class MainActivity : Activity() {
     private lateinit var webView: WebView
     private var entryResolved = false
-    private var authFlowActive = false
+    private var sessionCheckInProgress = false
 
     private companion object {
         const val SITE_BASE_URL = "https://sergeybikov1991-create.github.io/Dolby404/"
@@ -20,6 +21,11 @@ class MainActivity : Activity() {
         const val AUTH_URL = SITE_BASE_URL + "portal.html"
         const val PROFILE_URL = SITE_BASE_URL + "profile.html"
         const val HOME_URL = SITE_BASE_URL + "home.html"
+
+        // Public publishable key used by the existing FLOUSTREAM website.
+        // This is intentionally read-only: no website files or Supabase settings are changed.
+        const val SUPABASE_URL = "https://qhpobdktlbhdqsnajypr.supabase.co"
+        const val SUPABASE_PUBLISHABLE_KEY = "sb_publishable_tzG1qVsbja8WYE_LBVN87Q_v0CahKN5"
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -34,6 +40,7 @@ class MainActivity : Activity() {
             settings.loadsImagesAutomatically = true
             settings.javaScriptCanOpenWindowsAutomatically = false
             settings.setSupportMultipleWindows(false)
+
             webViewClient = object : WebViewClient() {
                 override fun onPageStarted(
                     view: WebView?,
@@ -43,26 +50,24 @@ class MainActivity : Activity() {
                     super.onPageStarted(view, url, favicon)
                     val target = url.orEmpty()
 
-                    // The website's existing entry point decides whether a session exists.
-                    // Signed-out visitors are shown the APK-bundled welcome screen instead
-                    // of changing the live website's entry page.
+                    // A fresh launch must verify the persisted Supabase session before
+                    // deciding whether to show the bundled welcome screen.
                     if (!entryResolved && target.startsWith(AUTH_URL)) {
-                        showBundledWelcome(view)
+                        checkSavedSupabaseSession(view)
                         return
                     }
 
-                    // Existing sessions and successful authentication both land on Home.
+                    // The existing site sends signed-in users through profile.html.
+                    // The app routes them directly to Home without changing the site.
                     if (target.startsWith(PROFILE_URL)) {
                         entryResolved = true
-                        authFlowActive = false
+                        sessionCheckInProgress = false
                         view?.stopLoading()
+                        view?.visibility = View.VISIBLE
                         view?.loadUrl(HOME_URL)
                         return
                     }
 
-                    if (target.startsWith(AUTH_URL) && entryResolved) {
-                        authFlowActive = true
-                    }
                     if (target == WELCOME_ASSET_URL || target.startsWith(HOME_URL)) {
                         entryResolved = true
                         view?.visibility = View.VISIBLE
@@ -75,21 +80,21 @@ class MainActivity : Activity() {
                 ): Boolean {
                     val target = request?.url?.toString().orEmpty()
 
-                    if (target.startsWith(AUTH_URL) && !entryResolved) {
-                        showBundledWelcome(view)
+                    if (!entryResolved && target.startsWith(AUTH_URL)) {
+                        // Stop the portal navigation and check the same-origin persisted
+                        // session first. This also covers redirects initiated by page JS.
+                        checkSavedSupabaseSession(view)
                         return true
                     }
 
                     if (target.startsWith(PROFILE_URL)) {
                         entryResolved = true
-                        authFlowActive = false
+                        sessionCheckInProgress = false
+                        view?.visibility = View.VISIBLE
                         view?.loadUrl(HOME_URL)
                         return true
                     }
 
-                    if (target.startsWith(AUTH_URL)) {
-                        authFlowActive = true
-                    }
                     if (target.startsWith(HOME_URL)) {
                         entryResolved = true
                         view?.visibility = View.VISIBLE
@@ -124,15 +129,76 @@ class MainActivity : Activity() {
             WebView.setWebContentsDebuggingEnabled(true)
         }
 
-        // Use the site's existing Supabase session without changing the website.
-        // A saved session is routed to Home; a signed-out visitor gets the local welcome.
+        // Persistent WebView DOM storage keeps the site's Supabase auth token
+        // between app launches. The entry redirect is verified by getSession().
         webView.loadUrl(SITE_BASE_URL)
+    }
+
+    /**
+     * Check the persisted Supabase session from the existing website origin.
+     *
+     * The SDK uses its normal localStorage key (sb-<project-ref>-auth-token),
+     * the same storage used by the website. No website source is edited and
+     * no credentials or session tokens are copied into native preferences.
+     */
+    private fun checkSavedSupabaseSession(view: WebView?) {
+        if (entryResolved || sessionCheckInProgress) return
+        if (view == null) {
+            showBundledWelcome(null)
+            return
+        }
+
+        sessionCheckInProgress = true
+        view.stopLoading()
+
+        val checkScript = """
+            (function () {
+              const finish = (value) => value ? "FLOUSTREAM_AUTHENTICATED" : "FLOUSTREAM_SIGNED_OUT";
+              const check = async () => {
+                try {
+                  if (!window.supabase || !window.supabase.createClient) {
+                    await new Promise((resolve, reject) => {
+                      const script = document.createElement("script");
+                      script.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
+                      script.onload = resolve;
+                      script.onerror = reject;
+                      document.head.appendChild(script);
+                    });
+                  }
+                  const client = window.supabase.createClient(
+                    "$SUPABASE_URL",
+                    "$SUPABASE_PUBLISHABLE_KEY"
+                  );
+                  const result = await client.auth.getSession();
+                  if (result.error) return finish(false);
+                  return finish(!!(result.data && result.data.session));
+                } catch (error) {
+                  return finish(false);
+                }
+              };
+              return check();
+            })();
+        """.trimIndent()
+
+        view.evaluateJavascript(checkScript, ValueCallback { result ->
+            if (entryResolved) return@ValueCallback
+            sessionCheckInProgress = false
+
+            val authenticated = result?.contains("FLOUSTREAM_AUTHENTICATED") == true
+            if (authenticated) {
+                entryResolved = true
+                view.visibility = View.VISIBLE
+                view.loadUrl(HOME_URL)
+            } else {
+                showBundledWelcome(view)
+            }
+        })
     }
 
     private fun showBundledWelcome(view: WebView?) {
         if (entryResolved) return
         entryResolved = true
-        authFlowActive = false
+        sessionCheckInProgress = false
         view?.stopLoading()
         view?.loadUrl(WELCOME_ASSET_URL)
     }
