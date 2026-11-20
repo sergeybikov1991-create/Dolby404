@@ -108,3 +108,22 @@ test("home feed renders stored photo, audio and video post media", async () => {
   expect(home).toContain('type==="video"');
   expect(home).toContain("post.image_url");
 });
+
+
+test("APK WebShell serves its bundled home feed instead of the hosted website page", async () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const mainActivity = fs.readFileSync(
+    path.join(__dirname, "../android-web-shell-test/app/src/main/java/com/floustream/webshelltest/MainActivity.kt"),
+    "utf8"
+  );
+  const bundledHome = fs.readFileSync(
+    path.join(__dirname, "../android-web-shell-test/app/src/main/assets/home.html"),
+    "utf8"
+  );
+
+  expect(mainActivity).toContain('path.endsWith("/home.html") -> "home.html"');
+  expect(bundledHome).toContain("Array.isArray(post.media)");
+  expect(bundledHome).toContain('media=document.createElement("audio")');
+  expect(bundledHome).toContain('media=document.createElement("video")');
+});
