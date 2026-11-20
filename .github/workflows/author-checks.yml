@@ -40,12 +40,12 @@ jobs:
 
           const required = [
             ['AuTHOR hub entry', /data-author-hub="true"/],
-            ['My Photos banner', /author-my-photos-banner/],
-            ['My Videos banner', /author-my-videos-banner/],
-            ['Video Editor banner', /author-video-editor-banner/],
-            ['lOOPS banner', /author-loops-banner/],
+            ['My Photos banner', /id="author-photos-banner"/],
+            ['My Videos banner', /id="author-videos-banner"/],
+            ['Video Editor banner', /id="author-editor-banner"/],
+            ['lOOPS banner', /id="author-loops-banner"/],
             ['lOOPS inner page', /id="loops-page"/],
-            ['2px banner spacing', /\.author-hub-stage[^{]*\{[^}]*gap:\s*2px[^}]*padding:\s*2px/s],
+            ['2px banner spacing', /\.author-hub-stage\\{[^}]*gap:2px;padding:2px/],
             ['Photos gallery action', /openPhotoAlbum\(\)/],
             ['Videos album action', /openVideoAlbum\(\)/],
             ['temporary TYK button style', /author-banner-tap/]
