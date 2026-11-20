@@ -244,7 +244,6 @@ class MainActivity : Activity() {
                     startupAuthCheckPending = false
                     entryResolved = true
                     authFlowActive = false
-                    syncPushRegistration(view)
                     showAuthenticatedScreen(view)
                 }
                 "unauthenticated" -> {
