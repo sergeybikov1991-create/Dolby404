@@ -3161,12 +3161,12 @@ function closeAuthorHub(){
  stage.addEventListener("scroll",()=>{
   if(dotFrame)cancelAnimationFrame(dotFrame);
   dotFrame=requestAnimationFrame(()=>{
-   const index=Math.max(0,Math.min(dots.length-1,Math.round(stage.scrollLeft/(stage.clientWidth+12))));
+   const index=Math.max(0,Math.min(dots.length-1,Math.round(stage.scrollLeft/(stage.clientWidth-12))));
    dots.forEach((dot,i)=>dot.classList.toggle("active",i===index));
   });
  },{passive:true});
  dots.forEach((dot,index)=>dot.addEventListener("click",()=>{
-  stage.scrollTo({left:index*(stage.clientWidth+12),behavior:"smooth"});
+  stage.scrollTo({left:index*(stage.clientWidth-12),behavior:"smooth"});
  }));
  hub.addEventListener("click",event=>{if(event.target===hub)closeAuthorHub();});
  document.addEventListener("keydown",event=>{if(event.key==="Escape"&&!hub.hidden)closeAuthorHub();});
