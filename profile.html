@@ -793,9 +793,10 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
 .loops-eye{position:relative;display:inline-block;flex:0 0 .48em;width:.48em;height:.62em;overflow:hidden;border:0;border-radius:48% 48% 46% 46%;background:linear-gradient(180deg,#fff 0 72%,#e8f7ff 100%);box-shadow:inset 0 -.025em .035em #7da6c855,0 .025em .035em #32104a55;transform-origin:50% 55%}
 .loops-eye:before{content:"";position:absolute;left:31%;top:29%;width:43%;height:48%;border-radius:50%;background:radial-gradient(circle at 34% 25%,#fff 0 10%,#26384b 13%,#101a2b 65%,#050912 100%);box-shadow:0 0 .025em #07111f}
 .loops-eye:after{content:"";position:absolute;z-index:2;left:-3%;right:-3%;top:-2%;height:0;border-radius:0 0 48% 48%;background:linear-gradient(180deg,#fff 0 72%,#e8f7ff 100%);box-shadow:0 .018em .025em #7da6c855;animation:loops-blink 4.9s infinite}
-.loops-eye:before{animation:loops-gaze 4.8s ease-in-out infinite}\n.loops-eye:nth-child(2):before{animation-delay:.12s}
+.loops-eye:before{animation:loops-gaze 4.8s ease-in-out infinite}
+.loops-eye:nth-child(2):before{animation-delay:.12s}
 .loops-eye:nth-child(2):after{animation-delay:.14s}
-@keyframes loops-gaze{0%,12%,100%{transform:translateX(0)}25%,38%{transform:translateX(-22%)}52%,68%{transform:translateX(22%)}82%{transform:translateX(0)}}
+@keyframes loops-gaze{0%,12%,100%{transform:translateX(0)}25%,38%{transform:translateX(-45%)}52%,68%{transform:translateX(45%)}82%{transform:translateX(0)}}
 @keyframes loops-blink{0%,43%,47%,91%,95%,100%{height:0}45%,93%{height:110%}}
 .loops-page[hidden]{display:none!important}
 .loops-page{position:fixed;inset:0;z-index:260;display:flex;flex-direction:column;overflow:auto;background:radial-gradient(ellipse at 50% 12%,#302047 0%,#100d19 58%,#05040a 100%);color:#fff}
@@ -3201,17 +3202,28 @@ function closeAuthorHub(){
   openAuthorHub();
  });
  const stage=document.getElementById("author-hub-stage");
+ const slides=[...stage.querySelectorAll(".author-banner")];
  const dots=[...document.querySelectorAll("#author-hub-dots span")];
  let dotFrame=0;
+ const syncDots=()=>{
+  const stageRect=stage.getBoundingClientRect();
+  const center=stageRect.left+stage.clientWidth/2;
+  let active=0,best=Infinity;
+  slides.forEach((slide,index)=>{
+   const rect=slide.getBoundingClientRect();
+   const distance=Math.abs(rect.left+rect.width/2-center);
+   if(distance<best){best=distance;active=index;}
+  });
+  dots.forEach((dot,index)=>dot.classList.toggle("active",index===active));
+ };
  stage.addEventListener("scroll",()=>{
   if(dotFrame)cancelAnimationFrame(dotFrame);
-  dotFrame=requestAnimationFrame(()=>{
-   const index=Math.max(0,Math.min(dots.length-1,Math.round(stage.scrollLeft/(stage.clientWidth-12))));
-   dots.forEach((dot,i)=>dot.classList.toggle("active",i===index));
-  });
+  dotFrame=requestAnimationFrame(syncDots);
  },{passive:true});
  dots.forEach((dot,index)=>dot.addEventListener("click",()=>{
-  stage.scrollTo({left:index*(stage.clientWidth-12),behavior:"smooth"});
+  const first=slides[0],target=slides[index];
+  if(!first||!target)return;
+  stage.scrollTo({left:Math.max(0,target.offsetLeft-first.offsetLeft),behavior:"smooth"});
  }));
  hub.addEventListener("click",event=>{if(event.target===hub)closeAuthorHub();});
  document.addEventListener("keydown",event=>{if(event.key==="Escape"&&!hub.hidden)closeAuthorHub();});
