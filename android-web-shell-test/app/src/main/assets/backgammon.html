@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0b0a14">
+<title>FLOUSTREAM — Длинные нарды</title>
+<style>
+:root{color-scheme:dark;--bg:#090811;--panel:#151321;--line:#39304d;--text:#f5efff;--muted:#a69bb8;--violet:#a66bff;--cyan:#55e7d0;--gold:#e7bd79}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 20% 0%,#29164a 0,transparent 38%),radial-gradient(ellipse at 90% 70%,#102d35 0,transparent 34%),var(--bg);color:var(--text);font-family:Arial,sans-serif}
+button,input{font:inherit}button{cursor:pointer}
+.topbar{height:64px;display:flex;align-items:center;justify-content:space-between;padding:0 max(calc((100% - 1180px)/2),16px);border-bottom:1px solid var(--line);background:#0c0a15e8;position:sticky;top:0;z-index:5;backdrop-filter:blur(14px)}
+.logo{font-weight:900;letter-spacing:3px;font-size:22px;text-shadow:0 0 18px #9055ff}
+.top-actions{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:13px}
+a{color:#d7baff;text-decoration:none}
+.ghost,.primary,.danger{border:1px solid var(--line);border-radius:12px;padding:10px 14px;background:#201a2d;color:var(--text)}
+.primary{background:linear-gradient(120deg,#6334a1,#38225e);border-color:#8d5ad1;box-shadow:0 0 18px #8d5ad122}
+.danger{background:#3a1b2c;border-color:#75344e;color:#ffdce8}
+button:disabled{opacity:.45;cursor:not-allowed}
+.shell{max-width:1180px;margin:24px auto;padding:0 16px;display:grid;grid-template-columns:320px minmax(0,1fr);gap:18px}
+.panel{background:linear-gradient(145deg,#191626ed,#100f19f2);border:1px solid var(--line);border-radius:18px;padding:18px;box-shadow:0 16px 44px #0003}
+h1{font-size:26px;margin:0 0 8px}
+h2{font-size:16px;margin:0 0 14px}
+.subtle{color:var(--muted);font-size:13px;line-height:1.5}
+.invite-form{display:flex;gap:8px;margin:14px 0}
+.invite-form input{min-width:0;flex:1;border:1px solid #4a3d60;border-radius:11px;padding:11px;background:#0d0b15;color:#fff}
+.matches{display:flex;flex-direction:column;gap:9px;margin-top:12px}
+.match-item{border:1px solid #39304a;border-radius:13px;padding:12px;background:#100e19}
+.match-item.active{border-color:#a66bff;box-shadow:0 0 14px #a66bff20}
+.match-title{font-weight:700;font-size:13px;margin-bottom:5px}
+.match-meta{font-size:11px;color:var(--muted);margin-bottom:9px}
+.match-actions{display:flex;gap:7px;flex-wrap:wrap}
+.match-actions button{font-size:12px;padding:7px 10px}
+.notice{min-height:22px;color:#c6a8ff;font-size:12px;line-height:1.5;margin-top:10px;overflow-wrap:anywhere}
+.game-panel{min-width:0}
+.game-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px}
+.game-head p{margin:5px 0 0}
+.game-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:14px 0}
+.dice{display:flex;gap:9px;align-items:center;min-height:52px}
+.die{width:43px;height:43px;position:relative;perspective:260px;flex:0 0 43px}
+.die::after{content:"";position:absolute;left:8%;right:8%;height:7px;bottom:-9px;border-radius:50%;background:radial-gradient(ellipse,#000b 0%,#0005 48%,transparent 76%);filter:blur(2px);transform:scaleX(.92);opacity:.62;pointer-events:none}
+.die.rolling::after{animation:die-shadow .82s cubic-bezier(.2,.78,.2,1) both}
+.die-cube{position:absolute;inset:0;transform-style:preserve-3d;transform:var(--die-final-transform);will-change:transform}
+.die.rolling .die-cube{animation:cube-roll .82s cubic-bezier(.2,.78,.2,1) both}
+.die-face{position:absolute;inset:0;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);padding:6px;gap:1px;border:1px solid #c9c0d4;border-radius:9px;background:linear-gradient(145deg,#fff,#d8d0e5);box-shadow:inset 0 1px 2px #fff,0 3px 8px #0007;backface-visibility:hidden}
+.die-face.front{transform:translateZ(21.5px)}
+.die-face.back{transform:rotateY(180deg) translateZ(21.5px)}
+.die-face.right{transform:rotateY(90deg) translateZ(21.5px)}
+.die-face.left{transform:rotateY(-90deg) translateZ(21.5px)}
+.die-face.top{transform:rotateX(90deg) translateZ(21.5px)}
+.die-face.bottom{transform:rotateX(-90deg) translateZ(21.5px)}
+.die-pip{border-radius:50%;background:transparent}
+.die-pip.active{background:radial-gradient(circle at 35% 30%,#51445e,#241d31 72%);box-shadow:inset 0 1px 2px #0008}
+@keyframes cube-roll{
+  0%{transform:translateY(-3px) rotateX(0) rotateY(0) rotateZ(0) scale(.88)}
+  14%{transform:translateY(-17px) rotateX(var(--roll-x-1)) rotateY(var(--roll-y-1)) rotateZ(var(--roll-z-1)) scale(1.09)}
+  29%{transform:translateY(-2px) rotateX(var(--roll-x-2)) rotateY(var(--roll-y-2)) rotateZ(var(--roll-z-2)) scale(1.03)}
+  43%{transform:translateY(-11px) rotateX(var(--roll-x-3)) rotateY(var(--roll-y-3)) rotateZ(var(--roll-z-3)) scale(1.06)}
+  57%{transform:translateY(-1px) rotateX(var(--roll-x-4)) rotateY(var(--roll-y-4)) rotateZ(var(--roll-z-4)) scale(1.02)}
+  70%{transform:translateY(-6px) rotateX(var(--roll-x-5)) rotateY(var(--roll-y-5)) rotateZ(var(--roll-z-5)) scale(1.035)}
+  82%{transform:translateY(0) rotateX(var(--roll-x-6)) rotateY(var(--roll-y-6)) rotateZ(var(--roll-z-6)) scale(1)}
+  91%{transform:translateY(-2px) rotateX(var(--roll-x-7)) rotateY(var(--roll-y-7)) rotateZ(var(--roll-z-7)) scale(1.015)}
+  100%{transform:var(--die-final-transform) translateY(0) scale(1)}
+}
+@keyframes die-shadow{
+  0%{transform:scaleX(.72);opacity:.48;filter:blur(2px)}
+  14%{transform:scaleX(1.18);opacity:.28;filter:blur(4px)}
+  29%{transform:scaleX(.82);opacity:.5;filter:blur(2px)}
+  43%{transform:scaleX(1.12);opacity:.32;filter:blur(3px)}
+  57%{transform:scaleX(.88);opacity:.48;filter:blur(2px)}
+  70%{transform:scaleX(1.04);opacity:.38;filter:blur(3px)}
+  82%{transform:scaleX(.94);opacity:.52;filter:blur(2px)}
+  100%{transform:scaleX(1);opacity:.62;filter:blur(2px)}
+}
+.board-wrap{padding:10px;border:1px solid #715437;border-radius:16px;background:linear-gradient(135deg,#382a23,#201a1a 48%,#382a23);box-shadow:inset 0 0 0 3px #171018,0 15px 35px #0006}
+.board{display:grid;grid-template-rows:1fr 1fr;gap:8px;min-height:440px}
+.board-row{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:4px;min-height:0}
+.point{position:relative;min-width:0;border:0;border-radius:5px;padding:0 0 7px;background:linear-gradient(180deg,#b98b61,#815638);overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:flex-start}
+.point.bottom{justify-content:flex-end;padding:7px 0 0;background:linear-gradient(0deg,#b98b61,#815638)}
+.point::before{content:"";position:absolute;left:8%;right:8%;top:0;height:62%;background:linear-gradient(180deg,#392b34,#4e3440);clip-path:polygon(0 0,100% 0,50% 100%);opacity:.85}
+.point.bottom::before{top:auto;bottom:0;background:linear-gradient(0deg,#392b34,#4e3440);clip-path:polygon(0 100%,100% 100%,50% 0)}
+.point:nth-child(odd)::before{background:linear-gradient(180deg,#d7b07b,#8b6145)}
+.point.bottom:nth-child(odd)::before{background:linear-gradient(0deg,#d7b07b,#8b6145)}
+.point.selected{outline:2px solid #fff;outline-offset:-2px;box-shadow:0 0 14px #fff8}
+.point.legal-target{outline:2px solid var(--cyan);outline-offset:-2px;box-shadow:0 0 14px #55e7d077}
+.point-number{position:absolute;z-index:2;top:3px;left:0;right:0;font-size:9px;color:#f9e8d2;text-align:center;text-shadow:0 1px 3px #000}
+.point.bottom .point-number{top:auto;bottom:3px}
+.stack{z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;width:100%;gap:1px;pointer-events:none}
+.point.bottom .stack{flex-direction:column-reverse}
+.checker{width:min(78%,25px);aspect-ratio:1;border-radius:50%;border:2px solid #f1e5ff;box-shadow:0 2px 3px #0009,inset 0 1px 2px #fff9;background:radial-gradient(circle at 35% 25%,#f5dcff,#9858dd 65%,#52258d)}
+.checker.b{background:radial-gradient(circle at 35% 25%,#e5fff9,#54cbb7 65%,#166d69);border-color:#d7fff8}
+.checker-count{position:absolute;z-index:3;top:50%;left:50%;transform:translate(-50%,-50%);font-weight:900;color:#fff;font-size:12px;text-shadow:0 1px 4px #000}
+.off-row{display:flex;justify-content:space-between;gap:10px;margin-top:10px;color:var(--muted);font-size:12px}
+.off-row strong{color:#fff}
+.empty-board{min-height:260px;display:grid;place-items:center;text-align:center;color:var(--muted);padding:25px}
+.restart-box{padding:12px;border:1px solid #665083;border-radius:12px;background:#241a32;margin:12px 0;font-size:13px}
+.hidden{display:none!important}
+@media(max-width:850px){.shell{grid-template-columns:1fr}.board{min-height:390px}.topbar{padding:0 14px}}
+@media(max-width:520px){.shell{margin:14px auto;padding:0 9px;gap:12px}.panel{padding:13px;border-radius:15px}.logo{font-size:18px}.top-actions{font-size:11px}.top-actions .ghost{padding:8px}.board-wrap{padding:5px}.board{min-height:310px;gap:5px}.board-row{gap:2px}.point{border-radius:3px}.checker{width:min(90%,19px);border-width:1px}.point-number{font-size:7px}.checker-count{font-size:10px}.game-head{display:block}.game-head .subtle{margin-top:6px}.invite-form{flex-direction:column}.invite-form button{width:100%}}
+@media(prefers-reduced-motion:reduce){.die.rolling .die-cube,.die.rolling::after{animation:none}}
+body.embed .topbar{display:none}body.embed .shell{grid-template-columns:minmax(0,1fr);max-width:none;margin:0;padding:8px}body.embed .shell>aside{display:none}body.embed .panel{padding:12px;border-radius:12px}body.embed .game-head{margin-bottom:8px}body.embed .board{min-height:360px}@media(max-width:520px){body.embed .shell{padding:4px}body.embed .board{min-height:300px}}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="logo">FLOUSTREAM</div>
+  <div class="top-actions"><span id="account-label">Подключаем аккаунт…</span><a class="ghost" href="home.html">На главную</a></div>
+</header>
+<main class="shell" id="app" hidden>
+  <aside class="panel">
+    <h1>Длинные нарды</h1>
+    <p class="subtle">Онлайн-партии по правилам длинных нард FLOUSTREAM. Без выбивания и без подкручивания костей.</p>
+    <h2>Пригласить игрока</h2>
+    <form class="invite-form" id="invite-form">
+      <input id="opponent-username" autocomplete="off" placeholder="Имя пользователя" maxlength="32" required>
+      <button class="primary" type="submit">Пригласить</button>
+    </form>
+    <div class="subtle">Укажи username соперника из FLOUSTREAM.</div>
+    <div class="notice" id="invite-notice" aria-live="polite"></div>
+    <h2 style="margin-top:22px">Мои партии</h2>
+    <div class="matches" id="matches"><div class="subtle">Загружаем партии…</div></div>
+  </aside>
+  <section class="panel game-panel">
+    <div class="game-head">
+      <div><h2 id="game-title">Выбери партию</h2><p class="subtle" id="game-status">Здесь появится игровое поле и ход партии.</p></div>
+    </div>
+    <div id="empty-game" class="empty-board">Создай партию или открой приглашение соперника.<br>Поле появится после выбора партии.</div>
+    <div id="game" class="hidden">
+      <div class="dice" id="dice" aria-label="Игровые кости"></div>
+      <div class="game-controls" id="controls"></div>
+      <div class="restart-box hidden" id="restart-box"></div>
+      <div class="board-wrap">
+        <div class="board" id="board" aria-label="Игровая доска длинных нард">
+          <div class="board-row" id="board-top"></div>
+          <div class="board-row" id="board-bottom"></div>
+        </div>
+      </div>
+      <div class="off-row"><span>Снято A: <strong id="off-a">0</strong></span><span>Снято B: <strong id="off-b">0</strong></span></div>
+    </div>
+    <div class="notice" id="game-notice" aria-live="polite"></div>
+  </section>
+</main>
+<div id="loading" class="empty-board">Подключаем игровой зал FLOUSTREAM…</div>
+<script>if(new URLSearchParams(location.search).get("embed")==="1")document.body.classList.add("embed");</script>
+<script type="module" src="backgammon.js"></script>
+</body>
+</html>

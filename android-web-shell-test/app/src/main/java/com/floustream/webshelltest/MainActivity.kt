@@ -10,6 +10,7 @@ import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.WebResourceResponse
 import org.json.JSONObject
 
 class MainActivity : Activity() {
@@ -109,6 +110,29 @@ class MainActivity : Activity() {
                     return false
                 }
 
+                override fun shouldInterceptRequest(
+                    view: WebView?,
+                    request: WebResourceRequest?
+                ): WebResourceResponse? {
+                    val path = request?.url?.path.orEmpty()
+                    val asset = when {
+                        path.endsWith("/backgammon.html") -> "backgammon.html"
+                        path.endsWith("/backgammon.js") -> "backgammon.js"
+                        path.endsWith("/backgammon/engine.js") -> "backgammon/engine.js"
+                        path.endsWith("/backgammon/rules.js") -> "backgammon/rules.js"
+                        path.endsWith("/supabase/functions/_shared/engine.mjs") -> "supabase/functions/_shared/engine.mjs"
+                        path.endsWith("/supabase/functions/_shared/rules.mjs") -> "supabase/functions/_shared/rules.mjs"
+                        else -> null
+                    } ?: return null
+
+                    val mime = if (asset.endsWith(".html")) "text/html" else "text/javascript"
+                    return try {
+                        WebResourceResponse(mime, "UTF-8", assets.open(asset))
+                    } catch (_: Exception) {
+                        null
+                    }
+                }
+
                 override fun onReceivedError(
                     view: WebView?,
                     request: WebResourceRequest?,
@@ -125,6 +149,12 @@ class MainActivity : Activity() {
                     this@MainActivity.title = "FLOUSTREAM"
 
                     val currentUrl = url.orEmpty()
+                    if (currentUrl.startsWith(HOME_URL)) {
+                        installApkMessagesNavigation(view)
+                    }
+                    if (currentUrl.substringBefore("?").endsWith("/messages.html")) {
+                        installApkChatGameEntry(view)
+                    }
                     if (startupAuthCheckPending &&
                         (currentUrl.startsWith(AUTH_URL) ||
                          currentUrl.startsWith(PROFILE_URL))
