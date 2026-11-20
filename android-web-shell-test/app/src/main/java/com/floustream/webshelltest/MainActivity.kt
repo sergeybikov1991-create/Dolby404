@@ -2,7 +2,9 @@ package com.floustream.webshelltest
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.net.Uri
 import android.os.Bundle
+import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.view.View
@@ -20,6 +22,7 @@ class MainActivity : Activity() {
     private var startupAuthCheckPending = false
     private var authCheckAttempts = 0
     private var authCheckRunnable: Runnable? = null
+    private var pendingNotificationPeerId: String? = null
 
     private companion object {
         const val SITE_BASE_URL = "https://sergeybikov1991-create.github.io/Dolby404/"
@@ -27,6 +30,8 @@ class MainActivity : Activity() {
         const val AUTH_URL = SITE_BASE_URL + "portal.html"
         const val PROFILE_URL = SITE_BASE_URL + "profile.html"
         const val HOME_URL = PROFILE_URL
+        const val MESSAGES_URL = SITE_BASE_URL + "messages.html"
+        const val AUTH_TOKEN_STORAGE_KEY = "sb-qhpobdktlbhdqsnajypr-auth-token"
         const val MAX_AUTH_CHECK_ATTEMPTS = 50
         const val AUTH_CHECK_INTERVAL_MS = 400L
     }
@@ -34,6 +39,9 @@ class MainActivity : Activity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pendingNotificationPeerId = intent?.getStringExtra(
+            FLOUSTREAMMessagingService.EXTRA_NOTIFICATION_PEER_ID
+        )
 
         webView = WebView(this).apply {
             visibility = View.INVISIBLE
@@ -125,6 +133,10 @@ class MainActivity : Activity() {
                     this@MainActivity.title = "FLOUSTREAM"
 
                     val currentUrl = url.orEmpty()
+                    if (!startupAuthCheckPending && isTrustedSiteUrl(currentUrl)) {
+                        syncPushRegistration(view)
+                    }
+
                     if (startupAuthCheckPending &&
                         (currentUrl.startsWith(AUTH_URL) ||
                          currentUrl.startsWith(PROFILE_URL))
@@ -232,6 +244,7 @@ class MainActivity : Activity() {
                     startupAuthCheckPending = false
                     entryResolved = true
                     authFlowActive = false
+                    syncPushRegistration(view)
                     showAuthenticatedScreen(view)
                 }
                 "unauthenticated" -> {
@@ -258,6 +271,73 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun isTrustedSiteUrl(url: String?): Boolean {
+        if (url.isNullOrBlank()) return false
+        return try {
+            val parsed = Uri.parse(url)
+            parsed.scheme == "https" &&
+                parsed.host == "sergeybikov1991-create.github.io" &&
+                (parsed.path ?: "").startsWith("/Dolby404")
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    // Read only the existing Supabase session for this trusted website origin.
+    // The access token is never logged or persisted by the native layer.
+    private fun syncPushRegistration(view: WebView?) {
+        if (view == null || isFinishing || isDestroyed || !isTrustedSiteUrl(view.url)) return
+
+        val script = """
+            (function() {
+                try {
+                    const raw = localStorage.getItem('$AUTH_TOKEN_STORAGE_KEY');
+                    if (!raw) return null;
+                    const session = JSON.parse(raw);
+                    if (!session || !session.access_token || !session.user || !session.user.id) {
+                        return null;
+                    }
+                    return { userId: String(session.user.id), accessToken: String(session.access_token) };
+                } catch (_) {
+                    return null;
+                }
+            })();
+        """.trimIndent()
+
+        view.evaluateJavascript(script) { result ->
+            if (isFinishing || isDestroyed || result.isNullOrBlank() || result == "null") {
+                return@evaluateJavascript
+            }
+            try {
+                val session = JSONObject(result)
+                val userId = session.optString("userId")
+                val accessToken = session.optString("accessToken")
+                if (userId.isNotBlank() && accessToken.isNotBlank()) {
+                    PushTokenRegistrar.register(this, userId, accessToken)
+                }
+            } catch (_: Exception) {
+                // A later page load or app resume retries after session restoration.
+            }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::webView.isInitialized) syncPushRegistration(webView)
+    }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        pendingNotificationPeerId = intent?.getStringExtra(
+            FLOUSTREAMMessagingService.EXTRA_NOTIFICATION_PEER_ID
+        )
+        val peerId = pendingNotificationPeerId
+        if (entryResolved && !startupAuthCheckPending && !peerId.isNullOrBlank()) {
+            pendingNotificationPeerId = null
+            webView.loadUrl(MESSAGES_URL + "?with=" + Uri.encode(peerId))
+        }
+    }
     private fun cancelAuthCheck() {
         authCheckRunnable?.let(mainHandler::removeCallbacks)
         authCheckRunnable = null
@@ -282,6 +362,13 @@ class MainActivity : Activity() {
         authFlowActive = false
         view.stopLoading()
         view.visibility = View.VISIBLE
+
+        val notificationPeerId = pendingNotificationPeerId
+        if (!notificationPeerId.isNullOrBlank()) {
+            pendingNotificationPeerId = null
+            view.loadUrl(MESSAGES_URL + "?with=" + Uri.encode(notificationPeerId))
+            return
+        }
 
         val html = """
             <!doctype html>
