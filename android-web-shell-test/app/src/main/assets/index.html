@@ -98,6 +98,74 @@ footer { padding: 22px 4px; text-align: center; color: #a8afd4; }
   .drawer-signal i { animation: none; }
   .drawer-backdrop, .side-drawer, .drawer-trigger { transition: none; }
 }
+
+/* FLOUSTREAM first-launch welcome screen. The reference side drawer above is preserved unchanged. */
+body.welcome-mode { overflow: hidden; min-height: 100dvh; }
+body.welcome-mode main { display: none !important; }
+body.welcome-mode .drawer-trigger,
+body.welcome-mode .drawer-edge,
+body.welcome-mode .drawer-backdrop,
+body.welcome-mode .side-drawer { display: none !important; }
+#welcome-screen {
+  position: fixed; inset: 0; z-index: 20000; display: flex;
+  align-items: center; justify-content: center; overflow: hidden;
+  min-height: 100vh; min-height: 100dvh;
+  padding: max(28px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom));
+  color: #f7f4ff; text-align: center; touch-action: pan-y;
+  background:
+    radial-gradient(ellipse at 18% 16%, rgba(67,105,255,.38), transparent 46%),
+    radial-gradient(ellipse at 82% 70%, rgba(157,57,224,.34), transparent 48%),
+    linear-gradient(145deg,#0b1026 0%,#17132f 52%,#0c1728 100%);
+}
+#welcome-screen::before, #welcome-screen::after {
+  content: ""; position: absolute; width: 62vw; height: 62vw; max-width: 430px; max-height: 430px;
+  border-radius: 50%; filter: blur(55px); opacity: .24; pointer-events: none;
+}
+#welcome-screen::before { top: -24%; left: -22%; background: #386bff; }
+#welcome-screen::after { right: -25%; bottom: -25%; background: #a33ce2; }
+.welcome-content {
+  position: relative; z-index: 1; width: 100%; max-width: 520px;
+  display: flex; flex-direction: column; align-items: center;
+}
+.welcome-brand {
+  font-size: clamp(28px, 8vw, 42px); font-weight: 900; letter-spacing: .13em;
+  white-space: nowrap; color: #fff;
+  text-shadow: 0 0 12px #4d8cff, 0 0 32px #754cff, 0 0 58px #a13fff;
+}
+.welcome-mark {
+  display: grid; place-items: center; width: 118px; height: 118px; margin: 34px 0 24px;
+  border: 1px solid rgba(183,174,255,.48); border-radius: 34px;
+  background: linear-gradient(145deg,rgba(75,100,220,.28),rgba(117,52,161,.24));
+  box-shadow: 0 0 36px rgba(104,91,255,.3), inset 0 0 28px rgba(162,126,255,.12);
+  color: #d9d0ff; font-size: 92px; line-height: 1; font-weight: 800; font-style: italic;
+  text-shadow: 0 0 14px #9c80ff, 0 0 34px #765cff;
+  transform: rotate(-7deg);
+}
+.welcome-title { margin: 0; color: #fff; font-size: clamp(25px,6vw,34px); font-weight: 750; }
+.welcome-copy { max-width: 340px; margin: 14px 0 30px; color: #c5c6e6; font-size: 15px; line-height: 1.6; }
+#welcome-start {
+  width: min(100%, 310px); min-height: 54px; border: 1px solid rgba(196,185,255,.58);
+  border-radius: 18px; background: linear-gradient(105deg,#465fd2,#7543b7);
+  color: #fff; font: inherit; font-weight: 700; font-size: 16px;
+  box-shadow: 0 8px 28px rgba(91,73,220,.34), inset 0 1px 0 rgba(255,255,255,.18);
+}
+#welcome-start:disabled { opacity: .72; }
+.welcome-swipe {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  margin-top: 27px; color: #b8b5dc; font-size: 12px; letter-spacing: .02em;
+}
+.welcome-swipe-arrow {
+  display: inline-grid; place-items: center; width: 28px; height: 28px;
+  border: 1px solid rgba(180,170,255,.38); border-radius: 50%;
+  color: #ded5ff; font-size: 18px; animation: welcomeNudge 1.2s ease-in-out infinite;
+}
+@keyframes welcomeNudge {
+  0%,100% { transform: translateX(-3px); opacity: .72; }
+  50% { transform: translateX(4px); opacity: 1; }
+}
+.welcome-footer { margin-top: 48px; color: #777da9; font-size: 9px; letter-spacing: .25em; }
+@media (prefers-reduced-motion: reduce) { .welcome-swipe-arrow { animation: none; } }
+
 </style>
 </head>
 <body>
@@ -113,6 +181,21 @@ footer { padding: 22px 4px; text-align: center; color: #a8afd4; }
     <button type="button" class="side-drawer-close" id="drawer-close" aria-label="Закрыть навигацию">×</button>
   </div>
 </aside>
+
+<section id="welcome-screen" aria-label="Приветствие FLOUSTREAM">
+  <div class="welcome-content">
+    <div class="welcome-brand">FLOUSTREAM</div>
+    <div class="welcome-mark" aria-hidden="true">f</div>
+    <h1 class="welcome-title">Добро пожаловать!</h1>
+    <p class="welcome-copy">Твой мир общения, друзей и впечатлений. Всё самое важное — в одном месте.</p>
+    <button id="welcome-start" type="button">Начать</button>
+    <div class="welcome-swipe">
+      <span>Смахни вправо, чтобы продолжить</span>
+      <span class="welcome-swipe-arrow" aria-hidden="true">→</span>
+    </div>
+    <div class="welcome-footer">MESSENGER · SOCIAL · MEDIA</div>
+  </div>
+</section>
 <main>
   <header>
     <h1>FLOUSTREAM WebShell Lab</h1>
@@ -240,5 +323,42 @@ document.getElementById('status').textContent =
   ' · DPR ' + window.devicePixelRatio;
 setDrawerOpen(false);
 </script>
+
+<script>
+(function () {
+  document.body.classList.add("welcome-mode");
+  const welcome = document.getElementById("welcome-screen");
+  const startButton = document.getElementById("welcome-start");
+  const SITE_HOME_URL = "https://sergeybikov1991-create.github.io/Dolby404/home.html";
+  let startPoint = null;
+  let navigating = false;
+
+  function continueToFloustream() {
+    if (navigating) return;
+    navigating = true;
+    startButton.disabled = true;
+    startButton.textContent = "Открываем FLOUSTREAM…";
+    window.location.assign(SITE_HOME_URL);
+  }
+
+  startButton.addEventListener("click", continueToFloustream);
+  welcome.addEventListener("pointerdown", function (event) {
+    if (event.isPrimary === false) return;
+    startPoint = { x: event.clientX, y: event.clientY, id: event.pointerId };
+  }, { passive: true });
+  welcome.addEventListener("pointerup", function (event) {
+    if (!startPoint || event.pointerId !== startPoint.id) return;
+    const dx = event.clientX - startPoint.x;
+    const dy = event.clientY - startPoint.y;
+    startPoint = null;
+    if (dx >= 68 && Math.abs(dx) > Math.abs(dy) * 1.25) continueToFloustream();
+  }, { passive: true });
+  welcome.addEventListener("pointercancel", function () { startPoint = null; }, { passive: true });
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "ArrowRight" && !navigating) continueToFloustream();
+  });
+})();
+</script>
+
 </body>
 </html>
