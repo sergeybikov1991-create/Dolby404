@@ -6,6 +6,7 @@ root.innerHTML=`<button type="button" class="fs-drawer-menu-button" id="fs-drawe
 <aside class="fs-side-drawer" id="fs-side-drawer" aria-label="Навигация FLOUSTREAM" aria-hidden="true">
 <div class="fs-side-drawer-head"><div class="fs-side-drawer-logo">FLOUSTREAM</div><button type="button" class="fs-side-drawer-close" id="fs-drawer-close" aria-label="Закрыть меню">×</button></div>
 <p class="fs-side-drawer-caption">Навигация</p><nav class="fs-side-drawer-links">
+<a class="fs-side-drawer-link" href="home.html"><span class="fs-side-drawer-icon">⌂</span>Главная</a>
 <a class="fs-side-drawer-link" href="profile.html"><span class="fs-side-drawer-icon">◉</span>Мой профиль</a>
 </nav>
 <div class="fs-side-drawer-divider"></div><p class="fs-side-drawer-caption">Медиа и общение</p><nav class="fs-side-drawer-links">
