@@ -3060,7 +3060,7 @@ private fun MessageAttachment(message: DirectMessageDto) {
             onLoading = { imageLoadError = false },
             onError = { imageLoadError = true }
         )
-        mime.startsWith("audio/") -> AudioMessagePlayer(url!!) { urlRefreshAttempt++ }
+        mime.startsWith("audio/") -> AudioMessagePlayer(url!!, onRetry = { urlRefreshAttempt++ })
         mime.startsWith("video/") -> VideoMessagePlayer(url!!, isRound = false) { urlRefreshAttempt++ }
         else -> Row(
             Modifier.fillMaxWidth().clickable {
