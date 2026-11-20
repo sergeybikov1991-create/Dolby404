@@ -1,0 +1,46 @@
+name: Build FLOUSTREAM WebShell Test APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "android-web-shell-test/**"
+      - ".github/workflows/android-web-shell-test.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-shell-test-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.13"
+      - name: Build isolated debug APK
+        working-directory: android-web-shell-test
+        run: gradle --no-daemon :app:assembleDebug
+      - name: Upload test APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: FLOUSTREAM-WebShell-Test-debug
+          path: android-web-shell-test/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
