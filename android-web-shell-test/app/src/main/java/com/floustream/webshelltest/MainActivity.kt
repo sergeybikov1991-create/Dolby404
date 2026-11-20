@@ -116,6 +116,7 @@ class MainActivity : Activity() {
                 ): WebResourceResponse? {
                     val path = request?.url?.path.orEmpty()
                     val asset = when {
+                        path.endsWith("/home.html") -> "home.html"
                         path.endsWith("/profile.html") -> "profile.html"
                         path.endsWith("/friends.html") -> "friends.html"
                         path.endsWith("/public-profile.html") -> "public-profile.html"

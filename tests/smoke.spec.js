@@ -69,11 +69,11 @@ test("portal fits a mobile viewport without horizontal overflow", async ({ page 
 });
 
 
-test("profile redirects signed-out visitors to the portal", async ({ page }) => {
+test("profile shows sign-in guidance when no session is stored", async ({ page }) => {
   await mockSupabaseCdn(page);
   await page.goto("/profile.html");
-  await expect(page).toHaveURL(/\/portal\.html$/);
-  await expect(page.locator(".logo")).toHaveText("FLOUSTREAM");
+  await expect(page.locator("#display-name")).toHaveText("Не удалось загрузить профиль");
+  await expect(page.locator("#notice")).toContainText("Проверь подключение и настройки доступа");
 });
 
 test("video album keeps public and private players, native controls and swipe navigation", async () => {
@@ -91,4 +91,39 @@ test("video album keeps public and private players, native controls and swipe na
   expect(profile).toContain('stage.addEventListener("touchend"');
   expect(profile).not.toContain("video-album-playmark");
   expect(profile).not.toContain("video-viewer-thumb-mark");
+});
+
+
+test("home feed renders stored photo, audio and video post media", async () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const home = fs.readFileSync(path.join(__dirname, "../home.html"), "utf8");
+
+  expect(home).toContain("Array.isArray(post.media)");
+  expect(home).toContain('media=document.createElement("audio")');
+  expect(home).toContain('media=document.createElement("video")');
+  expect(home).toContain("media.controls=true");
+  expect(home).toContain("media.playsInline=true");
+  expect(home).toContain('type==="music"||type==="audio"');
+  expect(home).toContain('type==="video"');
+  expect(home).toContain("post.image_url");
+});
+
+
+test("APK WebShell serves its bundled home feed instead of the hosted website page", async () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const mainActivity = fs.readFileSync(
+    path.join(__dirname, "../android-web-shell-test/app/src/main/java/com/floustream/webshelltest/MainActivity.kt"),
+    "utf8"
+  );
+  const bundledHome = fs.readFileSync(
+    path.join(__dirname, "../android-web-shell-test/app/src/main/assets/home.html"),
+    "utf8"
+  );
+
+  expect(mainActivity).toContain('path.endsWith("/home.html") -> "home.html"');
+  expect(bundledHome).toContain("Array.isArray(post.media)");
+  expect(bundledHome).toContain('media=document.createElement("audio")');
+  expect(bundledHome).toContain('media=document.createElement("video")');
 });
