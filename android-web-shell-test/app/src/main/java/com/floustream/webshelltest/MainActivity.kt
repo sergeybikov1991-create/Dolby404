@@ -6,9 +6,15 @@ import android.os.Bundle
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.WebResourceRequest
 
 class MainActivity : Activity() {
     private lateinit var webView: WebView
+    private var authFlowActive = false
+
+    private companion object {
+        const val SITE_BASE_URL = "https://sergeybikov1991-create.github.io/Dolby404/"
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -22,9 +28,26 @@ class MainActivity : Activity() {
             settings.javaScriptCanOpenWindowsAutomatically = false
             settings.setSupportMultipleWindows(false)
             webViewClient = object : WebViewClient() {
+                override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                    super.onPageStarted(view, url, favicon)
+                    if (url?.startsWith(SITE_BASE_URL + "portal.html") == true) {
+                        authFlowActive = true
+                    }
+                }
+
+                override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                    val target = request?.url?.toString().orEmpty()
+                    if (authFlowActive && target.startsWith(SITE_BASE_URL + "profile.html")) {
+                        authFlowActive = false
+                        view?.loadUrl(SITE_BASE_URL + "home.html")
+                        return true
+                    }
+                    return false
+                }
+
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
-                    this@MainActivity.title = "FLOUSTREAM WebShell Test"
+                    this@MainActivity.title = "FLOUSTREAM"
                 }
             }
             webChromeClient = WebChromeClient()
