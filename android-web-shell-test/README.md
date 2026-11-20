@@ -1,15 +1,22 @@
-# FLOUSTREAM WebShell Test APK
+# FLOUSTREAM Android WebShell Test APK
 
-This is a disposable, isolated Android System WebView test app. It does not load the FLOUSTREAM website and does not modify the production messenger module.
+An isolated Android WebView test application for validating the FLOUSTREAM Android entry flow. It remains separate from the production messenger module.
+
+## Entry and authentication flow
+
+- On launch, the app opens the existing FLOUSTREAM website entry point in a hidden WebView to check the existing Supabase session.
+- If a saved session is found, the app opens `home.html` directly.
+- If the visitor is signed out, the app shows the welcome screen bundled inside the APK. The website's `index.html` is not modified for this flow.
+- The welcome screen's Start button and right-to-left swipe open the existing `portal.html` sign-in/registration page.
+- After successful authentication, the Android WebView redirects the existing `profile.html` post-auth route to `home.html`.
 
 ## What it tests
 
-- A standalone Android Activity containing WebView, with no browser address bar, tabs, or browser toolbar.
-- Local HTML rendering without requiring network access.
-- Long-page vertical scrolling and translucent UI panels.
-- A fixed background compared with a scrolling background.
-- Optional navigation to https://example.com/ to verify external HTTPS loading inside the same WebView.
-- Android Back navigation from the external test page to the local diagnostic page.
+- Standalone Android Activity with WebView and no browser address bar or toolbar.
+- APK-bundled welcome screen and right-to-left swipe.
+- Existing website authentication and saved-session routing.
+- Navigation to the FLOUSTREAM home page after sign-in.
+- WebView scrolling, translucent UI panels, fixed/scrolling backgrounds, and Android Back navigation.
 
 ## Build
 
@@ -27,21 +34,19 @@ Package ID: `com.floustream.webshelltest.debug`
 
 Version: `0.1.0-debug`
 
-The GitHub Actions workflow `.github/workflows/android-web-shell-test.yml` builds and uploads the APK as `FLOUSTREAM-WebShell-Test-debug`.
+GitHub Actions builds and uploads the APK as `FLOUSTREAM-WebShell-Test-debug`.
 
 ## Device test checklist
 
 1. Install the test APK alongside the existing FLOUSTREAM Messenger. It has a separate application ID.
-2. Launch it. Confirm there is no browser address bar, tab strip, or browser toolbar.
-3. Scroll through all fourteen diagnostic panels several times. Watch for blank flashes, jumps, and frame drops.
-4. Compare “Неподвижный фон” and “Движущийся фон”.
-5. Tap “Проверить интернет”; confirm example.com opens inside the same app without browser chrome.
-6. Press Android Back; confirm the diagnostic page returns.
-7. Rotate the device and repeat the scroll test.
-8. Report any visual glitches, slowdowns, crashes, or unexpected browser UI.
-
-This test does not yet validate FLOUSTREAM site compatibility, authentication, media upload, camera/microphone access, notifications, or background calls. Those are later test stages.
+2. With no saved session, launch the app and confirm the bundled welcome screen appears.
+3. Swipe from the right side toward the left; confirm the existing sign-in/registration page opens.
+4. Repeat using the Start button.
+5. Sign in or register; confirm the app opens `home.html`.
+6. Relaunch with a saved session; confirm the welcome and sign-in screens are skipped.
+7. Press Android Back and check navigation behavior.
+8. Rotate the device and repeat the flow.
 
 ## Safety boundary
 
-Do not merge this test app into the production messenger or replace its MainActivity. It remains a separate test module until the engine and UX are accepted.
+This is still a test WebView shell, not a finished production messenger APK. Do not merge this test app into the production messenger or replace its MainActivity until the flow has been accepted on a device.
