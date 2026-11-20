@@ -57,14 +57,14 @@ test("entry page shows welcome and opens the portal with a right-to-left swipe",
   await page.mouse.down();
   await page.mouse.move(220, 420, { steps: 5 });
   await page.mouse.up();
-  await expect(page).toHaveURL(/\\/portal\\.html$/);
+  await expect(page).toHaveURL(/portal.html$/);
 });
 
 test("entry page skips welcome for an existing session", async ({ page }) => {
   await page.addInitScript(() => { window.__mockSession = { user: { id: "existing-user" } }; });
   await mockSupabaseCdn(page);
   await page.goto("/");
-  await expect(page).toHaveURL(/\\/home\\.html$/);
+  await expect(page).toHaveURL(/home.html$/);
 });
 
 test("portal fits a mobile viewport without horizontal overflow", async ({ page }) => {
