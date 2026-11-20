@@ -94,55 +94,24 @@ test("video album keeps public and private players, native controls and swipe na
 });
 
 
-test("APK home uses the profile card and full post composer", async () => {
-  const fs = require("node:fs");
-  const path = require("node:path");
-  const home = fs.readFileSync(path.join(__dirname, "../home.html"), "utf8");
-
-  expect(home).toContain('id="avatar"');
-  expect(home).toContain('id="display-name"');
-  expect(home).toContain('appendDolbyOnlineIndicator($("display-name"),user.id)');
-  expect(home).toContain('id="open-publish"');
-  expect(home).toContain('id="publish-editor"');
-  expect(home).toContain('id="post-files"');
-  expect(home).toContain('id="post-schedule-toggle"');
-  expect(home).toContain('id="scheduled-queue"');
-  expect(home).toContain('id="feed-list"');
-});
-
-test("APK home feed renders stored photo, audio and video post media", async () => {
-  const fs = require("node:fs");
-  const path = require("node:path");
-  const home = fs.readFileSync(path.join(__dirname, "../home.html"), "utf8");
-
-  expect(home).toContain("Array.isArray(post.media)");
-  expect(home).toContain('document.createElement("audio")');
-  expect(home).toContain('document.createElement("video")');
-  expect(home).toContain("node.controls=true");
-  expect(home).toContain("node.playsInline=true");
-  expect(home).toContain('item.type==="music"');
-  expect(home).toContain('post.image_url');
-});
-
-
-test("APK WebShell serves its bundled home feed instead of the hosted website page", async () => {
+test("APK authenticated home always opens the live website profile and navigation", async () => {
   const fs = require("node:fs");
   const path = require("node:path");
   const mainActivity = fs.readFileSync(
     path.join(__dirname, "../android-web-shell-test/app/src/main/java/com/floustream/webshelltest/MainActivity.kt"),
     "utf8"
   );
-  const bundledHome = fs.readFileSync(
-    path.join(__dirname, "../android-web-shell-test/app/src/main/assets/home.html"),
-    "utf8"
-  );
+  const profile = fs.readFileSync(path.join(__dirname, "../profile.html"), "utf8");
 
-  expect(mainActivity).toContain('path.endsWith("/home.html") -> "home.html"');
-  expect(bundledHome).toContain('id="display-name"');
-  expect(bundledHome).toContain('id="open-publish"');
-  expect(bundledHome).toContain('id="post-schedule-toggle"');
-  expect(bundledHome).toContain('id="scheduled-queue"');
-  expect(bundledHome).toContain("Array.isArray(post.media)");
-  expect(bundledHome).toContain('document.createElement("audio")');
-  expect(bundledHome).toContain('document.createElement("video")');
+  expect(mainActivity).toContain('const val HOME_URL = PROFILE_URL');
+  expect(mainActivity).toContain("window.location.href = '$HOME_URL'");
+  expect(mainActivity).not.toContain("shouldInterceptRequest");
+  expect(mainActivity).not.toContain("installApkMessagesNavigation");
+  expect(profile).toContain('id="drawer-menu-button"');
+  expect(profile).toContain('id="side-drawer"');
+  expect(profile).toContain('id="display-name"');
+  expect(profile).toContain('id="open-publish"');
+  expect(profile).toContain('id="post-schedule-toggle"');
+  expect(profile).toContain('id="scheduled-queue"');
+  expect(profile).toContain('id="feed-list"');
 });
