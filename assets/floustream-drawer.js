@@ -11,7 +11,7 @@ root.innerHTML=`<button type="button" class="fs-drawer-menu-button" id="fs-drawe
 <div class="fs-side-drawer-divider"></div><p class="fs-side-drawer-caption">Медиа и общение</p><nav class="fs-side-drawer-links">
 <a class="fs-side-drawer-link" href="friends.html?v=20261114-1"><span class="fs-side-drawer-icon">♧</span>Друзья</a>
 <a class="fs-side-drawer-link" href="messages.html?v=20261119-realtime-2"><span class="fs-side-drawer-icon">✉</span>Сообщения</a>
-<a class="fs-side-drawer-link" href="backgammon.html"><span class="fs-side-drawer-icon">⚄</span>Нарды</a>
+<a class="fs-side-drawer-link" href="music.html"><span class="fs-side-drawer-icon">♫</span>Музыка</a>\n<a class="fs-side-drawer-link" href="backgammon.html"><span class="fs-side-drawer-icon">⚄</span>Нарды</a>
 </nav><div class="fs-side-drawer-foot">FLOUSTREAM · твоя цифровая территория</div></aside>`;
 while(root.firstChild)document.body.appendChild(root.firstChild);
 const d=document.getElementById("fs-side-drawer"),shade=document.getElementById("fs-drawer-backdrop"),edge=document.getElementById("fs-drawer-edge"),btn=document.getElementById("fs-drawer-menu-button"),close=document.getElementById("fs-drawer-close");
