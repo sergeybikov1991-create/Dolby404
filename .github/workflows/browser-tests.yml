@@ -1,4 +1,5 @@
 name: FLOUSTREAM browser tests
+# Re-run branch validation after welcome-flow test assertion fix
 
 on:
   push:
