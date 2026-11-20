@@ -206,6 +206,12 @@ textarea{min-height:90px;resize:vertical}
 .side-drawer-link{display:flex;align-items:center;gap:13px;width:100%;min-height:49px;padding:10px 13px;border:1px solid transparent;border-radius:12px;background:transparent;color:#e9ddff;text-align:left;font-size:14px}
 .side-drawer-link:active,.side-drawer-link.active{background:linear-gradient(100deg,#392052aa,#1b1429);border-color:#68458d}
 .side-drawer-icon{width:23px;text-align:center;color:#c18aff;font-size:18px}
+@property --author-color{syntax:"<color>";inherits:false;initial-value:#ff4fd8}
+@property --author-deep{syntax:"<color>";inherits:false;initial-value:#8b2cff}
+.author-nav-link{gap:13px}
+.author-label{display:inline-flex;align-items:center;gap:0;font-size:15px;font-weight:900;letter-spacing:.035em}
+.author-label span{display:inline-block;color:var(--author-color,#ff4fd8);background:linear-gradient(180deg,#fff 0%,var(--author-color,#ff4fd8) 43%,var(--author-deep,#8b2cff) 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;filter:drop-shadow(0 0 4px var(--author-color,#ff4fd8)) drop-shadow(0 0 9px var(--author-color,#ff4fd8));transition:--author-color .9s ease,--author-deep .9s ease,filter .9s ease}
+@media(prefers-reduced-motion:reduce){.author-label span{transition:none}}
 .side-drawer-divider{height:1px;margin:17px 4px;background:#33283f}
 .nav-history{margin:13px 4px 2px;padding:11px 9px 10px;border:1px solid #342541;border-radius:13px;background:#110e19aa}
 .nav-history .side-drawer-caption{margin:0 0 8px 2px}
@@ -765,11 +771,11 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
    </div>
   </section>
  <div class="side-drawer-divider"></div><p class="side-drawer-caption">Медиа и общение</p><nav class="side-drawer-links">
- <a class="side-drawer-link" id="friends-nav-link" href="friends.html?v=20261114-1"><span class="side-drawer-icon">♧</span>Друзья</a>
+ <button class="side-drawer-link author-nav-link" data-drawer-soon="Видео" aria-label="AuTHOR"><span class="side-drawer-icon">▶</span><span class="author-label" aria-label="AuTHOR"><span>A</span><span>u</span><span>T</span><span>H</span><span>O</span><span>R</span></span></button>
  <a class="side-drawer-link" id="messages-nav-link" href="messages.html?v=20261119-realtime-2"><span class="side-drawer-icon">✉</span>Сообщения</a>
  <button class="side-drawer-link" data-drawer-soon="Сообщества"><span class="side-drawer-icon">◎</span>Сообщества</button>
  <button class="side-drawer-link" data-drawer-soon="Музыка"><span class="side-drawer-icon">♫</span>Музыка</button>
- <button class="side-drawer-link" data-drawer-soon="Видео"><span class="side-drawer-icon">▶</span>Видео</button>
+ <a class="side-drawer-link" id="friends-nav-link" href="friends.html?v=20261114-1"><span class="side-drawer-icon">♧</span>Друзья</a>
  <button class="side-drawer-link" data-drawer-soon="Фото"><span class="side-drawer-icon">▧</span>Фото</button>
  <button class="side-drawer-link" data-drawer-soon="Закладки"><span class="side-drawer-icon">☆</span>Закладки</button></nav>
  <div class="drawer-bottom"><button type="button" class="side-drawer-link drawer-settings-button" id="open-settings"><span class="side-drawer-icon">⚙</span>Настройки</button><button type="button" class="drawer-logout-button" id="drawer-logout">↪ Выйти</button><div class="side-drawer-foot">FLOUSTREAM · твоя цифровая территория</div></div></div>
@@ -2875,7 +2881,7 @@ function applyLanguage(language){
  $("side-drawer").querySelector(".side-drawer-caption").textContent=en?"Navigation":"Навигация";
  $("side-drawer").querySelectorAll("[data-drawer-action]").forEach(b=>{b.innerHTML='<span class="side-drawer-icon">◉</span>'+(en?"My profile":"Мой профиль");});
  $("nav-history-title").textContent=en?"Recently visited":"Недавно посещали";renderNavigationHistory();
- $("side-drawer").querySelectorAll("[data-drawer-soon]").forEach(b=>{const key=b.dataset.drawerSoon;const names=en?{"Друзья":"Friends","Сообщения":"Messages","Сообщества":"Communities","Музыка":"Music","Видео":"Videos","Фото":"Photos","Закладки":"Bookmarks"}:{"Друзья":"Друзья","Сообщения":"Сообщения","Сообщества":"Сообщества","Музыка":"Музыка","Видео":"Видео","Фото":"Фото","Закладки":"Закладки"};const icon=b.querySelector(".side-drawer-icon")?.textContent||"•";b.innerHTML='<span class="side-drawer-icon">'+icon+'</span>'+(names[key]||key);});
+ $("side-drawer").querySelectorAll("[data-drawer-soon]").forEach(b=>{const key=b.dataset.drawerSoon;const names=en?{"Друзья":"Friends","Сообщения":"Messages","Сообщества":"Communities","Музыка":"Music","Видео":"Videos","Фото":"Photos","Закладки":"Bookmarks"}:{"Друзья":"Друзья","Сообщения":"Сообщения","Сообщества":"Сообщества","Музыка":"Музыка","Видео":"Видео","Фото":"Фото","Закладки":"Закладки"};const icon=b.querySelector(".side-drawer-icon")?.textContent||"•";if(key==="Видео"){b.innerHTML='<span class="side-drawer-icon">'+icon+'</span><span class="author-label" aria-label="AuTHOR"><span>A</span><span>u</span><span>T</span><span>H</span><span>O</span><span>R</span></span>';b.setAttribute("aria-label","AuTHOR");}else{b.innerHTML='<span class="side-drawer-icon">'+icon+'</span>'+(names[key]||key);}});
  $("open-settings").innerHTML='<span class="side-drawer-icon">⚙</span>'+(en?"Settings":"Настройки");
  $("drawer-logout").textContent=en?"↪ Sign out":"↪ Выйти";
  $("settings-title").textContent=en?"Settings":"Настройки";
@@ -3049,5 +3055,26 @@ start();
 })();
 </script>
 
+<script>
+(()=>{
+ const palette=[
+  ["#ff4fd8","#9b1dff"],["#39e7ff","#0879ff"],["#ffe45e","#ff8a00"],
+  ["#75ff6b","#00b86b"],["#ff668a","#d91b65"],["#b58cff","#6b35e8"],
+  ["#f7fbff","#4f8dff"],["#ff9f43","#ef3d92"],["#65ffd5","#00a9a0"]
+ ];
+ const letters=[...document.querySelectorAll(".author-label span")];
+ if(!letters.length)return;
+ const paint=()=>letters.forEach(letter=>{
+  let pick=Math.floor(Math.random()*palette.length);
+  if(String(pick)===letter.dataset.palette)pick=(pick+1+Math.floor(Math.random()*(palette.length-1)))%palette.length;
+  const [bright,deep]=palette[pick];
+  letter.dataset.palette=String(pick);
+  letter.style.setProperty("--author-color",bright);
+  letter.style.setProperty("--author-deep",deep);
+ });
+ paint();
+ window.setInterval(paint,950);
+})();
+</script>
 </body>
 </html>
