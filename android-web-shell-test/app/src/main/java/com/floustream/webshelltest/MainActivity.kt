@@ -124,12 +124,13 @@ class MainActivity : Activity() {
                     super.onPageFinished(view, url)
                     this@MainActivity.title = "FLOUSTREAM"
 
+                    val currentUrl = url.orEmpty()
                     if (startupAuthCheckPending &&
-                        (url?.startsWith(AUTH_URL) == true ||
-                         url?.startsWith(PROFILE_URL) == true)
+                        (currentUrl.startsWith(AUTH_URL) ||
+                         currentUrl.startsWith(PROFILE_URL))
                     ) {
                         val clientExpression =
-                            if (url.startsWith(PROFILE_URL)) "client" else "supabaseClient"
+                            if (currentUrl.startsWith(PROFILE_URL)) "client" else "supabaseClient"
                         checkSupabaseSession(view, clientExpression)
                         return
                     }
