@@ -69,11 +69,11 @@ test("portal fits a mobile viewport without horizontal overflow", async ({ page 
 });
 
 
-test("profile redirects signed-out visitors to the portal", async ({ page }) => {
+test("profile shows sign-in guidance when no session is stored", async ({ page }) => {
   await mockSupabaseCdn(page);
   await page.goto("/profile.html");
-  await expect(page).toHaveURL(/\/portal\.html$/);
-  await expect(page.locator(".logo")).toHaveText("FLOUSTREAM");
+  await expect(page.locator("#display-name")).toHaveText("Не удалось загрузить профиль");
+  await expect(page.locator("#notice")).toContainText("Проверь подключение и настройки доступа");
 });
 
 test("video album keeps public and private players, native controls and swipe navigation", async () => {
