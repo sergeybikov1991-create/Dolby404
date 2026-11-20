@@ -160,8 +160,8 @@ class MainActivity : Activity() {
                     if (typeof $clientExpression === 'undefined' || !$clientExpression) {
                         return { state: 'pending' };
                     }
-                    const client = $clientExpression;
-                    const stored = await client.auth.getSession();
+                    const authClient = $clientExpression;
+                    const stored = await authClient.auth.getSession();
                     if (stored.error) {
                         const status = Number(stored.error.status || 0);
                         if (status === 400 || status === 401 || status === 403) {
@@ -175,7 +175,7 @@ class MainActivity : Activity() {
 
                     // getUser() contacts Supabase Auth; getSession() alone only
                     // reads the local token cache and is not identity verification.
-                    const confirmed = await client.auth.getUser();
+                    const confirmed = await authClient.auth.getUser();
                     if (!confirmed.error && confirmed.data && confirmed.data.user) {
                         return { state: 'verified' };
                     }
