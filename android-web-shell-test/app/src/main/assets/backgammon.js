@@ -6,7 +6,6 @@ const SUPABASE_URL = "https://qhpobdktlbhdqsnajypr.supabase.co";
 const SUPABASE_KEY = "sb_publishable_tzG1qVsbjaW8YE_LBVN87Q_v0CahKN5";
 
 const $ = (id) => document.getElementById(id);
-const IS_EMBEDDED = new URLSearchParams(location.search).get("embed") === "1";
 const client = createClient(SUPABASE_URL, SUPABASE_KEY);
 let user = null;
 let matches = [];
@@ -16,6 +15,9 @@ let realtimeChannel = null;
 let realtimeWasConnected = false;
 let legalMoves = [];
 let animateNextDice = false;
+let dragState = null;
+let suppressNextPointClick = false;
+let restartExpiryTimer = null;
 
 function setNotice(id, message, error = false) {
   const element = $(id);
@@ -77,15 +79,19 @@ async function invokeAction(actionType, payload = {}) {
     setNotice("game-notice", "Сервер не вернул состояние партии", true);
     return false;
   }
+  // Realtime can deliver a newer committed revision before this request
+  // finishes. Never let a delayed action response roll the local board back.
   const previousState = currentMatch.state;
-  currentMatch = {
-    ...currentMatch,
-    status: data.status,
-    state: data.state,
-    turn_number: data.turn_number,
-    revision: data.revision,
-    restart_request: data.restart_request ?? null,
-  };
+  if (Number(data.revision) >= Number(currentMatch.revision)) {
+    currentMatch = {
+      ...currentMatch,
+      status: data.status,
+      state: data.state,
+      turn_number: data.turn_number,
+      revision: data.revision,
+      restart_request: data.restart_request ?? null,
+    };
+  }
   selectedFrom = null;
   animateNextDice = actionType === "roll" || actionType === "opening_roll";
   renderGame(previousState);
@@ -97,8 +103,10 @@ async function invokeAction(actionType, payload = {}) {
 
 async function createMatch(opponent) {
   const matchId = crypto.randomUUID();
-  const noticeId = IS_EMBEDDED ? "game-notice" : "invite-notice";
-  setNotice(noticeId, "Подключаем соперника из этой переписки…");
+  const noticeId = new URLSearchParams(location.search).get("embed") === "1"
+    ? "game-notice"
+    : "invite-notice";
+  setNotice(noticeId, "Отправляем приглашение…");
   const { data, error } = await client.functions.invoke("backgammon-action", {
     body: {
       action_type: "create_match",
@@ -118,7 +126,14 @@ async function createMatch(opponent) {
   }
   setNotice(noticeId, "Партия найдена. Подключаем игровое поле…");
   await loadMatches();
-  if (data?.match) openMatch(data.match.id);
+  if (data?.match) {
+    await openMatch(data.match.id);
+    // If both chat windows opened at once, the server may return the other
+    // player's waiting invitation to this account. Accept it in the same flow.
+    if (currentMatch?.status === "waiting" && sideFor(currentMatch) === "B") {
+      await invokeAction("accept_match");
+    }
+  }
 }
 
 async function loadMatches() {
@@ -133,19 +148,19 @@ async function loadMatches() {
     const item = document.createElement("div");
     item.className = "subtle";
     item.textContent = /backgammon_matches|schema cache|does not exist/i.test(error.message)
-      ? "Игровая схема пока недоступна."
+      ? "Игровая схема ещё не подключена к серверу. Код и миграция готовы, ожидается установка на бесплатный проект."
       : `Не удалось загрузить партии: ${error.message}`;
     $("matches").append(item);
-    if (IS_EMBEDDED) setNotice("game-notice", item.textContent, true);
-    return false;
+    return;
   }
   matches = data || [];
   await hydrateOpponentNames(matches);
   renderMatches();
-  return true;
   if (currentMatch) {
     const latest = matches.find(match => match.id === currentMatch.id);
-    if (latest && latest.revision !== currentMatch.revision) {
+    // Parallel realtime refreshes and action responses may finish out of
+    // order. Only accept a strictly newer authoritative match revision.
+    if (latest && Number(latest.revision) > Number(currentMatch.revision)) {
       currentMatch = latest;
       selectedFrom = null;
       renderGame();
@@ -197,7 +212,7 @@ function renderMatches() {
       accept.type = "button";
       accept.textContent = "Принять";
       accept.addEventListener("click", async () => {
-        openMatch(match.id);
+        await openMatch(match.id);
         await invokeAction("accept_match");
       });
       const decline = document.createElement("button");
@@ -205,7 +220,7 @@ function renderMatches() {
       decline.type = "button";
       decline.textContent = "Отклонить";
       decline.addEventListener("click", async () => {
-        openMatch(match.id);
+        await openMatch(match.id);
         await invokeAction("decline_match");
       });
       actions.append(accept, decline);
@@ -240,8 +255,8 @@ function makeDie(value, rolling = false) {
   const finalTransforms = {
     1: "rotateX(0deg) rotateY(0deg) rotateZ(0deg)",
     2: "rotateX(0deg) rotateY(-90deg) rotateZ(0deg)",
-    3: "rotateX(90deg) rotateY(0deg) rotateZ(0deg)",
-    4: "rotateX(-90deg) rotateY(0deg) rotateZ(0deg)",
+    3: "rotateX(-90deg) rotateY(0deg) rotateZ(0deg)",
+    4: "rotateX(90deg) rotateY(0deg) rotateZ(0deg)",
     5: "rotateX(0deg) rotateY(90deg) rotateZ(0deg)",
     6: "rotateX(0deg) rotateY(180deg) rotateZ(0deg)",
   };
@@ -295,22 +310,64 @@ function makeDie(value, rolling = false) {
 function renderDice(state) {
   const container = $("dice");
   container.replaceChildren();
-  const values = state?.turn?.dice || [];
-  values.slice(0, 2).forEach(value => container.append(makeDie(value, animateNextDice)));
-  if (!values.length) {
-    const label = document.createElement("span");
-    label.className = "subtle";
-    label.textContent = "Кости появятся после броска";
-    container.append(label);
+  container.className = "dice-layer";
+  const side = sideFor(currentMatch);
+  const isMyTurn = currentMatch?.status === "active" && state?.turn?.player === side;
+  const placeDie = (die, index) => {
+    const left = animateNextDice ? 14 + Math.random() * 66 : (index === 0 ? 23 : 69);
+    const top = animateNextDice ? 18 + Math.random() * 62 : (index === 0 ? 38 : 57);
+    die.style.setProperty("--die-left", `${left}%`);
+    die.style.setProperty("--die-top", `${top}%`);
+    if (!animateNextDice) { die.style.left = `${left}%`; die.style.top = `${top}%`; }
+  };
+
+  if (currentMatch?.status === "active" && state?.turn?.phase === "awaiting_roll") {
+    if (isMyTurn) {
+      const first = makeDie(1); first.classList.add("die-placeholder");
+      const second = makeDie(1); second.classList.add("die-placeholder");
+      container.append(first, second);
+      const roll = document.createElement("button");
+      roll.type = "button";
+      roll.className = "dice-roll-trigger";
+      roll.textContent = "БРОСИТЬ";
+      roll.setAttribute("aria-label", "Бросить игровые кубики");
+      roll.addEventListener("click", () => invokeAction("roll"));
+      container.append(roll);
+    } else {
+      const waiting = document.createElement("span");
+      waiting.className = "dice-waiting";
+      waiting.textContent = "Ход соперника";
+      container.append(waiting);
+    }
+    return;
   }
-  if (state?.turn?.phase === "moving" && state.turn.remainingDice?.length) {
-    const remaining = document.createElement("span");
-    remaining.className = "subtle";
-    remaining.textContent = `Осталось ходов по костям: ${state.turn.remainingDice.join(" · ")}`;
-    container.append(remaining);
+
+  if (currentMatch?.status === "awaiting_opening_roll") {
+    const opening = state?.opening || {};
+    const rolls = opening.rolls || {};
+    const tie = opening.lastTie;
+    for (const player of ["A", "B"]) {
+      const value = rolls[player] ?? tie?.[player];
+      if (Number.isInteger(value)) {
+        const die = makeDie(value, animateNextDice);
+        die.classList.add("die-scattered", player === "A" ? "die-position-1" : "die-position-2");
+        placeDie(die, player === "A" ? 0 : 1);
+        container.append(die);
+      }
+    }
+    return;
+  }
+
+  const values = state?.turn?.dice || [];
+  if (currentMatch?.status === "active" && state?.turn?.phase === "moving") {
+    values.slice(0, 2).forEach((value, index) => {
+      const die = makeDie(value, animateNextDice);
+      die.classList.add("die-scattered", `die-position-${index + 1}`);
+      placeDie(die, index);
+      container.append(die);
+    });
   }
 }
-
 function renderPoint(index, position, state) {
   const button = document.createElement("button");
   button.type = "button";
@@ -330,6 +387,10 @@ function renderPoint(index, position, state) {
   for (let i = 0; i < visible; i += 1) {
     const checker = document.createElement("span");
     checker.className = "checker" + (count < 0 ? " b" : "");
+    if (selectedFrom === index && i === (position === "top" ? 0 : visible - 1)) {
+      checker.classList.add("selected-checker");
+      checker.setAttribute("aria-label", "Выбрана верхняя шашка");
+    }
     stack.append(checker);
   }
   button.append(stack);
@@ -343,6 +404,48 @@ function renderPoint(index, position, state) {
   if (selectedFrom !== null && legalMoves.some(move => move.from === selectedFrom && !move.bearOff && move.to === index)) {
     button.classList.add("legal-target");
   }
+  button.addEventListener("pointerdown", event => {
+    if (!currentMatch || currentMatch.status !== "active" || event.button !== 0) return;
+    const side = sideFor(currentMatch);
+    const turn = currentMatch.state.turn;
+    if (turn.phase !== "moving" || turn.player !== side) return;
+    const sign = side === "A" ? 1 : -1;
+    if (currentMatch.state.points[index] * sign <= 0 ||
+        !legalMoves.some(move => move.from === index)) return;
+    event.preventDefault();
+    const source = position === "top"
+      ? stack.querySelector(".checker:first-child")
+      : stack.querySelector(".checker:last-child");
+    const rect = source?.getBoundingClientRect();
+    if (!rect) return;
+    const ghost = source.cloneNode(true);
+    ghost.classList.add("drag-ghost", "selected-checker");
+    Object.assign(ghost.style, {
+      position: "fixed", left: `${rect.left}px`, top: `${rect.top}px`,
+      width: `${rect.width}px`, height: `${rect.height}px`,
+      margin: "0", zIndex: "2000", pointerEvents: "none",
+      filter: "drop-shadow(0 8px 12px #000b)", transform: "translateY(-7px) scale(1.28)"
+    });
+    document.body.append(ghost);
+    dragState = { from: index, pointerId: event.pointerId, startX: event.clientX,
+      startY: event.clientY, moved: false, ghost };
+    try {
+      button.setPointerCapture(event.pointerId);
+    } catch {}
+    selectedFrom = index;
+    button.classList.add("selected");
+    for (const point of document.querySelectorAll(".point")) {
+      const targetIndex = Number(point.dataset.index);
+      point.classList.toggle("legal-target", legalMoves.some(move =>
+        move.from === index && !move.bearOff && move.to === targetIndex
+      ));
+    }
+    for (const player of ["A", "B"]) {
+      const zone = $(`off-zone-${player.toLowerCase()}`);
+      zone.classList.toggle("legal-target", player === side &&
+        legalMoves.some(move => move.from === index && move.bearOff));
+    }
+  });
   button.addEventListener("click", () => handlePointClick(index));
   return button;
 }
@@ -352,13 +455,47 @@ function renderBoard(state) {
   const bottom = $("board-bottom");
   top.replaceChildren();
   bottom.replaceChildren();
-  for (let index = 12; index <= 23; index += 1) top.append(renderPoint(index, "top", state));
-  for (let index = 11; index >= 0; index -= 1) bottom.append(renderPoint(index, "bottom", state));
+
+  // Keep the same server point indexes and move rules, but rotate the
+  // presentation 180 degrees for player B so each player sees their own
+  // 15-checker starting stack in the upper-right corner.
+  if (sideFor(currentMatch) === "B") {
+    for (let index = 0; index <= 11; index += 1) {
+      top.append(renderPoint(index, "top", state));
+    }
+    for (let index = 23; index >= 12; index -= 1) {
+      bottom.append(renderPoint(index, "bottom", state));
+    }
+  } else {
+    for (let index = 12; index <= 23; index += 1) {
+      top.append(renderPoint(index, "top", state));
+    }
+    for (let index = 11; index >= 0; index -= 1) {
+      bottom.append(renderPoint(index, "bottom", state));
+    }
+  }
   $("off-a").textContent = String(state.borneOff.A);
   $("off-b").textContent = String(state.borneOff.B);
+  // Each player sees their own home and checker tray on the right.
+  const offRow = $("off-zone-a").parentElement;
+  offRow.style.flexDirection = "row";
+  $("off-zone-a").style.order = sideFor(currentMatch) === "A" ? "3" : "1";
+  $("off-zone-b").style.order = sideFor(currentMatch) === "B" ? "3" : "1";
+  $("restart-button").style.order = "2";
+  const activeSide = currentMatch?.status === "active" &&
+    state.turn?.phase === "moving" && state.turn.player === sideFor(currentMatch)
+    ? state.turn.player : null;
+  for (const player of ["A", "B"]) {
+    const zone = $(`off-zone-${player.toLowerCase()}`);
+    const canDrop = activeSide === player && selectedFrom !== null &&
+      legalMoves.some(move => move.from === selectedFrom && move.bearOff);
+    zone.classList.toggle("legal-target", canDrop);
+    zone.setAttribute("aria-label", `Снятые шашки ${player}: ${state.borneOff[player]}`);
+  }
 }
 
 async function handlePointClick(index) {
+  if (suppressNextPointClick) { suppressNextPointClick = false; return; }
   if (!currentMatch || currentMatch.status !== "active") return;
   const state = currentMatch.state;
   const side = sideFor(currentMatch);
@@ -390,39 +527,60 @@ function addControl(container, label, action, style = "primary") {
 }
 
 function renderRestart(match) {
-  const box = $("restart-box");
-  box.classList.add("hidden");
-  box.replaceChildren();
-  if (!["active", "finished"].includes(match.status) || match.match_mode !== "casual") return;
-  const request = match.restart_request;
-  if (!request) {
-    box.classList.remove("hidden");
-    addControl(box, "Предложить рестарт", () => {
-      if (window.confirm("Предложить начать партию заново?")) {
-        invokeAction("restart_request");
-      }
-    }, "ghost");
+  if (restartExpiryTimer !== null) {
+    clearTimeout(restartExpiryTimer);
+    restartExpiryTimer = null;
+  }
+  const button = $("restart-button");
+  if (!button) return;
+  button.onclick = null;
+  button.title = "Предложить перезапуск партии";
+  button.setAttribute("aria-label", "Предложить перезапуск партии");
+  if (![ "active", "finished" ].includes(match.status) || match.match_mode !== "casual") {
+    button.classList.add("hidden");
     return;
   }
-  box.classList.remove("hidden");
-  const message = document.createElement("div");
-  message.textContent = request.initiator_id === user.id
-    ? "Запрос на рестарт отправлен. Ждём согласия соперника."
-    : "Соперник предлагает начать партию заново.";
-  box.append(message);
-  if (request.initiator_id !== user.id) {
-    addControl(box, "Согласиться", () => invokeAction("restart_vote", { request_id: request.id, accept: true }));
-    addControl(box, "Отказаться", () => invokeAction("restart_vote", { request_id: request.id, accept: false }), "danger");
+  button.classList.remove("hidden");
+  const request = match.restart_request;
+  const expiresAt = request ? Date.parse(request.expires_at || "") : NaN;
+  const expired = !!request && (!Number.isFinite(expiresAt) || expiresAt <= Date.now());
+  if (request && !expired && Number.isFinite(expiresAt)) {
+    restartExpiryTimer = setTimeout(() => {
+      if (currentMatch?.id === match.id) renderRestart(currentMatch);
+    }, Math.max(0, expiresAt - Date.now() + 20));
+  }
+  if (!request || expired) {
+    button.onclick = () => {
+      if (window.confirm("Предложить начать партию заново?")) invokeAction("restart_request");
+    };
+    return;
+  }
+  if (request.initiator_id === user.id) {
+    button.title = "Отменить предложение рестарта";
+    button.setAttribute("aria-label", "Отменить предложение рестарта");
+    button.onclick = () => {
+      if (window.confirm("Отменить предложение новой партии?")) {
+        invokeAction("restart_cancel", { request_id: request.id });
+      }
+    };
   } else {
-    addControl(box, "Отменить запрос", () => invokeAction("restart_cancel", { request_id: request.id }), "ghost");
+    button.title = "Соперник предлагает новую партию";
+    button.setAttribute("aria-label", "Принять или отклонить рестарт");
+    button.onclick = () => {
+      if (window.confirm("Соперник предлагает начать новую партию. Согласиться?")) {
+        invokeAction("restart_vote", { request_id: request.id, accept: true });
+      } else if (window.confirm("Отклонить предложение?")) {
+        invokeAction("restart_vote", { request_id: request.id, accept: false });
+      }
+    };
   }
 }
-
 function renderControls(match) {
   const container = $("controls");
   container.replaceChildren();
   const state = match.state;
   const side = sideFor(match);
+  $("game-status").classList.remove("game-status-win", "game-status-loss");
   const isMyTurn = state.turn?.player === side;
 
   if (match.status === "waiting") {
@@ -430,7 +588,7 @@ function renderControls(match) {
       $("game-status").textContent = "Приглашение отправлено. Ждём ответа соперника.";
     } else {
       $("game-status").textContent = "Соперник приглашает тебя сыграть.";
-      if (IS_EMBEDDED) {
+      if (new URLSearchParams(location.search).get("embed") === "1") {
         addControl(container, "Принять игру", () => invokeAction("accept_match"));
         addControl(container, "Отклонить", () => invokeAction("decline_match"), "danger");
       } else {
@@ -440,12 +598,30 @@ function renderControls(match) {
     return;
   }
   if (match.status === "awaiting_opening_roll") {
-    $("game-status").textContent = "Партия принята. Каждый игрок получает по одной кости; равенство перебрасывается.";
-    addControl(container, "Бросить на начало", () => invokeAction("opening_roll"));
+    const opening = state.opening || {};
+    const rolls = opening.rolls || {};
+    const ownRoll = rolls[side];
+    const opponentSide = side === "A" ? "B" : "A";
+    const opponentRoll = rolls[opponentSide];
+    const tie = opening.lastTie;
+    if (tie) {
+      $("game-status").textContent = `Равенство ${tie.A} : ${tie.B}. Оба игрока бросают заново.`;
+    } else if (Number.isInteger(ownRoll)) {
+      $("game-status").textContent = `Твой результат: ${ownRoll}. Ждём броска соперника.`;
+    } else if (Number.isInteger(opponentRoll)) {
+      $("game-status").textContent = `Соперник выбросил ${opponentRoll}. Теперь твой бросок.`;
+    } else {
+      $("game-status").textContent = "Каждый игрок бросает по одному кубику. Больший результат начинает партию.";
+    }
+    if (!Number.isInteger(ownRoll)) {
+      addControl(container, "Бросить один кубик", () => invokeAction("opening_roll"));
+    }
     return;
   }
   if (match.status === "finished") {
-    $("game-status").textContent = state.winner === side ? "Ты выиграл партию!" : "Партия завершена. Победил соперник.";
+    const won = state.winner === side;
+    $("game-status").classList.add(won ? "game-status-win" : "game-status-loss");
+    $("game-status").textContent = won ? "ПОБЕДА! Великолепная партия!" : "Партия завершена. Победил соперник.";
     return;
   }
   if (match.status !== "active") {
@@ -455,11 +631,10 @@ function renderControls(match) {
 
   if (state.turn.phase === "awaiting_roll") {
     $("game-status").textContent = isMyTurn ? "Твой ход. Бросай кости." : "Сейчас ход соперника.";
-    if (isMyTurn) addControl(container, "Бросить кости", () => invokeAction("roll"));
     return;
   }
   if (state.turn.phase === "moving") {
-    $("game-status").textContent = isMyTurn ? "Твой ход. Выбери свою шашку, затем пункт назначения." : "Соперник перемещает шашки.";
+    $("game-status").textContent = isMyTurn ? "Твой ход." : "Соперник перемещает шашки.";
     if (!isMyTurn) return;
     if (legalMoves.length === 0) {
       addControl(container, "Завершить ход", () => invokeAction("finish_turn"));
@@ -493,7 +668,7 @@ function captureCheckerMove(previousState, nextState) {
     }
   }
   const source = from >= 0
-    ? document.querySelector(`.point[data-index="${from}"] .stack .checker:last-child`)
+    ? document.querySelector(`.point[data-index="${from}"] .stack .checker:${from >= 12 ? "first-child" : "last-child"}`)
     : null;
   const rect = source?.getBoundingClientRect();
   if (!rect || !rect.width || !rect.height) return null;
@@ -520,7 +695,7 @@ function animateCheckerMove(transition) {
   const isBearOff = transition.to === "off";
   const target = isBearOff
     ? document.getElementById(transition.offId)
-    : document.querySelector(`.point[data-index="${transition.to}"] .stack .checker:last-child`);
+    : document.querySelector(`.point[data-index="${transition.to}"] .stack .checker:${transition.to >= 12 ? "first-child" : "last-child"}`);
   if (!target || typeof Element.prototype.animate !== "function") return;
   const destination = target.getBoundingClientRect();
   if (!destination.width || !destination.height) return;
@@ -563,13 +738,9 @@ function renderGame(previousState = null) {
   const hasMatch = !!currentMatch;
   $("empty-game").classList.toggle("hidden", hasMatch);
   $("game").classList.toggle("hidden", !hasMatch);
-  if (!hasMatch) {
-    $("empty-game").innerHTML = "Создай партию или открой приглашение соперника.<br>Поле появится после выбора партии.";
-    return;
-  }
+  if (!hasMatch) return;
   const state = currentMatch.state;
   const checkerTransition = captureCheckerMove(previousState, state);
-  $("game-title").textContent = `Партия с ${matchLabel(currentMatch)}`;
   legalMoves = currentMatch.status === "active" && state.turn.phase === "moving" &&
     state.turn.player === sideFor(currentMatch)
     ? engine.getLegalMoves(state, state.turn.remainingDice, LONG_BACKGAMMON_RULES)
@@ -586,10 +757,13 @@ async function startRealtime() {
   realtimeChannel = client.channel(`floustream-backgammon-${user.id}`);
   const refresh = async (payload) => {
     const row = payload.new;
-    if (row?.id === currentMatch?.id) {
+    if (row?.id === currentMatch?.id &&
+        Number(row.revision) > Number(currentMatch.revision)) {
       const previousState = currentMatch.state;
-      animateNextDice = previousState?.turn?.phase === "awaiting_roll" &&
-        row.state?.turn?.phase === "moving";
+      animateNextDice = (
+        (previousState?.turn?.phase === "awaiting_roll" && row.state?.turn?.phase === "moving") ||
+        (currentMatch.status === "awaiting_opening_roll" && row.status === "active")
+      );
       currentMatch = row;
       await hydrateOpponentNames([currentMatch]);
       selectedFrom = null;
@@ -647,24 +821,81 @@ $("invite-form").addEventListener("submit", async (event) => {
   await createMatch(opponent);
 });
 
-async function openChatMatch(opponentUserId, opponentProfile) {
-  if (!opponentProfile || opponentProfile.account_status !== "active") {
-    setNotice("game-notice", "Собеседник недоступен для игры.", true);
+function finishCheckerDrag(event) {
+  if (!dragState || event.pointerId !== dragState.pointerId) return;
+  const drag = dragState;
+  dragState = null;
+  drag.ghost.remove();
+  if (!drag.moved) {
+    selectedFrom = drag.from;
+    // The pointer interaction already selected this stack; ignore the synthetic click
+    // that follows pointerup so the selection is not immediately toggled off.
+    suppressNextPointClick = true;
+    setTimeout(() => { suppressNextPointClick = false; }, 0);
+    renderGame();
     return;
   }
-  const existing = matches
-    .filter(match =>
-      opponentId(match) === opponentUserId &&
-      ["waiting", "awaiting_opening_roll", "active"].includes(match.status)
-    )
-    .sort((a, b) => Date.parse(b.updated_at || 0) - Date.parse(a.updated_at || 0))[0];
-
-  if (existing) {
-    await openMatch(existing.id);
-    return;
+  suppressNextPointClick = true;
+  setTimeout(() => { suppressNextPointClick = false; }, 0);
+  // Pointer capture can keep pointer events targeted at the source stack on
+  // mobile browsers. Resolve the drop using the actual screen coordinates and
+  // the target rectangles first; elementFromPoint is only a fallback.
+  const x = event.clientX;
+  const y = event.clientY;
+  const containsPoint = element => {
+    if (!element) return false;
+    const rect = element.getBoundingClientRect();
+    return x >= rect.left - 8 && x <= rect.right + 8 &&
+      y >= rect.top - 8 && y <= rect.bottom + 8;
+  };
+  const offZones = [...document.querySelectorAll(".off-zone")];
+  const offZone = offZones.find(zone => containsPoint(zone)) ||
+    document.elementFromPoint(x, y)?.closest?.(".off-zone");
+  const point = [...document.querySelectorAll(".point")].find(item => containsPoint(item)) ||
+    document.elementFromPoint(x, y)?.closest?.(".point");
+  const to = point ? Number(point.dataset.index) : -1;
+  const side = sideFor(currentMatch);
+  const isOwnOffZone = offZone?.dataset.player === side;
+  const candidate = isOwnOffZone
+    ? legalMoves.find(move => move.from === drag.from && move.bearOff === true)
+    : legalMoves.find(move =>
+        move.from === drag.from && move.bearOff !== true && move.to === to
+      );
+  if (candidate) {
+    selectedFrom = null;
+    invokeAction("move", { move: candidate });
+  } else {
+    selectedFrom = drag.from;
+    renderGame();
+    setNotice("game-notice", "Перетащи шашку на подсвеченный пункт или в свою круглую зону снятия.", true);
   }
-  await createMatch(opponentProfile);
 }
+function cancelCheckerDrag(event) {
+  if (!dragState || event.pointerId !== dragState.pointerId) return;
+  const drag = dragState;
+  dragState = null;
+  drag.ghost.remove();
+  selectedFrom = drag.from;
+  renderGame();
+}
+
+window.addEventListener("pointermove", event => {
+  if (!dragState || event.pointerId !== dragState.pointerId) return;
+  const dx = event.clientX - dragState.startX;
+  const dy = event.clientY - dragState.startY;
+  if (!dragState.moved && Math.hypot(dx, dy) > 5) dragState.moved = true;
+  if (dragState.moved) {
+    dragState.ghost.style.left = `${event.clientX - dragState.ghost.offsetWidth / 2}px`;
+    dragState.ghost.style.top = `${event.clientY - dragState.ghost.offsetHeight / 2}px`;
+    const hoveredZone = document.elementFromPoint(event.clientX, event.clientY)?.closest?.(".off-zone");
+    for (const zone of document.querySelectorAll(".off-zone")) {
+      zone.classList.toggle("drop-hover", zone === hoveredZone && zone.classList.contains("legal-target"));
+    }
+  }
+}, { passive: true, capture: true });
+window.addEventListener("pointerup", finishCheckerDrag, true);
+window.addEventListener("pointercancel", cancelCheckerDrag, true);
+window.addEventListener("lostpointercapture", cancelCheckerDrag, true);
 
 async function start() {
   try {
@@ -679,19 +910,43 @@ async function start() {
     $("loading").hidden = true;
     $("app").hidden = false;
     const invitedOpponentId = new URLSearchParams(location.search).get("opponent");
-    await loadMatches();
     if (invitedOpponentId && invitedOpponentId !== user.id) {
-      const { data: invitedProfile, error: invitedProfileError } = await client.from("profiles")
-        .select("id,username,display_name,account_status")
-        .eq("id", invitedOpponentId)
-        .maybeSingle();
-      if (invitedProfileError) {
-        setNotice("game-notice", invitedProfileError.message, true);
+      const { data: invitedProfile } = await client.from("profiles")
+        .select("username").eq("id", invitedOpponentId).maybeSingle();
+      if (invitedProfile?.username) $("opponent-username").value = invitedProfile.username;
+    }
+    await loadMatches();
+    await startRealtime();
+
+    // When launched from an existing FLOUSTREAM conversation, the opponent
+    // is already known. Reuse an existing live match or create the invitation
+    // directly; never ask the user to search for the same chat participant.
+    if (invitedOpponentId && invitedOpponentId !== user.id &&
+        new URLSearchParams(location.search).get("embed") === "1") {
+      setNotice("game-notice", "Подключаем собеседника из чата…");
+      const reusable = matches.find(match =>
+        opponentId(match) === invitedOpponentId &&
+        ["waiting", "awaiting_opening_roll", "active"].includes(match.status)
+      );
+      if (reusable) {
+        await openMatch(reusable.id);
+        if (reusable.status === "waiting" && sideFor(reusable) === "B") {
+          await invokeAction("accept_match");
+        }
       } else {
-        await openChatMatch(invitedOpponentId, invitedProfile);
+        const { data: opponent, error: opponentError } = await client
+          .from("profiles")
+          .select("id,username,display_name,account_status")
+          .eq("id", invitedOpponentId)
+          .maybeSingle();
+        if (opponentError) throw opponentError;
+        if (!opponent || opponent.account_status !== "active") {
+          setNotice("game-notice", "Собеседник недоступен для игры.", true);
+        } else {
+          await createMatch(opponent);
+        }
       }
     }
-    await startRealtime();
   } catch (error) {
     $("loading").textContent = `Не удалось подключить игровой зал: ${error.message}`;
   }

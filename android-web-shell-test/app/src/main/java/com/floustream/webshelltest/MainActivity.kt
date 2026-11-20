@@ -116,10 +116,12 @@ class MainActivity : Activity() {
                 ): WebResourceResponse? {
                     val path = request?.url?.path.orEmpty()
                     val asset = when {
+                        path.endsWith("/messages.html") -> "messages.html"
                         path.endsWith("/backgammon.html") -> "backgammon.html"
                         path.endsWith("/backgammon.js") -> "backgammon.js"
                         path.endsWith("/backgammon/engine.js") -> "backgammon/engine.js"
                         path.endsWith("/backgammon/rules.js") -> "backgammon/rules.js"
+                        path.endsWith("/supabase/functions/_shared/dice.mjs") -> "supabase/functions/_shared/dice.mjs"
                         path.endsWith("/supabase/functions/_shared/engine.mjs") -> "supabase/functions/_shared/engine.mjs"
                         path.endsWith("/supabase/functions/_shared/rules.mjs") -> "supabase/functions/_shared/rules.mjs"
                         else -> null
@@ -151,9 +153,6 @@ class MainActivity : Activity() {
                     val currentUrl = url.orEmpty()
                     if (currentUrl.startsWith(HOME_URL)) {
                         installApkMessagesNavigation(view)
-                    }
-                    if (currentUrl.substringBefore("?").endsWith("/messages.html")) {
-                        installApkChatGameEntry(view)
                     }
                     if (startupAuthCheckPending &&
                         (currentUrl.startsWith(AUTH_URL) ||
@@ -198,56 +197,6 @@ class MainActivity : Activity() {
                 event.stopImmediatePropagation();
                 window.location.href=new URL('messages.html',window.location.href).href;
               },true);
-            })();
-        """.trimIndent(), null)
-    }
-
-    // The exact hosted Messages page is reused. Only this APK adds the game panel.
-    private fun installApkChatGameEntry(view: WebView?) {
-        if (view == null || isFinishing || isDestroyed) return
-        view.evaluateJavascript("""
-            (function(){
-              if(window.__floustreamApkChatGame)return;
-              var peer=new URLSearchParams(window.location.search).get('with');
-              var head=document.querySelector('.chat-head');
-              var messages=document.querySelector('.messages');
-              if(!peer||!head||!messages)return;
-              window.__floustreamApkChatGame=true;
-              var style=document.createElement('style');
-              style.textContent='#floustream-apk-game{display:none;border-bottom:1px solid #382b4b;background:#100d18;padding:8px}#floustream-apk-game.open{display:block}#floustream-apk-game iframe{display:block;width:100%;height:min(62dvh,560px);min-height:360px;border:0;border-radius:12px;background:#090811}#floustream-apk-game .game-title{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 2px 9px;color:#e9d8ff;font-size:13px;font-weight:700}#floustream-apk-game button,#floustream-apk-game-toggle{border:1px solid #7952a0;border-radius:10px;background:#21172f;color:#f1e5ff;padding:8px 11px;font:inherit;font-size:12px}#floustream-apk-game-toggle{margin-left:auto;white-space:nowrap;min-height:36px}';
-              document.head.append(style);
-              var toggle=document.createElement('button');
-              toggle.id='floustream-apk-game-toggle';
-              toggle.type='button';
-              toggle.textContent='🎲 Нарды';
-              toggle.setAttribute('aria-expanded','false');
-              head.append(toggle);
-              var panel=document.createElement('section');
-              panel.id='floustream-apk-game';
-              var title=document.createElement('div');
-              title.className='game-title';
-              var label=document.createElement('span');
-              label.textContent='Нарды с собеседником';
-              var close=document.createElement('button');
-              close.type='button';close.textContent='Свернуть';
-              title.append(label,close);
-              var frame=document.createElement('iframe');
-              frame.title='Игра в длинные нарды';
-              frame.loading='lazy';
-              var gameUrl=new URL('backgammon.html',window.location.href);
-              gameUrl.searchParams.set('embed','1');
-              gameUrl.searchParams.set('opponent',peer);
-              frame.src=gameUrl.href;
-              panel.append(title,frame);
-              messages.parentNode.insertBefore(panel,messages);
-              function setOpen(open){
-                panel.classList.toggle('open',open);
-                toggle.setAttribute('aria-expanded',String(open));
-                toggle.textContent=open?'🎲 Нарды открыты':'🎲 Нарды';
-                if(open)panel.scrollIntoView({behavior:'smooth',block:'nearest'});
-              }
-              toggle.addEventListener('click',function(){setOpen(!panel.classList.contains('open'));});
-              close.addEventListener('click',function(){setOpen(false);});
             })();
         """.trimIndent(), null)
     }
