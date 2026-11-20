@@ -2125,7 +2125,8 @@ private fun SocialNetworkScreen(
                                                     url = mediaUrl,
                                                     onRetry = {},
                                                     title = media.name?.takeIf { it.isNotBlank() } ?: "Музыка",
-                                                    compact = false
+                                                    compact = false,
+                                                    retryWithSameUrl = true
                                                 )
                                             }
                                         }
@@ -3441,7 +3442,8 @@ private fun AudioMessagePlayer(
     url: String,
     onRetry: () -> Unit,
     title: String = "Голосовое сообщение",
-    compact: Boolean = true
+    compact: Boolean = true,
+    retryWithSameUrl: Boolean = false
 ) {
     val context = LocalContext.current
     val player = remember(url) {
@@ -3512,7 +3514,13 @@ private fun AudioMessagePlayer(
         Surface(
             modifier = Modifier.size(42.dp).clickable {
                 if (playbackError) {
-                    onRetry()
+                    if (retryWithSameUrl) {
+                        player.seekTo(0L)
+                        player.prepare()
+                        player.play()
+                    } else {
+                        onRetry()
+                    }
                 } else if (player.isPlaying) {
                     player.pause()
                 } else {
