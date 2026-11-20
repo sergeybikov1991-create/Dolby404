@@ -760,8 +760,10 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
 .author-hub-head strong{font-size:17px;letter-spacing:.14em;background:linear-gradient(90deg,#fff,#d9a8ff,#7be9ff);-webkit-background-clip:text;background-clip:text;color:transparent}
 .author-hub-head span{font-size:11px;color:#b9a9cb}
 .author-hub-head button{width:42px;height:42px;min-width:42px;border:1px solid #ffffff35;border-radius:13px;background:#21172f;color:#fff;font-size:23px}
-.author-hub-stage{position:relative;flex:1;min-height:0;display:flex;align-items:stretch;justify-content:center;padding:12px 12px 4px}
-.author-banner{position:relative;display:block;width:min(100%,680px);height:100%;min-height:0;padding:0;overflow:hidden;border:1px solid #caa4ff66;border-radius:22px;background:#171020;box-shadow:0 18px 65px #000a,0 0 32px #a66bff25;text-align:left;color:#fff;isolation:isolate}
+.author-hub-stage{position:relative;flex:1;min-height:0;display:flex;align-items:stretch;justify-content:flex-start;gap:12px;padding:12px 12px 4px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scrollbar-width:none;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+.author-hub-stage::-webkit-scrollbar{display:none}
+.author-banner{position:relative;display:block;flex:0 0 100%;width:100%;height:100%;min-height:0;padding:0;overflow:hidden;border:1px solid #caa4ff66;border-radius:22px;background:#171020;box-shadow:0 18px 65px #000a,0 0 32px #a66bff25;text-align:left;color:#fff;isolation:isolate;scroll-snap-align:center}
+@media(min-width:760px){.author-banner{flex-basis:min(100%,900px)}}
 .author-banner>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;transition:transform .7s ease}
 .author-banner:active>img{transform:scale(1.025)}
 .author-banner-shade{position:absolute;inset:0;background:linear-gradient(180deg,#05030b08 20%,#09051040 48%,#080510ed 100%);z-index:1}
@@ -945,15 +947,25 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
 </div>
 <div class="author-hub" id="author-hub" hidden>
  <header class="author-hub-head"><button type="button" id="author-hub-back" aria-label="Назад">←</button><div><strong>AuTHOR</strong><span>Твоя творческая территория</span></div><button type="button" id="author-hub-close" aria-label="Закрыть">×</button></header>
- <main class="author-hub-stage" aria-label="Разделы AuTHOR">
+ <main class="author-hub-stage" id="author-hub-stage" aria-label="Баннеры AuTHOR">
   <button type="button" class="author-banner author-banner-photos" id="author-photos-banner" aria-label="Открыть фотогалерею">
    <img src="https://raw.githubusercontent.com/sergeybikov1991-create/Dolby404/design/author-banner-library/design/author-banners/02-my-photos/%2002-my-photos.jpg" alt="" fetchpriority="high">
    <span class="author-banner-shade"></span>
    <span class="author-banner-copy"><small>AuTHOR · ГАЛЕРЕЯ</small><strong>МОИ ФОТО</strong><span>Все твои фотографии в одном месте</span><b>ОТКРЫТЬ ФОТОГАЛЕРЕЮ <i>↗</i></b></span>
   </button>
-  <div class="author-hub-dots" aria-label="Карусель AuTHOR"><span class="active"></span><span></span><span></span><span></span></div>
+  <button type="button" class="author-banner author-banner-videos" id="author-videos-banner" aria-label="Открыть мои видео">
+   <img src="https://raw.githubusercontent.com/sergeybikov1991-create/Dolby404/design/author-banner-library/design/author-banners/01-my-videos/my-video.jpg" alt="" loading="lazy">
+   <span class="author-banner-shade"></span>
+   <span class="author-banner-copy"><small>AuTHOR · ВИДЕОТЕКА</small><strong>МОИ ВИДЕО</strong><span>Твои видео в одном месте</span><b>ОТКРЫТЬ ВИДЕОТЕКУ <i>↗</i></b></span>
+  </button>
+  <button type="button" class="author-banner author-banner-editor" id="author-editor-banner" aria-label="Video Editor">
+   <img src="https://raw.githubusercontent.com/sergeybikov1991-create/Dolby404/design/author-banner-library/design/author-banners/03-video-editor/videoR.jpg" alt="" loading="lazy">
+   <span class="author-banner-shade"></span>
+   <span class="author-banner-copy"><small>AuTHOR · CREATIVE STUDIO</small><strong>VIDEO EDITOR</strong><span>Твоя творческая студия видео</span><b>СКОРО <i>✦</i></b></span>
+  </button>
  </main>
- <p class="author-hub-hint">Другие разделы AuTHOR добавим сюда следующими баннерами</p>
+ <div class="author-hub-dots" id="author-hub-dots" aria-label="Переключение баннеров"><span class="active"></span><span></span><span></span></div>
+ <p class="author-hub-hint" id="author-hub-hint">Листай баннеры свайпом</p>
 </div>
 <div class="album-backdrop" id="album-backdrop" hidden>
  <section class="album-panel" role="dialog" aria-modal="true" aria-labelledby="album-title">
@@ -3136,6 +3148,26 @@ function closeAuthorHub(){
   closeAuthorHub();
   await openPhotoAlbum();
  });
+ document.getElementById("author-videos-banner").addEventListener("click",()=>{
+  closeAuthorHub();
+  openVideoAlbum();
+ });
+ document.getElementById("author-editor-banner").addEventListener("click",()=>{
+  document.getElementById("author-hub-hint").textContent="Video Editor подключим следующим этапом.";
+ });
+ const stage=document.getElementById("author-hub-stage");
+ const dots=[...document.querySelectorAll("#author-hub-dots span")];
+ let dotFrame=0;
+ stage.addEventListener("scroll",()=>{
+  if(dotFrame)cancelAnimationFrame(dotFrame);
+  dotFrame=requestAnimationFrame(()=>{
+   const index=Math.max(0,Math.min(dots.length-1,Math.round(stage.scrollLeft/(stage.clientWidth+12))));
+   dots.forEach((dot,i)=>dot.classList.toggle("active",i===index));
+  });
+ },{passive:true});
+ dots.forEach((dot,index)=>dot.addEventListener("click",()=>{
+  stage.scrollTo({left:index*(stage.clientWidth+12),behavior:"smooth"});
+ }));
  hub.addEventListener("click",event=>{if(event.target===hub)closeAuthorHub();});
  document.addEventListener("keydown",event=>{if(event.key==="Escape"&&!hub.hidden)closeAuthorHub();});
 })();
