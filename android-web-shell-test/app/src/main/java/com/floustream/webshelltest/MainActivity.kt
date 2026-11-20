@@ -55,7 +55,7 @@ class MainActivity : Activity() {
 
                     // Let the site's own Supabase client initialize. Do not route
                     // to Home until Auth has confirmed the saved session remotely.
-                    if (target.startsWith(PROFILE_URL)) {
+                    if (target.startsWith(PROFILE_URL) && !entryResolved) {
                         entryResolved = false
                         startupAuthCheckPending = true
                         view?.visibility = View.INVISIBLE
@@ -87,7 +87,7 @@ class MainActivity : Activity() {
                 ): Boolean {
                     val target = request?.url?.toString().orEmpty()
 
-                    if (target.startsWith(PROFILE_URL)) {
+                    if (target.startsWith(PROFILE_URL) && !entryResolved) {
                         entryResolved = false
                         startupAuthCheckPending = true
                         view?.visibility = View.INVISIBLE
@@ -116,6 +116,12 @@ class MainActivity : Activity() {
                 ): WebResourceResponse? {
                     val path = request?.url?.path.orEmpty()
                     val asset = when {
+                        path.endsWith("/profile.html") -> "profile.html"
+                        path.endsWith("/friends.html") -> "friends.html"
+                        path.endsWith("/public-profile.html") -> "public-profile.html"
+                        path.endsWith("/floustream-player.js") -> "floustream-player.js"
+                        path.endsWith("/friend-notifications.js") -> "friend-notifications.js"
+                        path.endsWith("/message-notifications.js") -> "message-notifications.js"
                         path.endsWith("/messages.html") -> "messages.html"
                         path.endsWith("/backgammon.html") -> "backgammon.html"
                         path.endsWith("/backgammon.js") -> "backgammon.js"
