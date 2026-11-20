@@ -45,7 +45,7 @@ jobs:
             ['Video Editor banner', /id="author-editor-banner"/],
             ['lOOPS banner', /id="author-loops-banner"/],
             ['lOOPS inner page', /id="loops-page"/],
-            ['2px banner spacing', /\.author-hub-stage\\{[^}]*gap:2px;padding:2px/],
+            ['2px banner spacing', /\.author-hub-stage\{[^}]*gap:2px;padding:2px/],
             ['Photos gallery action', /openPhotoAlbum\(\)/],
             ['Videos album action', /openVideoAlbum\(\)/],
             ['temporary TYK button style', /author-banner-tap/]
