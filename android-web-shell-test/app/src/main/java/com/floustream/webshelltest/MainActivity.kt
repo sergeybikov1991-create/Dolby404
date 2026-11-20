@@ -119,6 +119,7 @@ class MainActivity : Activity() {
                         path.endsWith("/messages.html") -> "messages.html"
                         path.endsWith("/backgammon.html") -> "backgammon.html"
                         path.endsWith("/backgammon.js") -> "backgammon.js"
+                        path.endsWith("/backgammon/dice.js") -> "backgammon/dice.js"
                         path.endsWith("/backgammon/engine.js") -> "backgammon/engine.js"
                         path.endsWith("/backgammon/rules.js") -> "backgammon/rules.js"
                         path.endsWith("/supabase/functions/_shared/dice.mjs") -> "supabase/functions/_shared/dice.mjs"
