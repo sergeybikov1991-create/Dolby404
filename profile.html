@@ -790,14 +790,12 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
 .loops-letter-p{color:#ff704f}
 .loops-letter-s{color:#ffd43b}
 .loops-eyes{display:inline-flex;align-items:center;gap:.045em;margin:0 .005em;transform:translateY(.015em)}
-.loops-eye{position:relative;display:inline-block;width:.48em;height:.62em;overflow:hidden;border:.045em solid var(--eye-ring);border-radius:50%;background:#fff;box-shadow:inset 0 0 0 .035em #ffffff,0 0 .06em #32104a55}
-.loops-eye:first-child{--eye-ring:#19bde0}
-.loops-eye:nth-child(2){--eye-ring:#ff9d28}
-.loops-eye:before{content:"";position:absolute;left:var(--pupil-x,34%);top:31%;width:37%;height:42%;border-radius:50%;background:radial-gradient(circle at 35% 28%,#b7f4ff 0 10%,#28618b 28%,#101a2b 76%);box-shadow:0 0 .06em #17213e;animation:loops-gaze 4.8s ease-in-out infinite}
-.loops-eye:after{content:"";position:absolute;inset:-2px 0 auto;height:0;background:#fff;border-radius:0 0 50% 50%;animation:loops-blink 5.2s infinite}
-.loops-eye:nth-child(2):before{animation-delay:.12s}
+.loops-eye{position:relative;display:inline-block;flex:0 0 .48em;width:.48em;height:.62em;overflow:hidden;border:0;border-radius:48% 48% 46% 46%;background:linear-gradient(180deg,#fff 0 72%,#e8f7ff 100%);box-shadow:inset 0 -.025em .035em #7da6c855,0 .025em .035em #32104a55;transform-origin:50% 55%}
+.loops-eye:before{content:"";position:absolute;left:31%;top:29%;width:43%;height:48%;border-radius:50%;background:radial-gradient(circle at 34% 25%,#fff 0 10%,#26384b 13%,#101a2b 65%,#050912 100%);box-shadow:0 0 .025em #07111f;transform:translateX(var(--pupil-shift,0))}
+.loops-eye:after{content:"";position:absolute;z-index:2;left:-3%;right:-3%;top:-2%;height:0;border-radius:0 0 48% 48%;background:linear-gradient(180deg,#fff 0 72%,#e8f7ff 100%);box-shadow:0 .018em .025em #7da6c855;animation:loops-blink 4.9s infinite}
+.loops-eye:before{animation:loops-gaze 4.8s ease-in-out infinite}\n.loops-eye:nth-child(2):before{animation-delay:.12s}
 .loops-eye:nth-child(2):after{animation-delay:.14s}
-@keyframes loops-gaze{0%,12%,100%{transform:translateX(0)}25%,38%{transform:translateX(-22%)}52%,68%{transform:translateX(28%)}82%{transform:translateX(0)}}
+@keyframes loops-gaze{0%,12%,100%{--pupil-shift:0}25%,38%{--pupil-shift:-.075em}52%,68%{--pupil-shift:.075em}82%{--pupil-shift:0}}
 @keyframes loops-blink{0%,43%,47%,91%,95%,100%{height:0}45%,93%{height:110%}}
 .loops-page[hidden]{display:none!important}
 .loops-page{position:fixed;inset:0;z-index:260;display:flex;flex-direction:column;overflow:auto;background:radial-gradient(ellipse at 50% 12%,#302047 0%,#100d19 58%,#05040a 100%);color:#fff}
