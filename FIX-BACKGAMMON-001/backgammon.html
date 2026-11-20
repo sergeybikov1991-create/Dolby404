@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0b0a14">
+<title>FLOUSTREAM — Длинные нарды</title>
+<style>
+:root{color-scheme:dark;--bg:#090811;--panel:#151321;--line:#39304d;--text:#f5efff;--muted:#a69bb8;--violet:#a66bff;--cyan:#55e7d0;--gold:#e7bd79}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 20% 0%,#29164a 0,transparent 38%),radial-gradient(ellipse at 90% 70%,#102d35 0,transparent 34%),var(--bg);color:var(--text);font-family:Arial,sans-serif}
+button,input{font:inherit}button{cursor:pointer}
+.topbar{height:64px;display:flex;align-items:center;justify-content:space-between;padding:0 max(calc((100% - 1180px)/2),16px);border-bottom:1px solid var(--line);background:#0c0a15e8;position:sticky;top:0;z-index:5;backdrop-filter:blur(14px)}
+.logo{font-weight:900;letter-spacing:3px;font-size:22px;text-shadow:0 0 18px #9055ff}
+.top-actions{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:13px}
+a{color:#d7baff;text-decoration:none}
+.ghost,.primary,.danger{border:1px solid var(--line);border-radius:12px;padding:10px 14px;background:#201a2d;color:var(--text)}
+.primary{background:linear-gradient(120deg,#6334a1,#38225e);border-color:#8d5ad1;box-shadow:0 0 18px #8d5ad122}
+.danger{background:#3a1b2c;border-color:#75344e;color:#ffdce8}
+button:disabled{opacity:.45;cursor:not-allowed}
+.shell{max-width:1180px;margin:24px auto;padding:0 16px;display:grid;grid-template-columns:320px minmax(0,1fr);gap:18px}
+.panel{background:linear-gradient(145deg,#191626ed,#100f19f2);border:1px solid var(--line);border-radius:18px;padding:18px;box-shadow:0 16px 44px #0003}
+h1{font-size:26px;margin:0 0 8px}
+h2{font-size:16px;margin:0 0 14px}
+.subtle{color:var(--muted);font-size:13px;line-height:1.5}
+.invite-form{display:flex;gap:8px;margin:14px 0}
+.invite-form input{min-width:0;flex:1;border:1px solid #4a3d60;border-radius:11px;padding:11px;background:#0d0b15;color:#fff}
+.matches{display:flex;flex-direction:column;gap:9px;margin-top:12px}
+.match-item{border:1px solid #39304a;border-radius:13px;padding:12px;background:#100e19}
+.match-item.active{border-color:#a66bff;box-shadow:0 0 14px #a66bff20}
+.match-title{font-weight:700;font-size:13px;margin-bottom:5px}
+.match-meta{font-size:11px;color:var(--muted);margin-bottom:9px}
+.match-actions{display:flex;gap:7px;flex-wrap:wrap}
+.match-actions button{font-size:12px;padding:7px 10px}
+.notice{min-height:22px;color:#c6a8ff;font-size:12px;line-height:1.5;margin-top:10px;overflow-wrap:anywhere}
+.game-panel{min-width:0}
+.game-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px}
+.game-head p{margin:5px 0 0}
+.game-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:14px 0}
+.dice{display:flex;gap:9px;align-items:center;min-height:52px}.opening-die-result{display:inline-flex;align-items:center;gap:6px}
+.die{width:43px;height:43px;position:relative;perspective:260px;flex:0 0 43px}
+.die::after{content:"";position:absolute;left:8%;right:8%;height:7px;bottom:-9px;border-radius:50%;background:radial-gradient(ellipse,#000b 0%,#0005 48%,transparent 76%);filter:blur(2px);transform:scaleX(.92);opacity:.62;pointer-events:none}
+.die.rolling::after{animation:die-shadow .82s cubic-bezier(.2,.78,.2,1) both}
+.die-cube{position:absolute;inset:0;transform-style:preserve-3d;transform:var(--die-final-transform);will-change:transform}
+.die.rolling .die-cube{animation:cube-roll .82s cubic-bezier(.2,.78,.2,1) both}
+.die-face{position:absolute;inset:0;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);padding:6px;gap:1px;border:1px solid #c9c0d4;border-radius:12px;background:linear-gradient(145deg,#fff,#d8d0e5);box-shadow:inset 0 1px 2px #fff,0 3px 8px #0007;backface-visibility:hidden}
+.die-face.front{transform:translateZ(21.5px)}
+.die-face.back{transform:rotateY(180deg) translateZ(21.5px)}
+.die-face.right{transform:rotateY(90deg) translateZ(21.5px)}
+.die-face.left{transform:rotateY(-90deg) translateZ(21.5px)}
+.die-face.top{transform:rotateX(90deg) translateZ(21.5px)}
+.die-face.bottom{transform:rotateX(-90deg) translateZ(21.5px)}
+.die-pip{border-radius:50%;background:transparent}
+.die-pip.active{background:radial-gradient(circle at 35% 30%,#51445e,#241d31 72%);box-shadow:inset 0 1px 2px #0008}
+.dice-result{display:inline-flex;align-items:center;gap:5px;margin-left:8px;padding:7px 12px;border:1px solid #9d78d0;border-radius:999px;background:linear-gradient(120deg,#392455,#172f38);color:#fff;font-weight:900;letter-spacing:2px;text-shadow:0 0 12px #b88aff;box-shadow:0 0 22px #9d78d055;animation:dice-result-pop .9s cubic-bezier(.16,.84,.28,1) both}@keyframes dice-result-pop{0%{opacity:0;transform:translateY(18px) scale(.35);filter:blur(5px)}55%{opacity:1;transform:translateY(-5px) scale(1.16);filter:blur(0)}78%{transform:translateY(2px) scale(.96)}100%{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes cube-roll{
+  0%{transform:translateY(-3px) rotateX(0) rotateY(0) rotateZ(0) scale(.88)}
+  14%{transform:translateY(-17px) rotateX(var(--roll-x-1)) rotateY(var(--roll-y-1)) rotateZ(var(--roll-z-1)) scale(1.09)}
+  29%{transform:translateY(-2px) rotateX(var(--roll-x-2)) rotateY(var(--roll-y-2)) rotateZ(var(--roll-z-2)) scale(1.03)}
+  43%{transform:translateY(-11px) rotateX(var(--roll-x-3)) rotateY(var(--roll-y-3)) rotateZ(var(--roll-z-3)) scale(1.06)}
+  57%{transform:translateY(-1px) rotateX(var(--roll-x-4)) rotateY(var(--roll-y-4)) rotateZ(var(--roll-z-4)) scale(1.02)}
+  70%{transform:translateY(-6px) rotateX(var(--roll-x-5)) rotateY(var(--roll-y-5)) rotateZ(var(--roll-z-5)) scale(1.035)}
+  82%{transform:translateY(0) rotateX(var(--roll-x-6)) rotateY(var(--roll-y-6)) rotateZ(var(--roll-z-6)) scale(1)}
+  91%{transform:translateY(-2px) rotateX(var(--roll-x-7)) rotateY(var(--roll-y-7)) rotateZ(var(--roll-z-7)) scale(1.015)}
+  100%{transform:var(--die-final-transform) translateY(0) scale(1)}
+}
+@keyframes die-shadow{
+  0%{transform:scaleX(.72);opacity:.48;filter:blur(2px)}
+  14%{transform:scaleX(1.18);opacity:.28;filter:blur(4px)}
+  29%{transform:scaleX(.82);opacity:.5;filter:blur(2px)}
+  43%{transform:scaleX(1.12);opacity:.32;filter:blur(3px)}
+  57%{transform:scaleX(.88);opacity:.48;filter:blur(2px)}
+  70%{transform:scaleX(1.04);opacity:.38;filter:blur(3px)}
+  82%{transform:scaleX(.94);opacity:.52;filter:blur(2px)}
+  100%{transform:scaleX(1);opacity:.62;filter:blur(2px)}
+}
+
+/* FLOUSTREAM — clean wooden backgammon board */
+:root{--gold:#d5ad70;--cyan:#d5ad70}
+body{background:radial-gradient(ellipse at 50% 0%,#39291f 0,transparent 48%),#100d0b}
+.board-wrap{
+  position:relative;
+  display:flex;
+  flex:1 1 auto;
+  min-width:0;
+  min-height:500px;
+  padding:8px;
+  overflow:hidden;
+  border:2px solid #b78b5b;
+  border-radius:20px;
+  background:linear-gradient(145deg,#795034 0%,#38251f 24%,#21191b 52%,#69452f 100%);
+  box-shadow:inset 0 2px 3px #fff6,inset 0 -7px 12px #100907,0 14px 30px #000b,0 0 0 1px #3b281b;
+}
+.board{
+  position:relative;
+  isolation:isolate;
+  display:grid;
+  grid-template-rows:minmax(0,1fr) minmax(0,1fr);
+  flex:1 1 auto;
+  min-width:0;
+  min-height:0;
+  width:100%;
+  padding:7px;
+  gap:0;
+  overflow:hidden;
+  border:1px solid #c49a6b;
+  border-radius:9px;
+  background:linear-gradient(90deg,#36231e,#65432f 48%,#36231e);
+  box-shadow:inset 0 3px 8px #100905,inset 0 -2px 4px #f4d5a055,0 2px 5px #0009;
+}
+.board-row{
+  position:relative;
+  z-index:1;
+  display:grid;
+  grid-template-columns:repeat(12,minmax(0,1fr));
+  min-width:0;
+  min-height:0;
+  height:100%;
+  gap:3px;
+}
+.board-row::after{
+  content:"";
+  position:absolute;
+  z-index:5;
+  top:0;
+  bottom:0;
+  left:50%;
+  width:4px;
+  transform:translateX(-50%);
+  border-left:1px solid #e0bd82;
+  border-right:1px solid #21130e;
+  background:linear-gradient(90deg,#a77a48,#4a2c1b 48%,#24150f);
+  box-shadow:0 0 4px #000b;
+  pointer-events:none;
+}
+.point,.point.bottom{
+  position:relative;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:flex-start;
+  width:100%;
+  height:100%;
+  min-width:0;
+  min-height:0;
+  padding:0;
+  overflow:hidden;
+  touch-action:none;
+  border:1px solid #d5b17b55;
+  border-radius:3px;
+  background:linear-gradient(180deg,#b98b61,#815638);
+  box-shadow:inset 1px 0 4px #f6d8a033,inset -2px 0 5px #10080599,0 2px 3px #0008;
+}
+.point.bottom{justify-content:flex-end}
+.point::before{
+  content:"";
+  position:absolute;
+  z-index:0;
+  top:0;
+  left:4%;
+  right:4%;
+  height:100%;
+  background:linear-gradient(180deg,#392b34,#4e3440);
+  filter:drop-shadow(2px 3px 2px #100805aa);
+  clip-path:polygon(0 0,100% 0,50% 100%);
+  pointer-events:none;
+}
+.point:nth-child(odd)::before{
+  background:linear-gradient(180deg,#d7b07b,#8b6145);
+}
+.point.bottom::before{
+  top:auto;
+  bottom:0;
+  background:linear-gradient(0deg,#392b34,#4e3440);
+  clip-path:polygon(0 100%,100% 100%,50% 0);
+}
+.point.bottom:nth-child(odd)::before{
+  background:linear-gradient(0deg,#d7b07b,#8b6145);
+}
+.point-number{
+  position:absolute;
+  z-index:2;
+  top:3px;
+  left:0;
+  right:0;
+  color:#f5e4c7;
+  font-size:clamp(7px,1.5vw,10px);
+  font-weight:800;
+  text-align:center;
+  text-shadow:0 1px 3px #160c07,0 0 5px #160c07;
+  pointer-events:none;
+}
+.point.bottom .point-number{top:auto;bottom:3px}
+.stack{
+  position:relative;
+  z-index:1;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:flex-start;
+  width:100%;
+  gap:2px;
+  pointer-events:none;
+}
+.point.bottom .stack{flex-direction:column-reverse}
+.checker{
+  flex:0 0 auto;
+  width:min(90%,30px);
+  aspect-ratio:1;
+  border:2px solid #f3dfb8;
+  border-radius:50%;
+  background:radial-gradient(circle at 35% 25%,#f5dcff,#9858dd 65%,#52258d);
+  box-shadow:0 4px 5px #000c,inset 0 2px 3px #fff,inset 0 -3px 4px #695033aa,0 0 0 1px #6e512d;
+}
+.checker.b{
+  border-color:#d7fff8;
+  background:radial-gradient(circle at 35% 25%,#e5fff9,#54cbb7 65%,#166d69);
+  box-shadow:0 4px 5px #000c,inset 0 2px 3px #f2c49a88,inset 0 -3px 4px #160807,0 0 0 1px #c49a60;
+}
+.checker.selected-checker{
+  position:relative;
+  z-index:4;
+  outline:2px solid #f4d38b;
+  outline-offset:2px;
+  transform:translateY(-6px) scale(1.3);
+  filter:brightness(1.16) drop-shadow(0 5px 5px #000c);
+  box-shadow:0 0 0 2px #b88948,0 0 13px #e8c47c99,0 6px 8px #000c,inset 0 2px 3px #fff9;
+}
+.point.legal-target{
+  outline:2px solid #f0cb83;
+  outline-offset:-3px;
+  box-shadow:inset 0 0 0 2px #e5bd7555,0 0 13px #d7a85d88;
+}
+.checker-count{
+  position:absolute;
+  z-index:3;
+  top:50%;
+  left:50%;
+  transform:translate(-50%,-50%);
+  color:#fff;
+  font-size:12px;
+  font-weight:900;
+  text-shadow:0 1px 4px #000;
+  pointer-events:none;
+}
+.off-row{
+  position:relative;
+  display:flex;
+  flex:0 0 auto;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+  margin-top:5px;
+  color:var(--muted);
+  font-size:12px;
+}
+.off-zone{
+  position:relative;
+  display:grid;
+  flex:0 0 54px;
+  place-items:center;
+  width:54px;
+  height:54px;
+  touch-action:none;
+  user-select:none;
+  border:2px solid #b99564;
+  border-radius:50%;
+  background:radial-gradient(circle at 35% 28%,#725238 0%,#33231b 58%,#171111 100%);
+  box-shadow:inset 0 2px 5px #fff2,inset 0 -5px 9px #000b,0 3px 8px #0008;
+  color:#fff;
+  transition:border-color .16s,box-shadow .16s,transform .16s;
+}
+.off-zone::before{content:"";position:absolute;inset:6px;border:1px dashed #d5b47a88;border-radius:50%;pointer-events:none}
+.off-zone strong{position:relative;z-index:1;color:#fff;font-size:17px;font-weight:900;text-shadow:0 1px 4px #000}
+.off-zone.legal-target{border-color:#f5d28b;box-shadow:inset 0 0 0 2px #f5d28b55,0 0 0 3px #f5d28b55,0 0 18px #e4bd6d99}
+.off-zone.drop-hover{transform:scale(1.08);background:radial-gradient(circle,#987346,#392719 72%)}
+.empty-board{min-height:260px;display:grid;place-items:center;text-align:center;color:var(--muted);padding:25px}
+.restart-box{padding:12px;border:1px solid #665083;border-radius:12px;background:#241a32;margin:12px 0;font-size:13px}
+.hidden{display:none!important}
+.game-head{justify-content:center;text-align:center;margin:0 0 7px}
+.game-head h2{display:none}
+.game-status-wrap{width:100%}
+#game-status{margin:0;font-size:14px;font-weight:700;letter-spacing:.2px;color:#f0d9ae;text-shadow:0 0 12px #d5ad7055}
+#game-status:empty,.game-controls:empty{display:none}
+.game-status-win{font-size:19px!important;color:#ffe3a1!important;text-shadow:0 0 8px #f5ca70,0 0 22px #e4a83c!important;letter-spacing:1px}
+.dice-layer{position:absolute;inset:0;z-index:6;pointer-events:none}
+.dice-layer .die{position:absolute;width:clamp(34px,5vw,48px);height:clamp(34px,5vw,48px);flex:none;pointer-events:none}
+.dice-layer .die-face.front{transform:translateZ(24px)}
+.dice-layer .die-face.back{transform:rotateY(180deg) translateZ(24px)}
+.dice-layer .die-face.right{transform:rotateY(90deg) translateZ(24px)}
+.dice-layer .die-face.left{transform:rotateY(-90deg) translateZ(24px)}
+.dice-layer .die-face.top{transform:rotateX(90deg) translateZ(24px)}
+.dice-layer .die-face.bottom{transform:rotateX(-90deg) translateZ(24px)}
+.dice-layer .die-placeholder{top:50%;transform:translate(-50%,-50%) scale(.9);opacity:.65}
+.dice-layer .die-placeholder:nth-child(1){left:calc(50% - 25px)}
+.dice-layer .die-placeholder:nth-child(2){left:calc(50% + 25px)}
+.dice-layer .die-placeholder .die-pip{visibility:hidden}
+.dice-roll-trigger{
+  position:absolute;left:50%;top:calc(50% + 43px);transform:translateX(-50%);
+  pointer-events:auto;border:1px solid #e0bd82;border-radius:999px;padding:7px 17px;
+  background:linear-gradient(135deg,#5b3c27,#211713);color:#f8e6c8;
+  font-size:10px;font-weight:900;letter-spacing:1.8px;box-shadow:0 0 18px #d5ad7044
+}
+.dice-roll-trigger:active{transform:translateX(-50%) scale(.94)}
+.dice-scattered{animation:die-scatter-in .85s cubic-bezier(.18,.8,.2,1) both}
+.die-position-1{left:23%;top:38%}
+.die-position-2{left:69%;top:57%}
+@keyframes die-scatter-in{
+  0%{left:50%;top:50%;transform:translate(-50%,-50%) rotate(0) scale(.65)}
+  18%{transform:translate(-50%,-90%) rotate(160deg) scale(1.18)}
+  42%{transform:translate(-50%,12%) rotate(430deg) scale(1.04)}
+  68%{transform:translate(-50%,-12%) rotate(680deg) scale(1.02)}
+  100%{left:var(--die-left);top:var(--die-top);transform:translate(0,0) rotate(900deg) scale(1)}
+}
+.dice-waiting{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);padding:8px 13px;border:1px solid #c49a6066;border-radius:999px;background:#160f0ddd;color:#e6cda5;font-size:11px;white-space:nowrap}
+.restart-button{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:43px;height:43px;flex:0 0 43px;display:grid;place-items:center;border:2px solid #b99564;border-radius:50%;background:radial-gradient(circle at 35% 28%,#725238 0%,#33231b 58%,#171111 100%);box-shadow:inset 0 2px 5px #fff2,inset 0 -5px 9px #000b,0 3px 8px #0008;color:#f5dfb8;font-size:26px;line-height:1;transition:transform .2s,box-shadow .2s}
+.restart-button:not(.hidden):active{transform:translate(-50%,-50%) rotate(-35deg) scale(.92)}
+.restart-button.hidden{display:none}
+#game-title,.dice-result,.dice,.restart-box{display:none!important}
+body.embed{height:100dvh;min-height:0;overflow:hidden}
+body.embed .topbar{display:none}
+body.embed .shell{display:flex;flex-direction:column;max-width:none;width:100%;height:100dvh;min-height:0;margin:0;padding:0;gap:0}
+body.embed .shell>aside{display:none}
+body.embed .game-panel{display:flex;flex:1 1 auto;flex-direction:column;min-width:0;min-height:0;height:100%;padding:4px;border:0;border-radius:0;overflow:hidden;gap:0}
+body.embed .game-head{flex:0 0 auto;margin:0 0 4px}
+body.embed #game{display:flex;flex:1 1 auto;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
+body.embed #game.hidden{display:none}
+body.embed .game-controls{flex:0 0 auto;margin:0}
+body.embed .board-wrap{display:flex;flex:1 1 auto;min-height:0;padding:5px}
+body.embed .board{min-height:0;height:100%;gap:0;padding:5px}
+body.embed .board-row{gap:2px}
+body.embed .off-row{flex:0 0 auto;margin-top:4px}
+body.embed .game-notice{flex:0 0 auto}
+@media(max-width:850px){.shell{grid-template-columns:1fr}}
+@media(max-width:520px){
+  .shell{margin:14px auto;padding:0 9px;gap:12px}
+  .panel{padding:13px;border-radius:15px}
+  .logo{font-size:18px}
+  .top-actions{font-size:11px}
+  .top-actions .ghost{padding:8px}
+  .board-wrap{padding:5px}
+  .board{min-height:390px;gap:0;padding:5px}
+  .board-row{gap:2px}
+  .checker{width:min(92%,24px);border-width:1px}
+  .point-number{font-size:7px}
+  .checker-count{font-size:10px}
+  .off-zone{width:48px;height:48px;flex-basis:48px}
+  .off-zone strong{font-size:15px}
+  .game-head{display:block}
+  .game-head .subtle{margin-top:6px}
+  .invite-form{flex-direction:column}
+  .invite-form button{width:100%}
+  .dice-layer .die{width:36px;height:36px}
+  .dice-layer .die-face.front{transform:translateZ(18px)}
+  .dice-layer .die-face.back{transform:rotateY(180deg) translateZ(18px)}
+  .dice-layer .die-face.right{transform:rotateY(90deg) translateZ(18px)}
+  .dice-layer .die-face.left{transform:rotateY(-90deg) translateZ(18px)}
+  .dice-layer .die-face.top{transform:rotateX(90deg) translateZ(18px)}
+  .dice-layer .die-face.bottom{transform:rotateX(-90deg) translateZ(18px)}
+  .dice-roll-trigger{top:calc(50% + 34px)}
+  body.embed .game-panel{padding:3px}
+  body.embed .board-wrap{padding:3px}
+  body.embed .board{min-height:0;gap:0;padding:3px}
+  body.embed .board-row{gap:1px}
+  body.embed .checker{width:min(96%,22px)}
+}
+@media(prefers-reduced-motion:reduce){.die.rolling .die-cube,.die.rolling::after{animation:none}}
+
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="logo">FLOUSTREAM</div>
+  <div class="top-actions"><span id="account-label">Подключаем аккаунт…</span><a class="ghost" href="home.html">На главную</a></div>
+</header>
+<main class="shell" id="app" hidden>
+  <aside class="panel">
+    <h1>Длинные нарды</h1>
+    <p class="subtle">Онлайн-партии по правилам длинных нард FLOUSTREAM. Без выбивания и без подкручивания костей.</p>
+    <h2>Пригласить игрока</h2>
+    <form class="invite-form" id="invite-form">
+      <input id="opponent-username" autocomplete="off" placeholder="Имя пользователя" maxlength="32" required>
+      <button class="primary" type="submit">Пригласить</button>
+    </form>
+    <div class="subtle">Укажи username соперника из FLOUSTREAM.</div>
+    <div class="notice" id="invite-notice" aria-live="polite"></div>
+    <h2 style="margin-top:22px">Мои партии</h2>
+    <div class="matches" id="matches"><div class="subtle">Загружаем партии…</div></div>
+  </aside>
+  <section class="panel game-panel">
+    <div class="game-head">
+      <div class="game-status-wrap"><p class="subtle" id="game-status">Здесь появится игровой ход.</p></div>
+    </div>
+    <div id="empty-game" class="empty-board">Создай партию или открой приглашение соперника.<br>Поле появится после выбора партии.</div>
+    <div id="game" class="hidden">
+      
+      <div class="game-controls" id="controls"></div>
+      
+      <div class="board-wrap">
+        <div class="board" id="board" aria-label="Игровая доска длинных нард">
+          <div class="dice-layer" id="dice" aria-label="Игровые кости"></div>
+          <div class="board-row" id="board-top"></div>
+          <div class="board-row" id="board-bottom"></div>
+        </div>
+      </div>
+      <div class="off-row" aria-label="Зоны снятых шашек">
+        <div class="off-zone" id="off-zone-a" data-player="A" aria-label="Снятые шашки A">
+          <strong id="off-a">0</strong>
+        </div>
+        <div class="off-zone" id="off-zone-b" data-player="B" aria-label="Снятые шашки B">
+          <strong id="off-b">0</strong>
+        </div>
+        <button type="button" class="restart-button hidden" id="restart-button" aria-label="Предложить перезапуск партии" title="Предложить перезапуск партии">↻</button>
+      </div>
+    </div>
+    <div class="notice" id="game-notice" aria-live="polite"></div>
+  </section>
+</main>
+<div id="loading" class="empty-board">Подключаем игровой зал FLOUSTREAM…</div>
+<script>if(new URLSearchParams(location.search).get("embed")==="1")document.body.classList.add("embed");</script>
+<script type="module" src="backgammon.js"></script>
+</body>
+</html>
