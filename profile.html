@@ -752,7 +752,33 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
   flex:0 0 96px!important;
  }
 }
-</style></head>
+</style><style>
+.author-hub[hidden]{display:none!important}
+.author-hub{position:fixed;inset:0;z-index:240;display:flex;flex-direction:column;overflow:hidden;background:radial-gradient(ellipse at 50% 15%,#302047 0%,#100d19 58%,#05040a 100%);color:#fff}
+.author-hub-head{position:relative;z-index:3;display:flex;align-items:center;gap:12px;padding:max(12px,env(safe-area-inset-top)) 14px 12px;border-bottom:1px solid #ffffff20;background:#0a0713d9;backdrop-filter:blur(16px)}
+.author-hub-head>div{display:flex;flex:1;min-width:0;flex-direction:column;gap:2px}
+.author-hub-head strong{font-size:17px;letter-spacing:.14em;background:linear-gradient(90deg,#fff,#d9a8ff,#7be9ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+.author-hub-head span{font-size:11px;color:#b9a9cb}
+.author-hub-head button{width:42px;height:42px;min-width:42px;border:1px solid #ffffff35;border-radius:13px;background:#21172f;color:#fff;font-size:23px}
+.author-hub-stage{position:relative;flex:1;min-height:0;display:flex;align-items:stretch;justify-content:center;padding:12px 12px 4px}
+.author-banner{position:relative;display:block;width:min(100%,680px);height:100%;min-height:0;padding:0;overflow:hidden;border:1px solid #caa4ff66;border-radius:22px;background:#171020;box-shadow:0 18px 65px #000a,0 0 32px #a66bff25;text-align:left;color:#fff;isolation:isolate}
+.author-banner>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;transition:transform .7s ease}
+.author-banner:active>img{transform:scale(1.025)}
+.author-banner-shade{position:absolute;inset:0;background:linear-gradient(180deg,#05030b08 20%,#09051040 48%,#080510ed 100%);z-index:1}
+.author-banner-copy{position:absolute;z-index:2;left:clamp(20px,5vw,38px);right:20px;bottom:clamp(30px,8vh,66px);display:flex;flex-direction:column;align-items:flex-start;gap:10px;text-shadow:0 2px 16px #000}
+.author-banner-copy small{font-size:11px;font-weight:800;letter-spacing:.2em;color:#e5c8ff}
+.author-banner-copy strong{font-size:clamp(34px,8vw,58px);line-height:.98;font-weight:950;letter-spacing:.025em}
+.author-banner-copy>span{font-size:14px;color:#f1e9fa}
+.author-banner-copy b{display:inline-flex;align-items:center;gap:12px;margin-top:12px;padding:13px 17px;border:1px solid #ffffff8a;border-radius:13px;background:linear-gradient(110deg,#9d56dfed,#5134a8ed);box-shadow:0 0 25px #9d56df77;font-size:11px;letter-spacing:.09em}
+.author-banner-copy i{font-size:17px;font-style:normal}
+.author-hub-dots{display:flex;justify-content:center;gap:7px;padding:12px 0 4px}
+.author-hub-dots span{width:7px;height:7px;border-radius:99px;background:#ffffff45}
+.author-hub-dots span.active{width:23px;background:linear-gradient(90deg,#c18aff,#54dfff);box-shadow:0 0 12px #a66bff99}
+.author-hub-hint{margin:0;padding:4px 12px max(12px,env(safe-area-inset-bottom));text-align:center;color:#8f829f;font-size:10px}
+@media(min-width:760px){.author-hub-stage{padding:18px 24px 6px}.author-banner{width:min(100%,900px)}}
+@media(prefers-reduced-motion:reduce){.author-banner>img{transition:none}}
+</style>
+</head>
 <body>
 <button type="button" class="drawer-menu-button" id="drawer-menu-button" aria-label="Открыть меню" aria-controls="side-drawer" aria-expanded="false"><span class="sound-signal" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span></button>
 
@@ -771,7 +797,7 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
    </div>
   </section>
  <div class="side-drawer-divider"></div><p class="side-drawer-caption">Медиа и общение</p><nav class="side-drawer-links">
- <button class="side-drawer-link author-nav-link" data-drawer-soon="Видео" aria-label="AuTHOR"><span class="side-drawer-icon">▶</span><span class="author-label" aria-label="AuTHOR"><span>A</span><span>u</span><span>T</span><span>H</span><span>O</span><span>R</span></span></button>
+ <button class="side-drawer-link author-nav-link" data-drawer-action="author" aria-label="AuTHOR"><span class="side-drawer-icon">▶</span><span class="author-label" aria-label="AuTHOR"><span>A</span><span>u</span><span>T</span><span>H</span><span>O</span><span>R</span></span></button>
  <a class="side-drawer-link" id="messages-nav-link" href="messages.html?v=20261119-realtime-2"><span class="side-drawer-icon">✉</span>Сообщения</a>
  <button class="side-drawer-link" data-drawer-soon="Сообщества"><span class="side-drawer-icon">◎</span>Сообщества</button>
  <button class="side-drawer-link" data-drawer-soon="Музыка"><span class="side-drawer-icon">♫</span>Музыка</button>
@@ -916,6 +942,18 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
   <div class="likers-list" id="likers-list"></div>
   <div class="actions"><button type="button" id="close-likers">Закрыть</button></div>
  </div>
+</div>
+<div class="author-hub" id="author-hub" hidden>
+ <header class="author-hub-head"><button type="button" id="author-hub-back" aria-label="Назад">←</button><div><strong>AuTHOR</strong><span>Твоя творческая территория</span></div><button type="button" id="author-hub-close" aria-label="Закрыть">×</button></header>
+ <main class="author-hub-stage" aria-label="Разделы AuTHOR">
+  <button type="button" class="author-banner author-banner-photos" id="author-photos-banner" aria-label="Открыть фотогалерею">
+   <img src="https://raw.githubusercontent.com/sergeybikov1991-create/Dolby404/design/author-banner-library/design/author-banners/02-my-photos/%2002-my-photos.jpg" alt="" fetchpriority="high">
+   <span class="author-banner-shade"></span>
+   <span class="author-banner-copy"><small>AuTHOR · ГАЛЕРЕЯ</small><strong>МОИ ФОТО</strong><span>Все твои фотографии в одном месте</span><b>ОТКРЫТЬ ФОТОГАЛЕРЕЮ <i>↗</i></b></span>
+  </button>
+  <div class="author-hub-dots" aria-label="Карусель AuTHOR"><span class="active"></span><span></span><span></span><span></span></div>
+ </main>
+ <p class="author-hub-hint">Другие разделы AuTHOR добавим сюда следующими баннерами</p>
 </div>
 <div class="album-backdrop" id="album-backdrop" hidden>
  <section class="album-panel" role="dialog" aria-modal="true" aria-labelledby="album-title">
@@ -1815,6 +1853,7 @@ function openNavigationDestination(action,label,icon){
  if(action==="profile"){$("cover").scrollIntoView({behavior:"smooth"});}
  else if(action==="feed"){$("feed-section").scrollIntoView({behavior:"smooth"});}
  else if(action==="settings"){openSettingsPanel();}
+ else if(action==="author"){openAuthorHub();}
  else if(action==="photos"){openPhotoAlbum();}
   else if(action==="video"){openVideoAlbum();}
  else if(action==="music"){openMusicSection();} else if(action==="messages"){openMessagesSection();}
@@ -3074,6 +3113,31 @@ start();
  });
  paint();
  window.setInterval(paint,950);
+})();
+</script>
+<script>
+function openAuthorHub(){
+ const hub=document.getElementById("author-hub");
+ if(!hub)return;
+ hub.hidden=false;
+ document.body.style.overflow="hidden";
+}
+function closeAuthorHub(){
+ const hub=document.getElementById("author-hub");
+ if(hub)hub.hidden=true;
+ document.body.style.overflow="";
+}
+(()=>{
+ const hub=document.getElementById("author-hub");
+ if(!hub)return;
+ document.getElementById("author-hub-back").addEventListener("click",closeAuthorHub);
+ document.getElementById("author-hub-close").addEventListener("click",closeAuthorHub);
+ document.getElementById("author-photos-banner").addEventListener("click",async()=>{
+  closeAuthorHub();
+  await openPhotoAlbum();
+ });
+ hub.addEventListener("click",event=>{if(event.target===hub)closeAuthorHub();});
+ document.addEventListener("keydown",event=>{if(event.key==="Escape"&&!hub.hidden)closeAuthorHub();});
 })();
 </script>
 </body>
