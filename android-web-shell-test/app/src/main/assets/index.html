@@ -20,7 +20,7 @@ body { overflow-x: hidden; }
 main { position: relative; z-index: 1; }
 body.moving-bg { background: linear-gradient(145deg, #10152f 0%, #17132d 52%, #101827 100%); }
 body.moving-bg #backdrop { display: none; }
-main { width: 100%; margin: 0; padding: 22px 0 48px; }
+main { width: 100%; margin: 0; padding: 74px 0 48px; }
 header, .panel, .tile {
   border: 1px solid rgba(180, 190, 255, .16);
   background: rgba(18, 22, 48, .72);
@@ -44,10 +44,75 @@ button:active { transform: scale(.98); }
 .tile { width: 100%; margin-top: 0; padding: 18px 16px; min-height: 138px; border-left: 0; border-right: 0; border-radius: 0; }
 .tile strong { display: block; margin-bottom: 8px; }
 footer { padding: 22px 4px; text-align: center; color: #a8afd4; }
+
+/* FLOUSTREAM navigation shell: structure and interactions only, no menu items yet. */
+.drawer-trigger {
+  position: fixed; z-index: 10003; left: 14px; top: 15px;
+  width: 44px; height: 44px; display: grid; place-items: center;
+  padding: 0; border: 1px solid #704b91; border-radius: 14px;
+  background: linear-gradient(145deg, #21152ff2, #100d19f2);
+  box-shadow: 0 0 16px #8d50e733, inset 0 0 12px #9b5bd511;
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  transition: opacity .18s, transform .18s, visibility .18s;
+}
+.drawer-trigger.is-hidden { opacity: 0; transform: scale(.78); visibility: hidden; pointer-events: none; }
+.drawer-signal { display: flex; align-items: center; justify-content: center; gap: 3px; width: 22px; height: 22px; }
+.drawer-signal i {
+  display: block; width: 3px; border-radius: 3px;
+  background: linear-gradient(180deg, #e9d5ff, #a66bff);
+  box-shadow: 0 0 7px #b879ff99; transform-origin: center;
+  animation: drawerSignal .78s ease-in-out infinite alternate;
+}
+.drawer-signal i:nth-child(1) { height: 8px; animation-delay: -.62s; }
+.drawer-signal i:nth-child(2) { height: 16px; animation-delay: -.38s; }
+.drawer-signal i:nth-child(3) { height: 21px; animation-delay: -.12s; }
+.drawer-signal i:nth-child(4) { height: 12px; animation-delay: -.5s; }
+.drawer-signal i:nth-child(5) { height: 6px; animation-delay: -.27s; }
+@keyframes drawerSignal { 0% { transform: scaleY(.28); opacity: .68; } 100% { transform: scaleY(1); opacity: 1; } }
+.drawer-edge { position: fixed; z-index: 10001; left: 0; top: 0; bottom: 0; width: 28px; touch-action: pan-y; }
+.drawer-backdrop {
+  position: fixed; z-index: 10000; inset: 0; background: #030209;
+  opacity: 0; pointer-events: none; transition: opacity .18s;
+}
+.drawer-backdrop.visible { pointer-events: auto; }
+.side-drawer {
+  display: flex; flex-direction: column; position: fixed; z-index: 10002;
+  left: 0; top: 0; bottom: 0; width: min(82vw, 320px);
+  padding: 22px 16px max(22px, env(safe-area-inset-bottom));
+  overflow-y: auto; overscroll-behavior: contain;
+  background: linear-gradient(160deg, #1b1428, #0c0b14 72%);
+  border-right: 1px solid #8054aa; box-shadow: 12px 0 42px #0009;
+  transform: translate3d(-100%, 0, 0);
+  transition: transform .24s cubic-bezier(.2,.8,.2,1);
+  will-change: transform; touch-action: pan-y; color: #e9ddff;
+}
+.side-drawer.dragging { transition: none; }
+.side-drawer-head { display: flex; align-items: center; justify-content: space-between; margin: 2px 2px 24px; }
+.side-drawer-logo { font-size: 21px; font-weight: 900; letter-spacing: 3px; color: #f5eaff; text-shadow: 0 0 18px #9b55ff; }
+.side-drawer-close {
+  width: 36px; height: 36px; min-height: 36px; padding: 0;
+  border: 1px solid #49345f; border-radius: 11px; background: #21172f;
+  color: #f5eaff; font-size: 20px; line-height: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .drawer-signal i { animation: none; }
+  .drawer-backdrop, .side-drawer, .drawer-trigger { transition: none; }
+}
 </style>
 </head>
 <body>
 <div id="backdrop"></div>
+<button type="button" class="drawer-trigger" id="drawer-trigger" aria-label="Открыть навигацию" aria-controls="side-drawer" aria-expanded="false">
+  <span class="drawer-signal" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+</button>
+<div class="drawer-edge" id="drawer-edge" aria-hidden="true"></div>
+<div class="drawer-backdrop" id="drawer-backdrop"></div>
+<aside class="side-drawer" id="side-drawer" aria-label="Навигация FLOUSTREAM" aria-hidden="true">
+  <div class="side-drawer-head">
+    <div class="side-drawer-logo">FLOUSTREAM</div>
+    <button type="button" class="side-drawer-close" id="drawer-close" aria-label="Закрыть навигацию">×</button>
+  </div>
+</aside>
 <main>
   <header>
     <h1>FLOUSTREAM WebShell Lab</h1>
@@ -70,6 +135,89 @@ footer { padding: 22px 4px; text-align: center; color: #a8afd4; }
   <footer>Конец тестовой страницы · FLOUSTREAM WebShell Lab</footer>
 </main>
 <script>
+const drawer = document.getElementById('side-drawer');
+const drawerTrigger = document.getElementById('drawer-trigger');
+const drawerBackdrop = document.getElementById('drawer-backdrop');
+const drawerClose = document.getElementById('drawer-close');
+let drawerOpen = false;
+let drawerGesture = null;
+const drawerWidth = () => drawer.getBoundingClientRect().width || Math.min(window.innerWidth * .82, 320);
+const clampDrawer = (value, min, max) => Math.max(min, Math.min(max, value));
+
+function paintDrawer(offset) {
+  const width = drawerWidth();
+  const x = clampDrawer(offset, -width, 0);
+  const progress = (x + width) / width;
+  drawer.style.transform = 'translate3d(' + x + 'px,0,0)';
+  drawerBackdrop.style.opacity = String(progress * .68);
+  drawerBackdrop.classList.toggle('visible', progress > .01);
+}
+function setDrawerOpen(open) {
+  drawerOpen = Boolean(open);
+  drawerGesture = null;
+  drawer.classList.remove('dragging');
+  drawer.style.transform = drawerOpen ? 'translate3d(0,0,0)' : 'translate3d(-100%,0,0)';
+  drawerBackdrop.style.opacity = drawerOpen ? '.68' : '0';
+  drawerBackdrop.classList.toggle('visible', drawerOpen);
+  drawer.setAttribute('aria-hidden', String(!drawerOpen));
+  drawerTrigger.setAttribute('aria-expanded', String(drawerOpen));
+  drawerTrigger.classList.toggle('is-hidden', drawerOpen);
+  document.documentElement.style.overflow = drawerOpen ? 'hidden' : '';
+}
+drawerTrigger.addEventListener('click', () => setDrawerOpen(!drawerOpen));
+drawerClose.addEventListener('click', () => setDrawerOpen(false));
+drawerBackdrop.addEventListener('click', () => setDrawerOpen(false));
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && drawerOpen) setDrawerOpen(false);
+});
+
+function beginDrawerGesture(x, y, fromEdge) {
+  if (fromEdge && !drawerOpen && x > 32) return;
+  if (!fromEdge && !drawerOpen) return;
+  drawerGesture = { x, y, fromEdge, dx: 0 };
+}
+function moveDrawerGesture(x, y, event) {
+  if (!drawerGesture) return;
+  const dx = x - drawerGesture.x;
+  const dy = y - drawerGesture.y;
+  if (Math.abs(dy) > Math.abs(dx) * 1.25 && Math.abs(dy) > 8) {
+    drawerGesture = null;
+    return;
+  }
+  if (Math.abs(dx) < 5) return;
+  if ((drawerGesture.fromEdge && dx < 0) || (!drawerGesture.fromEdge && dx > 0)) {
+    drawerGesture = null;
+    return;
+  }
+  if (event && event.cancelable) event.preventDefault();
+  drawerGesture.dx = dx;
+  drawer.classList.add('dragging');
+  paintDrawer(drawerGesture.fromEdge ? -drawerWidth() + Math.max(0, dx) : Math.min(0, dx));
+}
+function finishDrawerGesture() {
+  if (!drawerGesture) return;
+  const gesture = drawerGesture;
+  drawerGesture = null;
+  const currentX = new DOMMatrixReadOnly(getComputedStyle(drawer).transform).m41;
+  setDrawerOpen((currentX + drawerWidth()) / drawerWidth() > .4 || gesture.dx > 70);
+}
+document.addEventListener('touchstart', event => {
+  if (event.touches.length !== 1) return;
+  const touch = event.touches[0];
+  if (!drawerOpen && touch.clientX <= 32) beginDrawerGesture(touch.clientX, touch.clientY, true);
+  else if (drawerOpen && drawer.contains(event.target)) beginDrawerGesture(touch.clientX, touch.clientY, false);
+}, { passive: true, capture: true });
+document.addEventListener('touchmove', event => {
+  if (drawerGesture && event.touches.length === 1) {
+    const touch = event.touches[0];
+    moveDrawerGesture(touch.clientX, touch.clientY, event);
+  }
+}, { passive: false, capture: true });
+document.addEventListener('touchend', finishDrawerGesture, { passive: true, capture: true });
+document.addEventListener('touchcancel', () => {
+  if (drawerGesture) { drawerGesture = null; setDrawerOpen(drawerOpen); }
+}, { passive: true, capture: true });
+
 function setBackground(moving) {
   document.body.classList.toggle('moving-bg', moving);
   document.getElementById('status').textContent = moving
@@ -90,6 +238,7 @@ for (let i = 1; i <= 14; i++) {
 document.getElementById('status').textContent =
   'WebView доступен · viewport ' + window.innerWidth + '×' + window.innerHeight +
   ' · DPR ' + window.devicePixelRatio;
+setDrawerOpen(false);
 </script>
 </body>
 </html>
