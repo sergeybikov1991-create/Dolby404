@@ -4,7 +4,7 @@ const supabaseBrowserStub = `
   window.supabase = {
     createClient: () => ({
       auth: {
-        getSession: async () => ({ data: { session: window.__mockSession || null }, error: null }),
+        getSession: async () => ({ data: { session: null }, error: null }),
         getUser: async () => ({ data: { user: null }, error: null }),
         signUp: async () => ({ data: { session: null }, error: null }),
         signInWithPassword: async () => ({ data: { session: null }, error: null })
@@ -48,23 +48,11 @@ test("portal validates an empty login without contacting Supabase", async ({ pag
   await expect(page.locator("#auth-message")).toHaveText("Введи Email и пароль.");
 });
 
-test("entry page shows welcome and opens the portal with a right-to-left swipe", async ({ page }) => {
+test("entry page routes a signed-out visitor to the portal", async ({ page }) => {
   await mockSupabaseCdn(page);
   await page.goto("/");
-  await expect(page.locator("#welcome")).toBeVisible();
+  await expect(page).toHaveURL(/\/portal\.html$/);
   await expect(page.locator(".logo")).toHaveText("FLOUSTREAM");
-  await page.mouse.move(330, 420);
-  await page.mouse.down();
-  await page.mouse.move(220, 420, { steps: 5 });
-  await page.mouse.up();
-  await expect(page).toHaveURL(/portal.html$/);
-});
-
-test("entry page skips welcome for an existing session", async ({ page }) => {
-  await page.addInitScript(() => { window.__mockSession = { user: { id: "existing-user" } }; });
-  await mockSupabaseCdn(page);
-  await page.goto("/");
-  await expect(page).toHaveURL(/home.html$/);
 });
 
 test("portal fits a mobile viewport without horizontal overflow", async ({ page }) => {
