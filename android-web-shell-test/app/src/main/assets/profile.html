@@ -746,6 +746,10 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
   flex:0 0 96px!important;
  }
 }
+.author-nav-link .author-word{display:inline-flex;align-items:center;letter-spacing:.35px;font-weight:900}
+.author-nav-link .author-word>span{display:inline-block;background:linear-gradient(180deg,#fff 0%,#fff 12%,var(--author-color,#55eaff) 48%,color-mix(in srgb,var(--author-color,#55eaff),#080b24 28%) 100%);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent;filter:drop-shadow(0 0 4px var(--author-color,#55eaff)) drop-shadow(0 0 8px var(--author-color,#55eaff));transition:filter .45s ease}
+.author-nav-link:hover .author-word>span{filter:drop-shadow(0 0 6px var(--author-color,#55eaff)) drop-shadow(0 0 13px var(--author-color,#55eaff))}
+@media(prefers-reduced-motion:reduce){.author-nav-link .author-word>span{transition:none}}
 </style></head>
 <body>
 <button type="button" class="drawer-menu-button" id="drawer-menu-button" aria-label="Открыть меню" aria-controls="side-drawer" aria-expanded="false"><span class="sound-signal" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span></button>
@@ -765,11 +769,11 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
    </div>
   </section>
  <div class="side-drawer-divider"></div><p class="side-drawer-caption">Медиа и общение</p><nav class="side-drawer-links">
- <a class="side-drawer-link" id="friends-nav-link" href="friends.html?v=20261114-1"><span class="side-drawer-icon">♧</span>Друзья</a>
+ <button class="side-drawer-link author-nav-link" data-drawer-soon="Видео" aria-label="AuTHOR"><span class="side-drawer-icon">▶</span><span class="author-word" aria-hidden="true"><span>A</span><span>u</span><span>T</span><span>H</span><span>O</span><span>R</span></span></button>
  <a class="side-drawer-link" id="messages-nav-link" href="messages.html?v=20261119-realtime-2"><span class="side-drawer-icon">✉</span>Сообщения</a>
  <button class="side-drawer-link" data-drawer-soon="Сообщества"><span class="side-drawer-icon">◎</span>Сообщества</button>
  <button class="side-drawer-link" data-drawer-soon="Музыка"><span class="side-drawer-icon">♫</span>Музыка</button>
- <button class="side-drawer-link" data-drawer-soon="Видео"><span class="side-drawer-icon">▶</span>Видео</button>
+ <a class="side-drawer-link" id="friends-nav-link" href="friends.html?v=20261114-1"><span class="side-drawer-icon">♧</span>Друзья</a>
  <button class="side-drawer-link" data-drawer-soon="Фото"><span class="side-drawer-icon">▧</span>Фото</button>
  <button class="side-drawer-link" data-drawer-soon="Закладки"><span class="side-drawer-icon">☆</span>Закладки</button></nav>
  <div class="drawer-bottom"><button type="button" class="side-drawer-link drawer-settings-button" id="open-settings"><span class="side-drawer-icon">⚙</span>Настройки</button><button type="button" class="drawer-logout-button" id="drawer-logout">↪ Выйти</button><div class="side-drawer-foot">FLOUSTREAM · твоя цифровая территория</div></div></div>
@@ -2875,7 +2879,8 @@ function applyLanguage(language){
  $("side-drawer").querySelector(".side-drawer-caption").textContent=en?"Navigation":"Навигация";
  $("side-drawer").querySelectorAll("[data-drawer-action]").forEach(b=>{b.innerHTML='<span class="side-drawer-icon">◉</span>'+(en?"My profile":"Мой профиль");});
  $("nav-history-title").textContent=en?"Recently visited":"Недавно посещали";renderNavigationHistory();
- $("side-drawer").querySelectorAll("[data-drawer-soon]").forEach(b=>{const key=b.dataset.drawerSoon;const names=en?{"Друзья":"Friends","Сообщения":"Messages","Сообщества":"Communities","Музыка":"Music","Видео":"Videos","Фото":"Photos","Закладки":"Bookmarks"}:{"Друзья":"Друзья","Сообщения":"Сообщения","Сообщества":"Сообщества","Музыка":"Музыка","Видео":"Видео","Фото":"Фото","Закладки":"Закладки"};const icon=b.querySelector(".side-drawer-icon")?.textContent||"•";b.innerHTML='<span class="side-drawer-icon">'+icon+'</span>'+(names[key]||key);});
+ $("side-drawer").querySelectorAll("[data-drawer-soon]").forEach(b=>{const key=b.dataset.drawerSoon;const names=en?{"Друзья":"Friends","Сообщения":"Messages","Сообщества":"Communities","Музыка":"Music","Видео":"AuTHOR","Фото":"Photos","Закладки":"Bookmarks"}:{"Друзья":"Друзья","Сообщения":"Сообщения","Сообщества":"Сообщества","Музыка":"Музыка","Видео":"AuTHOR","Фото":"Фото","Закладки":"Закладки"};const icon=b.querySelector(".side-drawer-icon")?.textContent||"•";if(key==="Видео"){b.innerHTML='<span class="side-drawer-icon">'+icon+'</span><span class="author-word" aria-hidden="true"><span>A</span><span>u</span><span>T</span><span>H</span><span>O</span><span>R</span></span>';b.setAttribute("aria-label","AuTHOR");}else{b.innerHTML='<span class="side-drawer-icon">'+icon+'</span>'+(names[key]||key);}});
+ if(!window.__floustreamAuthorColorLoop){window.__floustreamAuthorColorLoop=true;const palette=["#00eaff","#ff35d3","#a56bff","#45ffb0","#ffe34d","#ff654f","#4d8dff","#ff8de1"];setInterval(()=>document.querySelectorAll(".author-word>span").forEach(letter=>letter.style.setProperty("--author-color",palette[Math.floor(Math.random()*palette.length)])),850);}
  $("open-settings").innerHTML='<span class="side-drawer-icon">⚙</span>'+(en?"Settings":"Настройки");
  $("drawer-logout").textContent=en?"↪ Sign out":"↪ Выйти";
  $("settings-title").textContent=en?"Settings":"Настройки";
