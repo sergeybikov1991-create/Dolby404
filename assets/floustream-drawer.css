@@ -1,0 +1,23 @@
+/* FLOUSTREAM shared side navigation — copied geometry from profile.html */
+.fs-drawer-menu-button{position:fixed;z-index:10003;left:14px;top:15px;width:44px;height:44px;display:grid;place-items:center;padding:0;border:1px solid #704b91;border-radius:14px;background:linear-gradient(145deg,#21152ff2,#100d19f2);box-shadow:0 0 16px #8d50e733,inset 0 0 12px #9b5bd511;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);transition:opacity .18s,transform .18s,visibility .18s}
+.fs-drawer-menu-button.is-hidden{opacity:0;transform:scale(.78);visibility:hidden;pointer-events:none}
+.fs-drawer-signal{display:flex;align-items:center;justify-content:center;gap:3px;width:22px;height:22px}
+.fs-drawer-signal i{display:block;width:3px;border-radius:3px;background:linear-gradient(180deg,#e9d5ff,#a66bff);box-shadow:0 0 7px #b879ff99;transform-origin:center;animation:fsSignal .78s ease-in-out infinite alternate}
+.fs-drawer-signal i:nth-child(1){height:8px;animation-delay:-.62s}.fs-drawer-signal i:nth-child(2){height:16px;animation-delay:-.38s}.fs-drawer-signal i:nth-child(3){height:21px;animation-delay:-.12s}.fs-drawer-signal i:nth-child(4){height:12px;animation-delay:-.5s}.fs-drawer-signal i:nth-child(5){height:6px;animation-delay:-.27s}
+@keyframes fsSignal{0%{transform:scaleY(.28);opacity:.68}100%{transform:scaleY(1);opacity:1}}
+.fs-drawer-edge{position:fixed;z-index:10001;left:0;top:0;bottom:0;width:22px;touch-action:pan-y}
+.fs-drawer-backdrop{position:fixed;z-index:10000;inset:0;background:#030209;opacity:0;pointer-events:none;transition:opacity .18s}
+.fs-drawer-backdrop.visible{pointer-events:auto}
+.fs-side-drawer{display:flex;flex-direction:column;--fs-drawer-x:-100%;position:fixed;z-index:10002;left:0;top:0;bottom:0;width:min(82vw,320px);padding:22px 16px max(22px,env(safe-area-inset-bottom));overflow-y:auto;overscroll-behavior:contain;background:linear-gradient(160deg,#1b1428,#0c0b14 72%);border-right:1px solid #8054aa;box-shadow:12px 0 42px #0009;transform:translate3d(var(--fs-drawer-x),0,0);transition:transform .24s cubic-bezier(.2,.8,.2,1);will-change:transform;touch-action:pan-y;color:#e9ddff;font-family:inherit}
+.fs-side-drawer.dragging{transition:none}
+.fs-side-drawer-head{display:flex;align-items:center;justify-content:space-between;margin:2px 2px 24px}
+.fs-side-drawer-logo{font-size:21px;font-weight:900;letter-spacing:3px;color:#f5eaff;text-shadow:0 0 18px #9b55ff}
+.fs-side-drawer-close{width:36px;height:36px;padding:0;border:1px solid #49345f;border-radius:11px;background:#21172f;color:#f5eaff;font-size:20px}
+.fs-side-drawer-caption{margin:0 8px 9px;color:#8f83a5;font-size:10px;letter-spacing:1.5px;text-transform:uppercase}
+.fs-side-drawer-links{display:grid;gap:7px}
+.fs-side-drawer-link{display:flex;align-items:center;gap:13px;width:100%;min-height:49px;padding:10px 13px;border:1px solid transparent;border-radius:12px;background:transparent;color:#e9ddff;text-align:left;text-decoration:none;font-size:14px;box-sizing:border-box}
+.fs-side-drawer-link:active,.fs-side-drawer-link.active{background:linear-gradient(100deg,#392052aa,#1b1429);border-color:#68458d}
+.fs-side-drawer-icon{width:23px;flex:0 0 23px;text-align:center;color:#c18aff;font-size:18px}
+.fs-side-drawer-divider{height:1px;margin:17px 4px;background:#33283f}
+.fs-side-drawer-foot{margin:22px 8px 0;color:#756b87;font-size:11px;line-height:1.5}
+@media(prefers-reduced-motion:reduce){.fs-drawer-signal i{animation:none}.fs-drawer-backdrop,.fs-side-drawer{transition:none}}
