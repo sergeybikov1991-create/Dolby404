@@ -424,7 +424,7 @@ private data class SocialPostDto(
     @SerialName("user_id") val userId: String,
     @SerialName("content") val content: String? = null,
     @SerialName("image_url") val imageUrl: String? = null,
-    @SerialName("media") val media: List<SocialPostMediaDto> = emptyList(),
+    @SerialName("media") val media: List<SocialPostMediaDto>? = null,
     @SerialName("created_at") val createdAt: String? = null
 )
 
@@ -2101,7 +2101,7 @@ private fun SocialNetworkScreen(
                                 post.content?.takeIf { it.isNotBlank() }?.let {
                                     Text(it, color = White, fontSize = 14.sp)
                                 }
-                                val postMedia = post.media.filter { media ->
+                                val postMedia = post.media.orEmpty().filter { media ->
                                     media.url?.startsWith("https://") == true
                                 }
                                 if (postMedia.isNotEmpty()) {
