@@ -412,11 +412,19 @@ private data class NewFriendRequest(
 )
 
 @Serializable
+private data class SocialPostMediaDto(
+    @SerialName("type") val type: String = "",
+    @SerialName("url") val url: String? = null,
+    @SerialName("name") val name: String? = null
+)
+
+@Serializable
 private data class SocialPostDto(
     @SerialName("id") val id: Long,
     @SerialName("user_id") val userId: String,
     @SerialName("content") val content: String? = null,
     @SerialName("image_url") val imageUrl: String? = null,
+    @SerialName("media") val media: List<SocialPostMediaDto> = emptyList(),
     @SerialName("created_at") val createdAt: String? = null
 )
 
@@ -2093,13 +2101,44 @@ private fun SocialNetworkScreen(
                                 post.content?.takeIf { it.isNotBlank() }?.let {
                                     Text(it, color = White, fontSize = 14.sp)
                                 }
-                                post.imageUrl?.takeIf { it.startsWith("https://") }?.let { url ->
-                                    AsyncImage(
-                                        model = url,
-                                        contentDescription = "Фото публикации",
-                                        modifier = Modifier.fillMaxWidth().heightIn(max = 340.dp).clip(RoundedCornerShape(6.dp)),
-                                        contentScale = ContentScale.Fit
-                                    )
+                                val postMedia = post.media.filter { media ->
+                                    media.url?.startsWith("https://") == true
+                                }
+                                if (postMedia.isNotEmpty()) {
+                                    Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                                        postMedia.forEach { media ->
+                                            val mediaUrl = media.url ?: return@forEach
+                                            when (media.type.lowercase()) {
+                                                "photo" -> AsyncImage(
+                                                    model = mediaUrl,
+                                                    contentDescription = media.name ?: "Фото публикации",
+                                                    modifier = Modifier.fillMaxWidth().heightIn(max = 340.dp).clip(RoundedCornerShape(8.dp)),
+                                                    contentScale = ContentScale.Fit
+                                                )
+                                                "video" -> {
+                                                    SocialVideoPlayer(url = mediaUrl)
+                                                    media.name?.takeIf { it.isNotBlank() }?.let {
+                                                        Text(it, color = Muted, fontSize = 11.sp, maxLines = 1)
+                                                    }
+                                                }
+                                                "music", "audio" -> AudioMessagePlayer(
+                                                    url = mediaUrl,
+                                                    onRetry = {},
+                                                    title = media.name?.takeIf { it.isNotBlank() } ?: "Музыка",
+                                                    compact = false
+                                                )
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    post.imageUrl?.takeIf { it.startsWith("https://") }?.let { url ->
+                                        AsyncImage(
+                                            model = url,
+                                            contentDescription = "Фото публикации",
+                                            modifier = Modifier.fillMaxWidth().heightIn(max = 340.dp).clip(RoundedCornerShape(6.dp)),
+                                            contentScale = ContentScale.Fit
+                                        )
+                                    }
                                 }
                                 post.createdAt?.let { Text(it.replace("T", " ").take(16), color = Muted, fontSize = 10.sp) }
                             }
@@ -3398,7 +3437,12 @@ private fun VideoPlaybackControls(
 }
 
 @Composable
-private fun AudioMessagePlayer(url: String, onRetry: () -> Unit) {
+private fun AudioMessagePlayer(
+    url: String,
+    onRetry: () -> Unit,
+    title: String = "Голосовое сообщение",
+    compact: Boolean = true
+) {
     val context = LocalContext.current
     val player = remember(url) {
         ExoPlayer.Builder(context).build().apply {
@@ -3461,7 +3505,7 @@ private fun AudioMessagePlayer(url: String, onRetry: () -> Unit) {
     }
 
     Row(
-        Modifier.widthIn(max = 145.dp).fillMaxWidth()
+        (if (compact) Modifier.widthIn(max = 145.dp).fillMaxWidth() else Modifier.fillMaxWidth())
             .background(PanelSoft, RoundedCornerShape(13.dp)).padding(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -3494,7 +3538,8 @@ private fun AudioMessagePlayer(url: String, onRetry: () -> Unit) {
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                if (playbackError) "Не удалось воспроизвести аудио" else "Голосовое сообщение",
+                if (playbackError) "Не удалось воспроизвести аудио" else title,
+
                 color = White,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold
