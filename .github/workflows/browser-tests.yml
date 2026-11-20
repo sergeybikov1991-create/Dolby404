@@ -1,9 +1,8 @@
 name: FLOUSTREAM browser tests
-# Re-run branch validation after welcome-flow test assertion fix
 
 on:
   push:
-    branches: [main, feature/floustream-backgammon-clean-release, feature/floustream-backgammon-final, feature/floustream-welcome-swipe]
+    branches: [main, feature/floustream-backgammon-clean-release, feature/floustream-backgammon-final]
   pull_request:
     branches: [main]
   workflow_dispatch:
