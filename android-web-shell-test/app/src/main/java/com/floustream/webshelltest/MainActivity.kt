@@ -6,7 +6,6 @@ import android.os.Bundle
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.widget.Toast
 
 class MainActivity : Activity() {
     private lateinit var webView: WebView
@@ -25,7 +24,7 @@ class MainActivity : Activity() {
             webViewClient = object : WebViewClient() {
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
-                    title = "FLOUSTREAM WebShell Test"
+                    this@MainActivity.title = "FLOUSTREAM WebShell Test"
                 }
             }
             webChromeClient = WebChromeClient()
