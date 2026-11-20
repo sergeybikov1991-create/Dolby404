@@ -760,9 +760,9 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
 .author-hub-head strong{font-size:17px;letter-spacing:.14em;background:linear-gradient(90deg,#fff,#d9a8ff,#7be9ff);-webkit-background-clip:text;background-clip:text;color:transparent}
 .author-hub-head span{font-size:11px;color:#b9a9cb}
 .author-hub-head button{width:42px;height:42px;min-width:42px;border:1px solid #ffffff35;border-radius:13px;background:#21172f;color:#fff;font-size:23px}
-.author-hub-stage{position:relative;flex:1;min-height:0;display:flex;align-items:stretch;justify-content:flex-start;gap:12px;padding:12px 12px 4px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scrollbar-width:none;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+.author-hub-stage{position:relative;flex:1;min-height:0;display:flex;align-items:stretch;justify-content:flex-start;gap:2px;padding:2px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scrollbar-width:none;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
 .author-hub-stage::-webkit-scrollbar{display:none}
-.author-banner{position:relative;display:block;flex:0 0 100%;width:100%;height:100%;min-height:0;padding:0;overflow:hidden;border:1px solid #caa4ff66;border-radius:22px;background:#171020;box-shadow:0 18px 65px #000a,0 0 32px #a66bff25;text-align:left;color:#fff;isolation:isolate;scroll-snap-align:center}
+.author-banner{position:relative;display:block;flex:0 0 calc(100% - 4px);width:calc(100% - 4px);height:100%;min-height:0;padding:0;overflow:hidden;border:1px solid #caa4ff66;border-radius:18px;background:#171020;box-shadow:0 18px 65px #000a,0 0 32px #a66bff25;text-align:left;color:#fff;isolation:isolate;scroll-snap-align:center}
 @media(min-width:760px){.author-banner{flex-basis:min(100%,900px)}}
 .author-banner>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;transition:transform .7s ease}
 .author-banner:active>img{transform:scale(1.025)}
@@ -773,11 +773,12 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
 .author-banner-copy>span{font-size:14px;color:#f1e9fa}
 .author-banner-copy b{display:inline-flex;align-items:center;gap:12px;margin-top:12px;padding:13px 17px;border:1px solid #ffffff8a;border-radius:13px;background:linear-gradient(110deg,#9d56dfed,#5134a8ed);box-shadow:0 0 25px #9d56df77;font-size:11px;letter-spacing:.09em}
 .author-banner-copy i{font-size:17px;font-style:normal}
+.author-banner-tap{position:absolute;z-index:4;left:50%;bottom:18px;transform:translateX(-50%);display:inline-flex;align-items:center;justify-content:center;min-width:112px;min-height:42px;padding:10px 26px;border:1px solid #ffffffbd;border-radius:14px;background:linear-gradient(110deg,#9d56dfed,#5134a8ed);box-shadow:0 0 24px #9d56df88;color:#fff;font-size:14px;font-weight:900;letter-spacing:.16em;text-align:center;text-shadow:0 1px 8px #0008;pointer-events:auto}
 .author-hub-dots{display:flex;justify-content:center;gap:7px;padding:12px 0 4px}
 .author-hub-dots span{width:7px;height:7px;border-radius:99px;background:#ffffff45}
 .author-hub-dots span.active{width:23px;background:linear-gradient(90deg,#c18aff,#54dfff);box-shadow:0 0 12px #a66bff99}
 .author-hub-hint{margin:0;padding:4px 12px max(12px,env(safe-area-inset-bottom));text-align:center;color:#8f829f;font-size:10px}
-@media(min-width:760px){.author-hub-stage{padding:18px 24px 6px}.author-banner{width:min(100%,900px)}}
+@media(min-width:760px){.author-hub-stage{padding:2px;gap:2px}.author-banner{flex-basis:calc(100% - 4px);width:calc(100% - 4px)}}
 @media(prefers-reduced-motion:reduce){.author-banner>img{transition:none}}
 
 /* lOOPS — animated eyes banner and simple destination shell */
@@ -978,21 +979,25 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
   <button type="button" class="author-banner author-banner-photos" id="author-photos-banner" aria-label="Открыть фотогалерею">
    <img src="https://raw.githubusercontent.com/sergeybikov1991-create/Dolby404/design/author-banner-library/design/author-banners/02-my-photos/%2002-my-photos.jpg" alt="" fetchpriority="high">
    <span class="author-banner-shade"></span>
-   <span class="author-banner-copy"><small>AuTHOR · ГАЛЕРЕЯ</small><strong>МОИ ФОТО</strong><span>Все твои фотографии в одном месте</span><b>ОТКРЫТЬ ФОТОГАЛЕРЕЮ <i>↗</i></b></span>
-  </button>
+   <span class="author-banner-copy"><small>AuTHOR · ГАЛЕРЕЯ</small><strong>МОИ ФОТО</strong><span>Все твои фотографии в одном месте</span></span>
+  
+   <span class="author-banner-tap" role="button" aria-label="ТЫК">ТЫК</span></button>
   <button type="button" class="author-banner author-banner-videos" id="author-videos-banner" aria-label="Открыть мои видео">
    <img src="https://raw.githubusercontent.com/sergeybikov1991-create/Dolby404/design/author-banner-library/design/author-banners/01-my-videos/my-video.jpg" alt="" loading="lazy">
    <span class="author-banner-shade"></span>
-   <span class="author-banner-copy"><small>AuTHOR · ВИДЕОТЕКА</small><strong>МОИ ВИДЕО</strong><span>Твои видео в одном месте</span><b>ОТКРЫТЬ ВИДЕОТЕКУ <i>↗</i></b></span>
-  </button>
+   <span class="author-banner-copy"><small>AuTHOR · ВИДЕОТЕКА</small><strong>МОИ ВИДЕО</strong><span>Твои видео в одном месте</span></span>
+  
+   <span class="author-banner-tap" role="button" aria-label="ТЫК">ТЫК</span></button>
   <button type="button" class="author-banner author-banner-editor" id="author-editor-banner" aria-label="Video Editor">
    <img src="https://raw.githubusercontent.com/sergeybikov1991-create/Dolby404/design/author-banner-library/design/author-banners/03-video-editor/videoR.jpg" alt="" loading="lazy">
    <span class="author-banner-shade"></span>
-   <span class="author-banner-copy"><small>AuTHOR · CREATIVE STUDIO</small><strong>VIDEO EDITOR</strong><span>Твоя творческая студия видео</span><b>СКОРО <i>✦</i></b></span>
-  </button>
+   <span class="author-banner-copy"><small>AuTHOR · CREATIVE STUDIO</small><strong>VIDEO EDITOR</strong><span>Твоя творческая студия видео</span></span>
+  
+   <span class="author-banner-tap" role="button" aria-label="ТЫК">ТЫК</span></button>
   <button type="button" class="author-banner author-banner-loops" id="author-loops-banner" aria-label="Открыть lOOPS">
    <span class="loops-wordmark" aria-label="lOOPS"><span class="loops-letter loops-letter-l">l</span><span class="loops-eyes" aria-hidden="true"><span class="loops-eye"></span><span class="loops-eye"></span></span><span class="loops-letter loops-letter-p">P</span><span class="loops-letter loops-letter-s">S</span></span>
-  </button>
+  
+   <span class="author-banner-tap" role="button" aria-label="ТЫК">ТЫК</span></button>
  </main>
  <div class="author-hub-dots" id="author-hub-dots" aria-label="Переключение баннеров"><span class="active"></span><span></span><span></span><span></span></div>
  <p class="author-hub-hint" id="author-hub-hint">Листай баннеры свайпом</p>
@@ -3178,19 +3183,23 @@ function closeAuthorHub(){
  if(!hub)return;
  document.getElementById("author-hub-back").addEventListener("click",closeAuthorHub);
  document.getElementById("author-hub-close").addEventListener("click",closeAuthorHub);
- document.getElementById("author-photos-banner").addEventListener("click",async()=>{
+ document.getElementById("author-photos-banner").addEventListener("click",async(event)=>{
+  if(!event.target.closest(".author-banner-tap"))return;
   closeAuthorHub();
   await openPhotoAlbum();
  });
- document.getElementById("author-videos-banner").addEventListener("click",()=>{
+ document.getElementById("author-videos-banner").addEventListener("click",(event)=>{
+  if(!event.target.closest(".author-banner-tap"))return;
   closeAuthorHub();
   openVideoAlbum();
  });
- document.getElementById("author-editor-banner").addEventListener("click",()=>{
+ document.getElementById("author-editor-banner").addEventListener("click",(event)=>{
+  if(!event.target.closest(".author-banner-tap"))return;
   document.getElementById("author-hub-hint").textContent="Video Editor подключим следующим этапом.";
  });
  const loopsPage=document.getElementById("loops-page");
- document.getElementById("author-loops-banner").addEventListener("click",()=>{
+ document.getElementById("author-loops-banner").addEventListener("click",(event)=>{
+  if(!event.target.closest(".author-banner-tap"))return;
   closeAuthorHub();
   loopsPage.hidden=false;
   document.body.style.overflow="hidden";
