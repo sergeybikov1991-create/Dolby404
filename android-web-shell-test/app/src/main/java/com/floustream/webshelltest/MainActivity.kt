@@ -1001,6 +1001,16 @@ class MainActivity : ComponentActivity() {
                             media.playsInline = true;
                             media.setAttribute('playsinline', '');
                             media.setAttribute('webkit-playsinline', '');
+                            if (!media.dataset.floustreamCorsSource && media.getAttribute('src')) {
+                                const source = media.getAttribute('src');
+                                media.crossOrigin = 'anonymous';
+                                media.dataset.floustreamCorsSource = '1';
+                                media.src = source;
+                            }
+                            if (!media.poster) {
+                                const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#25143b"/><stop offset="1" stop-color="#090811"/></linearGradient></defs><rect width="640" height="360" fill="url(#g)"/><circle cx="320" cy="180" r="48" fill="#ffffff18" stroke="#c49aff" stroke-opacity=".7" stroke-width="2"/><path d="M305 151 L350 180 L305 209 Z" fill="#ead7ff"/></svg>';
+                                media.poster = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
+                            }
                             if (media.poster && media.dataset.floustreamPosterReady === '1') return;
                             if (media.dataset.floustreamPosterPending === '1') return;
                             media.dataset.floustreamPosterPending = '1';
