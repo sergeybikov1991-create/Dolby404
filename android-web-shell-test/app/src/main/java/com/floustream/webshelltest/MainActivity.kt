@@ -100,7 +100,6 @@ class MainActivity : ComponentActivity() {
             settings.loadsImagesAutomatically = true
             settings.javaScriptCanOpenWindowsAutomatically = false
             settings.setSupportMultipleWindows(false)
-            addJavascriptInterface(voiceMessageAudioBridge, "FloustreamVoiceAudio")
             webViewClient = object : WebViewClient() {
                 override fun shouldInterceptRequest(
                     view: WebView?,
@@ -133,6 +132,14 @@ class MainActivity : ComponentActivity() {
                 ) {
                     super.onPageStarted(view, url, favicon)
                     val target = url.orEmpty()
+                    val targetUri = Uri.parse(target)
+                    val trustedSiteOrigin = targetUri.scheme == "https" &&
+                        targetUri.host == "sergeybikov1991-create.github.io"
+                    if (trustedSiteOrigin) {
+                        view?.addJavascriptInterface(voiceMessageAudioBridge, "FloustreamVoiceAudio")
+                    } else {
+                        view?.removeJavascriptInterface("FloustreamVoiceAudio")
+                    }
 
                     if (target.startsWith(AUTH_URL)) {
                         authenticatedUserId = null
@@ -985,6 +992,7 @@ class MainActivity : ComponentActivity() {
      */
     private fun applyAndroidVoiceMessageRecorder(view: WebView?) {
         if (view == null || isFinishing || isDestroyed) return
+        val bridgeToken = voiceMessageAudioBridge.javascriptToken
         val script = """
             (function() {
                 try {
@@ -1005,6 +1013,7 @@ class MainActivity : ComponentActivity() {
                     button.style.touchAction = 'manipulation';
                     form.insertBefore(button, text);
 
+                    const bridgeToken = '$bridgeToken';
                     let recording = false;
                     let startedAt = 0;
                     let leaseHeld = false;
@@ -1018,7 +1027,7 @@ class MainActivity : ComponentActivity() {
                     function releaseLease() {
                         if (!leaseHeld) return;
                         leaseHeld = false;
-                        try { window.FloustreamVoiceAudio.releaseVoiceMessage(); } catch (_) {}
+                        try { window.FloustreamVoiceAudio.releaseVoiceMessage(bridgeToken); } catch (_) {}
                     }
                     function resetButton() {
                         recording = false;
@@ -1043,7 +1052,7 @@ class MainActivity : ComponentActivity() {
                             notice('Запись голоса недоступна в этой версии Android WebView.', true);
                             return;
                         }
-                        if (!window.FloustreamVoiceAudio.tryAcquireVoiceMessage()) {
+                        if (!window.FloustreamVoiceAudio.tryAcquireVoiceMessage(bridgeToken)) {
                             resetButton();
                             notice('Микрофон уже используется другой функцией. Заверши её и попробуй снова.', true);
                             return;
@@ -1057,13 +1066,13 @@ class MainActivity : ComponentActivity() {
                             });
                             stopPermissionStream();
                             if (disposed) {
-                                window.FloustreamVoiceAudio.cancelNativeRecording();
+                                window.FloustreamVoiceAudio.cancelNativeRecording(bridgeToken);
                                 releaseLease();
                                 resetButton();
                                 return;
                             }
                             await new Promise(resolve => setTimeout(resolve, 120));
-                            if (!window.FloustreamVoiceAudio.startNativeRecording()) {
+                            if (!window.FloustreamVoiceAudio.startNativeRecording(bridgeToken)) {
                                 throw new Error('Не удалось запустить нативную запись M4A.');
                             }
                             startedAt = Date.now();
@@ -1076,7 +1085,7 @@ class MainActivity : ComponentActivity() {
                             notice('Идёт запись M4A… Нажми ■, чтобы отправить голосовое сообщение.');
                         } catch (error) {
                             stopPermissionStream();
-                            try { window.FloustreamVoiceAudio.cancelNativeRecording(); } catch (_) {}
+                            try { window.FloustreamVoiceAudio.cancelNativeRecording(bridgeToken); } catch (_) {}
                             releaseLease();
                             resetButton();
                             notice('Не удалось начать запись: ' + (error && error.message ? error.message : 'проверь разрешение микрофона.'), true);
@@ -1091,7 +1100,7 @@ class MainActivity : ComponentActivity() {
                         const elapsed = Date.now() - startedAt;
                         let token = '';
                         try {
-                            token = window.FloustreamVoiceAudio.stopNativeRecording() || '';
+                            token = window.FloustreamVoiceAudio.stopNativeRecording(bridgeToken) || '';
                         } catch (_) {
                             token = '';
                         }
@@ -1132,7 +1141,7 @@ class MainActivity : ComponentActivity() {
                     window.addEventListener('pagehide', () => {
                         disposed = true;
                         stopPermissionStream();
-                        try { window.FloustreamVoiceAudio.cancelNativeRecording(); } catch (_) {}
+                        try { window.FloustreamVoiceAudio.cancelNativeRecording(bridgeToken); } catch (_) {}
                         releaseLease();
                     }, { once: true });
                 } catch (_) {}
