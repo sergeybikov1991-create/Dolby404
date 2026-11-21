@@ -242,9 +242,6 @@ class MainActivity : ComponentActivity() {
                         request.grant(arrayOf(PermissionRequest.RESOURCE_AUDIO_CAPTURE))
                     } else {
                         pendingWebAudioPermissionRequest?.deny()
-        pendingCaptureFile?.delete()
-        pendingCaptureFile = null
-        pendingCaptureUri = null
                         pendingWebAudioPermissionRequest = request
                         requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), AUDIO_PERMISSION_REQUEST_CODE)
                     }
