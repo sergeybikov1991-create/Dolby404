@@ -429,7 +429,8 @@ class MainActivity : ComponentActivity() {
                     (document.head || document.documentElement).appendChild(style);
 
                     const applyGuestState = (session) => {
-                        const isGuest = !session || !session.user || !session.user.id;
+                        const isGuest = !session || !session.user || !session.user.id ||
+                            session.user.is_anonymous === true;
                         const userId = isGuest ? 'guest' : String(session.user.id);
                         window.__floustreamAndroidUserId = userId;
                         document.documentElement.classList.toggle('floustream-android-guest', isGuest);
@@ -734,7 +735,8 @@ class MainActivity : ComponentActivity() {
                                 if (!confirmed.error && confirmed.data && confirmed.data.user) {
                                     window.__floustreamPushSession = {
                                         userId: confirmed.data.user.id,
-                                        accessToken: stored.data.session.access_token
+                                        accessToken: stored.data.session.access_token,
+                                        isAnonymous: confirmed.data.user.is_anonymous === true
                                     };
                                     return 'verified';
                                 }
@@ -787,8 +789,11 @@ class MainActivity : ComponentActivity() {
                     ) { pushResult ->
                         try {
                             val pushSession = JSONObject(pushResult ?: "{}")
-                            authenticatedUserId = pushSession.optString("userId")
-                                .takeIf { it.isNotBlank() }
+                            authenticatedUserId = if (pushSession.optBoolean("isAnonymous", false)) {
+                                null
+                            } else {
+                                pushSession.optString("userId").takeIf { it.isNotBlank() }
+                            }
                             PushTokenRegistrar.register(
                                 this@MainActivity,
                                 pushSession.optString("userId"),
