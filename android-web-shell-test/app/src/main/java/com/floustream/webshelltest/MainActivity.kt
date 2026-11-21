@@ -14,7 +14,6 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -94,6 +93,17 @@ class MainActivity : Activity() {
                     super.onPageStarted(view, url, favicon)
                     val target = url.orEmpty()
 
+                    if (target.startsWith(AUTH_URL)) {
+                        authenticatedUserId = null
+                        authFlowActive = true
+                    }
+                    if (target.startsWith(PROFILE_URL) && authFlowActive) {
+                        entryResolved = false
+                        startupAuthCheckPending = true
+                        view?.visibility = View.INVISIBLE
+                        return
+                    }
+
                     // Let the site's own Supabase client initialize. Do not route
                     // to Home until Auth has confirmed the saved session remotely.
                     if (target.startsWith(PROFILE_URL) && !entryResolved) {
@@ -109,10 +119,6 @@ class MainActivity : Activity() {
                         startupAuthCheckPending = true
                         view?.visibility = View.INVISIBLE
                         return
-                    }
-
-                    if (target.startsWith(AUTH_URL)) {
-                        authFlowActive = true
                     }
 
                     if (target == WELCOME_ASSET_URL || target.startsWith(HOME_URL)) {
@@ -270,7 +276,6 @@ class MainActivity : Activity() {
             }
         }
 
-        webView.addJavascriptInterface(AndroidSessionBridge(), "FloustreamAndroid")
         inAppUpdater = InAppUpdater(this)
         setContentView(webView)
         if (BuildConfig.DEBUG) {
@@ -279,13 +284,6 @@ class MainActivity : Activity() {
 
         // Keep the same HTTPS origin and Supabase localStorage used by the website.
         webView.loadUrl(SITE_BASE_URL)
-    }
-
-    private inner class AndroidSessionBridge {
-        @JavascriptInterface
-        fun setSessionUser(userId: String?) {
-            authenticatedUserId = userId?.takeIf { it.isNotBlank() }
-        }
     }
 
     /**
@@ -335,9 +333,6 @@ class MainActivity : Activity() {
                         const userId = isGuest ? 'guest' : String(session.user.id);
                         window.__floustreamAndroidUserId = userId;
                         document.documentElement.classList.toggle('floustream-android-guest', isGuest);
-                        if (window.FloustreamAndroid) {
-                            window.FloustreamAndroid.setSessionUser(isGuest ? '' : userId);
-                        }
                         if (window.__floustreamAndroidMediaUserChanged) {
                             window.__floustreamAndroidMediaUserChanged();
                         }
@@ -359,7 +354,6 @@ class MainActivity : Activity() {
                     connect(0);
                 } catch (_) {
                     document.documentElement.classList.add('floustream-android-guest');
-                    if (window.FloustreamAndroid) window.FloustreamAndroid.setSessionUser('');
                 }
             })();
         """.trimIndent()
@@ -670,6 +664,8 @@ class MainActivity : Activity() {
                     ) { pushResult ->
                         try {
                             val pushSession = JSONObject(pushResult ?: "{}")
+                            authenticatedUserId = pushSession.optString("userId")
+                                .takeIf { it.isNotBlank() }
                             PushTokenRegistrar.register(
                                 this@MainActivity,
                                 pushSession.optString("userId"),
@@ -682,6 +678,7 @@ class MainActivity : Activity() {
                     showAuthenticatedScreen(view)
                 }
                 "unauthenticated" -> {
+                    authenticatedUserId = null
                     cancelAuthCheck()
                     startupAuthCheckPending = false
                     val currentUrl = view?.url.orEmpty()
@@ -703,6 +700,7 @@ class MainActivity : Activity() {
                     }
                 }
                 "offline" -> {
+                    authenticatedUserId = null
                     cancelAuthCheck()
                     showOfflineScreen(view)
                 }
