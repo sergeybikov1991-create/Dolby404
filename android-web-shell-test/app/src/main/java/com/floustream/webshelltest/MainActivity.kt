@@ -485,6 +485,8 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        fileChooserCallback?.onReceiveValue(null)
+        fileChooserCallback = null
         cancelAuthCheck()
         if (::inAppUpdater.isInitialized) inAppUpdater.close()
         if (::webView.isInitialized) {
