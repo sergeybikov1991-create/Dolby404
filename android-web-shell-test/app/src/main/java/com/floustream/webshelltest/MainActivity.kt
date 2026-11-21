@@ -143,6 +143,7 @@ class MainActivity : ComponentActivity() {
 
                     if (target.startsWith(AUTH_URL)) {
                         authenticatedUserId = null
+                        voiceMessageAudioBridge.activeUserId = null
                         authFlowActive = true
                     }
                     if (target.startsWith(PROFILE_URL) && authFlowActive) {
@@ -392,7 +393,7 @@ class MainActivity : ComponentActivity() {
         encodedPath: String,
         requestHeaders: Map<String, String>
     ): Boolean {
-        if (!authenticatedUserId.isNullOrBlank()) return false
+        if (!voiceMessageAudioBridge.activeUserId.isNullOrBlank()) return false
         val path = encodedPath.lowercase()
         val isImageRequest = requestHeaders.entries
             .firstOrNull { it.key.equals("Accept", ignoreCase = true) }
@@ -415,6 +416,7 @@ class MainActivity : ComponentActivity() {
      */
     private fun syncAndroidAlbumAccess(view: WebView?) {
         if (view == null || isFinishing || isDestroyed) return
+        val bridgeToken = voiceMessageAudioBridge.javascriptToken
         val script = """
             (function() {
                 try {
@@ -445,6 +447,14 @@ class MainActivity : ComponentActivity() {
                             session.user.is_anonymous === true;
                         const userId = isGuest ? 'guest' : String(session.user.id);
                         window.__floustreamAndroidUserId = userId;
+                        try {
+                            if (window.FloustreamVoiceAudio) {
+                                window.FloustreamVoiceAudio.updateSessionUserId(
+                                    '$bridgeToken',
+                                    isGuest ? '' : userId
+                                );
+                            }
+                        } catch (_) {}
                         document.documentElement.classList.toggle('floustream-android-guest', isGuest);
                         if (window.__floustreamAndroidMediaUserChanged) {
                             window.__floustreamAndroidMediaUserChanged();
@@ -806,6 +816,7 @@ class MainActivity : ComponentActivity() {
                             } else {
                                 pushSession.optString("userId").takeIf { it.isNotBlank() }
                             }
+                            voiceMessageAudioBridge.activeUserId = authenticatedUserId
                             PushTokenRegistrar.register(
                                 this@MainActivity,
                                 pushSession.optString("userId"),
@@ -819,6 +830,7 @@ class MainActivity : ComponentActivity() {
                 }
                 "unauthenticated" -> {
                     authenticatedUserId = null
+                    voiceMessageAudioBridge.activeUserId = null
                     cancelAuthCheck()
                     startupAuthCheckPending = false
                     val currentUrl = view?.url.orEmpty()
@@ -841,6 +853,7 @@ class MainActivity : ComponentActivity() {
                 }
                 "offline" -> {
                     authenticatedUserId = null
+                    voiceMessageAudioBridge.activeUserId = null
                     cancelAuthCheck()
                     showOfflineScreen(view)
                 }
