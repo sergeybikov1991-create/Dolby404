@@ -77,12 +77,21 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.DOLBY404_KEY_PASSWORD }}
         run: gradle --no-daemon :app:assembleRelease
 
-      - name: Verify APK identity and signature
+      - name: Verify APK identity, signature and signing certificate
         if: steps.signing.outputs.ready == 'true'
         run: |
           APK=android-web-shell-test/app/build/outputs/apk/release/app-release.apk
           test -s "$APK"
           $ANDROID_HOME/build-tools/36.0.0/apksigner verify --verbose "$APK"
+          CERT_SHA=$($ANDROID_HOME/build-tools/36.0.0/apksigner verify --print-certs "$APK" | awk -F': ' '/Signer #1 certificate SHA-256 digest:/{print toupper($2); exit}')
+          EXPECTED_CERT_SHA="757681105E9DFA43B84036C637815FBA0A98FB6169DADF75E7AE136504A9EED9"
+          if [ "$CERT_SHA" != "$EXPECTED_CERT_SHA" ]; then
+            echo "::error::APK signing certificate does not match RELEASE-SIGNING-PASSPORT.md"
+            echo "Expected certificate SHA-256: $EXPECTED_CERT_SHA"
+            echo "Actual certificate SHA-256: ${CERT_SHA:-not-found}"
+            exit 1
+          fi
+          echo "APK signing certificate matches the FLOUSTREAM release passport."
           $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android' versionCode='100' versionName='1.0'"
 
       - name: Generate checksum and updater manifest
