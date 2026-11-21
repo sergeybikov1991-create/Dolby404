@@ -293,7 +293,9 @@ class MainActivity : ComponentActivity() {
                     fileChooserParams: FileChooserParams?
                 ): Boolean {
                     // A WebView may issue a second chooser request before the first
-                    // one returns. Complete the previous callback to avoid hanging it.
+                    // one returns. Close the old dialog and complete its callback.
+                    pendingFileChooserDialog?.dismiss()
+                    pendingFileChooserDialog = null
                     this@MainActivity.fileChooserCallback?.onReceiveValue(null)
                     this@MainActivity.fileChooserCallback = filePathCallback
 
