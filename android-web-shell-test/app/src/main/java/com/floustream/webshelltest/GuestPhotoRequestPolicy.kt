@@ -44,7 +44,12 @@ internal object GuestPhotoRequestPolicy {
         val albumTableRequest = restTable in albumTables
 
         val objectIndex = segments.indexOf("object")
-        val storageBucket = if (objectIndex >= 0) segments.getOrNull(objectIndex + 2) else null
+        val objectModeOrBucket = if (objectIndex >= 0) segments.getOrNull(objectIndex + 1) else null
+        val storageBucket = if (objectModeOrBucket in setOf("sign", "public", "authenticated")) {
+            segments.getOrNull(objectIndex + 2)
+        } else {
+            objectModeOrBucket
+        }
         val albumStorageRequest =
             segments.size >= 3 &&
             segments[0] == "storage" &&
