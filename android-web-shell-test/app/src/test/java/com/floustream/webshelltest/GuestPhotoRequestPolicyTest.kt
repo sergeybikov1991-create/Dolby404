@@ -6,6 +6,11 @@ import org.junit.Test
 
 class GuestPhotoRequestPolicyTest {
     @Test
+    fun emptyRequestPathIsNotTreatedAsAlbumMedia() {
+        assertFalse(GuestPhotoRequestPolicy.shouldBlock(null, "", emptyMap()))
+    }
+
+    @Test
     fun guestAlbumTableRequestsAreBlocked() {
         assertTrue(
             GuestPhotoRequestPolicy.shouldBlock(
