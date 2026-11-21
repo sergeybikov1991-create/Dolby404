@@ -879,6 +879,11 @@ class MainActivity : ComponentActivity() {
                         '  border: 0 !important;',
                         '  outline: 0 !important;',
                         '  box-shadow: none !important;',
+                        '}',
+                        '.message-file {',
+                        '  background: transparent !important;',
+                        '  padding: 0 !important;',
+                        '  border-radius: 0 !important;',
                         '}'
                     ].join('\\n');
                     (document.head || document.documentElement).appendChild(style);
