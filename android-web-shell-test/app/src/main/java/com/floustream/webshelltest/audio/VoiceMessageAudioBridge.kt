@@ -29,7 +29,6 @@ class VoiceMessageAudioBridge(
     val javascriptToken: String = UUID.randomUUID().toString()
 
     @Volatile var activeUserId: String? = null
-        private set
 
     @JavascriptInterface
     fun updateSessionUserId(token: String, userId: String?) {
