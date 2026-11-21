@@ -656,7 +656,6 @@ class MainActivity : ComponentActivity() {
                     window.__floustreamAndroidMediaUserChanged = function() {
                         const nextUser = currentUserKey();
                         if (nextUser !== lastCacheUser) {
-                            const previousUser = lastCacheUser;
                             lastCacheUser = nextUser;
                             // A different account must not inherit the previous
                             // account's local media cache on this device.
