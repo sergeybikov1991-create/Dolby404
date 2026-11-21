@@ -660,9 +660,14 @@ class MainActivity : ComponentActivity() {
                             lastCacheUser = nextUser;
                             // A different account must not inherit the previous
                             // account's local media cache on this device.
-                            if (previousUser) {
-                                caches.delete(cacheNameFor(previousUser)).catch(function() {});
-                            }
+                            caches.keys().then(function(names) {
+                                names.filter(function(name) {
+                                    return name.startsWith(cachePrefix) &&
+                                        name !== cacheNameFor(nextUser);
+                                }).forEach(function(name) {
+                                    caches.delete(name).catch(function() {});
+                                });
+                            }).catch(function() {});
                         }
                         document.querySelectorAll('img[src]').forEach(function(img) {
                             processMedia(img, 'src');
