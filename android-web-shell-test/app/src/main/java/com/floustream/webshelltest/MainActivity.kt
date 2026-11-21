@@ -237,6 +237,10 @@ class MainActivity : Activity() {
                                 // only reads the local token cache.
                                 const confirmed = await authClient.auth.getUser();
                                 if (!confirmed.error && confirmed.data && confirmed.data.user) {
+                                    window.__floustreamPushSession = {
+                                        userId: confirmed.data.user.id,
+                                        accessToken: stored.data.session.access_token
+                                    };
                                     return 'verified';
                                 }
 
@@ -283,6 +287,20 @@ class MainActivity : Activity() {
                     startupAuthCheckPending = false
                     entryResolved = true
                     authFlowActive = false
+                    view?.evaluateJavascript(
+                        "(function(){ return window.__floustreamPushSession || {}; })()"
+                    ) { pushResult ->
+                        try {
+                            val pushSession = JSONObject(pushResult ?: "{}")
+                            PushTokenRegistrar.register(
+                                this@MainActivity,
+                                pushSession.optString("userId"),
+                                pushSession.optString("accessToken")
+                            )
+                        } catch (_: Exception) {
+                            // Push registration is retried at the next authenticated startup.
+                        }
+                    }
                     showAuthenticatedScreen(view)
                 }
                 "unauthenticated" -> {
