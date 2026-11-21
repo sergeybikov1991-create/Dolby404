@@ -321,6 +321,10 @@ function closePhotoViewer(){
 }
 async function resolveAvatarSource(profile){
  if(!profile)return "";
+ // The avatar copy lives in the public "avatars" bucket. Prefer it for guest display;
+ // the original photo-album object is private and may only be readable under album policy.
+ const publicAvatar=safeUrl(profile.avatar_url);
+ if(publicAvatar)return publicAvatar;
  if(profile.avatar_photo_id){
   try{
    const photo=await client.from("photo_album_photos").select("object_path").eq("id",profile.avatar_photo_id).eq("owner_id",profile.id).maybeSingle();
@@ -332,7 +336,7 @@ async function resolveAvatarSource(profile){
    }
   }catch(error){console.warn("FLOUSTREAM profile avatar source:",error);}
  }
- return safeUrl(profile.avatar_url);
+ return "";
 }
 async function openAvatarOriginal(){
  if(!target)return;
@@ -523,7 +527,22 @@ async function loadPublicAlbums(){
 async function start(){
  try{
   await loadLibrary();client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storage:window.localStorage,storageKey:"sb-qhpobdktlbhdqsnajypr-auth-token"}});
-  const stored=await client.auth.getSession();if(stored.error)throw stored.error;const auth=await client.auth.getUser();if(auth.error)throw auth.error;viewer=auth.data.user;
+  // Public profiles must remain readable when there is no signed-in user.
+  // getUser() without a session returns "Auth session missing!" and must never gate guest access.
+  try{
+   const stored=await client.auth.getSession();
+   if(stored.error)throw stored.error;
+   if(stored.data?.session){
+    const auth=await client.auth.getUser();
+    if(auth.error)throw auth.error;
+    viewer=auth.data.user;
+   }else viewer=null;
+  }catch(authError){
+   console.warn("FLOUSTREAM optional profile viewer session:",authError);
+   // A stale/broken local token must not block public profile reads. Keep local storage untouched.
+   client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
+   viewer=null;
+  }
   if(viewer){window.initFloustreamMessageNotifications?.(client,viewer.id);window.initFloustreamFriendNotifications?.(client,viewer.id);}
   const targetId=new URLSearchParams(location.search).get("id");if(!targetId){showError("Не указан профиль для просмотра.");return;}
   if(viewer&&targetId===viewer.id){location.replace("profile.html");return;}
