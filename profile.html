@@ -2833,35 +2833,39 @@ $("avatar-file").addEventListener("change",async()=>{
  if(!avatarKey){$("photo-status").textContent="В профиле не найдено поле для фотографии.";return;}
  if(!["image/jpeg","image/png","image/webp"].includes(file.type)){$("photo-status").textContent="Выбери JPG, PNG или WebP."; $("avatar-file").value="";return;}
  if(file.size>10*1024*1024){$("photo-status").textContent="Файл больше 10 МБ. Выбери фото до 10 МБ."; $("avatar-file").value="";return;}
- const ext=file.type==="image/jpeg"?"jpg":file.type.split("/")[1];
- const token=Date.now()+"-"+crypto.randomUUID();
- const originalPath=`${user.id}/avatar-original-${token}.${ext}`;
- const avatarPath=`${user.id}/avatar-${token}.${ext}`;
- let originalUploaded=false,avatarUploaded=false,albumPhotoId=null;
- $("choose-photo").disabled=true;$("photo-status").textContent="Сохраняем оригинал в фотоальбом…";
+ const ext=file.type==="image/jpeg"?"jpg":file.type.split("/")[1],token=Date.now()+"-"+crypto.randomUUID();
+ const avatarPath=`${user.id}/avatar-${token}.${ext}`;let avatarUploaded=false;
+ $("choose-photo").disabled=true;$("photo-status").textContent="Сохраняем фотографию профиля…";
  try{
-  const original=await client.storage.from("photo-albums").upload(originalPath,file,{upsert:false,contentType:file.type});
-  if(original.error)throw original.error;
-  originalUploaded=true;
-  const albumRow=await client.from("photo_album_photos").insert({owner_id:user.id,object_path:originalPath,file_name:file.name,mime_type:file.type}).select("id").single();
-  if(albumRow.error)throw albumRow.error;
-  albumPhotoId=albumRow.data.id;
-  $("photo-status").textContent="Готовим фотографию профиля…";
   const avatarUpload=await client.storage.from("avatars").upload(avatarPath,file,{upsert:false,contentType:file.type});
-  if(avatarUpload.error)throw avatarUpload.error;
-  avatarUploaded=true;
+  if(avatarUpload.error)throw avatarUpload.error;avatarUploaded=true;
   const publicUrl=client.storage.from("avatars").getPublicUrl(avatarPath).data.publicUrl;
-  const saved=await client.from("profiles").update({[avatarKey]:publicUrl,avatar_photo_id:albumPhotoId}).eq("id",user.id).select("*").single();
+  const saved=await client.from("profiles").update({[avatarKey]:publicUrl,avatar_photo_id:null}).eq("id",user.id).select("*").single();
   if(saved.error)throw saved.error;
-  profile=saved.data;columns=Object.keys(profile);render();
-  $("open-photo-view").disabled=!currentAvatarUrl();$("photo-status").textContent="Оригинал добавлен в открытый фотоальбом, аватар обновлён!";
-  await loadPhotoAlbum();
-  setTimeout(()=>{closePhotoEditor();$("avatar-file").value="";},900);
+  profile=saved.data;columns=Object.keys(profile);render();$("open-photo-view").disabled=!currentAvatarUrl();
+  $("photo-status").textContent="Фото профиля обновлено!";
+  let albumPhotoId=null,originalPath=null,originalUploaded=false;
+  try{
+   $("photo-status").textContent="Фото профиля обновлено. Сохраняем оригинал в фотоальбом…";
+   originalPath=`${user.id}/avatar-original-${token}.${ext}`;
+   const original=await client.storage.from("photo-albums").upload(originalPath,file,{upsert:false,contentType:file.type});
+   if(original.error)throw original.error;originalUploaded=true;
+   const albumRow=await client.from("photo_album_photos").insert({owner_id:user.id,object_path:originalPath,file_name:file.name,mime_type:file.type}).select("id").single();
+   if(albumRow.error)throw albumRow.error;albumPhotoId=albumRow.data.id;
+   const linked=await client.from("profiles").update({avatar_photo_id:albumPhotoId}).eq("id",user.id).select("*").single();
+   if(linked.error)throw linked.error;
+   profile=linked.data;columns=Object.keys(profile);render();await loadPhotoAlbum();
+   $("photo-status").textContent="Фото профиля обновлено, оригинал добавлен в фотоальбом!";
+  }catch(albumError){
+   if(albumPhotoId)await client.from("photo_album_photos").delete().eq("id",albumPhotoId).eq("owner_id",user.id);
+   if(originalUploaded&&originalPath)await client.storage.from("photo-albums").remove([originalPath]);
+   console.warn("FLOUSTREAM avatar album copy skipped:",albumError);
+   $("photo-status").textContent="Фото профиля обновлено. Оригинал пока не удалось добавить в фотоальбом.";
+  }
+  setTimeout(()=>{closePhotoEditor();$("avatar-file").value="";},1200);
  }catch(e){
-  if(albumPhotoId)await client.from("photo_album_photos").delete().eq("id",albumPhotoId).eq("owner_id",user.id);
-  if(originalUploaded)await client.storage.from("photo-albums").remove([originalPath]);
   if(avatarUploaded)await client.storage.from("avatars").remove([avatarPath]);
-  $("photo-status").textContent="Не удалось обновить фото: "+e.message;
+  $("photo-status").textContent="Не удалось обновить фото профиля: "+e.message;
  }
  finally{$("choose-photo").disabled=false;}
 });
