@@ -30,6 +30,9 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.webkit.ValueCallback
+import com.floustream.webshelltest.audio.VoiceAudioSessionCoordinator
+import com.floustream.webshelltest.audio.VoiceAudioOwner
+import com.floustream.webshelltest.audio.VoiceMessageAudioBridge
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
 import java.io.File
@@ -44,6 +47,8 @@ class MainActivity : ComponentActivity() {
     private var pendingCaptureFile: File? = null
     private var pendingFileChooserDialog: AlertDialog? = null
     private var pendingWebAudioPermissionRequest: PermissionRequest? = null
+    private val voiceAudioCoordinator = VoiceAudioSessionCoordinator()
+    private val voiceMessageAudioBridge = VoiceMessageAudioBridge(voiceAudioCoordinator)
     private lateinit var singleVisualPickerLauncher: ActivityResultLauncher<PickVisualMediaRequest>
     private lateinit var multipleVisualPickerLauncher: ActivityResultLauncher<PickVisualMediaRequest>
     private var fullscreenCustomView: View? = null
@@ -94,6 +99,7 @@ class MainActivity : ComponentActivity() {
             settings.loadsImagesAutomatically = true
             settings.javaScriptCanOpenWindowsAutomatically = false
             settings.setSupportMultipleWindows(false)
+            addJavascriptInterface(voiceMessageAudioBridge, "FloustreamVoiceAudio")
             webViewClient = object : WebViewClient() {
                 override fun shouldInterceptRequest(
                     view: WebView?,
@@ -995,7 +1001,12 @@ class MainActivity : ComponentActivity() {
                     button.style.flex = '0 0 44px';
                     button.style.touchAction = 'manipulation';
                     form.insertBefore(button, text);
-                    let recorder = null, stream = null, chunks = [], startedAt = 0, recording = false;
+                    let recorder = null, stream = null, chunks = [], startedAt = 0, recording = false, leaseHeld = false, disposed = false;
+                    function releaseAudioLease() {
+                        if (!leaseHeld) return;
+                        leaseHeld = false;
+                        try { window.FloustreamVoiceAudio.releaseVoiceMessage(); } catch (_) {}
+                    }
 
                     function notice(message, error) {
                         if (typeof showNotice === 'function') showNotice(message, !!error);
@@ -1012,7 +1023,15 @@ class MainActivity : ComponentActivity() {
                     async function startRecording() {
                         if (document.getElementById('attach')?.disabled) return;
                         button.disabled = true;
+                        if (disposed || !window.FloustreamVoiceAudio ||
+                            !window.FloustreamVoiceAudio.tryAcquireVoiceMessage()) {
+                            button.disabled = false;
+                            notice('Микрофон уже используется другой функцией. Заверши её и попробуй снова.', true);
+                            return;
+                        }
+                        leaseHeld = true;
                         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') {
+                            releaseAudioLease();
                             button.disabled = false;
                             notice('Запись голоса недоступна в этой версии WebView.', true);
                             return;
@@ -1021,6 +1040,13 @@ class MainActivity : ComponentActivity() {
                             stream = await navigator.mediaDevices.getUserMedia({
                                 audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
                             });
+                            if (disposed) {
+                                if (stream) stream.getTracks().forEach(track => track.stop());
+                                stream = null;
+                                releaseAudioLease();
+                                resetButton();
+                                return;
+                            }
                             const types = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus'];
                             const mime = types.find(type => MediaRecorder.isTypeSupported(type)) || '';
                             recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
@@ -1035,6 +1061,7 @@ class MainActivity : ComponentActivity() {
                                 const blob = new Blob(chunks, { type });
                                 if (stream) stream.getTracks().forEach(track => track.stop());
                                 stream = null;
+                                releaseAudioLease();
                                 resetButton();
                                 if (elapsed < 1000 || blob.size < 1500) {
                                     notice('Запись слишком короткая. Запиши сообщение не менее одной секунды.', true);
@@ -1067,6 +1094,7 @@ class MainActivity : ComponentActivity() {
                         } catch (error) {
                             if (stream) stream.getTracks().forEach(track => track.stop());
                             stream = null;
+                            releaseAudioLease();
                             resetButton();
                             notice('Не удалось начать запись: ' + (error && error.message ? error.message : 'проверь разрешение микрофона.'), true);
                         }
@@ -1080,15 +1108,18 @@ class MainActivity : ComponentActivity() {
                             catch (_) {
                                 if (stream) stream.getTracks().forEach(track => track.stop());
                                 stream = null;
+                                releaseAudioLease();
                                 resetButton();
                                 notice('Не удалось завершить запись. Попробуй ещё раз.', true);
                             }
                         }
                     });
                     window.addEventListener('pagehide', () => {
+                        disposed = true;
                         if (recorder && recorder.state === 'recording') { try { recorder.stop(); } catch (_) {} }
                         if (stream) stream.getTracks().forEach(track => track.stop());
                         stream = null;
+                        releaseAudioLease();
                     }, { once: true });
                 } catch (_) {}
             })();
@@ -1259,6 +1290,7 @@ class MainActivity : ComponentActivity() {
         pendingFileChooserDialog = null
         pendingWebAudioPermissionRequest?.deny()
         pendingWebAudioPermissionRequest = null
+        voiceMessageAudioBridge.releaseVoiceMessage()
         cancelAuthCheck()
         if (::inAppUpdater.isInitialized) inAppUpdater.close()
         if (fullscreenCustomView != null) {
