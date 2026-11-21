@@ -2,6 +2,12 @@ name: FLOUSTREAM Android 1.0 Release Candidate
 
 on:
   workflow_dispatch:
+    inputs:
+      publish_release:
+        description: "Опубликовать публичный GitHub Release v1.0 (только после проверки APK)"
+        required: false
+        type: boolean
+        default: false
   push:
     branches:
       - release/android-1.0
@@ -10,7 +16,7 @@ on:
       - ".github/workflows/android-release-1.0.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: floustream-android-release-1
@@ -40,51 +46,79 @@ jobs:
         with:
           gradle-version: "8.13"
 
-      - name: Verify release signing secrets
+      - name: Check release signing secrets
+        id: signing
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          test -n "$KEYSTORE_B64" || (echo "Missing ANDROID_KEYSTORE_BASE64" && exit 1)
-          test -n "$STORE_PASSWORD" || (echo "Missing ANDROID_KEYSTORE_PASSWORD" && exit 1)
-          test -n "$KEY_ALIAS" || (echo "Missing ANDROID_KEY_ALIAS" && exit 1)
-          test -n "$KEY_PASSWORD" || (echo "Missing ANDROID_KEY_PASSWORD" && exit 1)
+          if [ -z "$KEYSTORE_B64" ] || [ -z "$STORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "Release signing is not configured. Debug build will run; signed Release will be skipped."
+            exit 0
+          fi
           echo "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/floustream-release.jks"
+          keytool -list -keystore "$RUNNER_TEMP/floustream-release.jks" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
           echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/floustream-release.jks" >> "$GITHUB_ENV"
+          echo "ready=true" >> "$GITHUB_OUTPUT"
 
-      - name: Build Debug and signed Release APK
+      - name: Build Debug APK
+        working-directory: android-web-shell-test
+        run: gradle --no-daemon clean :app:assembleDebug
+
+      - name: Build signed Release APK
+        if: steps.signing.outputs.ready == 'true'
         working-directory: android-web-shell-test
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: |
-          gradle --no-daemon clean :app:assembleDebug :app:assembleRelease
+        run: gradle --no-daemon :app:assembleRelease
 
       - name: Verify APK identity and signature
+        if: steps.signing.outputs.ready == 'true'
         run: |
           APK=android-web-shell-test/app/build/outputs/apk/release/app-release.apk
           test -s "$APK"
           $ANDROID_HOME/build-tools/36.0.0/apksigner verify --verbose "$APK"
           $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android' versionCode='100' versionName='1.0'"
 
-      - name: Generate checksum and update manifest
+      - name: Generate checksum and updater manifest
+        if: steps.signing.outputs.ready == 'true'
         run: |
           APK=android-web-shell-test/app/build/outputs/apk/release/app-release.apk
           SHA=$(sha256sum "$APK" | cut -d' ' -f1)
-          printf '%s\n' "$SHA" > "$APK.sha256"
-          printf '{"versionCode":100,"versionName":"1.0","apkUrl":"https://github.com/sergeybikov1991-create/Dolby404/releases/latest/download/app-release.apk","sha256":"%s"}\n' "$SHA" > android-web-shell-test/app/build/outputs/apk/release/update.json
+          printf '%s  %s\n' "$SHA" "app-release.apk" > "$APK.sha256"
+          printf '{"versionCode":100,"versionName":"1.0","apkUrl":"https://github.com/sergeybikov1991-create/Dolby404/releases/download/v1.0/app-release.apk","sha256":"%s"}\n' "$SHA" > android-web-shell-test/app/build/outputs/apk/release/update.json
 
-      - name: Upload release candidate artifacts
+      - name: Upload CI artifacts
         uses: actions/upload-artifact@v4
         with:
           name: FLOUSTREAM-Android-1.0-RC
           path: |
+            android-web-shell-test/app/build/outputs/apk/debug/app-debug.apk
             android-web-shell-test/app/build/outputs/apk/release/app-release.apk
             android-web-shell-test/app/build/outputs/apk/release/app-release.apk.sha256
             android-web-shell-test/app/build/outputs/apk/release/update.json
-            android-web-shell-test/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 30
+
+      - name: Publish public GitHub Release
+        if: steps.signing.outputs.ready == 'true' && github.event_name == 'workflow_dispatch' && inputs.publish_release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0
+          name: FLOUSTREAM Android 1.0
+          body: |
+            Первый полноценный Android Release FLOUSTREAM.
+            Подписанный APK, SHA-256 и манифест встроенного обновления.
+          draft: false
+          prerelease: false
+          make_latest: true
+          files: |
+            android-web-shell-test/app/build/outputs/apk/release/app-release.apk
+            android-web-shell-test/app/build/outputs/apk/release/app-release.apk.sha256
+            android-web-shell-test/app/build/outputs/apk/release/update.json
+          fail_on_unmatched_files: true
