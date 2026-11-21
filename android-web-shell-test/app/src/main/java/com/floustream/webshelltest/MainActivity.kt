@@ -957,7 +957,10 @@ class MainActivity : ComponentActivity() {
                         button.title = 'Записать голосовое сообщение';
                     }
                     async function startRecording() {
+                        if (document.getElementById('attach')?.disabled) return;
+                        button.disabled = true;
                         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') {
+                            button.disabled = false;
                             notice('Запись голоса недоступна в этой версии WebView.', true);
                             return;
                         }
@@ -974,7 +977,8 @@ class MainActivity : ComponentActivity() {
                             });
                             recorder.addEventListener('stop', () => {
                                 const elapsed = Date.now() - startedAt;
-                                const type = recorder.mimeType || (chunks[0] && chunks[0].type) || 'audio/webm';
+                                const rawType = recorder.mimeType || (chunks[0] && chunks[0].type) || 'audio/webm';
+                                const type = rawType.split(';')[0].toLowerCase() || 'audio/webm';
                                 const blob = new Blob(chunks, { type });
                                 if (stream) stream.getTracks().forEach(track => track.stop());
                                 stream = null;
@@ -1001,6 +1005,7 @@ class MainActivity : ComponentActivity() {
                             recorder.start(250);
                             startedAt = Date.now();
                             recording = true;
+                            button.disabled = false;
                             button.textContent = '■';
                             button.classList.add('recording');
                             button.setAttribute('aria-label', 'Остановить и отправить голосовое сообщение');
