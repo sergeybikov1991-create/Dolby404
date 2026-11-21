@@ -52,6 +52,7 @@ internal object GuestPhotoRequestPolicy {
             storageBucket != null && storageBucket in albumBuckets
 
         val profileOrPostImageRequest =
+            segments.size >= 3 &&
             segments[0] == "storage" &&
             segments.getOrNull(1) == "v1" &&
             segments.getOrNull(2) == "object" &&
