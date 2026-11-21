@@ -2,6 +2,7 @@ package com.floustream.webshelltest.audio
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
 import android.media.MediaRecorder
@@ -13,9 +14,8 @@ import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Native M4A recorder exposed to the trusted FLOUSTREAM WebView page.
- *
- * The page still sends the resulting File through its existing attachment
- * input, so Supabase upload and message creation remain the established flow.
+ * Permission is requested by Android directly; WebRTC/getUserMedia is never
+ * opened as a temporary microphone owner before MediaRecorder starts.
  */
 class VoiceMessageAudioBridge(
     private val context: Context,
@@ -29,6 +29,9 @@ class VoiceMessageAudioBridge(
     val javascriptToken: String = UUID.randomUUID().toString()
 
     @Volatile var activeUserId: String? = null
+    @Volatile private var permissionRequestPending = false
+    @Volatile private var permissionWasRequested = false
+    @Volatile private var lastStartError = ""
 
     @JavascriptInterface
     fun updateSessionUserId(token: String, userId: String?) {
@@ -40,11 +43,48 @@ class VoiceMessageAudioBridge(
     private fun isValidToken(token: String): Boolean = token == javascriptToken
 
     @JavascriptInterface
-    @Synchronized
+    fun requestVoicePermission(token: String): String {
+        if (!isValidToken(token)) return "unavailable"
+        if (hasRecordPermission()) return "granted"
+        val activity = context as? Activity ?: return "unavailable"
+        if (!permissionRequestPending) {
+            permissionRequestPending = true
+            permissionWasRequested = true
+            activity.runOnUiThread {
+                if (activity.isFinishing || activity.isDestroyed) {
+                    permissionRequestPending = false
+                    return@runOnUiThread
+                }
+                activity.requestPermissions(
+                    arrayOf(Manifest.permission.RECORD_AUDIO),
+                    VOICE_PERMISSION_REQUEST_CODE
+                )
+            }
+        }
+        return "pending"
+    }
+
+    @JavascriptInterface
+    fun voicePermissionState(token: String): String {
+        if (!isValidToken(token)) return "unavailable"
+        if (hasRecordPermission()) return "granted"
+        if (permissionRequestPending) return "pending"
+        return if (permissionWasRequested) "denied" else "missing"
+    }
+
+    fun onVoicePermissionResult(granted: Boolean) {
+        permissionRequestPending = false
+        permissionWasRequested = true
+    }
+
+    @JavascriptInterface
     fun tryAcquireVoiceMessage(token: String): Boolean {
-        if (!isValidToken(token) || lease != null) return false
-        lease = coordinator.tryAcquire(VoiceAudioOwner.VOICE_MESSAGE)
-        return lease != null
+        if (!isValidToken(token)) return false
+        synchronized(this) {
+            if (lease != null) return false
+            lease = coordinator.tryAcquire(VoiceAudioOwner.VOICE_MESSAGE)
+            return lease != null
+        }
     }
 
     @JavascriptInterface
@@ -52,7 +92,8 @@ class VoiceMessageAudioBridge(
     @Synchronized
     fun startNativeRecording(token: String): Boolean {
         if (!isValidToken(token) || lease == null || recorder != null) return false
-        if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+        if (!hasRecordPermission()) {
+            lastStartError = "RECORD_AUDIO permission is not granted"
             return false
         }
 
@@ -64,6 +105,7 @@ class VoiceMessageAudioBridge(
             val activeRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 MediaRecorder(context)
             } else {
+                @Suppress("DEPRECATION")
                 MediaRecorder()
             }
             createdRecorder = activeRecorder
@@ -78,14 +120,20 @@ class VoiceMessageAudioBridge(
             recordingFile = file
             recorder = activeRecorder
             recordingStartedAtMillis = System.currentTimeMillis()
+            lastStartError = ""
             true
-        } catch (_: Exception) {
+        } catch (error: Exception) {
+            lastStartError = "${error.javaClass.simpleName}: ${error.message ?: "no detail"}"
             try { createdRecorder?.reset() } catch (_: Exception) { }
             try { createdRecorder?.release() } catch (_: Exception) { }
             createdFile?.delete()
             false
         }
     }
+
+    @JavascriptInterface
+    fun getLastStartError(token: String): String =
+        if (isValidToken(token)) lastStartError else ""
 
     @JavascriptInterface
     @Synchronized
@@ -141,7 +189,6 @@ class VoiceMessageAudioBridge(
     @Synchronized
     fun releaseVoiceMessage(token: String) {
         if (!isValidToken(token)) return
-        // Never release ownership while the native recorder is still capturing.
         if (recorder != null) cancelActiveRecording()
         releaseLease()
     }
@@ -165,6 +212,9 @@ class VoiceMessageAudioBridge(
         lease = null
     }
 
+    private fun hasRecordPermission(): Boolean =
+        context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+
     /** Called only by WebViewClient for the private same-origin media URL. */
     fun takeCompletedFile(token: String): File? {
         if (!token.matches(Regex("[0-9a-fA-F-]{36}"))) return null
@@ -177,5 +227,9 @@ class VoiceMessageAudioBridge(
         releaseLease()
         completedFiles.values.forEach { it.delete() }
         completedFiles.clear()
+    }
+
+    companion object {
+        const val VOICE_PERMISSION_REQUEST_CODE = 4104
     }
 }
