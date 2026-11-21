@@ -49,13 +49,13 @@ internal object GuestPhotoRequestPolicy {
             segments.size >= 3 &&
             segments[0] == "storage" &&
             segments[1] == "v1" &&
-            storageBucket in albumBuckets
+            storageBucket != null && storageBucket in albumBuckets
 
         val profileOrPostImageRequest =
             segments[0] == "storage" &&
             segments.getOrNull(1) == "v1" &&
             segments.getOrNull(2) == "object" &&
-            storageBucket in setOf("avatars", "posts") &&
+            storageBucket != null && storageBucket in setOf("avatars", "posts") &&
             (isImageRequest || imageExtension)
 
         return albumTableRequest || albumStorageRequest || profileOrPostImageRequest
