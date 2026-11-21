@@ -1126,6 +1126,7 @@ class MainActivity : ComponentActivity() {
                             input.files = transfer.files;
                             input.dispatchEvent(new Event('change', { bubbles: true }));
                         } catch (error) {
+                            try { window.FloustreamVoiceAudio.discardCompletedFile(bridgeToken, token); } catch (_) {}
                             notice('Не удалось передать голосовую запись в отправку: ' +
                                 (error && error.message ? error.message : 'попробуй ещё раз.'), true);
                         } finally {
