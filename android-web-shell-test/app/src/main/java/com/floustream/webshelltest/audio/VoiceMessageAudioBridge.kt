@@ -24,6 +24,7 @@ class VoiceMessageAudioBridge(
     private var lease: VoiceAudioSessionCoordinator.Lease? = null
     private var recorder: MediaRecorder? = null
     private var recordingFile: File? = null
+    private var recordingStartedAtMillis: Long = 0L
     private val completedFiles = ConcurrentHashMap<String, File>()
     val javascriptToken: String = UUID.randomUUID().toString()
 
@@ -67,6 +68,7 @@ class VoiceMessageAudioBridge(
             activeRecorder.start()
             recordingFile = file
             recorder = activeRecorder
+            recordingStartedAtMillis = System.currentTimeMillis()
             true
         } catch (_: Exception) {
             try { createdRecorder?.reset() } catch (_: Exception) { }
@@ -82,8 +84,10 @@ class VoiceMessageAudioBridge(
         if (!isValidToken(token)) return ""
         val activeRecorder = recorder ?: return ""
         val file = recordingFile
+        val elapsedMillis = if (recordingStartedAtMillis > 0L) System.currentTimeMillis() - recordingStartedAtMillis else 0L
         recorder = null
         recordingFile = null
+        recordingStartedAtMillis = 0L
 
         val saved = try {
             activeRecorder.stop()
@@ -95,7 +99,7 @@ class VoiceMessageAudioBridge(
             try { activeRecorder.release() } catch (_: Exception) { }
         }
 
-        if (!saved || file == null || !file.exists() || file.length() < 1_500L ||
+        if (!saved || elapsedMillis < 1_000L || file == null || !file.exists() || file.length() < 1_500L ||
             file.length() > 50L * 1024L * 1024L
         ) {
             file?.delete()
@@ -112,7 +116,16 @@ class VoiceMessageAudioBridge(
     fun cancelNativeRecording(token: String) {
         if (!isValidToken(token)) return
         cancelActiveRecording()
+        completedFiles.values.forEach { it.delete() }
+        completedFiles.clear()
         releaseLease()
+    }
+
+    @JavascriptInterface
+    @Synchronized
+    fun discardCompletedFile(sessionToken: String, fileToken: String) {
+        if (!isValidToken(sessionToken) || !fileToken.matches(Regex("[0-9a-fA-F-]{36}"))) return
+        completedFiles.remove(fileToken)?.delete()
     }
 
     @JavascriptInterface
@@ -130,6 +143,7 @@ class VoiceMessageAudioBridge(
         val file = recordingFile
         recorder = null
         recordingFile = null
+        recordingStartedAtMillis = 0L
         try { activeRecorder?.stop() } catch (_: Exception) { }
         try { activeRecorder?.reset() } catch (_: Exception) { }
         try { activeRecorder?.release() } catch (_: Exception) { }
