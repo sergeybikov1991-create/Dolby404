@@ -502,6 +502,10 @@ class MainActivity : ComponentActivity() {
                     const cacheNameFor = userId => cachePrefix + encodeURIComponent(userId);
                     const active = new WeakMap();
                     let lastCacheUser = currentUserKey();
+                    const MAX_MEDIA_ENTRIES = 1500;
+                    const MAX_MEDIA_BYTES = 200 * 1024 * 1024;
+                    const MAX_MEDIA_ITEM_BYTES = 25 * 1024 * 1024;
+                    const MEDIA_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
                     if (navigator.storage && navigator.storage.persist) {
                         navigator.storage.persist().catch(function() {});
@@ -529,21 +533,62 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
+                    async function pruneMediaCache(cache) {
+                        const keys = await cache.keys();
+                        const entries = [];
+                        let totalBytes = 0;
+                        const now = Date.now();
+                        for (const key of keys) {
+                            const response = await cache.match(key);
+                            if (!response) continue;
+                            const size = Number(response.headers.get('content-length') || 0) ||
+                                (await response.clone().blob()).size;
+                            const savedAt = Number(response.headers.get('x-floustream-cached-at') || 0);
+                            if (savedAt && now - savedAt > MEDIA_MAX_AGE_MS) {
+                                await cache.delete(key);
+                                continue;
+                            }
+                            entries.push({ key, size, savedAt });
+                            totalBytes += size;
+                        }
+                        entries.sort((a, b) => a.savedAt - b.savedAt);
+                        while (entries.length > MAX_MEDIA_ENTRIES || totalBytes > MAX_MEDIA_BYTES) {
+                            const oldest = entries.shift();
+                            if (!oldest) break;
+                            await cache.delete(oldest.key);
+                            totalBytes -= oldest.size;
+                        }
+                    }
+
+                    async function putMediaCache(cache, key, response) {
+                        const blob = await response.clone().blob();
+                        if (!blob.size || blob.size > MAX_MEDIA_ITEM_BYTES) return false;
+                        const headers = new Headers(response.headers);
+                        headers.set('Content-Length', String(blob.size));
+                        headers.set('X-FLOUSTREAM-Cached-At', String(Date.now()));
+                        await cache.put(key, new Response(blob, { status: 200, headers: headers }));
+                        await pruneMediaCache(cache);
+                        return true;
+                    }
+
+                    async function touchMediaCache(cache, key, response) {
+                        try {
+                            const blob = await response.clone().blob();
+                            const headers = new Headers(response.headers);
+                            headers.set('Content-Length', String(blob.size));
+                            headers.set('X-FLOUSTREAM-Cached-At', String(Date.now()));
+                            await cache.put(key, new Response(blob, { status: 200, headers: headers }));
+                        } catch (_) {}
+                    }
+
                     async function refreshCachedImage(source, key, element, attribute, userId) {
                         try {
                             const response = await fetch(source, { cache: 'no-store', credentials: 'omit' });
                             if (!response.ok) return;
                             const contentType = (response.headers.get('content-type') || '').toLowerCase();
-                            if (contentType && !contentType.startsWith('image/')) return;
+                            if (!contentType.startsWith('image/')) return;
                             const cache = await caches.open(cacheNameFor(userId));
-                            await cache.put(key, response.clone());
-                            // Bound the number of persistent media entries so
-                            // long-term browsing cannot grow Cache Storage forever.
-                            const cachedKeys = await cache.keys();
-                            if (cachedKeys.length > 2000) {
-                                const staleKeys = cachedKeys.slice(0, cachedKeys.length - 2000);
-                                await Promise.all(staleKeys.map(staleKey => cache.delete(staleKey)));
-                            }
+                            if (!await putMediaCache(cache, key, response)) return;
 
                             // Show the cached image immediately, then replace it in-place
                             // when the server returns a newer version at the same URL.
@@ -573,6 +618,7 @@ class MainActivity : ComponentActivity() {
                         if (cached) {
                             const blob = await cached.blob();
                             if (!blob || !blob.size) return;
+                            touchMediaCache(cache, key, cached);
                             const objectUrl = URL.createObjectURL(blob);
                             if (element.isConnected && element.getAttribute(attribute) === source &&
                                 currentUserKey() === userId) {
@@ -769,7 +815,34 @@ class MainActivity : ComponentActivity() {
                         const db = await openDatabase();
                         return new Promise((resolve, reject) => {
                             const tx = db.transaction('responses', 'readwrite');
-                            tx.objectStore('responses').put(record);
+                            const store = tx.objectStore('responses');
+                            const request = store.getAll();
+                            request.onsuccess = () => {
+                                try {
+                                    const now = Date.now();
+                                    const entries = request.result.filter(item =>
+                                        item.key !== record.key &&
+                                        Number(item.savedAt || 0) > now - 7 * 24 * 60 * 60 * 1000
+                                    );
+                                    record.byteSize = String(record.body || '').length * 2;
+                                    entries.push(record);
+                                    entries.sort((a, b) => Number(a.savedAt || 0) - Number(b.savedAt || 0));
+                                    let totalBytes = entries.reduce((sum, item) =>
+                                        sum + Number(item.byteSize || (String(item.body || '').length * 2)), 0);
+                                    while (entries.length > 500 || totalBytes > 25 * 1024 * 1024) {
+                                        const oldest = entries.shift();
+                                        if (!oldest) break;
+                                        totalBytes -= Number(oldest.byteSize || (String(oldest.body || '').length * 2));
+                                        if (oldest.key !== record.key) store.delete(oldest.key);
+                                    }
+                                    entries.forEach(item => store.put(item));
+                                    request.result.forEach(item => {
+                                        if (!entries.some(kept => kept.key === item.key)) store.delete(item.key);
+                                    });
+                                } catch (_) {
+                                    tx.abort();
+                                }
+                            };
                             tx.oncomplete = () => resolve(true);
                             tx.onerror = () => reject(tx.error);
                             tx.onabort = () => reject(tx.error || new Error('IndexedDB write aborted'));
