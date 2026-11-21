@@ -37,7 +37,6 @@ android {
     kotlinOptions { jvmTarget = "17" }
     buildTypes {
         debug {
-            applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
         }
         release {
