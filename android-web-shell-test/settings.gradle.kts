@@ -12,5 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "FLOUSTREAMWebShellTest"
+rootProject.name = "FLOUSTREAMAndroid"
 include(":app")
