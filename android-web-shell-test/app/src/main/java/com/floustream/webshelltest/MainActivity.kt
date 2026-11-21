@@ -35,6 +35,8 @@ import com.floustream.webshelltest.audio.VoiceMessageAudioBridge
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
 import java.io.File
+import java.io.FileInputStream
+import java.io.FilterInputStream
 import java.nio.charset.StandardCharsets
 
 class MainActivity : ComponentActivity() {
@@ -47,7 +49,7 @@ class MainActivity : ComponentActivity() {
     private var pendingFileChooserDialog: AlertDialog? = null
     private var pendingWebAudioPermissionRequest: PermissionRequest? = null
     private val voiceAudioCoordinator = VoiceAudioSessionCoordinator()
-    private val voiceMessageAudioBridge = VoiceMessageAudioBridge(voiceAudioCoordinator)
+    private val voiceMessageAudioBridge = VoiceMessageAudioBridge(this, voiceAudioCoordinator)
     private lateinit var singleVisualPickerLauncher: ActivityResultLauncher<PickVisualMediaRequest>
     private lateinit var multipleVisualPickerLauncher: ActivityResultLauncher<PickVisualMediaRequest>
     private var fullscreenCustomView: View? = null
@@ -104,6 +106,7 @@ class MainActivity : ComponentActivity() {
                     view: WebView?,
                     request: WebResourceRequest?
                 ): WebResourceResponse? {
+                    interceptNativeVoiceRecording(request)?.let { return it }
                     if (request != null && isGuestPhotoAlbumRequest(
                             request.url.encodedPath.orEmpty(),
                             request.requestHeaders
@@ -990,6 +993,7 @@ class MainActivity : ComponentActivity() {
                     const text = document.getElementById('message-input');
                     if (!form || !input || !text || window.__floustreamAndroidVoiceRecorderInstalled) return;
                     window.__floustreamAndroidVoiceRecorderInstalled = true;
+
                     const button = document.createElement('button');
                     button.type = 'button';
                     button.id = 'floustream-voice-record';
@@ -1000,16 +1004,21 @@ class MainActivity : ComponentActivity() {
                     button.style.flex = '0 0 44px';
                     button.style.touchAction = 'manipulation';
                     form.insertBefore(button, text);
-                    let recorder = null, stream = null, chunks = [], startedAt = 0, recording = false, leaseHeld = false, disposed = false;
-                    function releaseAudioLease() {
-                        if (!leaseHeld) return;
-                        leaseHeld = false;
-                        try { window.FloustreamVoiceAudio.releaseVoiceMessage(); } catch (_) {}
-                    }
+
+                    let recording = false;
+                    let startedAt = 0;
+                    let leaseHeld = false;
+                    let disposed = false;
+                    let permissionStream = null;
 
                     function notice(message, error) {
                         if (typeof showNotice === 'function') showNotice(message, !!error);
                         else if (document.getElementById('notice')) document.getElementById('notice').textContent = message;
+                    }
+                    function releaseLease() {
+                        if (!leaseHeld) return;
+                        leaseHeld = false;
+                        try { window.FloustreamVoiceAudio.releaseVoiceMessage(); } catch (_) {}
                     }
                     function resetButton() {
                         recording = false;
@@ -1019,69 +1028,44 @@ class MainActivity : ComponentActivity() {
                         button.setAttribute('aria-label', 'Записать голосовое сообщение');
                         button.title = 'Записать голосовое сообщение';
                     }
+                    function stopPermissionStream() {
+                        if (permissionStream) permissionStream.getTracks().forEach(track => track.stop());
+                        permissionStream = null;
+                    }
+
                     async function startRecording() {
-                        if (document.getElementById('attach')?.disabled) return;
+                        if (disposed || document.getElementById('attach')?.disabled) return;
                         button.disabled = true;
-                        if (disposed || !window.FloustreamVoiceAudio ||
-                            !window.FloustreamVoiceAudio.tryAcquireVoiceMessage()) {
-                            button.disabled = false;
+                        if (!window.FloustreamVoiceAudio ||
+                            !navigator.mediaDevices ||
+                            !navigator.mediaDevices.getUserMedia) {
+                            resetButton();
+                            notice('Запись голоса недоступна в этой версии Android WebView.', true);
+                            return;
+                        }
+                        if (!window.FloustreamVoiceAudio.tryAcquireVoiceMessage()) {
+                            resetButton();
                             notice('Микрофон уже используется другой функцией. Заверши её и попробуй снова.', true);
                             return;
                         }
                         leaseHeld = true;
-                        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') {
-                            releaseAudioLease();
-                            button.disabled = false;
-                            notice('Запись голоса недоступна в этой версии WebView.', true);
-                            return;
-                        }
                         try {
-                            stream = await navigator.mediaDevices.getUserMedia({
+                            // Ask Android for RECORD_AUDIO through WebChromeClient.
+                            // Stop this short permission stream before native MediaRecorder opens the mic.
+                            permissionStream = await navigator.mediaDevices.getUserMedia({
                                 audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
                             });
+                            stopPermissionStream();
                             if (disposed) {
-                                if (stream) stream.getTracks().forEach(track => track.stop());
-                                stream = null;
-                                releaseAudioLease();
+                                window.FloustreamVoiceAudio.cancelNativeRecording();
+                                releaseLease();
                                 resetButton();
                                 return;
                             }
-                            const types = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus'];
-                            const mime = types.find(type => MediaRecorder.isTypeSupported(type)) || '';
-                            recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
-                            chunks = [];
-                            recorder.addEventListener('dataavailable', event => {
-                                if (event.data && event.data.size) chunks.push(event.data);
-                            });
-                            recorder.addEventListener('stop', () => {
-                                const elapsed = Date.now() - startedAt;
-                                const rawType = recorder.mimeType || (chunks[0] && chunks[0].type) || 'audio/webm';
-                                const type = rawType.split(';')[0].toLowerCase() || 'audio/webm';
-                                const blob = new Blob(chunks, { type });
-                                if (stream) stream.getTracks().forEach(track => track.stop());
-                                stream = null;
-                                releaseAudioLease();
-                                resetButton();
-                                if (elapsed < 1000 || blob.size < 1500) {
-                                    notice('Запись слишком короткая. Запиши сообщение не менее одной секунды.', true);
-                                    return;
-                                }
-                                if (blob.size > 50 * 1024 * 1024) {
-                                    notice('Голосовая запись больше допустимых 50 МБ.', true);
-                                    return;
-                                }
-                                const ext = type.indexOf('mp4') >= 0 ? 'm4a' : (type.indexOf('ogg') >= 0 ? 'ogg' : 'webm');
-                                const file = new File([blob], 'voice_' + Date.now() + '.' + ext, { type: type });
-                                try {
-                                    const transfer = new DataTransfer();
-                                    transfer.items.add(file);
-                                    input.files = transfer.files;
-                                    input.dispatchEvent(new Event('change', { bubbles: true }));
-                                } catch (_) {
-                                    notice('Не удалось передать запись в отправку. Попробуй ещё раз.', true);
-                                }
-                            });
-                            recorder.start(250);
+                            await new Promise(resolve => setTimeout(resolve, 120));
+                            if (!window.FloustreamVoiceAudio.startNativeRecording()) {
+                                throw new Error('Не удалось запустить нативную запись M4A.');
+                            }
                             startedAt = Date.now();
                             recording = true;
                             button.disabled = false;
@@ -1089,41 +1073,107 @@ class MainActivity : ComponentActivity() {
                             button.classList.add('recording');
                             button.setAttribute('aria-label', 'Остановить и отправить голосовое сообщение');
                             button.title = 'Остановить и отправить';
-                            notice('Идёт запись… Нажми ■, чтобы отправить голосовое сообщение.');
+                            notice('Идёт запись M4A… Нажми ■, чтобы отправить голосовое сообщение.');
                         } catch (error) {
-                            if (stream) stream.getTracks().forEach(track => track.stop());
-                            stream = null;
-                            releaseAudioLease();
+                            stopPermissionStream();
+                            try { window.FloustreamVoiceAudio.cancelNativeRecording(); } catch (_) {}
+                            releaseLease();
                             resetButton();
                             notice('Не удалось начать запись: ' + (error && error.message ? error.message : 'проверь разрешение микрофона.'), true);
                         }
                     }
+
+                    async function stopRecording() {
+                        if (!recording || disposed) return;
+                        button.disabled = true;
+                        button.textContent = '…';
+                        recording = false;
+                        const elapsed = Date.now() - startedAt;
+                        let token = '';
+                        try {
+                            token = window.FloustreamVoiceAudio.stopNativeRecording() || '';
+                        } catch (_) {
+                            token = '';
+                        }
+                        releaseLease();
+
+                        if (elapsed < 1000 || !token) {
+                            resetButton();
+                            notice('Голосовая запись не сохранилась. Запиши не менее одной секунды и попробуй ещё раз.', true);
+                            return;
+                        }
+
+                        try {
+                            const url = location.origin + '/__floustream_voice__/' + encodeURIComponent(token) + '.m4a';
+                            const response = await fetch(url, { cache: 'no-store' });
+                            if (!response.ok) throw new Error('Не удалось прочитать запись с телефона.');
+                            const blob = await response.blob();
+                            if (blob.size < 1500 || blob.size > 50 * 1024 * 1024) {
+                                throw new Error('Размер голосовой записи недопустим.');
+                            }
+                            const file = new File([blob], 'voice_' + Date.now() + '.m4a', { type: 'audio/mp4' });
+                            const transfer = new DataTransfer();
+                            transfer.items.add(file);
+                            input.files = transfer.files;
+                            input.dispatchEvent(new Event('change', { bubbles: true }));
+                        } catch (error) {
+                            notice('Не удалось передать голосовую запись в отправку: ' +
+                                (error && error.message ? error.message : 'попробуй ещё раз.'), true);
+                        } finally {
+                            resetButton();
+                        }
+                    }
+
                     button.addEventListener('click', () => {
                         if (!recording) startRecording();
-                        else if (recorder && recorder.state === 'recording') {
-                            button.disabled = true;
-                            button.textContent = '…';
-                            try { recorder.stop(); }
-                            catch (_) {
-                                if (stream) stream.getTracks().forEach(track => track.stop());
-                                stream = null;
-                                releaseAudioLease();
-                                resetButton();
-                                notice('Не удалось завершить запись. Попробуй ещё раз.', true);
-                            }
-                        }
+                        else stopRecording();
                     });
+
                     window.addEventListener('pagehide', () => {
                         disposed = true;
-                        if (recorder && recorder.state === 'recording') { try { recorder.stop(); } catch (_) {} }
-                        if (stream) stream.getTracks().forEach(track => track.stop());
-                        stream = null;
-                        releaseAudioLease();
+                        stopPermissionStream();
+                        try { window.FloustreamVoiceAudio.cancelNativeRecording(); } catch (_) {}
+                        releaseLease();
                     }, { once: true });
                 } catch (_) {}
             })();
         """.trimIndent()
         view.evaluateJavascript(script, null)
+    }
+
+    private fun interceptNativeVoiceRecording(request: WebResourceRequest?): WebResourceResponse? {
+        val uri = request?.url ?: return null
+        if (uri.scheme != "https" || uri.host != "sergeybikov1991-create.github.io") return null
+        val prefix = "/__floustream_voice__/"
+        val path = uri.encodedPath.orEmpty()
+        if (!path.startsWith(prefix) || !path.endsWith(".m4a")) return null
+        val token = path.removePrefix(prefix).removeSuffix(".m4a")
+        val file = voiceMessageAudioBridge.takeCompletedFile(token)
+            ?: return WebResourceResponse(
+                "application/json",
+                "UTF-8",
+                404,
+                "Not Found",
+                mapOf("Cache-Control" to "no-store"),
+                ByteArrayInputStream("""{"error":"Voice recording not found"}""".toByteArray(StandardCharsets.UTF_8))
+            )
+        val input = object : FilterInputStream(FileInputStream(file)) {
+            override fun close() {
+                try { super.close() } finally { file.delete() }
+            }
+        }
+        return WebResourceResponse(
+            "audio/mp4",
+            "UTF-8",
+            200,
+            "OK",
+            mapOf(
+                "Cache-Control" to "no-store",
+                "Content-Length" to file.length().toString(),
+                "X-Content-Type-Options" to "nosniff"
+            ),
+            input
+        )
     }
 
     private fun launchVisualPicker(request: PickVisualMediaRequest, multiple: Boolean) {
@@ -1289,7 +1339,7 @@ class MainActivity : ComponentActivity() {
         pendingFileChooserDialog = null
         pendingWebAudioPermissionRequest?.deny()
         pendingWebAudioPermissionRequest = null
-        voiceMessageAudioBridge.releaseVoiceMessage()
+        voiceMessageAudioBridge.close()
         cancelAuthCheck()
         if (::inAppUpdater.isInitialized) inAppUpdater.close()
         if (fullscreenCustomView != null) {
