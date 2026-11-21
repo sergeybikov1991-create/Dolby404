@@ -51,11 +51,11 @@ internal object GuestPhotoRequestPolicy {
             segments[1] == "v1" &&
             storageBucket in albumBuckets
 
-        val profileOrPostImageRequest = segments.size >= 4 &&
+        val profileOrPostImageRequest =
             segments[0] == "storage" &&
-            segments[1] == "v1" &&
-            segments[2] == "object" &&
-            (segments[3] == "avatars" || segments[3] == "posts") &&
+            segments.getOrNull(1) == "v1" &&
+            segments.getOrNull(2) == "object" &&
+            storageBucket in setOf("avatars", "posts") &&
             (isImageRequest || imageExtension)
 
         return albumTableRequest || albumStorageRequest || profileOrPostImageRequest
