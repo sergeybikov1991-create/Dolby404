@@ -7,7 +7,13 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
+import android.view.WindowManager
+import android.widget.FrameLayout
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
@@ -20,6 +26,11 @@ class MainActivity : Activity() {
     private var updateCheckStarted = false
     private lateinit var webView: WebView
     private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
+    private var fullscreenCustomView: View? = null
+    private var fullscreenCustomViewCallback: WebChromeClient.CustomViewCallback? = null
+    private var fullscreenDecorView: ViewGroup? = null
+    private var previousSystemUiVisibility: Int = 0
+    private var previousFullscreenWindowFlag: Boolean = false
     private val mainHandler = Handler(Looper.getMainLooper())
     private var entryResolved = false
     private var authFlowActive = false
@@ -149,6 +160,52 @@ class MainActivity : Activity() {
                 }
             }
             webChromeClient = object : WebChromeClient() {
+                override fun onShowCustomView(
+                    view: View?,
+                    callback: WebChromeClient.CustomViewCallback?
+                ) {
+                    if (view == null || callback == null) return
+                    if (fullscreenCustomView != null) {
+                        exitFullscreenCustomView(notifyWebView = true)
+                    }
+
+                    val decor = window.decorView as? ViewGroup
+                    if (decor == null) {
+                        callback.onCustomViewHidden()
+                        return
+                    }
+
+                    fullscreenCustomView = view
+                    fullscreenCustomViewCallback = callback
+                    fullscreenDecorView = decor
+                    previousSystemUiVisibility = decor.systemUiVisibility
+                    previousFullscreenWindowFlag =
+                        (window.attributes.flags and WindowManager.LayoutParams.FLAG_FULLSCREEN) != 0
+
+                    (view.parent as? ViewGroup)?.removeView(view)
+                    decor.addView(
+                        view,
+                        FrameLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            Gravity.CENTER
+                        )
+                    )
+                    view.isFocusable = true
+                    view.isFocusableInTouchMode = true
+                    view.requestFocus()
+
+                    WindowInsetsControllerCompat(window, decor).apply {
+                        systemBarsBehavior =
+                            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                        hide(WindowInsetsCompat.Type.systemBars())
+                    }
+                }
+
+                override fun onHideCustomView() {
+                    exitFullscreenCustomView(notifyWebView = false)
+                }
+
                 override fun onShowFileChooser(
                     webView: WebView?,
                     filePathCallback: ValueCallback<Array<Uri>>?,
@@ -488,8 +545,39 @@ class MainActivity : Activity() {
         super.onActivityResult(requestCode, resultCode, data)
     }
 
+    private fun exitFullscreenCustomView(notifyWebView: Boolean) {
+        val customView = fullscreenCustomView ?: return
+        val callback = fullscreenCustomViewCallback
+        val decor = fullscreenDecorView
+
+        // Clear state before notifying WebView: the callback can synchronously
+        // result in onHideCustomView(), which must then be a harmless no-op.
+        fullscreenCustomView = null
+        fullscreenCustomViewCallback = null
+        fullscreenDecorView = null
+
+        (customView.parent as? ViewGroup)?.removeView(customView)
+
+        if (decor != null) {
+            decor.systemUiVisibility = previousSystemUiVisibility
+        }
+        if (previousFullscreenWindowFlag) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+        }
+
+        if (notifyWebView) {
+            callback?.onCustomViewHidden()
+        }
+    }
+
     @Deprecated("Deprecated in Android API; retained for compatibility with the test harness")
     override fun onBackPressed() {
+        if (fullscreenCustomView != null) {
+            exitFullscreenCustomView(notifyWebView = true)
+            return
+        }
         if (::webView.isInitialized && webView.canGoBack()) {
             webView.goBack()
         } else {
@@ -507,6 +595,9 @@ class MainActivity : Activity() {
         fileChooserCallback = null
         cancelAuthCheck()
         if (::inAppUpdater.isInitialized) inAppUpdater.close()
+        if (fullscreenCustomView != null) {
+            exitFullscreenCustomView(notifyWebView = false)
+        }
         if (::webView.isInitialized) {
             webView.stopLoading()
             webView.destroy()
