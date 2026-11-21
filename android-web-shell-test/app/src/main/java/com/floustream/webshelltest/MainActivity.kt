@@ -139,10 +139,7 @@ class MainActivity : Activity() {
 
                     if (url == WELCOME_ASSET_URL || url?.startsWith(HOME_URL) == true) {
                         view?.visibility = View.VISIBLE
-                        if (!updateCheckStarted) {
-                            updateCheckStarted = true
-                            inAppUpdater.checkForUpdate()
-                        }
+                        checkForUpdatesOnce()
                     }
                 }
             }
@@ -157,6 +154,13 @@ class MainActivity : Activity() {
 
         // Keep the same HTTPS origin and Supabase localStorage used by the website.
         webView.loadUrl(SITE_BASE_URL)
+    }
+
+    private fun checkForUpdatesOnce() {
+        if (!updateCheckStarted && ::inAppUpdater.isInitialized) {
+            updateCheckStarted = true
+            inAppUpdater.checkForUpdate()
+        }
     }
 
     private fun checkSupabaseSession(view: WebView?, clientExpression: String) {
@@ -343,6 +347,7 @@ class MainActivity : Activity() {
             </html>
         """.trimIndent()
         view.loadDataWithBaseURL(SITE_BASE_URL, html, "text/html", "UTF-8", null)
+        checkForUpdatesOnce()
     }
 
     private fun showOfflineScreen(view: WebView?) {
@@ -405,6 +410,7 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         cancelAuthCheck()
+        if (::inAppUpdater.isInitialized) inAppUpdater.close()
         if (::webView.isInitialized) {
             webView.stopLoading()
             webView.destroy()
