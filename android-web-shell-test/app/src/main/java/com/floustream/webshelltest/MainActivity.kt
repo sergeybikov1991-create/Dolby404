@@ -247,7 +247,24 @@ class MainActivity : Activity() {
                 }
                 "unauthenticated" -> {
                     cancelAuthCheck()
-                    showBundledWelcome(view)
+                    startupAuthCheckPending = false
+                    val currentUrl = view?.url.orEmpty()
+
+                    if (currentUrl.startsWith(AUTH_URL)) {
+                        // An unauthenticated visitor must stay on the login page.
+                        // Replacing portal.html with the bundled welcome page here
+                        // prevented users from ever completing their first login.
+                        entryResolved = true
+                        authFlowActive = true
+                        view?.visibility = View.VISIBLE
+                    } else {
+                        // A stale/expired session on a protected profile page
+                        // should return to the sign-in screen, not the welcome loop.
+                        entryResolved = false
+                        authFlowActive = false
+                        view?.stopLoading()
+                        view?.loadUrl(AUTH_URL)
+                    }
                 }
                 "offline" -> {
                     cancelAuthCheck()
