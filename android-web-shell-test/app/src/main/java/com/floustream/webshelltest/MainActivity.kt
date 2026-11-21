@@ -1174,7 +1174,7 @@ class MainActivity : ComponentActivity() {
         }
         return WebResourceResponse(
             "audio/mp4",
-            "UTF-8",
+            null,
             200,
             "OK",
             mapOf(
