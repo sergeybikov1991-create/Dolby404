@@ -102,9 +102,9 @@ class VoiceMessageAudioBridge(
             return ""
         }
 
-        val token = UUID.randomUUID().toString()
-        completedFiles[token] = file
-        return token
+        val fileToken = UUID.randomUUID().toString()
+        completedFiles[fileToken] = file
+        return fileToken
     }
 
     @JavascriptInterface
