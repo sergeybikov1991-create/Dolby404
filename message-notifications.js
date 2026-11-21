@@ -33,11 +33,17 @@ window.initFloustreamMessageNotifications=function(client,userId){
   let sender={};try{const result=await client.from("profiles").select("display_name,username,avatar_url").eq("id",row.sender_id).maybeSingle();if(!result.error&&result.data)sender=result.data;}catch(error){console.warn("FLOUSTREAM notification sender lookup:",error);}
   const senderName=sender.display_name||sender.username||"Новое сообщение",content=String(row.content||"").trim();
   const body=content||(row.attachment_name?"📎 "+row.attachment_name:row.attachment_path?"📎 Вам отправили вложение":"Вам пришло новое сообщение");
+  const targetUrl="messages.html?with="+encodeURIComponent(row.sender_id);
+  const options={body:body.slice(0,240),tag:"floustream-message-"+row.id,data:{url:targetUrl}};
+  if(sender.avatar_url)options.icon=sender.avatar_url;
+  const title="FLOUSTREAM · "+senderName;
   try{
-   const options={body:body.slice(0,240),tag:"floustream-message-"+row.id,data:{url:"messages.html?with="+encodeURIComponent(row.sender_id)}};
-   if(sender.avatar_url)options.icon=sender.avatar_url;
-   const notification=new Notification("FLOUSTREAM · "+senderName,options);
-   notification.onclick=()=>{window.focus();location.assign("messages.html?with="+encodeURIComponent(row.sender_id));notification.close();};
+   if("serviceWorker"in navigator){
+    const ready=window.__floustreamServiceWorkerReady?await window.__floustreamServiceWorkerReady:await navigator.serviceWorker.getRegistration();
+    if(ready&&typeof ready.showNotification==="function"){await ready.showNotification(title,options);return;}
+   }
+   const notification=new Notification(title,options);
+   notification.onclick=()=>{window.focus();location.assign(targetUrl);notification.close();};
   }catch(error){console.warn("FLOUSTREAM browser notification:",error);}
  }
  refreshCount();
