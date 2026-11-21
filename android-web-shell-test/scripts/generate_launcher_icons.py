@@ -48,10 +48,12 @@ foreground = Image.new("RGBA", (432, 432), (0, 0, 0, 0))
 # Add a restrained dimensional glow behind the source light trails.
 mask = rgba.getchannel("A")
 glow = mask.filter(ImageFilter.GaussianBlur(13))
-glow_layer = Image.new("RGBA", (432, 432), (100, 30, 255, 0))
-glow_layer.putalpha(glow.point(lambda p: int(p * 0.22)))
 x = (432 - rgba.width) // 2
 y = (432 - rgba.height) // 2
+glow_layer = Image.new("RGBA", (432, 432), (100, 30, 255, 0))
+glow_alpha = Image.new("L", (432, 432), 0)
+glow_alpha.paste(glow.point(lambda p: int(p * 0.22)), (x, y))
+glow_layer.putalpha(glow_alpha)
 foreground.alpha_composite(glow_layer, (0, 0))
 foreground.alpha_composite(rgba, (x, y))
 # A subtle highlight pass gives the existing neon tubing a glass-like finish.
