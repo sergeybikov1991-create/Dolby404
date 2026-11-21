@@ -65,6 +65,14 @@ body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 20% 0%,#281
 .photo-lightbox-close{position:absolute;top: max(12px,env(safe-area-inset-top));right: max(12px,env(safe-area-inset-right));z-index:2;width:34px;height:34px;padding:0;border:1px solid #ffffff55;border-radius:50%;background:rgba(30,25,38,.48);color:#fff;font-size:23px;font-weight:300;line-height:30px;display:grid;place-items:center;backdrop-filter:blur(6px);cursor:pointer}
 .photo-lightbox-close:active{background:rgba(100,70,130,.7)}
 body.lightbox-open{overflow:hidden}
+.avatar-photo-actions{position:absolute;left:50%;bottom:max(18px,env(safe-area-inset-bottom));z-index:3;display:flex;align-items:center;gap:12px;max-width:calc(100vw - 28px);padding:10px 13px;border:1px solid #7952a0;border-radius:16px;background:rgba(18,14,28,.94);box-shadow:0 8px 30px #0009;transform:translateX(-50%);backdrop-filter:blur(12px)}
+.avatar-photo-actions[hidden]{display:none}
+.avatar-photo-like-summary{display:grid;gap:3px;min-width:88px;color:#e9ddff;font-size:12px}
+#avatar-photo-like-note{color:#bda6d8;font-size:10px}
+.avatar-photo-like{min-height:40px;padding:8px 14px;border:1px solid #7952a0;border-radius:12px;background:linear-gradient(135deg,#39204f,#21152f);color:#fff;font-size:13px;font-weight:700;white-space:nowrap}
+.avatar-photo-like.liked{border-color:#e88bff;background:linear-gradient(135deg,#6a286f,#3a1c50);box-shadow:0 0 14px #c15bff55}
+.avatar-photo-like:disabled{opacity:.55}
+@media(max-width:480px){.avatar-photo-actions{gap:8px;padding:8px 10px}.avatar-photo-like{min-height:38px;padding:7px 11px}}
 
 .error{color:#ffb4c0}
 @media(max-width:600px){.topbar{padding:10px 12px}.logo{font-size:17px}.wrap{margin:14px auto;padding:0 10px}.cover{height:130px}.identity{margin:-39px 14px 0;gap:12px}.avatar{width:82px;height:82px;flex-basis:82px}.bio{margin:14px}.post{border-radius:0;border-left:0;border-right:0}.feed{gap:0}.post+.post{border-top:0}}
@@ -251,6 +259,10 @@ body{background:radial-gradient(ellipse at 15% 0%,#281342 0,transparent 38%),#09
 <div class="photo-lightbox" id="photo-lightbox" aria-hidden="true" role="dialog" aria-label="Просмотр фотографии">
  <button class="photo-lightbox-close" id="photo-lightbox-close" type="button" aria-label="Закрыть просмотр">×</button>
  <img id="photo-lightbox-image" alt="Фото во весь экран">
+ <div class="avatar-photo-actions" id="avatar-photo-actions" hidden>
+  <div class="avatar-photo-like-summary"><span id="avatar-photo-like-count">0 лайков</span><span id="avatar-photo-like-note" aria-live="polite"></span></div>
+  <button class="avatar-photo-like" id="avatar-photo-like" type="button">♡ Нравится</button>
+ </div>
 </div>
 <script src="message-notifications.js"></script>
 <script src="friend-notifications.js"></script>
@@ -292,22 +304,71 @@ function watchTargetPresence(){
  channel.on("presence",{event:"sync"},refresh);
  channel.subscribe(status=>{if(status==="SUBSCRIBED")refresh();});
 }
-function openPhotoViewer(src){const viewer=$("photo-lightbox"),image=$("photo-lightbox-image");if(!viewer||!image||!src)return;image.src=src;viewer.classList.add("is-open");viewer.setAttribute("aria-hidden","false");document.body.classList.add("lightbox-open");}
-function closePhotoViewer(){const viewer=$("photo-lightbox"),image=$("photo-lightbox-image");if(!viewer||!image)return;viewer.classList.remove("is-open");viewer.setAttribute("aria-hidden","true");image.removeAttribute("src");document.body.classList.remove("lightbox-open");}
+let avatarPhotoViewerOpen=false;
+function openPhotoViewer(src,options={}){
+ const viewer=$("photo-lightbox"),image=$("photo-lightbox-image"),actions=$("avatar-photo-actions");
+ if(!viewer||!image||!src)return;
+ avatarPhotoViewerOpen=!!options.profilePhoto;
+ if(actions)actions.hidden=!avatarPhotoViewerOpen;
+ image.src=src;viewer.classList.add("is-open");viewer.setAttribute("aria-hidden","false");document.body.classList.add("lightbox-open");
+ if(avatarPhotoViewerOpen)refreshAvatarPhotoLikes();
+}
+function closePhotoViewer(){
+ const viewer=$("photo-lightbox"),image=$("photo-lightbox-image"),actions=$("avatar-photo-actions");
+ if(!viewer||!image)return;
+ viewer.classList.remove("is-open");viewer.setAttribute("aria-hidden","true");image.removeAttribute("src");document.body.classList.remove("lightbox-open");
+ avatarPhotoViewerOpen=false;if(actions)actions.hidden=true;
+}
+async function resolveAvatarSource(profile){
+ if(!profile)return "";
+ if(profile.avatar_photo_id){
+  try{
+   const photo=await client.from("photo_album_photos").select("object_path").eq("id",profile.avatar_photo_id).eq("owner_id",profile.id).maybeSingle();
+   if(photo.error)throw photo.error;
+   if(photo.data?.object_path){
+    const signed=await client.storage.from("photo-albums").createSignedUrl(photo.data.object_path,3600);
+    if(signed.error)throw signed.error;
+    if(signed.data?.signedUrl)return safeUrl(signed.data.signedUrl);
+   }
+  }catch(error){console.warn("FLOUSTREAM profile avatar source:",error);}
+ }
+ return safeUrl(profile.avatar_url);
+}
 async function openAvatarOriginal(){
  if(!target)return;
- let src=safeUrl(target.avatar_url);
- if(target.avatar_photo_id){
-  try{
-   const photo=await client.from("photo_album_photos").select("object_path").eq("id",target.avatar_photo_id).eq("owner_id",target.id).maybeSingle();
-   if(!photo.error&&photo.data){
-    const signed=await client.storage.from("photo-albums").createSignedUrl(photo.data.object_path,3600);
-    if(!signed.error&&signed.data?.signedUrl)src=signed.data.signedUrl;
-   }
-  }catch(error){console.warn("FLOUSTREAM avatar original:",error);}
- }
- if(src)openPhotoViewer(src);
+ const src=await resolveAvatarSource(target);
+ if(src)openPhotoViewer(src,{profilePhoto:true});
 }
+async function refreshAvatarPhotoLikes(){
+ const actions=$("avatar-photo-actions"),button=$("avatar-photo-like"),count=$("avatar-photo-like-count"),note=$("avatar-photo-like-note");
+ if(!actions||!button||!count||!note||!target)return;
+ button.disabled=true;note.textContent="Загружаем…";
+ try{
+  const rows=await client.from("profile_photo_likes").select("user_id,created_at").eq("profile_id",target.id).order("created_at",{ascending:false});
+  if(rows.error)throw rows.error;
+  const likes=rows.data||[];
+  count.textContent=likes.length+" "+(likes.length===1?"лайк":"лайков");
+  if(!viewer){button.textContent="♡ Нравится";button.dataset.liked="false";button.disabled=true;note.textContent="Войдите, чтобы поставить лайк";return;}
+  const mine=likes.some(row=>row.user_id===viewer.id);
+  button.textContent=mine?"♥ Нравится":"♡ Нравится";button.dataset.liked=mine?"true":"false";button.classList.toggle("liked",mine);note.textContent="";
+ }catch(error){note.textContent="Не удалось загрузить лайки";console.warn("FLOUSTREAM avatar likes:",error);}
+ finally{if(viewer)button.disabled=false;}
+}
+$("avatar-photo-like").addEventListener("click",async()=>{
+ if(!viewer||!target)return;
+ const button=$("avatar-photo-like"),note=$("avatar-photo-like-note"),liked=button.dataset.liked==="true";
+ button.disabled=true;note.textContent="Сохраняем…";
+ try{
+  if(liked){
+   const result=await client.from("profile_photo_likes").delete().eq("profile_id",target.id).eq("user_id",viewer.id);
+   if(result.error)throw result.error;
+  }else{
+   const result=await client.from("profile_photo_likes").insert({profile_id:target.id,user_id:viewer.id});
+   if(result.error&&result.error.code!=="23505")throw result.error;
+  }
+  await refreshAvatarPhotoLikes();
+ }catch(error){note.textContent="Не удалось поставить лайк";button.disabled=false;console.warn("FLOUSTREAM avatar like:",error);}
+});
 $("avatar").addEventListener("click",()=>{if($("avatar").classList.contains("has-original"))openAvatarOriginal();});
 $("avatar").addEventListener("keydown",event=>{if((event.key==="Enter"||event.key===" ")&&$("avatar").classList.contains("has-original")){event.preventDefault();openAvatarOriginal();}});
 $("photo-lightbox-close").addEventListener("click",closePhotoViewer);
@@ -515,7 +576,7 @@ async function start(){
     $("display-name").textContent=target.display_name||target.username||"Пользователь";
   $("username").textContent=target.username?"@"+target.username:"";
   $("bio").textContent=target.bio||"";
-  const avatar=safeUrl(target.avatar_url);if(avatar){$("avatar").replaceChildren();const img=document.createElement("img");img.src=avatar;img.alt="Аватар";$("avatar").append(img);$("avatar").classList.add("has-original");$("avatar").setAttribute("role","button");$("avatar").tabIndex=0;$("avatar").setAttribute("aria-label","Открыть оригинал фотографии профиля");}else{$("avatar").textContent=(target.display_name||target.username||"◉").slice(0,1).toUpperCase();$("avatar").classList.remove("has-original");$("avatar").removeAttribute("role");$("avatar").removeAttribute("tabindex");$("avatar").removeAttribute("aria-label");}
+  const avatar=await resolveAvatarSource(target);if(avatar){$("avatar").replaceChildren();const img=document.createElement("img");img.src=avatar;img.alt="Аватар";img.onerror=()=>{img.remove();$("avatar").textContent=(target.display_name||target.username||"◉").slice(0,1).toUpperCase();};$("avatar").append(img);$("avatar").classList.add("has-original");$("avatar").setAttribute("role","button");$("avatar").tabIndex=0;$("avatar").setAttribute("aria-label","Открыть оригинал фотографии профиля");}else{$("avatar").textContent=(target.display_name||target.username||"◉").slice(0,1).toUpperCase();$("avatar").classList.remove("has-original");$("avatar").removeAttribute("role");$("avatar").removeAttribute("tabindex");$("avatar").removeAttribute("aria-label");}
   const cover=safeUrl(target.cover_url),coverImage=$("cover-photo");if(cover){coverImage.onerror=()=>{coverImage.hidden=true;};coverImage.onload=()=>{coverImage.hidden=false;};coverImage.src=cover;coverImage.hidden=false;}else{coverImage.removeAttribute("src");coverImage.hidden=true;}
   const [ownPosts,flows]=await Promise.all([
    client.from("posts").select("*").eq("user_id",targetId).order("created_at",{ascending:false}).limit(50),
