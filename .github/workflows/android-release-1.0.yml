@@ -56,8 +56,8 @@ jobs:
         run: |
           if [ -z "$KEYSTORE_B64" ] || [ -z "$STORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
             echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "Release signing is not configured. Debug build will run; signed Release will be skipped."
-            exit 0
+            echo "::error::Release signing secrets are missing or empty. Configure all four repository Actions secrets before building FLOUSTREAM 1.0."
+            exit 1
           fi
           echo "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/floustream-release.jks"
           keytool -list -keystore "$RUNNER_TEMP/floustream-release.jks" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
