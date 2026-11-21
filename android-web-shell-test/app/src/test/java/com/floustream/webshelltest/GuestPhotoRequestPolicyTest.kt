@@ -42,6 +42,38 @@ class GuestPhotoRequestPolicyTest {
     }
 
     @Test
+    fun guestVideoAlbumRowsAndSignedUrlEndpointsAreBlocked() {
+        assertTrue(
+            GuestPhotoRequestPolicy.shouldBlock(
+                null,
+                "/rest/v1/video_album_videos?select=*",
+                emptyMap()
+            )
+        )
+        assertTrue(
+            GuestPhotoRequestPolicy.shouldBlock(
+                null,
+                "/rest/v1/private_video_album_videos?select=*",
+                emptyMap()
+            )
+        )
+        assertTrue(
+            GuestPhotoRequestPolicy.shouldBlock(
+                null,
+                "/storage/v1/object/sign/photo-albums",
+                emptyMap()
+            )
+        )
+        assertTrue(
+            GuestPhotoRequestPolicy.shouldBlock(
+                null,
+                "/storage/v1/object/sign/video-albums",
+                emptyMap()
+            )
+        )
+    }
+
+    @Test
     fun guestProfileAndPostImagesAreBlockedButNonImageFilesAreNot() {
         assertTrue(
             GuestPhotoRequestPolicy.shouldBlock(
