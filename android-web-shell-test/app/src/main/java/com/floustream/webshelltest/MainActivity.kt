@@ -805,20 +805,24 @@ class MainActivity : ComponentActivity() {
                             const response = await originalFetch(request.clone());
                             if (response.ok &&
                                 (response.headers.get('content-type') || '').toLowerCase().includes('application/json')) {
-                                const body = await response.clone().text();
-                                if (body.length <= 5 * 1024 * 1024 && activeUser() === userId) {
-                                    const headers = {};
-                                    response.headers.forEach((value, name) => {
-                                        if (!['set-cookie', 'set-cookie2'].includes(name.toLowerCase())) {
-                                            headers[name] = value;
-                                        }
-                                    });
-                                    await writeCached({
-                                        key: key,
-                                        body: body,
-                                        headers: headers,
-                                        savedAt: Date.now()
-                                    });
+                                try {
+                                    const body = await response.clone().text();
+                                    if (body.length <= 5 * 1024 * 1024 && activeUser() === userId) {
+                                        const headers = {};
+                                        response.headers.forEach((value, name) => {
+                                            if (!['set-cookie', 'set-cookie2'].includes(name.toLowerCase())) {
+                                                headers[name] = value;
+                                            }
+                                        });
+                                        await writeCached({
+                                            key: key,
+                                            body: body,
+                                            headers: headers,
+                                            savedAt: Date.now()
+                                        });
+                                    }
+                                } catch (_) {
+                                    // Cache failures must never break a successful server response.
                                 }
                             }
                             if (response.status >= 500) {
