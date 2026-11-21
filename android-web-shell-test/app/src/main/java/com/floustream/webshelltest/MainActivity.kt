@@ -91,7 +91,11 @@ class MainActivity : ComponentActivity() {
                     view: WebView?,
                     request: WebResourceRequest?
                 ): WebResourceResponse? {
-                    if (request != null && isGuestPhotoAlbumRequest(request.url.encodedPath.orEmpty())) {
+                    if (request != null && isGuestPhotoAlbumRequest(
+                            request.url.encodedPath.orEmpty(),
+                            request.requestHeaders
+                        )
+                    ) {
                         val body = """{"error":"Photo albums are unavailable in guest mode"}"""
                             .toByteArray(StandardCharsets.UTF_8)
                         return WebResourceResponse(
@@ -362,13 +366,24 @@ class MainActivity : ComponentActivity() {
      * Deny photo-album data and object requests before WebView receives them
      * whenever the active page has no authenticated Supabase user session.
      */
-    private fun isGuestPhotoAlbumRequest(encodedPath: String): Boolean {
+    private fun isGuestPhotoAlbumRequest(
+        encodedPath: String,
+        requestHeaders: Map<String, String>
+    ): Boolean {
         if (!authenticatedUserId.isNullOrBlank()) return false
         val path = encodedPath.lowercase()
+        val isImageRequest = requestHeaders.entries
+            .firstOrNull { it.key.equals("Accept", ignoreCase = true) }
+            ?.value?.contains("image/", ignoreCase = true) == true
+        val imageExtension = listOf(".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif", ".heic", ".heif")
+            .any { path.endsWith(it) }
+        val storageImage = path.contains("/storage/v1/object/") &&
+            ((path.contains("/photo-albums") || path.contains("/private-albums")) ||
+                ((path.contains("/avatars/") || path.contains("/posts/")) &&
+                    (isImageRequest || imageExtension)))
         return path.contains("/rest/v1/photo_album_photos") ||
             path.contains("/rest/v1/private_album_photos") ||
-            (path.contains("/storage/v1/object/") &&
-                (path.contains("/photo-albums/") || path.contains("/private-albums/")))
+            storageImage
     }
 
     /**
@@ -387,6 +402,9 @@ class MainActivity : ComponentActivity() {
                     const style = document.createElement('style');
                     style.id = styleId;
                     style.textContent = [
+                        'html.floustream-android-guest img,',
+                        'html.floustream-android-guest .post-photo-viewer,',
+                        'html.floustream-android-guest .photo-viewer,',
                         'html.floustream-android-guest [data-action="photos"],',
                         'html.floustream-android-guest #album-private-open,',
                         'html.floustream-android-guest #album-add-open,',
