@@ -54,6 +54,6 @@ Applied to Supabase project `qhpobdktlbhdqsnajypr` as migration:
 `restrict_album_media_to_permanent_users`.
 
 The SQL source is stored at:
-`supabase/migrations/202611220001_restrict_album_media_to_permanent_users.sql`.
+`supabase/migrations/20261121222942_restrict_album_media_to_permanent_users.sql`.
 
 Previously issued signed URLs may remain usable until their own expiry; newly generated URLs and new object reads are governed by the updated policies.
