@@ -10,7 +10,6 @@ import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.webkit.WebResourceResponse
 import org.json.JSONObject
 
 class MainActivity : Activity() {
@@ -27,7 +26,7 @@ class MainActivity : Activity() {
         const val WELCOME_ASSET_URL = "file:///android_asset/index.html"
         const val AUTH_URL = SITE_BASE_URL + "portal.html"
         const val PROFILE_URL = SITE_BASE_URL + "profile.html"
-        const val HOME_URL = SITE_BASE_URL + "home.html"
+        const val HOME_URL = PROFILE_URL
         const val MAX_AUTH_CHECK_ATTEMPTS = 50
         const val AUTH_CHECK_INTERVAL_MS = 400L
     }
@@ -110,39 +109,6 @@ class MainActivity : Activity() {
                     return false
                 }
 
-                override fun shouldInterceptRequest(
-                    view: WebView?,
-                    request: WebResourceRequest?
-                ): WebResourceResponse? {
-                    val path = request?.url?.path.orEmpty()
-                    val asset = when {
-                        path.endsWith("/home.html") -> "home.html"
-                        path.endsWith("/profile.html") -> "profile.html"
-                        path.endsWith("/friends.html") -> "friends.html"
-                        path.endsWith("/public-profile.html") -> "public-profile.html"
-                        path.endsWith("/floustream-player.js") -> "floustream-player.js"
-                        path.endsWith("/friend-notifications.js") -> "friend-notifications.js"
-                        path.endsWith("/message-notifications.js") -> "message-notifications.js"
-                        path.endsWith("/messages.html") -> "messages.html"
-                        path.endsWith("/backgammon.html") -> "backgammon.html"
-                        path.endsWith("/backgammon.js") -> "backgammon.js"
-                        path.endsWith("/backgammon/dice.js") -> "backgammon/dice.js"
-                        path.endsWith("/backgammon/engine.js") -> "backgammon/engine.js"
-                        path.endsWith("/backgammon/rules.js") -> "backgammon/rules.js"
-                        path.endsWith("/supabase/functions/_shared/dice.mjs") -> "supabase/functions/_shared/dice.mjs"
-                        path.endsWith("/supabase/functions/_shared/engine.mjs") -> "supabase/functions/_shared/engine.mjs"
-                        path.endsWith("/supabase/functions/_shared/rules.mjs") -> "supabase/functions/_shared/rules.mjs"
-                        else -> null
-                    } ?: return null
-
-                    val mime = if (asset.endsWith(".html")) "text/html" else "text/javascript"
-                    return try {
-                        WebResourceResponse(mime, "UTF-8", assets.open(asset))
-                    } catch (_: Exception) {
-                        null
-                    }
-                }
-
                 override fun onReceivedError(
                     view: WebView?,
                     request: WebResourceRequest?,
@@ -159,9 +125,6 @@ class MainActivity : Activity() {
                     this@MainActivity.title = "FLOUSTREAM"
 
                     val currentUrl = url.orEmpty()
-                    if (currentUrl.startsWith(HOME_URL)) {
-                        installApkMessagesNavigation(view)
-                    }
                     if (startupAuthCheckPending &&
                         (currentUrl.startsWith(AUTH_URL) ||
                          currentUrl.startsWith(PROFILE_URL))
@@ -187,26 +150,6 @@ class MainActivity : Activity() {
 
         // Keep the same HTTPS origin and Supabase localStorage used by the website.
         webView.loadUrl(SITE_BASE_URL)
-    }
-
-    // APK-only navigation bridge: the hosted website files remain untouched.
-    private fun installApkMessagesNavigation(view: WebView?) {
-        if (view == null || isFinishing || isDestroyed) return
-        view.evaluateJavascript("""
-            (function(){
-              if(window.__floustreamApkMessagesNav)return;
-              window.__floustreamApkMessagesNav=true;
-              var link=document.querySelector('.nav a[data-soon="Сообщения"]');
-              if(link){link.removeAttribute('data-soon');link.setAttribute('href','messages.html');}
-              document.addEventListener('click',function(event){
-                var target=event.target&&event.target.closest?event.target.closest('.nav a[href="messages.html"]'):null;
-                if(!target)return;
-                event.preventDefault();
-                event.stopImmediatePropagation();
-                window.location.href=new URL('messages.html',window.location.href).href;
-              },true);
-            })();
-        """.trimIndent(), null)
     }
 
     private fun checkSupabaseSession(view: WebView?, clientExpression: String) {

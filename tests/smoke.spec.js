@@ -94,36 +94,24 @@ test("video album keeps public and private players, native controls and swipe na
 });
 
 
-test("home feed renders stored photo, audio and video post media", async () => {
-  const fs = require("node:fs");
-  const path = require("node:path");
-  const home = fs.readFileSync(path.join(__dirname, "../home.html"), "utf8");
-
-  expect(home).toContain("Array.isArray(post.media)");
-  expect(home).toContain('media=document.createElement("audio")');
-  expect(home).toContain('media=document.createElement("video")');
-  expect(home).toContain("media.controls=true");
-  expect(home).toContain("media.playsInline=true");
-  expect(home).toContain('type==="music"||type==="audio"');
-  expect(home).toContain('type==="video"');
-  expect(home).toContain("post.image_url");
-});
-
-
-test("APK WebShell serves its bundled home feed instead of the hosted website page", async () => {
+test("APK authenticated home always opens the live website profile and navigation", async () => {
   const fs = require("node:fs");
   const path = require("node:path");
   const mainActivity = fs.readFileSync(
     path.join(__dirname, "../android-web-shell-test/app/src/main/java/com/floustream/webshelltest/MainActivity.kt"),
     "utf8"
   );
-  const bundledHome = fs.readFileSync(
-    path.join(__dirname, "../android-web-shell-test/app/src/main/assets/home.html"),
-    "utf8"
-  );
+  const profile = fs.readFileSync(path.join(__dirname, "../profile.html"), "utf8");
 
-  expect(mainActivity).toContain('path.endsWith("/home.html") -> "home.html"');
-  expect(bundledHome).toContain("Array.isArray(post.media)");
-  expect(bundledHome).toContain('media=document.createElement("audio")');
-  expect(bundledHome).toContain('media=document.createElement("video")');
+  expect(mainActivity).toContain('const val HOME_URL = PROFILE_URL');
+  expect(mainActivity).toContain("window.location.href = '$HOME_URL'");
+  expect(mainActivity).not.toContain("shouldInterceptRequest");
+  expect(mainActivity).not.toContain("installApkMessagesNavigation");
+  expect(profile).toContain('id="drawer-menu-button"');
+  expect(profile).toContain('id="side-drawer"');
+  expect(profile).toContain('id="display-name"');
+  expect(profile).toContain('id="open-publish"');
+  expect(profile).toContain('id="post-schedule-toggle"');
+  expect(profile).toContain('id="scheduled-queue"');
+  expect(profile).toContain('id="feed-list"');
 });
