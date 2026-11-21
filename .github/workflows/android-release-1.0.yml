@@ -71,6 +71,10 @@ jobs:
           python -m pip install --disable-pip-version-check Pillow
           python android-web-shell-test/scripts/generate_launcher_icons.py
 
+      - name: Run unit tests
+        working-directory: android-web-shell-test
+        run: gradle --no-daemon :app:testDebugUnitTest
+
       - name: Build Debug APK
         working-directory: android-web-shell-test
         run: gradle --no-daemon clean :app:assembleDebug
