@@ -674,8 +674,8 @@ class MainActivity : Activity() {
                         } catch (_: Exception) {
                             // Push registration is retried at the next authenticated startup.
                         }
+                        if (!isFinishing && !isDestroyed) showAuthenticatedScreen(view)
                     }
-                    showAuthenticatedScreen(view)
                 }
                 "unauthenticated" -> {
                     authenticatedUserId = null
