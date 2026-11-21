@@ -22,6 +22,10 @@ class InAppUpdater(private val activity: Activity) {
     private var downloadedApk: File? = null
     private var waitingForInstallPermission = false
 
+    fun close() {
+        executor.shutdownNow()
+    }
+
     fun checkForUpdate() {
         executor.execute {
             try {
