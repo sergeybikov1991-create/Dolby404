@@ -491,7 +491,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    async function refreshCachedImage(source, key) {
+                    async function refreshCachedImage(source, key, element, attribute, userId) {
                         try {
                             const response = await fetch(source, { cache: 'no-store', credentials: 'omit' });
                             if (!response.ok) return;
@@ -499,6 +499,26 @@ class MainActivity : ComponentActivity() {
                             if (contentType && !contentType.startsWith('image/')) return;
                             const cache = await caches.open(cacheName);
                             await cache.put(key, response.clone());
+
+                            // Show the cached image immediately, then replace it in-place
+                            // when the server returns a newer version at the same URL.
+                            if (element && element.isConnected &&
+                                currentUserKey() === userId &&
+                                element.dataset.floustreamOriginalMedia === source) {
+                                const blob = await response.blob();
+                                if (!blob || !blob.size) return;
+                                const objectUrl = URL.createObjectURL(blob);
+                                if (element.isConnected && currentUserKey() === userId &&
+                                    element.dataset.floustreamOriginalMedia === source) {
+                                    const previousUrl = element.getAttribute(attribute);
+                                    element.setAttribute(attribute, objectUrl);
+                                    if (previousUrl && previousUrl.startsWith('blob:')) {
+                                        URL.revokeObjectURL(previousUrl);
+                                    }
+                                } else {
+                                    URL.revokeObjectURL(objectUrl);
+                                }
+                            }
                         } catch (_) {}
                     }
 
@@ -517,19 +537,19 @@ class MainActivity : ComponentActivity() {
                             } else {
                                 URL.revokeObjectURL(objectUrl);
                             }
-                            refreshCachedImage(source, key);
+                            refreshCachedImage(source, key, element, attribute, userId);
                             return;
                         }
 
                         const saveAfterLoad = function() {
                             if (element.isConnected && element.getAttribute(attribute) === source) {
-                                refreshCachedImage(source, key);
+                                refreshCachedImage(source, key, element, attribute, userId);
                             }
                         };
                         if (attribute === 'src' && element.complete && element.naturalWidth > 0) {
                             saveAfterLoad();
                         } else if (attribute === 'poster') {
-                            refreshCachedImage(source, key);
+                            refreshCachedImage(source, key, element, attribute, userId);
                         } else {
                             element.addEventListener('load', saveAfterLoad, { once: true });
                             element.addEventListener('error', async function() {
