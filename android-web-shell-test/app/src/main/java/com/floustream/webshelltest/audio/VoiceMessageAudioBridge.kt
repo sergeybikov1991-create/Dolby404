@@ -28,6 +28,16 @@ class VoiceMessageAudioBridge(
     private val completedFiles = ConcurrentHashMap<String, File>()
     val javascriptToken: String = UUID.randomUUID().toString()
 
+    @Volatile var activeUserId: String? = null
+        private set
+
+    @JavascriptInterface
+    fun updateSessionUserId(token: String, userId: String?) {
+        if (!isValidToken(token)) return
+        val candidate = userId?.trim().orEmpty()
+        activeUserId = candidate.takeIf { it.matches(Regex("[0-9a-fA-F-]{36}")) }
+    }
+
     private fun isValidToken(token: String): Boolean = token == javascriptToken
 
     @JavascriptInterface
