@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       publish_release:
-        description: "Опубликовать публичный GitHub Release v1.2 (только после проверки APK)"
+        description: "Опубликовать публичный GitHub Release v1.3 (только после проверки APK)"
         required: false
         type: boolean
         default: false
@@ -57,7 +57,7 @@ jobs:
         run: |
           if [ -z "$KEYSTORE_B64" ] || [ -z "$STORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
             echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::error::Release signing secrets are missing or empty. Configure all four repository Actions secrets before building FLOUSTREAM 1.0."
+            echo "::error::Release signing secrets are missing or empty. Configure all four repository Actions secrets before building FLOUSTREAM 1.3."
             exit 1
           fi
           echo "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/floustream-release.jks"
@@ -106,7 +106,7 @@ jobs:
           APK=android-web-shell-test/app/build/outputs/apk/release/app-release.apk
           SHA=$(sha256sum "$APK" | cut -d' ' -f1)
           printf '%s  %s\n' "$SHA" "app-release.apk" > "$APK.sha256"
-          printf '{"versionCode":102,"versionName":"1.2","apkUrl":"https://github.com/sergeybikov1991-create/Dolby404/releases/download/v1.3/app-release.apk","sha256":"%s"}\n' "$SHA" > android-web-shell-test/app/build/outputs/apk/release/update.json
+          printf '{"versionCode":103,"versionName":"1.3","apkUrl":"https://github.com/sergeybikov1991-create/Dolby404/releases/download/v1.3/app-release.apk","sha256":"%s"}\n' "$SHA" > android-web-shell-test/app/build/outputs/apk/release/update.json
 
       - name: Upload CI artifacts
         uses: actions/upload-artifact@v4
