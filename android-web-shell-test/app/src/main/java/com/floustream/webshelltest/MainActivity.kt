@@ -565,6 +565,8 @@ class MainActivity : ComponentActivity() {
                             return;
                         }
 
+                        element.dataset.floustreamOriginalMedia = source;
+                        element.dataset.floustreamCachedUser = userId;
                         const saveAfterLoad = function() {
                             if (element.isConnected && element.getAttribute(attribute) === source) {
                                 refreshCachedImage(source, key, element, attribute, userId);
@@ -594,9 +596,18 @@ class MainActivity : ComponentActivity() {
 
                     function processMedia(element, attribute) {
                         if (!element || !element.getAttribute) return;
-                        const source = element.dataset.floustreamOriginalMedia ||
-                            element.getAttribute(attribute) || '';
+                        const rawSource = element.getAttribute(attribute) || '';
+                        if (!rawSource || rawSource.startsWith('data:')) return;
+                        const source = rawSource.startsWith('blob:')
+                            ? (element.dataset.floustreamOriginalMedia || rawSource)
+                            : rawSource;
                         if (!source || source.startsWith('blob:') || source.startsWith('data:')) return;
+                        if (rawSource === source && element.dataset.floustreamOriginalMedia !== source) {
+                            // A page replaced the image URL; stop treating it as
+                            // the previous cached resource.
+                            element.dataset.floustreamOriginalMedia = source;
+                            delete element.dataset.floustreamCachedUser;
+                        }
                         const userId = currentUserKey();
                         const previousUser = element.dataset.floustreamCachedUser;
                         if (previousUser && previousUser !== userId) {
