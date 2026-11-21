@@ -2854,7 +2854,8 @@ $("avatar-file").addEventListener("change",async()=>{
    if(albumRow.error)throw albumRow.error;albumPhotoId=albumRow.data.id;
    const linked=await client.from("profiles").update({avatar_photo_id:albumPhotoId}).eq("id",user.id).select("*").single();
    if(linked.error)throw linked.error;
-   profile=linked.data;columns=Object.keys(profile);render();await loadPhotoAlbum();
+   profile=linked.data;columns=Object.keys(profile);render();
+   try{await loadPhotoAlbum();}catch(refreshError){console.warn("FLOUSTREAM photo album refresh:",refreshError);}
    $("photo-status").textContent="Фото профиля обновлено, оригинал добавлен в фотоальбом!";
   }catch(albumError){
    if(albumPhotoId)await client.from("photo_album_photos").delete().eq("id",albumPhotoId).eq("owner_id",user.id);
