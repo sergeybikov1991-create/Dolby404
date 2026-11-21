@@ -292,6 +292,7 @@ class MainActivity : Activity() {
         authCheckAttempts = 0
     }
 
+    // Used only for the bundled onboarding fallback; a signed-out user stays on portal.html.
     private fun showBundledWelcome(view: WebView?) {
         if (view == null || isFinishing || isDestroyed) return
         cancelAuthCheck()
