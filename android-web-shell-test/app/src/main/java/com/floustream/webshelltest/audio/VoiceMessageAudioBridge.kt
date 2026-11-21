@@ -25,11 +25,14 @@ class VoiceMessageAudioBridge(
     private var recorder: MediaRecorder? = null
     private var recordingFile: File? = null
     private val completedFiles = ConcurrentHashMap<String, File>()
+    val javascriptToken: String = UUID.randomUUID().toString()
+
+    private fun isValidToken(token: String): Boolean = token == javascriptToken
 
     @JavascriptInterface
     @Synchronized
-    fun tryAcquireVoiceMessage(): Boolean {
-        if (lease != null) return false
+    fun tryAcquireVoiceMessage(token: String): Boolean {
+        if (!isValidToken(token) || lease != null) return false
         lease = coordinator.tryAcquire(VoiceAudioOwner.VOICE_MESSAGE)
         return lease != null
     }
@@ -37,8 +40,8 @@ class VoiceMessageAudioBridge(
     @JavascriptInterface
     @SuppressLint("MissingPermission")
     @Synchronized
-    fun startNativeRecording(): Boolean {
-        if (lease == null || recorder != null) return false
+    fun startNativeRecording(token: String): Boolean {
+        if (!isValidToken(token) || lease == null || recorder != null) return false
         if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             return false
         }
@@ -75,7 +78,8 @@ class VoiceMessageAudioBridge(
 
     @JavascriptInterface
     @Synchronized
-    fun stopNativeRecording(): String {
+    fun stopNativeRecording(token: String): String {
+        if (!isValidToken(token)) return ""
         val activeRecorder = recorder ?: return ""
         val file = recordingFile
         recorder = null
@@ -105,14 +109,16 @@ class VoiceMessageAudioBridge(
 
     @JavascriptInterface
     @Synchronized
-    fun cancelNativeRecording() {
+    fun cancelNativeRecording(token: String) {
+        if (!isValidToken(token)) return
         cancelActiveRecording()
         releaseLease()
     }
 
     @JavascriptInterface
     @Synchronized
-    fun releaseVoiceMessage() {
+    fun releaseVoiceMessage(token: String) {
+        if (!isValidToken(token)) return
         // Never release ownership while the native recorder is still capturing.
         if (recorder != null) cancelActiveRecording()
         releaseLease()
