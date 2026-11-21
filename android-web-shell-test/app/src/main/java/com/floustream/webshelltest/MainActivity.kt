@@ -1379,6 +1379,7 @@ class MainActivity : ComponentActivity() {
 
                     const bridgeToken = '$bridgeToken';
                     let recording = false;
+                    let startPending = false;
                     let startedAt = 0;
                     let leaseHeld = false;
                     let disposed = false;
@@ -1426,13 +1427,14 @@ class MainActivity : ComponentActivity() {
                     }
 
                     async function startRecording() {
-                        if (disposed || recording || !pointerHeld && !keyboardHeld) return;
+                        if (disposed || recording || startPending || !pointerHeld && !keyboardHeld) return;
                         if (document.getElementById('attach')?.disabled) return;
+                        startPending = true;
                         if (!window.FloustreamVoiceAudio) {
                             notice('Нативная запись голоса недоступна в этой версии приложения.', true);
                             return;
                         }
-                        button.disabled = true;
+                        button.textContent = '…';
                         try {
                             await waitForPermission();
                             if (disposed || !pointerHeld && !keyboardHeld) return;
@@ -1459,8 +1461,9 @@ class MainActivity : ComponentActivity() {
                             notice('Не удалось начать запись: ' +
                                 (error && error.message ? error.message : 'попробуй ещё раз.'), true);
                         } finally {
+                            startPending = false;
                             startAttempt = null;
-                            if (!recording && !disposed) button.disabled = false;
+                            if (!recording && !disposed) resetButton();
                         }
                     }
 
