@@ -14,12 +14,16 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.webkit.ValueCallback
 import org.json.JSONObject
+import java.io.ByteArrayInputStream
+import java.nio.charset.StandardCharsets
 
 class MainActivity : Activity() {
     private lateinit var inAppUpdater: InAppUpdater
@@ -27,6 +31,7 @@ class MainActivity : Activity() {
     private lateinit var webView: WebView
     private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
     private var fullscreenCustomView: View? = null
+    @Volatile private var authenticatedUserId: String? = null
     private var fullscreenCustomViewCallback: WebChromeClient.CustomViewCallback? = null
     private var fullscreenDecorView: ViewGroup? = null
     private var previousSystemUiVisibility: Int = 0
@@ -62,6 +67,25 @@ class MainActivity : Activity() {
             settings.javaScriptCanOpenWindowsAutomatically = false
             settings.setSupportMultipleWindows(false)
             webViewClient = object : WebViewClient() {
+                override fun shouldInterceptRequest(
+                    view: WebView?,
+                    request: WebResourceRequest?
+                ): WebResourceResponse? {
+                    if (request != null && isGuestPhotoAlbumRequest(request.url.encodedPath.orEmpty())) {
+                        val body = """{"error":"Photo albums are unavailable in guest mode"}"""
+                            .toByteArray(StandardCharsets.UTF_8)
+                        return WebResourceResponse(
+                            "application/json",
+                            "UTF-8",
+                            403,
+                            "Forbidden",
+                            mapOf("Cache-Control" to "no-store"),
+                            ByteArrayInputStream(body)
+                        )
+                    }
+                    return super.shouldInterceptRequest(view, request)
+                }
+
                 override fun onPageStarted(
                     view: WebView?,
                     url: String?,
@@ -142,6 +166,7 @@ class MainActivity : Activity() {
                     super.onPageFinished(view, url)
                     this@MainActivity.title = "FLOUSTREAM"
                     applyAndroidMessageMediaStyle(view)
+                    syncAndroidAlbumAccess(view)
 
                     val currentUrl = url.orEmpty()
                     if (startupAuthCheckPending &&
@@ -244,6 +269,7 @@ class MainActivity : Activity() {
             }
         }
 
+        webView.addJavascriptInterface(AndroidSessionBridge(), "FloustreamAndroid")
         inAppUpdater = InAppUpdater(this)
         setContentView(webView)
         if (BuildConfig.DEBUG) {
@@ -252,6 +278,86 @@ class MainActivity : Activity() {
 
         // Keep the same HTTPS origin and Supabase localStorage used by the website.
         webView.loadUrl(SITE_BASE_URL)
+    }
+
+    private inner class AndroidSessionBridge {
+        @JavascriptInterface
+        fun setSessionUser(userId: String?) {
+            authenticatedUserId = userId?.takeIf { it.isNotBlank() }
+        }
+    }
+
+    /**
+     * Deny photo-album data and object requests before WebView receives them
+     * whenever the active page has no authenticated Supabase user session.
+     */
+    private fun isGuestPhotoAlbumRequest(encodedPath: String): Boolean {
+        if (!authenticatedUserId.isNullOrBlank()) return false
+        val path = encodedPath.lowercase()
+        return path.contains("/rest/v1/photo_album_photos") ||
+            path.contains("/rest/v1/private_album_photos") ||
+            (path.contains("/storage/v1/object/") &&
+                (path.contains("/photo-albums/") || path.contains("/private-albums/")))
+    }
+
+    /**
+     * Keep the guest restriction native-side and mirror it in the Android UI.
+     * The JavaScript listener follows sign-in/sign-out changes without editing
+     * the hosted website.
+     */
+    private fun syncAndroidAlbumAccess(view: WebView?) {
+        if (view == null || isFinishing || isDestroyed) return
+        val script = """
+            (function() {
+                try {
+                    if (window.__floustreamAndroidAlbumGuardInstalled) return;
+                    window.__floustreamAndroidAlbumGuardInstalled = true;
+                    const styleId = 'floustream-android-guest-albums';
+                    const style = document.createElement('style');
+                    style.id = styleId;
+                    style.textContent = [
+                        'html.floustream-android-guest [data-action="photos"],',
+                        'html.floustream-android-guest #album-private-open,',
+                        'html.floustream-android-guest #album-add-open,',
+                        'html.floustream-android-guest #album-backdrop,',
+                        'html.floustream-android-guest #private-album-backdrop,',
+                        'html.floustream-android-guest #album-viewer,',
+                        'html.floustream-android-guest #private-album-viewer,',
+                        'html.floustream-android-guest #album-share-backdrop {',
+                        '  display: none !important;',
+                        '}'
+                    ].join('\\n');
+                    (document.head || document.documentElement).appendChild(style);
+
+                    const applyGuestState = (session) => {
+                        const isGuest = !session || !session.user || !session.user.id;
+                        document.documentElement.classList.toggle('floustream-android-guest', isGuest);
+                        if (window.FloustreamAndroid) {
+                            window.FloustreamAndroid.setSessionUser(isGuest ? '' : String(session.user.id));
+                        }
+                    };
+                    const connect = (attempt) => {
+                        const authClient =
+                            (typeof client !== 'undefined' && client) ? client :
+                            ((typeof supabaseClient !== 'undefined' && supabaseClient) ? supabaseClient : null);
+                        if (!authClient || !authClient.auth) {
+                            if (attempt < 24) setTimeout(() => connect(attempt + 1), 250);
+                            else applyGuestState(null);
+                            return;
+                        }
+                        authClient.auth.getSession().then((result) => {
+                            applyGuestState(result && result.data ? result.data.session : null);
+                        }).catch(() => applyGuestState(null));
+                        authClient.auth.onAuthStateChange((_event, session) => applyGuestState(session));
+                    };
+                    connect(0);
+                } catch (_) {
+                    document.documentElement.classList.add('floustream-android-guest');
+                    if (window.FloustreamAndroid) window.FloustreamAndroid.setSessionUser('');
+                }
+            })();
+        """.trimIndent()
+        view.evaluateJavascript(script, null)
     }
 
     /**
