@@ -13,6 +13,8 @@ import android.webkit.WebViewClient
 import org.json.JSONObject
 
 class MainActivity : Activity() {
+    private lateinit var inAppUpdater: InAppUpdater
+    private var updateCheckStarted = false
     private lateinit var webView: WebView
     private val mainHandler = Handler(Looper.getMainLooper())
     private var entryResolved = false
@@ -137,12 +139,17 @@ class MainActivity : Activity() {
 
                     if (url == WELCOME_ASSET_URL || url?.startsWith(HOME_URL) == true) {
                         view?.visibility = View.VISIBLE
+                        if (!updateCheckStarted) {
+                            updateCheckStarted = true
+                            inAppUpdater.checkForUpdate()
+                        }
                     }
                 }
             }
             webChromeClient = WebChromeClient()
         }
 
+        inAppUpdater = InAppUpdater(this)
         setContentView(webView)
         if (BuildConfig.DEBUG) {
             WebView.setWebContentsDebuggingEnabled(true)
@@ -389,6 +396,11 @@ class MainActivity : Activity() {
         } else {
             super.onBackPressed()
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::inAppUpdater.isInitialized) inAppUpdater.onResume()
     }
 
     override fun onDestroy() {
