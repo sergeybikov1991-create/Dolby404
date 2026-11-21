@@ -392,22 +392,11 @@ class MainActivity : ComponentActivity() {
     private fun isGuestPhotoAlbumRequest(
         encodedPath: String,
         requestHeaders: Map<String, String>
-    ): Boolean {
-        if (!voiceMessageAudioBridge.activeUserId.isNullOrBlank()) return false
-        val path = encodedPath.lowercase()
-        val isImageRequest = requestHeaders.entries
-            .firstOrNull { it.key.equals("Accept", ignoreCase = true) }
-            ?.value?.contains("image/", ignoreCase = true) == true
-        val imageExtension = listOf(".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif", ".heic", ".heif")
-            .any { path.endsWith(it) }
-        val storageImage = path.contains("/storage/v1/object/") &&
-            ((path.contains("/photo-albums") || path.contains("/private-albums")) ||
-                ((path.contains("/avatars/") || path.contains("/posts/")) &&
-                    (isImageRequest || imageExtension)))
-        return path.contains("/rest/v1/photo_album_photos") ||
-            path.contains("/rest/v1/private_album_photos") ||
-            storageImage
-    }
+    ): Boolean = GuestPhotoRequestPolicy.shouldBlock(
+        voiceMessageAudioBridge.activeUserId,
+        encodedPath,
+        requestHeaders
+    )
 
     /**
      * Keep the guest restriction native-side and mirror it in the Android UI.
