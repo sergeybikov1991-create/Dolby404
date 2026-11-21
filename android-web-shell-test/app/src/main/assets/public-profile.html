@@ -127,7 +127,10 @@ body{background:radial-gradient(ellipse at 15% 0%,#281342 0,transparent 38%),#09
 .wrap{max-width:960px;margin:22px auto;padding:0 16px}
 .profile{border:1px solid #49345f;border-radius:22px;background:linear-gradient(145deg,#171321,#0e0d16);box-shadow:0 12px 45px #0007,0 0 28px #7d3fba12}
 .cover{height:210px;position:relative;overflow:hidden;background:radial-gradient(ellipse at 72% 30%,#a34bff66 0,transparent 34%),radial-gradient(ellipse at 22% 80%,#4626a966 0,transparent 42%),linear-gradient(125deg,#090912 5%,#21102f 48%,#111b35 100%)}
-.cover:after{content:"FLOUSTREAM";position:absolute;right:22px;bottom:16px;font-size:clamp(24px,6vw,44px);font-weight:900;letter-spacing:.18em;color:#ffffff12;text-shadow:0 0 25px #a45bff55;pointer-events:none}
+.cover-photo{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:cover;object-position:center;z-index:0}
+.cover-photo[hidden]{display:none}
+.cover:before{content:"";position:absolute;inset:0;z-index:1;background:linear-gradient(110deg,#09091022,#09091044);pointer-events:none}
+.cover:after{content:"FLOUSTREAM";position:absolute;right:22px;bottom:16px;z-index:2;font-size:clamp(24px,6vw,44px);font-weight:900;letter-spacing:.18em;color:#ffffff12;text-shadow:0 0 25px #a45bff55;pointer-events:none}
 .identity{align-items:flex-end;gap:18px;margin:-56px 22px 0}
 .avatar{width:124px;height:124px;position:relative;isolation:isolate;flex:0 0 124px;border:3px solid #b879e8;border-radius:50%;overflow:hidden;background:linear-gradient(135deg,#6336a3,#17152b);box-shadow:0 0 0 1px #e3c8ff66,0 0 7px #b879ff88,0 0 16px #9b55ff66;animation:avatarFrameGlow 3.4s ease-in-out infinite}
 .avatar img{position:absolute;inset:0;display:block;width:100%;height:100%;min-width:100%;min-height:100%;object-fit:cover;object-position:center;border-radius:50%}
@@ -234,7 +237,7 @@ body{background:radial-gradient(ellipse at 15% 0%,#281342 0,transparent 38%),#09
 
 <main class="wrap">
 <section class="profile">
- <div class="cover" id="cover"></div>
+ <div class="cover" id="cover"><img class="cover-photo" id="cover-photo" alt="Обложка профиля" hidden></div>
  <div class="identity"><div class="avatar" id="avatar">◉</div><div class="name"><h1 id="display-name">Загружаем профиль…</h1><p id="username"></p><p class="profile-presence" id="profile-presence" aria-live="polite"></p></div></div>
  <p class="bio" id="bio"></p>
  <div class="profile-actions" id="profile-actions" hidden><a class="contact-cta" id="contact-cta" href="messages.html"><span class="contact-cta-label">Связаться</span></a><button class="friend-cta" id="friend-cta" type="button"><span aria-hidden="true">♧＋</span><span id="friend-cta-label">В друзья</span></button></div><p class="friend-action-status" id="friend-action-status" aria-live="polite"></p>
@@ -513,7 +516,7 @@ async function start(){
   $("username").textContent=target.username?"@"+target.username:"";
   $("bio").textContent=target.bio||"";
   const avatar=safeUrl(target.avatar_url);if(avatar){$("avatar").replaceChildren();const img=document.createElement("img");img.src=avatar;img.alt="Аватар";$("avatar").append(img);$("avatar").classList.add("has-original");$("avatar").setAttribute("role","button");$("avatar").tabIndex=0;$("avatar").setAttribute("aria-label","Открыть оригинал фотографии профиля");}else{$("avatar").textContent=(target.display_name||target.username||"◉").slice(0,1).toUpperCase();$("avatar").classList.remove("has-original");$("avatar").removeAttribute("role");$("avatar").removeAttribute("tabindex");$("avatar").removeAttribute("aria-label");}
-  const cover=safeUrl(target.cover_url);if(cover)$("cover").style.backgroundImage="linear-gradient(#09091055,#09091055),url("+JSON.stringify(cover)+")";
+  const cover=safeUrl(target.cover_url),coverImage=$("cover-photo");if(cover){coverImage.onerror=()=>{coverImage.hidden=true;};coverImage.onload=()=>{coverImage.hidden=false;};coverImage.src=cover;coverImage.hidden=false;}else{coverImage.removeAttribute("src");coverImage.hidden=true;}
   const [ownPosts,flows]=await Promise.all([
    client.from("posts").select("*").eq("user_id",targetId).order("created_at",{ascending:false}).limit(50),
    client.from("reposts").select("id,user_id,post_id,created_at").eq("user_id",targetId).order("created_at",{ascending:false}).limit(50)
