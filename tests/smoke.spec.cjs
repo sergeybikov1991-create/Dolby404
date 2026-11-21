@@ -105,3 +105,14 @@ test("messenger uses realtime subscriptions instead of five-second polling", () 
   expect(messages).not.toContain('setInterval(()=>{if(!document.hidden)loadInbox();},5000);');
   expect(messages).not.toContain('setInterval(()=>{if(!document.hidden)loadMessages(true);},5000);');
 });
+
+test("public profile permits guests without an Auth session and prefers the public avatar copy", () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const profile = fs.readFileSync(path.join(__dirname, "../public-profile.html"), "utf8");
+  expect(profile).toContain('if(stored.data?.session)');
+  expect(profile).toContain('else viewer=null;');
+  expect(profile).toContain('client.auth.getUser()');
+  expect(profile).toContain('const publicAvatar=safeUrl(profile.avatar_url);');
+  expect(profile).toContain('if(publicAvatar)return publicAvatar;');
+});
