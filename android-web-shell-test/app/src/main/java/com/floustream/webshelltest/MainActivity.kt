@@ -1,7 +1,6 @@
 package com.floustream.webshelltest
 
 import android.annotation.SuppressLint
-import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -12,6 +11,10 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.FrameLayout
+import androidx.activity.ComponentActivity
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import android.webkit.WebChromeClient
@@ -24,11 +27,13 @@ import org.json.JSONObject
 import java.io.ByteArrayInputStream
 import java.nio.charset.StandardCharsets
 
-class MainActivity : Activity() {
+class MainActivity : ComponentActivity() {
     private lateinit var inAppUpdater: InAppUpdater
     private var updateCheckStarted = false
     private lateinit var webView: WebView
     private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
+    private lateinit var singleVisualPickerLauncher: ActivityResultLauncher<PickVisualMediaRequest>
+    private lateinit var multipleVisualPickerLauncher: ActivityResultLauncher<PickVisualMediaRequest>
     private var fullscreenCustomView: View? = null
     @Volatile private var authenticatedUserId: String? = null
     private var fullscreenCustomViewCallback: WebChromeClient.CustomViewCallback? = null
@@ -56,6 +61,17 @@ class MainActivity : Activity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        singleVisualPickerLauncher = registerForActivityResult(
+            ActivityResultContracts.PickVisualMedia()
+        ) { uri ->
+            completeFileChooser(uri?.let { arrayOf(it) })
+        }
+        multipleVisualPickerLauncher = registerForActivityResult(
+            ActivityResultContracts.PickMultipleVisualMedia(20)
+        ) { uris ->
+            completeFileChooser(uris.takeIf { it.isNotEmpty() }?.toTypedArray())
+        }
 
         webView = WebView(this).apply {
             visibility = View.INVISIBLE
@@ -249,27 +265,57 @@ class MainActivity : Activity() {
                     this@MainActivity.fileChooserCallback?.onReceiveValue(null)
                     this@MainActivity.fileChooserCallback = filePathCallback
 
+                    val acceptedTypes = fileChooserParams?.acceptTypes.orEmpty()
+                        .flatMap { it.split(',') }
+                        .map { it.trim().lowercase() }
+                        .filter { it.isNotBlank() }
+                    val visualOnly = acceptedTypes.isNotEmpty() &&
+                        acceptedTypes.all { it.startsWith("image/") || it.startsWith("video/") }
+
+                    if (visualOnly && fileChooserParams?.isCaptureEnabled != true) {
+                        val visualType = when {
+                            acceptedTypes.all { it.startsWith("image/") } ->
+                                ActivityResultContracts.PickVisualMedia.ImageOnly
+                            acceptedTypes.all { it.startsWith("video/") } ->
+                                ActivityResultContracts.PickVisualMedia.VideoOnly
+                            else -> ActivityResultContracts.PickVisualMedia.ImageAndVideo
+                        }
+                        val request = PickVisualMediaRequest(visualType)
+                        return try {
+                            if (fileChooserParams?.mode == FileChooserParams.MODE_OPEN_MULTIPLE) {
+                                multipleVisualPickerLauncher.launch(request)
+                            } else {
+                                singleVisualPickerLauncher.launch(request)
+                            }
+                            true
+                        } catch (_: Exception) {
+                            completeFileChooser(null)
+                            false
+                        }
+                    }
+
+                    // Keep the existing generic file manager / capture chooser for
+                    // documents and explicit capture requests.
                     val chooserIntent = try {
                         fileChooserParams?.createIntent() ?: Intent(Intent.ACTION_GET_CONTENT).apply {
                             addCategory(Intent.CATEGORY_OPENABLE)
-                            type = "image/*"
+                            type = "*/*"
                         }
                     } catch (_: Exception) {
                         Intent(Intent.ACTION_GET_CONTENT).apply {
                             addCategory(Intent.CATEGORY_OPENABLE)
-                            type = "image/*"
+                            type = "*/*"
                         }
                     }
 
                     return try {
                         startActivityForResult(
-                            Intent.createChooser(chooserIntent, "Выберите фото профиля"),
+                            Intent.createChooser(chooserIntent, "Выберите файл"),
                             FILE_CHOOSER_REQUEST_CODE
                         )
                         true
                     } catch (_: Exception) {
-                        this@MainActivity.fileChooserCallback?.onReceiveValue(null)
-                        this@MainActivity.fileChooserCallback = null
+                        completeFileChooser(null)
                         false
                     }
                 }
@@ -846,19 +892,21 @@ class MainActivity : Activity() {
         view.loadDataWithBaseURL(SITE_BASE_URL, html, "text/html", "UTF-8", null)
     }
 
+    private fun completeFileChooser(selectedFiles: Array<Uri>?) {
+        val callback = fileChooserCallback ?: return
+        fileChooserCallback = null
+        callback.onReceiveValue(selectedFiles)
+    }
+
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         if (requestCode == FILE_CHOOSER_REQUEST_CODE) {
-            val callback = fileChooserCallback
-            fileChooserCallback = null
-            if (callback != null) {
-                val selectedFiles = if (resultCode == RESULT_OK) {
-                    WebChromeClient.FileChooserParams.parseResult(resultCode, data)
-                        ?: data?.data?.let { arrayOf(it) }
-                } else {
-                    null
-                }
-                callback.onReceiveValue(selectedFiles)
+            val selectedFiles = if (resultCode == RESULT_OK) {
+                WebChromeClient.FileChooserParams.parseResult(resultCode, data)
+                    ?: data?.data?.let { arrayOf(it) }
+            } else {
+                null
             }
+            completeFileChooser(selectedFiles)
             return
         }
         super.onActivityResult(requestCode, resultCode, data)
