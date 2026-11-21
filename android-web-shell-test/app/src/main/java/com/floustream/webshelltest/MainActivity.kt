@@ -167,6 +167,7 @@ class MainActivity : Activity() {
                     this@MainActivity.title = "FLOUSTREAM"
                     applyAndroidMessageMediaStyle(view)
                     syncAndroidAlbumAccess(view)
+                    applyAndroidPersistentMediaCache(view)
 
                     val currentUrl = url.orEmpty()
                     if (startupAuthCheckPending &&
@@ -331,9 +332,11 @@ class MainActivity : Activity() {
 
                     const applyGuestState = (session) => {
                         const isGuest = !session || !session.user || !session.user.id;
+                        const userId = isGuest ? 'guest' : String(session.user.id);
+                        window.__floustreamAndroidUserId = userId;
                         document.documentElement.classList.toggle('floustream-android-guest', isGuest);
                         if (window.FloustreamAndroid) {
-                            window.FloustreamAndroid.setSessionUser(isGuest ? '' : String(session.user.id));
+                            window.FloustreamAndroid.setSessionUser(isGuest ? '' : userId);
                         }
                     };
                     const connect = (attempt) => {
@@ -355,6 +358,161 @@ class MainActivity : Activity() {
                     document.documentElement.classList.add('floustream-android-guest');
                     if (window.FloustreamAndroid) window.FloustreamAndroid.setSessionUser('');
                 }
+            })();
+        """.trimIndent()
+        view.evaluateJavascript(script, null)
+    }
+
+    /**
+     * Persistent WebView media cache shared by all FLOUSTREAM sections.
+     * Only image resources and video poster images are stored; video streams are
+     * deliberately left to the normal network path.
+     */
+    private fun applyAndroidPersistentMediaCache(view: WebView?) {
+        if (view == null || isFinishing || isDestroyed) return
+        val script = """
+            (function() {
+                try {
+                    if (window.__floustreamAndroidMediaCacheInstalled) return;
+                    window.__floustreamAndroidMediaCacheInstalled = true;
+                    const cacheName = 'floustream-android-media-v1';
+                    const active = new WeakMap();
+
+                    if (navigator.storage && navigator.storage.persist) {
+                        navigator.storage.persist().catch(function() {});
+                    }
+
+                    function currentUserKey() {
+                        return window.__floustreamAndroidUserId || 'guest';
+                    }
+
+                    function makeCacheKey(source, userId) {
+                        try {
+                            const url = new URL(source, location.href);
+                            if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
+                            const params = new URLSearchParams(url.search);
+                            params.delete('token');
+                            params.delete('signature');
+                            params.delete('expires');
+                            const normalized = url.origin + url.pathname +
+                                (params.toString() ? '?' + params.toString() : '');
+                            const keyUrl = location.origin + '/__floustream_android_media_cache__/' +
+                                encodeURIComponent(userId) + '/' + encodeURIComponent(normalized);
+                            return new Request(keyUrl, { method: 'GET' });
+                        } catch (_) {
+                            return null;
+                        }
+                    }
+
+                    async function refreshCachedImage(source, key) {
+                        try {
+                            const response = await fetch(source, { cache: 'no-store', credentials: 'omit' });
+                            if (!response.ok) return;
+                            const contentType = (response.headers.get('content-type') || '').toLowerCase();
+                            if (contentType && !contentType.startsWith('image/')) return;
+                            const cache = await caches.open(cacheName);
+                            await cache.put(key, response.clone());
+                        } catch (_) {}
+                    }
+
+                    async function loadCachedImage(element, attribute, source, key, userId) {
+                        const cache = await caches.open(cacheName);
+                        const cached = await cache.match(key);
+                        if (cached) {
+                            const blob = await cached.blob();
+                            if (!blob || !blob.size) return;
+                            const objectUrl = URL.createObjectURL(blob);
+                            if (element.isConnected && element.getAttribute(attribute) === source &&
+                                currentUserKey() === userId) {
+                                element.dataset.floustreamOriginalMedia = source;
+                                element.dataset.floustreamCachedUser = userId;
+                                element.setAttribute(attribute, objectUrl);
+                            } else {
+                                URL.revokeObjectURL(objectUrl);
+                            }
+                            refreshCachedImage(source, key);
+                            return;
+                        }
+
+                        const saveAfterLoad = function() {
+                            if (element.isConnected && element.getAttribute(attribute) === source) {
+                                refreshCachedImage(source, key);
+                            }
+                        };
+                        if (attribute === 'src' && element.complete && element.naturalWidth > 0) {
+                            saveAfterLoad();
+                        } else if (attribute === 'poster') {
+                            refreshCachedImage(source, key);
+                        } else {
+                            element.addEventListener('load', saveAfterLoad, { once: true });
+                            element.addEventListener('error', async function() {
+                                try {
+                                    const fallback = await cache.match(key);
+                                    if (!fallback || !element.isConnected ||
+                                        element.getAttribute(attribute) !== source ||
+                                        currentUserKey() !== userId) return;
+                                    const blob = await fallback.blob();
+                                    const objectUrl = URL.createObjectURL(blob);
+                                    element.dataset.floustreamOriginalMedia = source;
+                                    element.dataset.floustreamCachedUser = userId;
+                                    element.setAttribute(attribute, objectUrl);
+                                } catch (_) {}
+                            }, { once: true });
+                        }
+                    }
+
+                    function processMedia(element, attribute) {
+                        if (!element || !element.getAttribute) return;
+                        const source = element.dataset.floustreamOriginalMedia ||
+                            element.getAttribute(attribute) || '';
+                        if (!source || source.startsWith('blob:') || source.startsWith('data:')) return;
+                        const userId = currentUserKey();
+                        const stamp = userId + '|' + source + '|' + attribute;
+                        if (active.get(element) === stamp) return;
+                        active.set(element, stamp);
+                        const key = makeCacheKey(source, userId);
+                        if (!key || !('caches' in window)) return;
+                        loadCachedImage(element, attribute, source, key, userId).catch(function() {});
+                    }
+
+                    function scan(node) {
+                        if (!node || node.nodeType !== 1) return;
+                        if (node.tagName === 'IMG') processMedia(node, 'src');
+                        if (node.tagName === 'VIDEO' && node.getAttribute('poster')) {
+                            processMedia(node, 'poster');
+                        }
+                        if (node.querySelectorAll) {
+                            node.querySelectorAll('img[src]').forEach(function(img) {
+                                processMedia(img, 'src');
+                            });
+                            node.querySelectorAll('video[poster]').forEach(function(video) {
+                                processMedia(video, 'poster');
+                            });
+                        }
+                    }
+
+                    scan(document.documentElement);
+                    const observer = new MutationObserver(function(records) {
+                        records.forEach(function(record) {
+                            if (record.type === 'attributes') {
+                                const element = record.target;
+                                if (element.tagName === 'IMG' && record.attributeName === 'src') {
+                                    processMedia(element, 'src');
+                                } else if (element.tagName === 'VIDEO' && record.attributeName === 'poster') {
+                                    processMedia(element, 'poster');
+                                }
+                            } else {
+                                record.addedNodes.forEach(scan);
+                            }
+                        });
+                    });
+                    observer.observe(document.documentElement, {
+                        subtree: true,
+                        childList: true,
+                        attributes: true,
+                        attributeFilter: ['src', 'poster']
+                    });
+                } catch (_) {}
             })();
         """.trimIndent()
         view.evaluateJavascript(script, null)
