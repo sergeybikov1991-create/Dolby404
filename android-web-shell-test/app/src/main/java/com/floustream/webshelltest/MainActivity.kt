@@ -1180,7 +1180,7 @@ class MainActivity : ComponentActivity() {
         if (::inAppUpdater.isInitialized) inAppUpdater.onResume()
     }
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == AUDIO_PERMISSION_REQUEST_CODE) {
             val pending = pendingWebAudioPermissionRequest
