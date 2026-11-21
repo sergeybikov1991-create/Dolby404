@@ -15,8 +15,8 @@ android {
         applicationId = "com.floustream.android"
         minSdk = 26
         targetSdk = 35
-        versionCode = 100
-        versionName = "1.0"
+        versionCode = 101
+        versionName = "1.1"
         buildConfigField("String", "UPDATE_REPOSITORY", "\"sergeybikov1991-create/Dolby404\"")
     }
     buildFeatures { buildConfig = true }
