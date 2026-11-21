@@ -1087,6 +1087,13 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
 <script src="message-notifications.js?v=20261122-1"></script>
 <script src="friend-notifications.js"></script>
 <script>
+if ("serviceWorker" in navigator) {
+ window.__floustreamServiceWorkerReady = navigator.serviceWorker.register(new URL("./service-worker.js", document.baseURI).href, {
+  scope: new URL("./", document.baseURI).pathname
+ }).then(() => navigator.serviceWorker.ready).catch(error => { console.warn("FLOUSTREAM notification worker unavailable:", error); return null; });
+}
+</script>
+<script>
 const SUPABASE_URL="https://qhpobdktlbhdqsnajypr.supabase.co";
 const SUPABASE_KEY="sb_publishable_tzG1qVsbjaW8YE_LBVN87Q_v0CahKN5";
 let client,user,profile={},columns=[];
