@@ -84,17 +84,17 @@ for density, size in [("mdpi",48),("hdpi",72),("xhdpi",96),("xxhdpi",144),("xxxh
 (RES / "mipmap-anydpi-v26").mkdir(parents=True, exist_ok=True)
 for name in ("ic_launcher.xml", "ic_launcher_round.xml"):
     (RES / "mipmap-anydpi-v26" / name).write_text(
-        '<?xml version="1.0" encoding="utf-8"?>\\n'
-        '<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\\n'
-        '    <background android:drawable="@drawable/ic_launcher_background" />\\n'
-        '    <foreground android:drawable="@drawable/ic_launcher_foreground" />\\n'
-        '</adaptive-icon>\\n', encoding="utf-8")
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        '<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\n'
+        '    <background android:drawable="@drawable/ic_launcher_background" />\n'
+        '    <foreground android:drawable="@drawable/ic_launcher_foreground" />\n'
+        '</adaptive-icon>\n', encoding="utf-8")
 
 (RES / "drawable" / "ic_launcher_background.xml").write_text(
-    '<?xml version="1.0" encoding="utf-8"?>\\n'
-    '<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">\\n'
+    '<?xml version="1.0" encoding="utf-8"?>\n'
+    '<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">\n'
     '    <gradient android:type="radial" android:gradientRadius="220dp" '
-    'android:centerColor="#1A0A35" android:endColor="#080214" android:startColor="#16082C" />\\n'
-    '</shape>\\n', encoding="utf-8")
+    'android:centerColor="#1A0A35" android:endColor="#080214" android:startColor="#16082C" />\n'
+    '</shape>\n', encoding="utf-8")
 print(f"Generated FLOUSTREAM launcher icons from original source ({w}x{h}); "
       f"glyph {glyph.width}x{glyph.height}, adaptive foreground 432x432.")
