@@ -19,6 +19,8 @@ The app checks the latest published GitHub Release for an `update.json` asset. T
 
 A public release must include both `app-release.apk` and `update.json` as release assets. Do not publish a release until the signed candidate passes device validation.
 
+Signing identity and certificate fingerprint are recorded in [RELEASE-SIGNING-PASSPORT.md](RELEASE-SIGNING-PASSPORT.md). The private keystore and passwords are never stored in this repository.
+
 ## GitHub Actions signing secrets
 
 Configure these repository Actions secrets before running the signed release workflow:
