@@ -1,52 +1,49 @@
-# FLOUSTREAM Android WebShell Test APK
+# FLOUSTREAM Android 1.0
 
-An isolated Android WebView test application for validating the FLOUSTREAM Android entry flow. It remains separate from the production messenger module.
+This Android application is the WebView-based FLOUSTREAM client. It opens the live FLOUSTREAM website inside a native Android Activity and uses the website's existing Supabase authentication/session.
 
-## Entry and authentication flow
+## Production identity
 
-- On launch, the app opens the existing FLOUSTREAM website entry point in a hidden WebView to check the existing Supabase session.
-- If a saved session is found, the app opens `home.html` directly.
-- If the visitor is signed out, the app shows the welcome screen bundled inside the APK. The website's `index.html` is not modified for this flow.
-- The welcome screen's Start button and right-to-left swipe open the existing `portal.html` sign-in/registration page.
-- After successful authentication, the Android WebView redirects the existing `profile.html` post-auth route to `home.html`.
+- Application ID: `com.floustream.android`
+- Version name: `1.0`
+- Version code: `100`
+- Minimum Android: 8.0 (API 26)
+- Target Android: API 35
+- Release signing: one persistent upload keystore; never regenerate it after the first public release.
 
-## What it tests
+The Debug variant deliberately uses a separate ID (`com.floustream.android.debug`) and cannot be upgraded in place to the Release variant. The Release APK must always be signed with the same keystore.
 
-- Standalone Android Activity with WebView and no browser address bar or toolbar.
-- APK-bundled welcome screen and right-to-left swipe.
-- Existing website authentication and saved-session routing.
-- Navigation to the FLOUSTREAM home page after sign-in.
-- WebView scrolling, translucent UI panels, fixed/scrolling backgrounds, and Android Back navigation.
+## In-app updates
+
+The app checks the latest published GitHub Release for an `update.json` asset. The manifest contains `versionCode`, `versionName`, `apkUrl`, and the APK SHA-256 checksum. The app downloads the APK, verifies SHA-256, then hands installation to Android's system package installer. Android may require the user to allow installs from FLOUSTREAM once.
+
+A public release must include both `app-release.apk` and `update.json` as release assets. Do not publish a release until the signed candidate passes device validation.
+
+## GitHub Actions signing secrets
+
+Configure these repository Actions secrets before running the signed release workflow:
+
+- `ANDROID_KEYSTORE_BASE64`: base64-encoded persistent JKS/PKCS12 keystore
+- `ANDROID_KEYSTORE_PASSWORD`: keystore password
+- `ANDROID_KEY_ALIAS`: key alias
+- `ANDROID_KEY_PASSWORD`: private-key password
+
+Keep a secure offline backup of the keystore and passwords. Losing the key can prevent in-place updates for all users. Never commit the keystore or passwords to the repository.
 
 ## Build
 
-From this directory:
-
+Debug:
 ```bash
 gradle --no-daemon :app:assembleDebug
 ```
 
-The debug APK is generated at:
+Signed Release (requires the signing environment variables above):
+```bash
+gradle --no-daemon :app:assembleRelease
+```
 
-`app/build/outputs/apk/debug/app-debug.apk`
+GitHub Actions workflow: `.github/workflows/android-release-1.0.yml`.
 
-Package ID: `com.floustream.webshelltest.debug`
+## Release gates
 
-Version: `0.1.0-debug`
-
-GitHub Actions builds and uploads the APK as `FLOUSTREAM-WebShell-Test-debug`.
-
-## Device test checklist
-
-1. Install the test APK alongside the existing FLOUSTREAM Messenger. It has a separate application ID.
-2. With no saved session, launch the app and confirm the bundled welcome screen appears.
-3. Swipe from the right side toward the left; confirm the existing sign-in/registration page opens.
-4. Repeat using the Start button.
-5. Sign in or register; confirm the app opens `home.html`.
-6. Relaunch with a saved session; confirm the welcome and sign-in screens are skipped.
-7. Press Android Back and check navigation behavior.
-8. Rotate the device and repeat the flow.
-
-## Safety boundary
-
-This is still a test WebView shell, not a finished production messenger APK. Do not merge this test app into the production messenger or replace its MainActivity until the flow has been accepted on a device.
+A CI artifact is a release candidate, not a public release. Validate installation, existing-session routing, registration/login, WebView navigation, updater download/checksum/install, and all relevant protected features on a physical device before publishing. Keep the immutable APK 2.0 baseline unchanged.
