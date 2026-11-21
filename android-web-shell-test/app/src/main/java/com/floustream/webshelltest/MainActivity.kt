@@ -2,6 +2,8 @@ package com.floustream.webshelltest
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -10,12 +12,14 @@ import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.ValueCallback
 import org.json.JSONObject
 
 class MainActivity : Activity() {
     private lateinit var inAppUpdater: InAppUpdater
     private var updateCheckStarted = false
     private lateinit var webView: WebView
+    private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
     private val mainHandler = Handler(Looper.getMainLooper())
     private var entryResolved = false
     private var authFlowActive = false
@@ -29,6 +33,7 @@ class MainActivity : Activity() {
         const val AUTH_URL = SITE_BASE_URL + "portal.html"
         const val PROFILE_URL = SITE_BASE_URL + "profile.html"
         const val HOME_URL = PROFILE_URL
+        const val FILE_CHOOSER_REQUEST_CODE = 4102
         const val MAX_AUTH_CHECK_ATTEMPTS = 50
         const val AUTH_CHECK_INTERVAL_MS = 400L
     }
@@ -143,7 +148,42 @@ class MainActivity : Activity() {
                     }
                 }
             }
-            webChromeClient = WebChromeClient()
+            webChromeClient = object : WebChromeClient() {
+                override fun onShowFileChooser(
+                    webView: WebView?,
+                    filePathCallback: ValueCallback<Array<Uri>>?,
+                    fileChooserParams: FileChooserParams?
+                ): Boolean {
+                    // A WebView may issue a second chooser request before the first
+                    // one returns. Complete the previous callback to avoid hanging it.
+                    this@MainActivity.fileChooserCallback?.onReceiveValue(null)
+                    this@MainActivity.fileChooserCallback = filePathCallback
+
+                    val chooserIntent = try {
+                        fileChooserParams?.createIntent() ?: Intent(Intent.ACTION_GET_CONTENT).apply {
+                            addCategory(Intent.CATEGORY_OPENABLE)
+                            type = "image/*"
+                        }
+                    } catch (_: Exception) {
+                        Intent(Intent.ACTION_GET_CONTENT).apply {
+                            addCategory(Intent.CATEGORY_OPENABLE)
+                            type = "image/*"
+                        }
+                    }
+
+                    return try {
+                        startActivityForResult(
+                            Intent.createChooser(chooserIntent, "Выберите фото профиля"),
+                            FILE_CHOOSER_REQUEST_CODE
+                        )
+                        true
+                    } catch (_: Exception) {
+                        this@MainActivity.fileChooserCallback?.onReceiveValue(null)
+                        this@MainActivity.fileChooserCallback = null
+                        false
+                    }
+                }
+            }
         }
 
         inAppUpdater = InAppUpdater(this)
