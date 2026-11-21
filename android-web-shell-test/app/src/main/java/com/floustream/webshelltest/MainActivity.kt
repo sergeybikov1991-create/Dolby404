@@ -338,6 +338,9 @@ class MainActivity : Activity() {
                         if (window.FloustreamAndroid) {
                             window.FloustreamAndroid.setSessionUser(isGuest ? '' : userId);
                         }
+                        if (window.__floustreamAndroidMediaUserChanged) {
+                            window.__floustreamAndroidMediaUserChanged();
+                        }
                     };
                     const connect = (attempt) => {
                         const authClient =
@@ -467,6 +470,16 @@ class MainActivity : Activity() {
                             element.getAttribute(attribute) || '';
                         if (!source || source.startsWith('blob:') || source.startsWith('data:')) return;
                         const userId = currentUserKey();
+                        const previousUser = element.dataset.floustreamCachedUser;
+                        if (previousUser && previousUser !== userId) {
+                            const original = element.dataset.floustreamOriginalMedia;
+                            delete element.dataset.floustreamCachedUser;
+                            delete element.dataset.floustreamOriginalMedia;
+                            if (original) {
+                                element.setAttribute(attribute, original);
+                                return;
+                            }
+                        }
                         const stamp = userId + '|' + source + '|' + attribute;
                         if (active.get(element) === stamp) return;
                         active.set(element, stamp);
@@ -512,6 +525,15 @@ class MainActivity : Activity() {
                         attributes: true,
                         attributeFilter: ['src', 'poster']
                     });
+                    window.__floustreamAndroidMediaUserChanged = function() {
+                        document.querySelectorAll('img[src]').forEach(function(img) {
+                            processMedia(img, 'src');
+                        });
+                        document.querySelectorAll('video[poster]').forEach(function(video) {
+                            processMedia(video, 'poster');
+                        });
+                    };
+                    window.__floustreamAndroidMediaUserChanged();
                 } catch (_) {}
             })();
         """.trimIndent()
