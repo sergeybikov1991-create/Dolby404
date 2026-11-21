@@ -484,8 +484,10 @@ class MainActivity : ComponentActivity() {
                 try {
                     if (window.__floustreamAndroidMediaCacheInstalled) return;
                     window.__floustreamAndroidMediaCacheInstalled = true;
-                    const cacheName = 'floustream-android-media-v1';
+                    const cachePrefix = 'floustream-android-media-v1-';
+                    const cacheNameFor = userId => cachePrefix + encodeURIComponent(userId);
                     const active = new WeakMap();
+                    let lastCacheUser = currentUserKey();
 
                     if (navigator.storage && navigator.storage.persist) {
                         navigator.storage.persist().catch(function() {});
@@ -519,7 +521,7 @@ class MainActivity : ComponentActivity() {
                             if (!response.ok) return;
                             const contentType = (response.headers.get('content-type') || '').toLowerCase();
                             if (contentType && !contentType.startsWith('image/')) return;
-                            const cache = await caches.open(cacheName);
+                            const cache = await caches.open(cacheNameFor(userId));
                             await cache.put(key, response.clone());
 
                             // Show the cached image immediately, then replace it in-place
@@ -545,7 +547,7 @@ class MainActivity : ComponentActivity() {
                     }
 
                     async function loadCachedImage(element, attribute, source, key, userId) {
-                        const cache = await caches.open(cacheName);
+                        const cache = await caches.open(cacheNameFor(userId));
                         const cached = await cache.match(key);
                         if (cached) {
                             const blob = await cached.blob();
@@ -652,6 +654,16 @@ class MainActivity : ComponentActivity() {
                         attributeFilter: ['src', 'poster']
                     });
                     window.__floustreamAndroidMediaUserChanged = function() {
+                        const nextUser = currentUserKey();
+                        if (nextUser !== lastCacheUser) {
+                            const previousUser = lastCacheUser;
+                            lastCacheUser = nextUser;
+                            // A different account must not inherit the previous
+                            // account's local media cache on this device.
+                            if (previousUser) {
+                                caches.delete(cacheNameFor(previousUser)).catch(function() {});
+                            }
+                        }
                         document.querySelectorAll('img[src]').forEach(function(img) {
                             processMedia(img, 'src');
                         });
