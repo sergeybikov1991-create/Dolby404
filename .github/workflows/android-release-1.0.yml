@@ -1,10 +1,10 @@
-name: FLOUSTREAM Android 1.0 Release Candidate
+name: FLOUSTREAM Android 1.1 Release Candidate
 
 on:
   workflow_dispatch:
     inputs:
       publish_release:
-        description: "Опубликовать публичный GitHub Release v1.0 (только после проверки APK)"
+        description: "Опубликовать публичный GitHub Release v1.1 (только после проверки APK)"
         required: false
         type: boolean
         default: false
@@ -13,13 +13,13 @@ on:
       - release/android-1.0
     paths:
       - "android-web-shell-test/**"
-      - ".github/workflows/android-release-1.0.yml"
+      - ".github/workflows/android-release-1-1.0.yml"
 
 permissions:
   contents: write
 
 concurrency:
-  group: floustream-android-release-1
+  group: floustream-android-release-1-1
   cancel-in-progress: false
 
 jobs:
@@ -97,7 +97,7 @@ jobs:
             exit 1
           fi
           echo "APK signing certificate matches the FLOUSTREAM release passport."
-          $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android' versionCode='100' versionName='1.0'"
+          $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android' versionCode='101' versionName='1.1'"
 
       - name: Generate checksum and updater manifest
         if: steps.signing.outputs.ready == 'true'
@@ -110,7 +110,7 @@ jobs:
       - name: Upload CI artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: FLOUSTREAM-Android-1.0-RC
+          name: FLOUSTREAM-Android-1.1-RC
           path: |
             android-web-shell-test/app/build/outputs/apk/debug/app-debug.apk
             android-web-shell-test/app/build/outputs/apk/release/app-release.apk
@@ -123,8 +123,8 @@ jobs:
         if: steps.signing.outputs.ready == 'true' && github.event_name == 'workflow_dispatch' && inputs.publish_release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0
-          name: FLOUSTREAM Android 1.0
+          tag_name: v1.1
+          name: FLOUSTREAM Android 1.1
           body: |
             Первый полноценный Android Release FLOUSTREAM.
             Подписанный APK, SHA-256 и манифест встроенного обновления.
