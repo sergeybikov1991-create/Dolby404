@@ -208,10 +208,6 @@ textarea{min-height:90px;resize:vertical}
 .side-drawer-icon{width:23px;text-align:center;color:#c18aff;font-size:18px}
 @property --author-color{syntax:"<color>";inherits:false;initial-value:#ff4fd8}
 @property --author-deep{syntax:"<color>";inherits:false;initial-value:#8b2cff}
-.author-nav-link{gap:13px}
-.author-label{display:inline-flex;align-items:center;gap:0;font-size:15px;font-weight:900;letter-spacing:.035em}
-.author-label span{display:inline-block;color:var(--author-color,#ff4fd8);background:linear-gradient(180deg,#fff 0%,var(--author-color,#ff4fd8) 43%,var(--author-deep,#8b2cff) 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;filter:drop-shadow(0 0 4px var(--author-color,#ff4fd8)) drop-shadow(0 0 9px var(--author-color,#ff4fd8));transition:--author-color .9s ease,--author-deep .9s ease,filter .9s ease}
-@media(prefers-reduced-motion:reduce){.author-label span{transition:none}}
 .side-drawer-divider{height:1px;margin:17px 4px;background:#33283f}
 .nav-history{margin:13px 4px 2px;padding:11px 9px 10px;border:1px solid #342541;border-radius:13px;background:#110e19aa}
 .nav-history .side-drawer-caption{margin:0 0 8px 2px}
@@ -753,60 +749,8 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
  }
 }
 </style><style>
-.author-hub[hidden]{display:none!important}
-.author-hub{position:fixed;inset:0;z-index:240;display:flex;flex-direction:column;overflow:hidden;background:radial-gradient(ellipse at 50% 15%,#302047 0%,#100d19 58%,#05040a 100%);color:#fff}
-.author-hub-head{position:relative;z-index:3;display:flex;align-items:center;gap:12px;padding:max(12px,env(safe-area-inset-top)) 14px 12px;border-bottom:1px solid #ffffff20;background:#0a0713d9;backdrop-filter:blur(16px)}
-.author-hub-head>div{display:flex;flex:1;min-width:0;flex-direction:column;gap:2px}
-.author-hub-head strong{font-size:17px;letter-spacing:.14em;background:linear-gradient(90deg,#fff,#d9a8ff,#7be9ff);-webkit-background-clip:text;background-clip:text;color:transparent}
-.author-hub-head span{font-size:11px;color:#b9a9cb}
-.author-hub-head button{width:42px;height:42px;min-width:42px;border:1px solid #ffffff35;border-radius:13px;background:#21172f;color:#fff;font-size:23px}
-.author-hub-stage{position:relative;flex:1;min-height:0;display:flex;align-items:stretch;justify-content:flex-start;gap:2px;padding:2px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scrollbar-width:none;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
-.author-hub-stage::-webkit-scrollbar{display:none}
-.author-banner{position:relative;display:block;flex:0 0 calc(100% - 4px);width:calc(100% - 4px);height:100%;min-height:0;padding:0;overflow:hidden;border:1px solid #caa4ff66;border-radius:18px;background:#171020;box-shadow:0 18px 65px #000a,0 0 32px #a66bff25;text-align:left;color:#fff;isolation:isolate;scroll-snap-align:center}
-@media(min-width:760px){.author-banner{flex-basis:min(100%,900px)}}
-.author-banner>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;transition:transform .7s ease}
-.author-banner:active>img{transform:scale(1.025)}
-.author-banner-shade{position:absolute;inset:0;background:linear-gradient(180deg,#05030b08 20%,#09051040 48%,#080510ed 100%);z-index:1}
-.author-banner-copy{position:absolute;z-index:2;left:clamp(20px,5vw,38px);right:20px;bottom:clamp(30px,8vh,66px);display:flex;flex-direction:column;align-items:flex-start;gap:10px;text-shadow:0 2px 16px #000}
-.author-banner-copy small{font-size:11px;font-weight:800;letter-spacing:.2em;color:#e5c8ff}
-.author-banner-copy strong{font-size:clamp(34px,8vw,58px);line-height:.98;font-weight:950;letter-spacing:.025em}
-.author-banner-copy>span{font-size:14px;color:#f1e9fa}
-.author-banner-copy b{display:inline-flex;align-items:center;gap:12px;margin-top:12px;padding:13px 17px;border:1px solid #ffffff8a;border-radius:13px;background:linear-gradient(110deg,#9d56dfed,#5134a8ed);box-shadow:0 0 25px #9d56df77;font-size:11px;letter-spacing:.09em}
-.author-banner-copy i{font-size:17px;font-style:normal}
-.author-banner-tap{position:absolute;z-index:4;left:50%;bottom:18px;transform:translateX(-50%);display:inline-flex;align-items:center;justify-content:center;min-width:112px;min-height:42px;padding:10px 26px;border:1px solid #ffffffbd;border-radius:14px;background:linear-gradient(110deg,#9d56dfed,#5134a8ed);box-shadow:0 0 24px #9d56df88;color:#fff;font-size:14px;font-weight:900;letter-spacing:.16em;text-align:center;text-shadow:0 1px 8px #0008;pointer-events:auto}
-.author-hub-dots{display:flex;justify-content:center;gap:7px;padding:12px 0 4px}
-.author-hub-dots span{width:7px;height:7px;border-radius:99px;background:#ffffff45}
-.author-hub-dots span.active{width:23px;background:linear-gradient(90deg,#c18aff,#54dfff);box-shadow:0 0 12px #a66bff99}
-.author-hub-hint{margin:0;padding:4px 12px max(12px,env(safe-area-inset-bottom));text-align:center;color:#8f829f;font-size:10px}
-@media(min-width:760px){.author-hub-stage{padding:2px;gap:2px}.author-banner{flex-basis:calc(100% - 4px);width:calc(100% - 4px)}}
-@media(prefers-reduced-motion:reduce){.author-banner>img{transition:none}}
+}
 
-/* lOOPS — animated eyes banner and simple destination shell */
-.author-banner-loops{display:flex;align-items:center;justify-content:center;text-align:center;background:#fff;border-color:#eee;box-shadow:0 18px 65px #0002}
-.author-banner-loops:before{content:"";position:absolute;z-index:0;left:50%;top:50%;width:min(88%,650px);height:min(58%,520px);transform:translate(-50%,-50%) rotate(-5deg);background:#8b42d6;clip-path:polygon(7% 28%,17% 13%,31% 17%,40% 5%,55% 12%,69% 4%,79% 17%,94% 18%,90% 35%,99% 49%,88% 62%,92% 79%,74% 82%,62% 96%,47% 87%,31% 96%,22% 82%,7% 82%,12% 63%,1% 48%);filter:drop-shadow(0 12px 24px #7026bd33);pointer-events:none}
-.author-banner-loops:after{content:"";position:absolute;z-index:0;left:50%;top:50%;width:min(78%,590px);height:min(48%,440px);transform:translate(-50%,-50%) rotate(4deg);border-radius:44% 56% 62% 38% / 54% 38% 62% 46%;background:#9a55e2;opacity:.55;pointer-events:none}
-.loops-wordmark{position:relative;z-index:2;display:flex;align-items:center;justify-content:center;gap:.025em;font-size:clamp(72px,19vw,150px);font-weight:1000;line-height:1;letter-spacing:-.065em;filter:drop-shadow(0 3px 2px #32104a55)}
-.loops-letter{display:inline-block}
-.loops-letter-l{color:#21c7b7}
-.loops-letter-p{color:#ff704f}
-.loops-letter-s{color:#ffd43b}
-.loops-eyes{display:inline-flex;align-items:center;gap:.045em;margin:0 .005em;transform:translateY(.015em)}
-.loops-eye{position:relative;display:inline-block;flex:0 0 .48em;width:.48em;height:.62em;overflow:hidden;border:0;border-radius:48% 48% 46% 46%;background:linear-gradient(180deg,#fff 0 72%,#e8f7ff 100%);box-shadow:inset 0 -.025em .035em #7da6c855,0 .025em .035em #32104a55;transform-origin:50% 55%}
-.loops-eye:before{content:"";position:absolute;left:31%;top:29%;width:43%;height:48%;border-radius:50%;background:radial-gradient(circle at 34% 25%,#fff 0 10%,#26384b 13%,#101a2b 65%,#050912 100%);box-shadow:0 0 .025em #07111f}
-.loops-eye:after{content:"";position:absolute;z-index:2;left:-3%;right:-3%;top:-2%;height:0;border-radius:0 0 48% 48%;background:linear-gradient(180deg,#fff 0 72%,#e8f7ff 100%);box-shadow:0 .018em .025em #7da6c855;animation:loops-blink 4.9s infinite}
-.loops-eye:before{animation:loops-gaze 4.8s ease-in-out infinite}
-.loops-eye:nth-child(2):before{animation-delay:.12s}
-.loops-eye:nth-child(2):after{animation-delay:.14s}
-@keyframes loops-gaze{0%,12%,100%{transform:translateX(0)}25%,38%{transform:translateX(-45%)}52%,68%{transform:translateX(45%)}82%{transform:translateX(0)}}
-@keyframes loops-blink{0%,43%,47%,91%,95%,100%{height:0}45%,93%{height:110%}}
-.loops-page[hidden]{display:none!important}
-.loops-page{position:fixed;inset:0;z-index:260;display:flex;flex-direction:column;overflow:auto;background:radial-gradient(ellipse at 50% 12%,#302047 0%,#100d19 58%,#05040a 100%);color:#fff}
-.loops-page-head{display:flex;align-items:center;justify-content:space-between;padding:max(12px,env(safe-area-inset-top)) 16px 12px;border-bottom:1px solid #ffffff20;background:#0a0713d9}
-.loops-page-head strong{font-size:20px;font-weight:950;letter-spacing:.08em;color:#e9d9ff;text-shadow:0 0 18px #9b55ff}
-.loops-page-head button{width:42px;height:42px;border:1px solid #ffffff35;border-radius:13px;background:#21172f;color:#fff;font-size:23px}
-.loops-page-content{flex:1;display:grid;place-content:center;gap:12px;padding:28px;text-align:center}
-.loops-page-content h1{margin:0;font-size:clamp(42px,12vw,76px);letter-spacing:-.04em;background:linear-gradient(90deg,#ff71d2,#a98aff,#55dfff);-webkit-background-clip:text;background-clip:text;color:transparent}
-.loops-page-content p{margin:0;color:#b9a9cb;font-size:14px;line-height:1.6}
 @media(prefers-reduced-motion:reduce){.loops-eye:before,.loops-eye:after{animation:none}}
 
 </style>
@@ -829,7 +773,6 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
    </div>
   </section>
  <div class="side-drawer-divider"></div><p class="side-drawer-caption">Медиа и общение</p><nav class="side-drawer-links">
- <button class="side-drawer-link author-nav-link" data-author-hub="true" aria-label="AuTHOR"><span class="side-drawer-icon">▶</span><span class="author-label" aria-label="AuTHOR"><span>A</span><span>u</span><span>T</span><span>H</span><span>O</span><span>R</span></span></button>
  <a class="side-drawer-link" id="messages-nav-link" href="messages.html?v=20261119-realtime-2"><span class="side-drawer-icon">✉</span>Сообщения</a>
  <button class="side-drawer-link" data-drawer-soon="Сообщества"><span class="side-drawer-icon">◎</span>Сообщества</button>
  <button class="side-drawer-link" data-drawer-soon="Музыка"><span class="side-drawer-icon">♫</span>Музыка</button>
@@ -972,39 +915,6 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
   <div class="likers-list" id="likers-list"></div>
   <div class="actions"><button type="button" id="close-likers">Закрыть</button></div>
  </div>
-</div>
-<div class="author-hub" id="author-hub" hidden>
- <header class="author-hub-head"><button type="button" id="author-hub-back" aria-label="Назад">←</button><div><strong>AuTHOR</strong><span>Твоя творческая территория</span></div><button type="button" id="author-hub-close" aria-label="Закрыть">×</button></header>
- <main class="author-hub-stage" id="author-hub-stage" aria-label="Баннеры AuTHOR">
-  <button type="button" class="author-banner author-banner-photos" id="author-photos-banner" aria-label="Открыть фотогалерею">
-   <img src="https://raw.githubusercontent.com/sergeybikov1991-create/Dolby404/design/author-banner-library/design/author-banners/02-my-photos/%2002-my-photos.jpg" alt="" fetchpriority="high">
-   <span class="author-banner-shade"></span>
-   <span class="author-banner-copy"><small>AuTHOR · ГАЛЕРЕЯ</small><strong>МОИ ФОТО</strong><span>Все твои фотографии в одном месте</span></span>
-  
-   <span class="author-banner-tap" role="button" aria-label="ТЫК">ТЫК</span></button>
-  <button type="button" class="author-banner author-banner-videos" id="author-videos-banner" aria-label="Открыть мои видео">
-   <img src="https://raw.githubusercontent.com/sergeybikov1991-create/Dolby404/design/author-banner-library/design/author-banners/01-my-videos/my-video.jpg" alt="" loading="lazy">
-   <span class="author-banner-shade"></span>
-   <span class="author-banner-copy"><small>AuTHOR · ВИДЕОТЕКА</small><strong>МОИ ВИДЕО</strong><span>Твои видео в одном месте</span></span>
-  
-   <span class="author-banner-tap" role="button" aria-label="ТЫК">ТЫК</span></button>
-  <button type="button" class="author-banner author-banner-editor" id="author-editor-banner" aria-label="Video Editor">
-   <img src="https://raw.githubusercontent.com/sergeybikov1991-create/Dolby404/design/author-banner-library/design/author-banners/03-video-editor/videoR.jpg" alt="" loading="lazy">
-   <span class="author-banner-shade"></span>
-   <span class="author-banner-copy"><small>AuTHOR · CREATIVE STUDIO</small><strong>VIDEO EDITOR</strong><span>Твоя творческая студия видео</span></span>
-  
-   <span class="author-banner-tap" role="button" aria-label="ТЫК">ТЫК</span></button>
-  <button type="button" class="author-banner author-banner-loops" id="author-loops-banner" aria-label="Открыть lOOPS">
-   <span class="loops-wordmark" aria-label="lOOPS"><span class="loops-letter loops-letter-l">l</span><span class="loops-eyes" aria-hidden="true"><span class="loops-eye"></span><span class="loops-eye"></span></span><span class="loops-letter loops-letter-p">P</span><span class="loops-letter loops-letter-s">S</span></span>
-  
-   <span class="author-banner-tap" role="button" aria-label="ТЫК">ТЫК</span></button>
- </main>
- <div class="author-hub-dots" id="author-hub-dots" aria-label="Переключение баннеров"><span class="active"></span><span></span><span></span><span></span></div>
- <p class="author-hub-hint" id="author-hub-hint">Листай баннеры свайпом</p>
-</div>
-<div class="loops-page" id="loops-page" hidden>
- <header class="loops-page-head"><strong>FLOUSTREAM</strong><button type="button" id="loops-page-back" aria-label="Вернуться в AuTHOR">←</button></header>
- <main class="loops-page-content"><h1>lOOPS</h1><p>Пространство коротких видео FLOUSTREAM</p></main>
 </div>
 <div class="album-backdrop" id="album-backdrop" hidden>
  <section class="album-panel" role="dialog" aria-modal="true" aria-labelledby="album-title">
@@ -1904,7 +1814,6 @@ function openNavigationDestination(action,label,icon){
  if(action==="profile"){$("cover").scrollIntoView({behavior:"smooth"});}
  else if(action==="feed"){$("feed-section").scrollIntoView({behavior:"smooth"});}
  else if(action==="settings"){openSettingsPanel();}
- else if(action==="author"){openAuthorHub();}
  else if(action==="photos"){openPhotoAlbum();}
   else if(action==="video"){openVideoAlbum();}
  else if(action==="music"){openMusicSection();} else if(action==="messages"){openMessagesSection();}
@@ -2971,7 +2880,7 @@ function applyLanguage(language){
  $("side-drawer").querySelector(".side-drawer-caption").textContent=en?"Navigation":"Навигация";
  $("side-drawer").querySelectorAll("[data-drawer-action]").forEach(b=>{b.innerHTML='<span class="side-drawer-icon">◉</span>'+(en?"My profile":"Мой профиль");});
  $("nav-history-title").textContent=en?"Recently visited":"Недавно посещали";renderNavigationHistory();
- $("side-drawer").querySelectorAll("[data-drawer-soon]").forEach(b=>{const key=b.dataset.drawerSoon;const names=en?{"Друзья":"Friends","Сообщения":"Messages","Сообщества":"Communities","Музыка":"Music","Видео":"Videos","Фото":"Photos","Закладки":"Bookmarks"}:{"Друзья":"Друзья","Сообщения":"Сообщения","Сообщества":"Сообщества","Музыка":"Музыка","Видео":"Видео","Фото":"Фото","Закладки":"Закладки"};const icon=b.querySelector(".side-drawer-icon")?.textContent||"•";if(key==="Видео"){b.innerHTML='<span class="side-drawer-icon">'+icon+'</span><span class="author-label" aria-label="AuTHOR"><span>A</span><span>u</span><span>T</span><span>H</span><span>O</span><span>R</span></span>';b.setAttribute("aria-label","AuTHOR");}else{b.innerHTML='<span class="side-drawer-icon">'+icon+'</span>'+(names[key]||key);}});
+ $("side-drawer").querySelectorAll("[data-drawer-soon]").forEach(b=>{const key=b.dataset.drawerSoon;const names=en?{"Друзья":"Friends","Сообщения":"Messages","Сообщества":"Communities","Музыка":"Music","Видео":"Videos","Фото":"Photos","Закладки":"Bookmarks"}:{"Друзья":"Друзья","Сообщения":"Сообщения","Сообщества":"Сообщества","Музыка":"Музыка","Видео":"Видео","Фото":"Фото","Закладки":"Закладки"};const icon=b.querySelector(".side-drawer-icon")?.textContent||"•";b.innerHTML='<span class="side-drawer-icon">'+icon+'</span>'+(names[key]||key);});
  $("open-settings").innerHTML='<span class="side-drawer-icon">⚙</span>'+(en?"Settings":"Настройки");
  $("drawer-logout").textContent=en?"↪ Sign out":"↪ Выйти";
  $("settings-title").textContent=en?"Settings":"Настройки";
@@ -3032,7 +2941,7 @@ document.querySelectorAll("[data-soon]").forEach(button=>button.addEventListener
  [edge,d].forEach(el=>{el.addEventListener("pointermove",move);el.addEventListener("pointerup",up);el.addEventListener("pointercancel",()=>{g=null;toggle(opened);});});
  btn.addEventListener("click",()=>toggle(!opened));$("drawer-close").addEventListener("click",()=>toggle(false));shade.addEventListener("click",()=>toggle(false));document.addEventListener("keydown",e=>{if(e.key==="Escape"&&opened)toggle(false);});
  function toggleDrawerFromSettings(){$("drawer-menu-button").click();}
- d.addEventListener("click",e=>{const recent=e.target.closest("[data-history-action]");if(recent){toggle(false);openNavigationDestination(recent.dataset.historyAction);return;}const a=e.target.closest("[data-drawer-action],[data-drawer-soon],[data-author-hub]");if(!a)return;toggle(false);const action=a.dataset.authorHub==="true"?"author":(a.dataset.drawerAction||({Друзья:"friends",Сообщения:"messages",Сообщества:"communities",Музыка:"music",Видео:"video",Фото:"photos",Закладки:"bookmarks"}[a.dataset.drawerSoon]||""));openNavigationDestination(action,a.dataset.drawerSoon,a.querySelector(".side-drawer-icon")?.textContent);});
+ d.addEventListener("click",e=>{const recent=e.target.closest("[data-history-action]");if(recent){toggle(false);openNavigationDestination(recent.dataset.historyAction);return;}const a=e.target.closest("[data-drawer-action],[data-drawer-soon]");if(!a)return;toggle(false);const action=a.dataset.drawerAction||({Друзья:"friends",Сообщения:"messages",Сообщества:"communities",Музыка:"music",Видео:"video",Фото:"photos",Закладки:"bookmarks"}[a.dataset.drawerSoon]||"");openNavigationDestination(action,a.dataset.drawerSoon,a.querySelector(".side-drawer-icon")?.textContent);});
  toggle(false);
 })();
 
@@ -3145,96 +3054,7 @@ start();
 })();
 </script>
 
-<script>
-(()=>{
- const palette=[
-  ["#ff4fd8","#9b1dff"],["#39e7ff","#0879ff"],["#ffe45e","#ff8a00"],
-  ["#75ff6b","#00b86b"],["#ff668a","#d91b65"],["#b58cff","#6b35e8"],
-  ["#f7fbff","#4f8dff"],["#ff9f43","#ef3d92"],["#65ffd5","#00a9a0"]
- ];
- const letters=[...document.querySelectorAll(".author-label span")];
- if(!letters.length)return;
- const paint=()=>letters.forEach(letter=>{
-  let pick=Math.floor(Math.random()*palette.length);
-  if(String(pick)===letter.dataset.palette)pick=(pick+1+Math.floor(Math.random()*(palette.length-1)))%palette.length;
-  const [bright,deep]=palette[pick];
-  letter.dataset.palette=String(pick);
-  letter.style.setProperty("--author-color",bright);
-  letter.style.setProperty("--author-deep",deep);
- });
- paint();
- window.setInterval(paint,950);
-})();
-</script>
-<script>
-function openAuthorHub(){
- const hub=document.getElementById("author-hub");
- if(!hub)return;
- hub.hidden=false;
- document.body.style.overflow="hidden";
-}
-function closeAuthorHub(){
- const hub=document.getElementById("author-hub");
- if(hub)hub.hidden=true;
- document.body.style.overflow="";
-}
-(()=>{
- const hub=document.getElementById("author-hub");
- if(!hub)return;
- document.getElementById("author-hub-back").addEventListener("click",closeAuthorHub);
- document.getElementById("author-hub-close").addEventListener("click",closeAuthorHub);
- document.getElementById("author-photos-banner").addEventListener("click",async(event)=>{
-  if(!event.target.closest(".author-banner-tap"))return;
-  closeAuthorHub();
-  await openPhotoAlbum();
- });
- document.getElementById("author-videos-banner").addEventListener("click",(event)=>{
-  if(!event.target.closest(".author-banner-tap"))return;
-  closeAuthorHub();
-  openVideoAlbum();
- });
- document.getElementById("author-editor-banner").addEventListener("click",(event)=>{
-  if(!event.target.closest(".author-banner-tap"))return;
-  document.getElementById("author-hub-hint").textContent="Video Editor подключим следующим этапом.";
- });
- const loopsPage=document.getElementById("loops-page");
- document.getElementById("author-loops-banner").addEventListener("click",(event)=>{
-  if(!event.target.closest(".author-banner-tap"))return;
-  closeAuthorHub();
-  loopsPage.hidden=false;
-  document.body.style.overflow="hidden";
- });
- document.getElementById("loops-page-back").addEventListener("click",()=>{
-  loopsPage.hidden=true;
-  openAuthorHub();
- });
- const stage=document.getElementById("author-hub-stage");
- const slides=[...stage.querySelectorAll(".author-banner")];
- const dots=[...document.querySelectorAll("#author-hub-dots span")];
- let dotFrame=0;
- const syncDots=()=>{
-  const stageRect=stage.getBoundingClientRect();
-  const center=stageRect.left+stage.clientWidth/2;
-  let active=0,best=Infinity;
-  slides.forEach((slide,index)=>{
-   const rect=slide.getBoundingClientRect();
-   const distance=Math.abs(rect.left+rect.width/2-center);
-   if(distance<best){best=distance;active=index;}
-  });
-  dots.forEach((dot,index)=>dot.classList.toggle("active",index===active));
- };
- stage.addEventListener("scroll",()=>{
-  if(dotFrame)cancelAnimationFrame(dotFrame);
-  dotFrame=requestAnimationFrame(syncDots);
- },{passive:true});
- dots.forEach((dot,index)=>dot.addEventListener("click",()=>{
-  const first=slides[0],target=slides[index];
-  if(!first||!target)return;
-  stage.scrollTo({left:Math.max(0,target.offsetLeft-first.offsetLeft),behavior:"smooth"});
- }));
- hub.addEventListener("click",event=>{if(event.target===hub)closeAuthorHub();});
- document.addEventListener("keydown",event=>{if(event.key==="Escape"&&!hub.hidden)closeAuthorHub();});
-})();
-</script>
+
+
 </body>
 </html>
