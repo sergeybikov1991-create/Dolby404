@@ -223,6 +223,7 @@ class MainActivity : ComponentActivity() {
                     applyAndroidMessageMediaStyle(view)
                     syncAndroidAlbumAccess(view)
                     applyAndroidPersistentMediaCache(view)
+                    applyAndroidOfflineDataCache(view)
 
                     val currentUrl = url.orEmpty()
                     if (currentUrl.contains("/messages.html")) applyAndroidVoiceMessageRecorder(view)
@@ -447,6 +448,9 @@ class MainActivity : ComponentActivity() {
                         document.documentElement.classList.toggle('floustream-android-guest', isGuest);
                         if (window.__floustreamAndroidMediaUserChanged) {
                             window.__floustreamAndroidMediaUserChanged();
+                        }
+                        if (window.__floustreamAndroidDataUserChanged) {
+                            window.__floustreamAndroidDataUserChanged();
                         }
                     };
                     const connect = (attempt) => {
@@ -687,6 +691,156 @@ class MainActivity : ComponentActivity() {
                         });
                     };
                     window.__floustreamAndroidMediaUserChanged();
+                } catch (_) {}
+            })();
+        """.trimIndent()
+        view.evaluateJavascript(script, null)
+    }
+
+    /**
+     * Account-scoped offline fallback for Supabase REST reads.
+     * Online requests always reach the server first; successful JSON responses
+     * refresh IndexedDB. If the network fails or the server returns 5xx, the
+     * last saved response for the same account/query is returned.
+     */
+    private fun applyAndroidOfflineDataCache(view: WebView?) {
+        if (view == null || isFinishing || isDestroyed) return
+        val script = """
+            (function() {
+                try {
+                    if (window.__floustreamAndroidDataCacheInstalled) return;
+                    window.__floustreamAndroidDataCacheInstalled = true;
+                    const databaseName = 'floustream-android-data-v1';
+                    const supabaseHost = 'qhpobdktlbhdqsnajypr.supabase.co';
+                    let databasePromise = null;
+
+                    function activeUser() {
+                        return window.__floustreamAndroidUserId || 'guest';
+                    }
+
+                    function openDatabase() {
+                        if (databasePromise) return databasePromise;
+                        databasePromise = new Promise((resolve, reject) => {
+                            const request = indexedDB.open(databaseName, 1);
+                            request.onupgradeneeded = () => {
+                                const db = request.result;
+                                if (!db.objectStoreNames.contains('responses')) {
+                                    db.createObjectStore('responses', { keyPath: 'key' });
+                                }
+                            };
+                            request.onsuccess = () => resolve(request.result);
+                            request.onerror = () => reject(request.error || new Error('IndexedDB unavailable'));
+                        });
+                        return databasePromise;
+                    }
+
+                    function makeKey(url, userId, accept) {
+                        return userId + '|' + (accept || 'application/json') + '|' + url;
+                    }
+
+                    async function readCached(key) {
+                        const db = await openDatabase();
+                        return new Promise((resolve, reject) => {
+                            const tx = db.transaction('responses', 'readonly');
+                            const request = tx.objectStore('responses').get(key);
+                            request.onsuccess = () => resolve(request.result || null);
+                            request.onerror = () => reject(request.error);
+                        });
+                    }
+
+                    async function writeCached(record) {
+                        const db = await openDatabase();
+                        return new Promise((resolve, reject) => {
+                            const tx = db.transaction('responses', 'readwrite');
+                            tx.objectStore('responses').put(record);
+                            tx.oncomplete = () => resolve(true);
+                            tx.onerror = () => reject(tx.error);
+                            tx.onabort = () => reject(tx.error || new Error('IndexedDB write aborted'));
+                        });
+                    }
+
+                    async function purgeOtherAccounts() {
+                        const db = await openDatabase();
+                        const userPrefix = activeUser() + '|';
+                        return new Promise((resolve, reject) => {
+                            const tx = db.transaction('responses', 'readwrite');
+                            const store = tx.objectStore('responses');
+                            const request = store.getAllKeys();
+                            request.onsuccess = () => {
+                                request.result.forEach(key => {
+                                    if (typeof key === 'string' && !key.startsWith(userPrefix)) {
+                                        store.delete(key);
+                                    }
+                                });
+                            };
+                            tx.oncomplete = () => resolve(true);
+                            tx.onerror = () => reject(tx.error);
+                        });
+                    }
+
+                    window.__floustreamAndroidDataUserChanged = function() {
+                        purgeOtherAccounts().catch(function() {});
+                    };
+                    window.__floustreamAndroidDataUserChanged();
+
+                    const originalFetch = window.fetch.bind(window);
+                    window.fetch = async function(input, init) {
+                        let request;
+                        try { request = new Request(input, init); }
+                        catch (_) { return originalFetch(input, init); }
+
+                        const url = new URL(request.url);
+                        if (request.method !== 'GET' ||
+                            url.hostname !== supabaseHost ||
+                            !url.pathname.startsWith('/rest/v1/') ||
+                            request.headers.has('Range') ||
+                            !('indexedDB' in window)) {
+                            return originalFetch(input, init);
+                        }
+
+                        const userId = activeUser();
+                        const accept = request.headers.get('Accept') || 'application/json';
+                        const key = makeKey(url.href, userId, accept);
+                        try {
+                            const response = await originalFetch(request.clone());
+                            if (response.ok &&
+                                (response.headers.get('content-type') || '').toLowerCase().includes('application/json')) {
+                                const body = await response.clone().text();
+                                if (body.length <= 5 * 1024 * 1024 && activeUser() === userId) {
+                                    const headers = {};
+                                    response.headers.forEach((value, name) => {
+                                        if (!['set-cookie', 'set-cookie2'].includes(name.toLowerCase())) {
+                                            headers[name] = value;
+                                        }
+                                    });
+                                    await writeCached({
+                                        key: key,
+                                        body: body,
+                                        headers: headers,
+                                        savedAt: Date.now()
+                                    });
+                                }
+                            }
+                            if (response.status >= 500) {
+                                const cached = await readCached(key).catch(() => null);
+                                if (cached) {
+                                    const headers = new Headers(cached.headers || {});
+                                    headers.set('X-FLOUSTREAM-Offline-Cache', '1');
+                                    return new Response(cached.body, { status: 200, headers: headers });
+                                }
+                            }
+                            return response;
+                        } catch (networkError) {
+                            const cached = await readCached(key).catch(() => null);
+                            if (cached && activeUser() === userId) {
+                                const headers = new Headers(cached.headers || {});
+                                headers.set('X-FLOUSTREAM-Offline-Cache', '1');
+                                headers.set('X-FLOUSTREAM-Cache-Saved-At', String(cached.savedAt || 0));
+                                return new Response(cached.body, { status: 200, headers: headers });
+                            }
+                            throw networkError;
+                        }
+                    };
                 } catch (_) {}
             })();
         """.trimIndent()
