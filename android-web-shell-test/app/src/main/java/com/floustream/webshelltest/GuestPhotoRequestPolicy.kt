@@ -45,7 +45,7 @@ internal object GuestPhotoRequestPolicy {
 
         val objectIndex = segments.indexOf("object")
         val objectModeOrBucket = if (objectIndex >= 0) segments.getOrNull(objectIndex + 1) else null
-        val storageBucket = if (objectModeOrBucket in setOf("sign", "public", "authenticated")) {
+        val storageBucket = if (objectModeOrBucket != null && objectModeOrBucket in setOf("sign", "public", "authenticated")) {
             segments.getOrNull(objectIndex + 2)
         } else {
             objectModeOrBucket
