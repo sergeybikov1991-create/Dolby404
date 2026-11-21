@@ -950,40 +950,115 @@ class MainActivity : ComponentActivity() {
         val script = """
             (function() {
                 try {
-                    const styleId = 'floustream-android-message-media-no-frames';
-                    if (document.getElementById(styleId)) return;
-                    const style = document.createElement('style');
-                    style.id = styleId;
-                    style.textContent = [
-                        '.bubble:has(> .message-media-image),',
-                        '.bubble:has(> .message-media-video),',
-                        '.bubble:has(> .message-media-audio),',
-                        '.bubble:has(> .message-file) {',
-                        '  border: 0 !important;',
-                        '  outline: 0 !important;',
-                        '  box-shadow: none !important;',
-                        '  background: transparent !important;',
-                        '  padding: 0 !important;',
-                        '}',
-                        '.message-media-image, .message-media-video, .message-media-audio, .message-file {',
-                        '  border: 0 !important;',
-                        '  outline: 0 !important;',
-                        '  box-shadow: none !important;',
-                        '}',
-                        '.message-file {',
-                        '  background: transparent !important;',
-                        '  padding: 0 !important;',
-                        '  border-radius: 0 !important;',
-                        '}'
-                    ].join('\\n');
-                    (document.head || document.documentElement).appendChild(style);
+                    const styleId = 'floustream-android-message-media-no-frames-v2';
+                    if (!document.getElementById(styleId)) {
+                        const style = document.createElement('style');
+                        style.id = styleId;
+                        style.textContent = [
+                            '.bubble.floustream-media-bubble {',
+                            '  border: 0 !important;',
+                            '  outline: 0 !important;',
+                            '  box-shadow: none !important;',
+                            '  background: transparent !important;',
+                            '  padding: 0 !important;',
+                            '}',
+                            '.bubble.floustream-media-bubble .message-media-image,',
+                            '.bubble.floustream-media-bubble .message-media-video,',
+                            '.bubble.floustream-media-bubble .message-media-audio,',
+                            '.bubble.floustream-media-bubble .message-file,',
+                            '.message-media-image, .message-media-video {',
+                            '  border: 0 !important;',
+                            '  outline: 0 !important;',
+                            '  box-shadow: none !important;',
+                            '}',
+                            '.bubble.floustream-media-bubble .message-file {',
+                            '  background: transparent !important;',
+                            '  padding: 0 !important;',
+                            '}',
+                            '.message-media-video {',
+                            '  display: block !important;',
+                            '  background: #090811 !important;',
+                            '  object-fit: contain;',
+                            '}'
+                        ].join('\\n');
+                        (document.head || document.documentElement).appendChild(style);
+                    }
+
+                    function decorateMedia(root) {
+                        const selector = '.message-media-image, .message-media-video, .message-media-audio, .message-file';
+                        const nodes = [];
+                        if (root && root.matches && root.matches(selector)) nodes.push(root);
+                        if (root && root.querySelectorAll) nodes.push(...root.querySelectorAll(selector));
+                        nodes.forEach(function(media) {
+                            const bubble = media.closest('.bubble');
+                            if (bubble) bubble.classList.add('floustream-media-bubble');
+                            media.style.setProperty('border', '0', 'important');
+                            media.style.setProperty('outline', '0', 'important');
+                            media.style.setProperty('box-shadow', 'none', 'important');
+                            if (media.tagName !== 'VIDEO') return;
+
+                            media.preload = 'auto';
+                            media.playsInline = true;
+                            media.setAttribute('playsinline', '');
+                            media.setAttribute('webkit-playsinline', '');
+                            if (media.poster && media.dataset.floustreamPosterReady === '1') return;
+                            if (media.dataset.floustreamPosterPending === '1') return;
+                            media.dataset.floustreamPosterPending = '1';
+
+                            function captureFrame() {
+                                try {
+                                    if (!media.isConnected || media.videoWidth < 2 || media.videoHeight < 2) return;
+                                    const canvas = document.createElement('canvas');
+                                    const scale = Math.min(1, 640 / media.videoWidth);
+                                    canvas.width = Math.max(2, Math.round(media.videoWidth * scale));
+                                    canvas.height = Math.max(2, Math.round(media.videoHeight * scale));
+                                    const context = canvas.getContext('2d');
+                                    if (!context) return;
+                                    context.drawImage(media, 0, 0, canvas.width, canvas.height);
+                                    const poster = canvas.toDataURL('image/jpeg', 0.78);
+                                    if (poster && poster.startsWith('data:image/')) {
+                                        media.poster = poster;
+                                        media.dataset.floustreamPosterReady = '1';
+                                    }
+                                    media.pause();
+                                    if (media.currentTime > 0.05) media.currentTime = 0;
+                                } catch (_) {
+                                    // A server without CORS-enabled video cannot be canvas-captured.
+                                } finally {
+                                    media.dataset.floustreamPosterPending = '0';
+                                }
+                            }
+
+                            media.addEventListener('loadeddata', captureFrame, { once: true });
+                            media.addEventListener('error', function() {
+                                media.dataset.floustreamPosterPending = '0';
+                            }, { once: true });
+                            if (media.readyState >= 2) {
+                                captureFrame();
+                            } else {
+                                try { media.load(); } catch (_) {}
+                            }
+                        });
+                    }
+
+                    decorateMedia(document);
+                    if (!window.__floustreamMediaDecoratorObserver) {
+                        window.__floustreamMediaDecoratorObserver = new MutationObserver(function(records) {
+                            records.forEach(function(record) {
+                                record.addedNodes.forEach(decorateMedia);
+                                if (record.type === 'attributes' && record.target) decorateMedia(record.target);
+                            });
+                        });
+                        window.__floustreamMediaDecoratorObserver.observe(document.documentElement, {
+                            childList: true, subtree: true, attributes: true,
+                            attributeFilter: ['src', 'poster']
+                        });
+                    }
                 } catch (_) {}
             })();
         """.trimIndent()
         view.evaluateJavascript(script, null)
-    }
-
-    private fun checkForUpdatesOnce() {
+    }    private fun checkForUpdatesOnce() {
         if (!updateCheckStarted && ::inAppUpdater.isInitialized) {
             updateCheckStarted = true
             inAppUpdater.checkForUpdate()
@@ -1281,26 +1356,27 @@ class MainActivity : ComponentActivity() {
                     const form = document.getElementById('composer');
                     const input = document.getElementById('attachment-input');
                     const text = document.getElementById('message-input');
-                    if (!form || !input || !text || window.__floustreamAndroidVoiceRecorderInstalled) return;
+                    const button = document.getElementById('send');
+                    if (!form || !input || !text || !button || window.__floustreamAndroidVoiceRecorderInstalled) return;
                     window.__floustreamAndroidVoiceRecorderInstalled = true;
 
-                    const button = document.createElement('button');
+                    // Voice recording is a press-and-hold action on the existing send control.
+                    // No second microphone button is added to the composer.
                     button.type = 'button';
-                    button.id = 'floustream-voice-record';
-                    button.className = 'attach';
-                    button.textContent = '🎙';
-                    button.setAttribute('aria-label', 'Записать голосовое сообщение');
-                    button.title = 'Записать голосовое сообщение';
-                    button.style.flex = '0 0 44px';
-                    button.style.touchAction = 'manipulation';
-                    form.insertBefore(button, text);
+                    button.title = 'Нажми — отправить текст; удерживай — записать голосовое';
+                    button.setAttribute('aria-label', 'Отправить сообщение; удерживай для записи голосового');
+                    button.style.touchAction = 'none';
 
                     const bridgeToken = '$bridgeToken';
                     let recording = false;
                     let startedAt = 0;
                     let leaseHeld = false;
                     let disposed = false;
-                    let permissionStream = null;
+                    let pointerHeld = false;
+                    let keyboardHeld = false;
+                    let holdTimer = null;
+                    let ignoreClickUntil = 0;
+                    let startAttempt = null;
 
                     function notice(message, error) {
                         if (typeof showNotice === 'function') showNotice(message, !!error);
@@ -1314,48 +1390,49 @@ class MainActivity : ComponentActivity() {
                     function resetButton() {
                         recording = false;
                         button.disabled = false;
-                        button.textContent = '🎙';
+                        button.textContent = '➤';
                         button.classList.remove('recording');
-                        button.setAttribute('aria-label', 'Записать голосовое сообщение');
-                        button.title = 'Записать голосовое сообщение';
+                        button.setAttribute('aria-label', 'Отправить сообщение; удерживай для записи голосового');
+                        button.title = 'Нажми — отправить текст; удерживай — записать голосовое';
                     }
-                    function stopPermissionStream() {
-                        if (permissionStream) permissionStream.getTracks().forEach(track => track.stop());
-                        permissionStream = null;
+                    function delay(ms) {
+                        return new Promise(resolve => setTimeout(resolve, ms));
+                    }
+                    async function waitForPermission() {
+                        let state = window.FloustreamVoiceAudio.requestVoicePermission(bridgeToken);
+                        if (state === 'granted') return true;
+                        if (state !== 'pending') {
+                            throw new Error('Android не смог запросить разрешение на микрофон.');
+                        }
+                        for (let i = 0; i < 120; i++) {
+                            await delay(150);
+                            state = window.FloustreamVoiceAudio.voicePermissionState(bridgeToken);
+                            if (state === 'granted') return true;
+                            if (state === 'denied' || state === 'unavailable') {
+                                throw new Error('Разрешение на микрофон не выдано. Проверь разрешения приложения.');
+                            }
+                        }
+                        throw new Error('Ожидание разрешения на микрофон завершилось по тайм-ауту.');
                     }
 
                     async function startRecording() {
-                        if (disposed || document.getElementById('attach')?.disabled) return;
+                        if (disposed || recording || !pointerHeld && !keyboardHeld) return;
+                        if (document.getElementById('attach')?.disabled) return;
+                        if (!window.FloustreamVoiceAudio) {
+                            notice('Нативная запись голоса недоступна в этой версии приложения.', true);
+                            return;
+                        }
                         button.disabled = true;
-                        if (!window.FloustreamVoiceAudio ||
-                            !navigator.mediaDevices ||
-                            !navigator.mediaDevices.getUserMedia) {
-                            resetButton();
-                            notice('Запись голоса недоступна в этой версии Android WebView.', true);
-                            return;
-                        }
-                        if (!window.FloustreamVoiceAudio.tryAcquireVoiceMessage(bridgeToken)) {
-                            resetButton();
-                            notice('Микрофон уже используется другой функцией. Заверши её и попробуй снова.', true);
-                            return;
-                        }
-                        leaseHeld = true;
                         try {
-                            // Ask Android for RECORD_AUDIO through WebChromeClient.
-                            // Stop this short permission stream before native MediaRecorder opens the mic.
-                            permissionStream = await navigator.mediaDevices.getUserMedia({
-                                audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-                            });
-                            stopPermissionStream();
-                            if (disposed) {
-                                window.FloustreamVoiceAudio.cancelNativeRecording(bridgeToken);
-                                releaseLease();
-                                resetButton();
-                                return;
+                            await waitForPermission();
+                            if (disposed || !pointerHeld && !keyboardHeld) return;
+                            if (!window.FloustreamVoiceAudio.tryAcquireVoiceMessage(bridgeToken)) {
+                                throw new Error('Микрофон уже используется другой функцией.');
                             }
-                            await new Promise(resolve => setTimeout(resolve, 120));
+                            leaseHeld = true;
                             if (!window.FloustreamVoiceAudio.startNativeRecording(bridgeToken)) {
-                                throw new Error('Не удалось запустить нативную запись M4A.');
+                                const detail = window.FloustreamVoiceAudio.getLastStartError(bridgeToken);
+                                throw new Error(detail || 'Android не смог запустить запись.');
                             }
                             startedAt = Date.now();
                             recording = true;
@@ -1363,14 +1440,17 @@ class MainActivity : ComponentActivity() {
                             button.textContent = '■';
                             button.classList.add('recording');
                             button.setAttribute('aria-label', 'Остановить и отправить голосовое сообщение');
-                            button.title = 'Остановить и отправить';
-                            notice('Идёт запись M4A… Нажми ■, чтобы отправить голосовое сообщение.');
+                            button.title = 'Отпусти, чтобы отправить голосовое сообщение';
+                            notice('Идёт запись… Отпусти кнопку, чтобы отправить.');
                         } catch (error) {
-                            stopPermissionStream();
                             try { window.FloustreamVoiceAudio.cancelNativeRecording(bridgeToken); } catch (_) {}
                             releaseLease();
                             resetButton();
-                            notice('Не удалось начать запись: ' + (error && error.message ? error.message : 'проверь разрешение микрофона.'), true);
+                            notice('Не удалось начать запись: ' +
+                                (error && error.message ? error.message : 'попробуй ещё раз.'), true);
+                        } finally {
+                            startAttempt = null;
+                            if (!recording && !disposed) button.disabled = false;
                         }
                     }
 
@@ -1390,7 +1470,7 @@ class MainActivity : ComponentActivity() {
 
                         if (elapsed < 1000 || !token) {
                             resetButton();
-                            notice('Голосовая запись не сохранилась. Запиши не менее одной секунды и попробуй ещё раз.', true);
+                            notice('Голосовая запись не сохранилась. Удерживай кнопку не менее одной секунды.', true);
                             return;
                         }
 
@@ -1416,14 +1496,68 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    button.addEventListener('click', () => {
-                        if (!recording) startRecording();
-                        else stopRecording();
+                    function cancelRecording() {
+                        pointerHeld = false;
+                        keyboardHeld = false;
+                        if (holdTimer) clearTimeout(holdTimer);
+                        holdTimer = null;
+                        if (recording) {
+                            try { window.FloustreamVoiceAudio.cancelNativeRecording(bridgeToken); } catch (_) {}
+                            releaseLease();
+                            resetButton();
+                        }
+                    }
+
+                    button.addEventListener('pointerdown', event => {
+                        if (event.button !== 0 || text.value.trim() || disposed) return;
+                        event.preventDefault();
+                        ignoreClickUntil = Date.now() + 900;
+                        pointerHeld = true;
+                        try { button.setPointerCapture(event.pointerId); } catch (_) {}
+                        holdTimer = setTimeout(() => {
+                            holdTimer = null;
+                            if (pointerHeld && !recording) startAttempt = startRecording();
+                        }, 420);
+                    });
+                    button.addEventListener('pointerup', async event => {
+                        if (!pointerHeld) return;
+                        event.preventDefault();
+                        pointerHeld = false;
+                        if (holdTimer) {
+                            clearTimeout(holdTimer);
+                            holdTimer = null;
+                        }
+                        if (recording) await stopRecording();
+                    });
+                    button.addEventListener('pointercancel', cancelRecording);
+                    button.addEventListener('lostpointercapture', () => {
+                        if (pointerHeld) cancelRecording();
+                    });
+                    button.addEventListener('click', event => {
+                        if (Date.now() < ignoreClickUntil) {
+                            event.preventDefault();
+                            return;
+                        }
+                        if (text.value.trim()) form.requestSubmit();
+                    });
+                    button.addEventListener('keydown', event => {
+                        if ((event.key === ' ' || event.key === 'Enter') && !event.repeat && !text.value.trim()) {
+                            event.preventDefault();
+                            keyboardHeld = true;
+                            startAttempt = startRecording();
+                        }
+                    });
+                    button.addEventListener('keyup', async event => {
+                        if ((event.key === ' ' || event.key === 'Enter') && keyboardHeld) {
+                            event.preventDefault();
+                            keyboardHeld = false;
+                            if (recording) await stopRecording();
+                        }
                     });
 
                     window.addEventListener('pagehide', () => {
                         disposed = true;
-                        stopPermissionStream();
+                        cancelRecording();
                         try { window.FloustreamVoiceAudio.cancelNativeRecording(bridgeToken); } catch (_) {}
                         releaseLease();
                     }, { once: true });
@@ -1431,9 +1565,7 @@ class MainActivity : ComponentActivity() {
             })();
         """.trimIndent()
         view.evaluateJavascript(script, null)
-    }
-
-    private fun interceptNativeVoiceRecording(request: WebResourceRequest?): WebResourceResponse? {
+    }    private fun interceptNativeVoiceRecording(request: WebResourceRequest?): WebResourceResponse? {
         val uri = request?.url ?: return null
         if (uri.scheme != "https" || uri.host != "sergeybikov1991-create.github.io") return null
         val prefix = "/__floustream_voice__/"
@@ -1615,6 +1747,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == VoiceMessageAudioBridge.VOICE_PERMISSION_REQUEST_CODE) {
+            voiceMessageAudioBridge.onVoicePermissionResult(
+                grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED
+            )
+            return
+        }
         if (requestCode == AUDIO_PERMISSION_REQUEST_CODE) {
             val pending = pendingWebAudioPermissionRequest
             pendingWebAudioPermissionRequest = null
