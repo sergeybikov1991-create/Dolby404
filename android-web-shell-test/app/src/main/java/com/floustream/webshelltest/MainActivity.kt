@@ -4,17 +4,20 @@ import android.Manifest
 import android.app.AlertDialog
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.content.ClipData
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.MediaStore
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
+import androidx.core.content.FileProvider
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -29,6 +32,7 @@ import android.webkit.WebViewClient
 import android.webkit.ValueCallback
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
+import java.io.File
 import java.nio.charset.StandardCharsets
 
 class MainActivity : ComponentActivity() {
@@ -36,6 +40,8 @@ class MainActivity : ComponentActivity() {
     private var updateCheckStarted = false
     private lateinit var webView: WebView
     private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
+    private var pendingCaptureUri: Uri? = null
+    private var pendingCaptureFile: File? = null
     private var pendingFileChooserDialog: AlertDialog? = null
     private var pendingWebAudioPermissionRequest: PermissionRequest? = null
     private lateinit var singleVisualPickerLauncher: ActivityResultLauncher<PickVisualMediaRequest>
@@ -236,6 +242,9 @@ class MainActivity : ComponentActivity() {
                         request.grant(arrayOf(PermissionRequest.RESOURCE_AUDIO_CAPTURE))
                     } else {
                         pendingWebAudioPermissionRequest?.deny()
+        pendingCaptureFile?.delete()
+        pendingCaptureFile = null
+        pendingCaptureUri = null
                         pendingWebAudioPermissionRequest = request
                         requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), AUDIO_PERMISSION_REQUEST_CODE)
                     }
@@ -307,7 +316,7 @@ class MainActivity : ComponentActivity() {
                         it.startsWith("image/") || it.startsWith("video/")
                     }
 
-                    if (hasVisualTypes && fileChooserParams?.isCaptureEnabled != true) {
+                    if (hasVisualTypes) {
                         val visualType = when {
                             acceptedTypes.all { it.startsWith("image/") } ->
                                 ActivityResultContracts.PickVisualMedia.ImageOnly
@@ -316,30 +325,35 @@ class MainActivity : ComponentActivity() {
                             else -> ActivityResultContracts.PickVisualMedia.ImageAndVideo
                         }
                         val request = PickVisualMediaRequest(visualType)
-                        val hasNonVisualTypes = acceptedTypes.any {
-                            !it.startsWith("image/") && !it.startsWith("video/")
-                        }
+                        val multiple = fileChooserParams?.mode == FileChooserParams.MODE_OPEN_MULTIPLE
+                        val hasImages = acceptedTypes.any { it.startsWith("image/") }
+                        val hasVideos = acceptedTypes.any { it.startsWith("video/") }
+                        val choices = mutableListOf("Фото и видео из галереи")
+                        val actions = mutableListOf<() -> Unit>({ launchVisualPicker(request, multiple) })
 
-                        if (hasNonVisualTypes) {
-                            pendingFileChooserDialog = AlertDialog.Builder(this@MainActivity)
-                                .setTitle("Выбрать вложение")
-                                .setItems(arrayOf("Фото и видео из галереи", "Файлы и документы")) { _, choice ->
-                                    pendingFileChooserDialog = null
-                                    if (choice == 0) {
-                                        launchVisualPicker(request, fileChooserParams?.mode == FileChooserParams.MODE_OPEN_MULTIPLE)
-                                    } else {
-                                        launchGenericFileChooser(fileChooserParams)
-                                    }
-                                }
-                                .setOnCancelListener {
-                                    pendingFileChooserDialog = null
-                                    completeFileChooser(null)
-                                }
-                                .create()
-                            pendingFileChooserDialog?.show()
-                        } else {
-                            launchVisualPicker(request, fileChooserParams?.mode == FileChooserParams.MODE_OPEN_MULTIPLE)
+                        if (hasImages && Intent(MediaStore.ACTION_IMAGE_CAPTURE).resolveActivity(packageManager) != null) {
+                            choices += "Снять фото"
+                            actions += { launchCaptureIntent(MediaStore.ACTION_IMAGE_CAPTURE, ".jpg") }
                         }
+                        if (hasVideos && Intent(MediaStore.ACTION_VIDEO_CAPTURE).resolveActivity(packageManager) != null) {
+                            choices += "Снять видео"
+                            actions += { launchCaptureIntent(MediaStore.ACTION_VIDEO_CAPTURE, ".mp4") }
+                        }
+                        choices += "Файлы и документы"
+                        actions += { launchGenericFileChooser(fileChooserParams) }
+
+                        pendingFileChooserDialog = AlertDialog.Builder(this@MainActivity)
+                            .setTitle("Выбрать вложение")
+                            .setItems(choices.toTypedArray()) { _, choice ->
+                                pendingFileChooserDialog = null
+                                actions.getOrNull(choice)?.invoke()
+                            }
+                            .setOnCancelListener {
+                                pendingFileChooserDialog = null
+                                completeFileChooser(null)
+                            }
+                            .create()
+                        pendingFileChooserDialog?.show()
                         return true
                     }
 
@@ -1113,6 +1127,42 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun launchCaptureIntent(action: String, extension: String): Boolean {
+        return try {
+            val captureIntent = Intent(action)
+            if (captureIntent.resolveActivity(packageManager) == null) {
+                completeFileChooser(null)
+                return false
+            }
+
+            val captureFile = File.createTempFile("floustream_capture_", extension, cacheDir)
+            val captureUri = FileProvider.getUriForFile(
+                this,
+                "${BuildConfig.APPLICATION_ID}.fileprovider",
+                captureFile
+            )
+            captureIntent.putExtra(MediaStore.EXTRA_OUTPUT, captureUri)
+            captureIntent.addFlags(
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+            captureIntent.clipData = ClipData.newUri(
+                contentResolver,
+                "FLOUSTREAM media capture",
+                captureUri
+            )
+            pendingCaptureUri = captureUri
+            pendingCaptureFile = captureFile
+            startActivityForResult(captureIntent, FILE_CHOOSER_REQUEST_CODE)
+            true
+        } catch (_: Exception) {
+            pendingCaptureFile?.delete()
+            pendingCaptureFile = null
+            pendingCaptureUri = null
+            completeFileChooser(null)
+            false
+        }
+    }
+
     private fun completeFileChooser(selectedFiles: Array<Uri>?) {
         pendingFileChooserDialog?.dismiss()
         pendingFileChooserDialog = null
@@ -1123,10 +1173,19 @@ class MainActivity : ComponentActivity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         if (requestCode == FILE_CHOOSER_REQUEST_CODE) {
+            val captureUri = pendingCaptureUri
+            val captureFile = pendingCaptureFile
+            pendingCaptureUri = null
+            pendingCaptureFile = null
             val selectedFiles = if (resultCode == RESULT_OK) {
-                WebChromeClient.FileChooserParams.parseResult(resultCode, data)
-                    ?: data?.data?.let { arrayOf(it) }
+                if (captureUri != null && captureFile?.exists() == true && captureFile.length() > 0L) {
+                    arrayOf(captureUri)
+                } else {
+                    WebChromeClient.FileChooserParams.parseResult(resultCode, data)
+                        ?: data?.data?.let { arrayOf(it) }
+                }
             } else {
+                captureFile?.delete()
                 null
             }
             completeFileChooser(selectedFiles)
