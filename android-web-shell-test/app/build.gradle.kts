@@ -48,6 +48,7 @@ android {
 }
 dependencies {
     implementation("androidx.activity:activity:1.10.1")
+    implementation("androidx.fragment:fragment:1.8.6")
     implementation("androidx.core:core-ktx:1.16.0")
     implementation(platform("com.google.firebase:firebase-bom:35.2.0"))
     implementation("com.google.firebase:firebase-messaging")
