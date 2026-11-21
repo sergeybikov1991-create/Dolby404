@@ -141,6 +141,7 @@ class MainActivity : Activity() {
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
                     this@MainActivity.title = "FLOUSTREAM"
+                    applyAndroidMessageMediaStyle(view)
 
                     val currentUrl = url.orEmpty()
                     if (startupAuthCheckPending &&
@@ -251,6 +252,40 @@ class MainActivity : Activity() {
 
         // Keep the same HTTPS origin and Supabase localStorage used by the website.
         webView.loadUrl(SITE_BASE_URL)
+    }
+
+    /**
+     * Android-only presentation override for message attachments.
+     * The hosted website and its desktop/mobile browser styling remain untouched.
+     */
+    private fun applyAndroidMessageMediaStyle(view: WebView?) {
+        if (view == null || isFinishing || isDestroyed) return
+        val script = """
+            (function() {
+                try {
+                    const styleId = 'floustream-android-message-media-no-frames';
+                    if (document.getElementById(styleId)) return;
+                    const style = document.createElement('style');
+                    style.id = styleId;
+                    style.textContent = [
+                        '.bubble:has(> .message-media-image),',
+                        '.bubble:has(> .message-media-video),',
+                        '.bubble:has(> .message-media-audio) {',
+                        '  border: 0 !important;',
+                        '  outline: 0 !important;',
+                        '  box-shadow: none !important;',
+                        '}',
+                        '.message-media-image, .message-media-video, .message-media-audio {',
+                        '  border: 0 !important;',
+                        '  outline: 0 !important;',
+                        '  box-shadow: none !important;',
+                        '}'
+                    ].join('\\n');
+                    (document.head || document.documentElement).appendChild(style);
+                } catch (_) {}
+            })();
+        """.trimIndent()
+        view.evaluateJavascript(script, null)
     }
 
     private fun checkForUpdatesOnce() {
