@@ -537,6 +537,13 @@ class MainActivity : ComponentActivity() {
                             if (contentType && !contentType.startsWith('image/')) return;
                             const cache = await caches.open(cacheNameFor(userId));
                             await cache.put(key, response.clone());
+                            // Bound the number of persistent media entries so
+                            // long-term browsing cannot grow Cache Storage forever.
+                            const cachedKeys = await cache.keys();
+                            if (cachedKeys.length > 2000) {
+                                const staleKeys = cachedKeys.slice(0, cachedKeys.length - 2000);
+                                await Promise.all(staleKeys.map(staleKey => cache.delete(staleKey)));
+                            }
 
                             // Show the cached image immediately, then replace it in-place
                             // when the server returns a newer version at the same URL.
