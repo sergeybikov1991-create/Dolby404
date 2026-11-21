@@ -452,6 +452,24 @@ class MainActivity : Activity() {
         view.loadDataWithBaseURL(SITE_BASE_URL, html, "text/html", "UTF-8", null)
     }
 
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (requestCode == FILE_CHOOSER_REQUEST_CODE) {
+            val callback = fileChooserCallback
+            fileChooserCallback = null
+            if (callback != null) {
+                val selectedFiles = if (resultCode == RESULT_OK) {
+                    WebChromeClient.FileChooserParams.parseResult(resultCode, data)
+                        ?: data?.data?.let { arrayOf(it) }
+                } else {
+                    null
+                }
+                callback.onReceiveValue(selectedFiles)
+            }
+            return
+        }
+        super.onActivityResult(requestCode, resultCode, data)
+    }
+
     @Deprecated("Deprecated in Android API; retained for compatibility with the test harness")
     override fun onBackPressed() {
         if (::webView.isInitialized && webView.canGoBack()) {
