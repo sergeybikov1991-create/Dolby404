@@ -1,6 +1,7 @@
 package com.floustream.webshelltest
 
 import android.Manifest
+import android.app.AlertDialog
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -35,6 +36,7 @@ class MainActivity : ComponentActivity() {
     private var updateCheckStarted = false
     private lateinit var webView: WebView
     private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
+    private var pendingFileChooserDialog: AlertDialog? = null
     private var pendingWebAudioPermissionRequest: PermissionRequest? = null
     private lateinit var singleVisualPickerLauncher: ActivityResultLauncher<PickVisualMediaRequest>
     private lateinit var multipleVisualPickerLauncher: ActivityResultLauncher<PickVisualMediaRequest>
@@ -299,10 +301,11 @@ class MainActivity : ComponentActivity() {
                         .flatMap { it.split(',') }
                         .map { it.trim().lowercase() }
                         .filter { it.isNotBlank() }
-                    val visualOnly = acceptedTypes.isNotEmpty() &&
-                        acceptedTypes.all { it.startsWith("image/") || it.startsWith("video/") }
+                    val hasVisualTypes = acceptedTypes.any {
+                        it.startsWith("image/") || it.startsWith("video/")
+                    }
 
-                    if (visualOnly && fileChooserParams?.isCaptureEnabled != true) {
+                    if (hasVisualTypes && fileChooserParams?.isCaptureEnabled != true) {
                         val visualType = when {
                             acceptedTypes.all { it.startsWith("image/") } ->
                                 ActivityResultContracts.PickVisualMedia.ImageOnly
@@ -311,43 +314,34 @@ class MainActivity : ComponentActivity() {
                             else -> ActivityResultContracts.PickVisualMedia.ImageAndVideo
                         }
                         val request = PickVisualMediaRequest(visualType)
-                        return try {
-                            if (fileChooserParams?.mode == FileChooserParams.MODE_OPEN_MULTIPLE) {
-                                multipleVisualPickerLauncher.launch(request)
-                            } else {
-                                singleVisualPickerLauncher.launch(request)
-                            }
-                            true
-                        } catch (_: Exception) {
-                            completeFileChooser(null)
-                            false
+                        val hasNonVisualTypes = acceptedTypes.any {
+                            !it.startsWith("image/") && !it.startsWith("video/")
                         }
+
+                        if (hasNonVisualTypes) {
+                            pendingFileChooserDialog = AlertDialog.Builder(this@MainActivity)
+                                .setTitle("Выбрать вложение")
+                                .setItems(arrayOf("Фото и видео из галереи", "Файлы и документы")) { _, choice ->
+                                    pendingFileChooserDialog = null
+                                    if (choice == 0) {
+                                        launchVisualPicker(request, fileChooserParams?.mode == FileChooserParams.MODE_OPEN_MULTIPLE)
+                                    } else {
+                                        launchGenericFileChooser(fileChooserParams)
+                                    }
+                                }
+                                .setOnCancelListener {
+                                    pendingFileChooserDialog = null
+                                    completeFileChooser(null)
+                                }
+                                .create()
+                            pendingFileChooserDialog?.show()
+                        } else {
+                            launchVisualPicker(request, fileChooserParams?.mode == FileChooserParams.MODE_OPEN_MULTIPLE)
+                        }
+                        return true
                     }
 
-                    // Keep the existing generic file manager / capture chooser for
-                    // documents and explicit capture requests.
-                    val chooserIntent = try {
-                        fileChooserParams?.createIntent() ?: Intent(Intent.ACTION_GET_CONTENT).apply {
-                            addCategory(Intent.CATEGORY_OPENABLE)
-                            type = "*/*"
-                        }
-                    } catch (_: Exception) {
-                        Intent(Intent.ACTION_GET_CONTENT).apply {
-                            addCategory(Intent.CATEGORY_OPENABLE)
-                            type = "*/*"
-                        }
-                    }
-
-                    return try {
-                        startActivityForResult(
-                            Intent.createChooser(chooserIntent, "Выберите файл"),
-                            FILE_CHOOSER_REQUEST_CODE
-                        )
-                        true
-                    } catch (_: Exception) {
-                        completeFileChooser(null)
-                        false
-                    }
+                    return launchGenericFileChooser(fileChooserParams)
                 }
             }
         }
@@ -1084,7 +1078,42 @@ class MainActivity : ComponentActivity() {
         view.evaluateJavascript(script, null)
     }
 
+    private fun launchVisualPicker(request: PickVisualMediaRequest, multiple: Boolean) {
+        try {
+            if (multiple) multipleVisualPickerLauncher.launch(request)
+            else singleVisualPickerLauncher.launch(request)
+        } catch (_: Exception) {
+            completeFileChooser(null)
+        }
+    }
+
+    private fun launchGenericFileChooser(params: WebChromeClient.FileChooserParams?): Boolean {
+        val chooserIntent = try {
+            params?.createIntent() ?: Intent(Intent.ACTION_GET_CONTENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "*/*"
+            }
+        } catch (_: Exception) {
+            Intent(Intent.ACTION_GET_CONTENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "*/*"
+            }
+        }
+        return try {
+            startActivityForResult(
+                Intent.createChooser(chooserIntent, "Выберите файл"),
+                FILE_CHOOSER_REQUEST_CODE
+            )
+            true
+        } catch (_: Exception) {
+            completeFileChooser(null)
+            false
+        }
+    }
+
     private fun completeFileChooser(selectedFiles: Array<Uri>?) {
+        pendingFileChooserDialog?.dismiss()
+        pendingFileChooserDialog = null
         val callback = fileChooserCallback ?: return
         fileChooserCallback = null
         callback.onReceiveValue(selectedFiles)
@@ -1163,6 +1192,8 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         fileChooserCallback?.onReceiveValue(null)
         fileChooserCallback = null
+        pendingFileChooserDialog?.dismiss()
+        pendingFileChooserDialog = null
         pendingWebAudioPermissionRequest?.deny()
         pendingWebAudioPermissionRequest = null
         cancelAuthCheck()
