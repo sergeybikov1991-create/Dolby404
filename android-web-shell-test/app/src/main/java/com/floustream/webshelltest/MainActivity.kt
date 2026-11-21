@@ -1431,6 +1431,9 @@ class MainActivity : ComponentActivity() {
                         if (document.getElementById('attach')?.disabled) return;
                         startPending = true;
                         if (!window.FloustreamVoiceAudio) {
+                            startPending = false;
+                            startAttempt = null;
+                            resetButton();
                             notice('Нативная запись голоса недоступна в этой версии приложения.', true);
                             return;
                         }
