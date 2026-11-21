@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("com.google.gms.google-services")
 }
 
 val releaseStoreFile = System.getenv("ANDROID_KEYSTORE_PATH")
@@ -51,8 +52,3 @@ dependencies {
     implementation("com.google.firebase:firebase-messaging")
 }
 
-// Apply Google Services only when the matching app configuration is present.
-// This keeps CI builds possible until the Release google-services.json is added.
-if (file("google-services.json").exists()) {
-    apply(plugin = "com.google.gms.google-services")
-}
