@@ -122,3 +122,5 @@ jobs:
             android-web-shell-test/app/build/outputs/apk/release/app-release.apk.sha256
             android-web-shell-test/app/build/outputs/apk/release/update.json
           fail_on_unmatched_files: true
+
+# Signed Release candidate trigger after repository signing secrets setup.
