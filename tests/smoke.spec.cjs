@@ -234,6 +234,7 @@ test("chat media upload resumes after interruption and prevents duplicate messag
   expect(state.resumed).toBe(1);
   expect(state.inserts).toHaveLength(2);
   expect(state.messages).toHaveLength(1);
+  expect(state.pendingKeys).toHaveLength(0);
   expect(state.messages[0].id).toBe(state.inserts[0].id);
   expect(state.inserts[1].id).toBe(state.inserts[0].id);
   expect(state.messages[0].attachment_path).toContain("sender-1/");
