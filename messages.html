@@ -159,7 +159,7 @@ async function uploadFileResumable(file,initialPath,initialMessageId){
     uploadDataDuringCreation:true,removeFingerprintOnSuccess:true,chunkSize:6*1024*1024,
     onProgress:(bytesUploaded,bytesTotal)=>{armStall();const percent=bytesTotal?Math.floor(bytesUploaded/bytesTotal*100):0;setUploadProgress(percent);showNotice("Загружаем вложение… "+percent+"%");},
     onChunkComplete:(chunkSize,bytesAccepted,bytesTotal)=>{const percent=bytesTotal?Math.floor(bytesAccepted/bytesTotal*100):0;setUploadProgress(percent);showNotice("Передано в хранилище… "+percent+"%");},
-    onError:error=>finish(error instanceof Error?error:new Error(String(error))),
+    onError:error=>{const message=String(error?.message||error);let status=0;try{status=error?.originalRequest?.getStatus?.()||0;}catch(_){}if(status===409||/409|already exists|asset already exists/i.test(message)){withTimeout(client.storage.from("message-media").createSignedUrl(path,60),8000,"Не удалось проверить уже загруженное вложение.").then(result=>{if(!result.error&&result.data?.signedUrl)finish(null,{path,messageId});else finish(error instanceof Error?error:new Error(message));}).catch(()=>finish(error instanceof Error?error:new Error(message)));}else finish(error instanceof Error?error:new Error(message));},
     onSuccess:()=>finish(null,{path,messageId})
    });
    totalTimer=setTimeout(()=>abortAndFail("Загрузка превысила допустимое время. Попробуй ещё раз — незавершённая передача будет продолжена."),timeoutMs);
