@@ -212,7 +212,7 @@ test("chat photos have no message frame and open in a closable fullscreen viewer
 });
 
 test("chat media upload resumes after interruption and prevents duplicate message rows", async ({ page }) => {
-  await mockAuthenticatedChat(page, { failFirstUpload: true, ambiguousInsert: true, failConfirmationFirst: true, uploadDelay: 120 });
+  await mockAuthenticatedChat(page, { failFirstUpload: true, ambiguousInsert: true, failConfirmationFirst: true, uploadDelay: 800 });
   await page.goto("/messages.html?with=peer-1");
   const file = { name: "clip.mp4", mimeType: "video/mp4", buffer: Buffer.alloc(7 * 1024 * 1024) };
   await page.locator("#attachment-input").setInputFiles(file);
