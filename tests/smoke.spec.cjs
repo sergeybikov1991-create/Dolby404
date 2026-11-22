@@ -509,3 +509,54 @@ test("privacy settings no longer expose photo visibility and keep other controls
   expect(profile).toContain("feed_posts_visible:");
   expect(profile).toContain("Фотоальбомы всегда доступны только владельцу.");
 });
+
+test("chat photos have zero frame and open fullscreen without changing the video player", async ({ page }) => {
+  const created = new Date().toISOString();
+  await mockAuthenticatedChat(page, { initialMessages: [
+    { id: "photo-1", sender_id: "peer-1", recipient_id: "sender-1", content: "", attachment_path: "peer-1/photo.jpg", attachment_name: "photo.jpg", attachment_mime: "image/jpeg", created_at: created },
+    { id: "video-1", sender_id: "peer-1", recipient_id: "sender-1", content: "", attachment_path: "peer-1/video.mp4", attachment_name: "video.mp4", attachment_mime: "video/mp4", created_at: new Date(Date.now() + 1000).toISOString() }
+  ] });
+  await page.route("https://media.test/**", route => route.fulfill({ status: 200, contentType: "image/png", body: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/S2sAAAAASUVORK5CYII=", "base64") }));
+  await page.goto("/messages.html?with=peer-1");
+  await expect(page.locator(".message-media-image")).toBeVisible();
+  await expect(page.locator(".message-media-video")).toHaveCount(1);
+  const styles = await page.evaluate(() => {
+    const image = document.querySelector(".message-media-image");
+    const photoBubble = image.closest(".bubble");
+    const video = document.querySelector(".message-media-video");
+    const videoBubble = video.closest(".bubble");
+    const imageStyle = getComputedStyle(image);
+    const photoStyle = getComputedStyle(photoBubble);
+    const videoStyle = getComputedStyle(video);
+    return {
+      photoClass: photoBubble.classList.contains("photo-message"),
+      photoBorder: photoStyle.borderTopWidth, photoPadding: photoStyle.paddingTop, photoBackground: photoStyle.backgroundColor, photoShadow: photoStyle.boxShadow,
+      imageBorder: imageStyle.borderTopWidth, imageOutline: imageStyle.outlineWidth, imagePadding: imageStyle.paddingTop, imageBackground: imageStyle.backgroundColor, imageShadow: imageStyle.boxShadow, imageRadius: imageStyle.borderRadius, imageMaxWidth: imageStyle.maxWidth, imageMaxHeight: imageStyle.maxHeight, imageFit: imageStyle.objectFit,
+      videoHasPhotoClass: videoBubble.classList.contains("photo-message"), videoRadius: videoStyle.borderRadius, videoBackground: videoStyle.backgroundColor, videoMaxWidth: videoStyle.maxWidth, videoMaxHeight: videoStyle.maxHeight
+    };
+  });
+  expect(styles.photoClass).toBe(true);
+  expect(styles.photoBorder).toBe("0px");
+  expect(styles.photoPadding).toBe("0px");
+  expect(styles.photoBackground).toBe("rgba(0, 0, 0, 0)");
+  expect(styles.photoShadow).toBe("none");
+  expect(styles.imageBorder).toBe("0px");
+  expect(styles.imageOutline).toBe("0px");
+  expect(styles.imagePadding).toBe("0px");
+  expect(styles.imageBackground).toBe("rgba(0, 0, 0, 0)");
+  expect(styles.imageShadow).toBe("none");
+  expect(styles.imageRadius).toBe("11px");
+  expect(styles.imageMaxWidth).toBe("420px");
+  expect(styles.imageMaxHeight).toBe("360px");
+  expect(styles.imageFit).toBe("contain");
+  expect(styles.videoHasPhotoClass).toBe(false);
+  expect(styles.videoRadius).toBe("11px");
+  expect(styles.videoBackground).toBe("rgb(5, 5, 9)");
+  expect(styles.videoMaxWidth).toBe("420px");
+  expect(styles.videoMaxHeight).toBe("360px");
+  await page.locator(".message-media-image").click();
+  await expect(page.locator("#photo-viewer")).toBeVisible();
+  await expect(page.locator("#photo-viewer-image")).toHaveAttribute("src", /media\.test/);
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#photo-viewer")).toBeHidden();
+});
