@@ -556,7 +556,91 @@ test("chat photos have zero frame and open fullscreen without changing the video
   expect(styles.videoMaxHeight).toBe("360px");
   await page.locator(".message-media-image").click();
   await expect(page.locator("#photo-viewer")).toBeVisible();
-  await expect(page.locator("#photo-viewer-image")).toHaveAttribute("src", /media\.test/);
+  await expect(page.locator("#photo-viewer-image")).toHaveAttribute("src", /^(blob:|https:\/\/media\.test\/)/);
   await page.keyboard.press("Escape");
   await expect(page.locator("#photo-viewer")).toBeHidden();
+});
+
+test("chat photos persist in an account-scoped local cache across chat reloads", async ({ page }) => {
+  const initialMessages = [
+    { id: "cached-photo-1", sender_id: "peer-1", recipient_id: "sender-1", content: "", attachment_path: "peer-1/cached-photo.jpg", attachment_name: "cached-photo.jpg", attachment_mime: "image/jpeg", created_at: new Date().toISOString() }
+  ];
+  let mediaFetches = 0;
+  await mockAuthenticatedChat(page, { initialMessages });
+  await page.route("https://media.test/**", route => {
+    mediaFetches += 1;
+    return route.fulfill({
+      status: 200,
+      contentType: "image/png",
+      headers: { "access-control-allow-origin": "*" },
+      body: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/S2sAAAAASUVORK5CYII=", "base64")
+    });
+  });
+  await page.goto("/messages.html?with=peer-1");
+  await expect(page.locator(".message-media-image")).toBeVisible();
+  await expect.poll(() => page.evaluate(async () => {
+    const name = (await caches.keys()).find(key => key.startsWith("floustream-chat-images-v1-"));
+    if (!name) return 0;
+    return (await (await caches.open(name)).keys()).length;
+  })).toBe(1);
+  expect(mediaFetches).toBe(1);
+
+  await page.reload();
+  await expect(page.locator(".message-media-image")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.__chatTestState.signedBatches.length)).toBe(0);
+  expect(mediaFetches).toBe(1);
+  await expect(page.locator(".message-media-image")).toHaveAttribute("src", /^blob:/);
+});
+
+test("voice notes use a compact play-stop player with elapsed time and duration", async ({ page }) => {
+  const initialMessages = [
+    { id: "voice-1", sender_id: "peer-1", recipient_id: "sender-1", content: "00:18", attachment_path: "peer-1/voice-message-18s.webm", attachment_name: "voice-message-18s.webm", attachment_mime: "audio/webm", created_at: new Date().toISOString() }
+  ];
+  await mockAuthenticatedChat(page, { initialMessages });
+  await page.goto("/messages.html?with=peer-1");
+  await expect(page.locator(".voice-player")).toBeVisible();
+  await expect(page.locator(".voice-total")).toHaveText("0:18");
+  await expect(page.locator(".message-media-audio[controls]")).toHaveCount(0);
+
+  await page.evaluate(() => {
+    const audio = document.querySelector(".message-media-audio");
+    let playing = false;
+    Object.defineProperty(audio, "paused", { configurable: true, get: () => !playing });
+    Object.defineProperty(audio, "duration", { configurable: true, get: () => 18 });
+    Object.defineProperty(audio, "currentTime", { configurable: true, writable: true, value: 9 });
+    audio.play = () => { playing = true; audio.dispatchEvent(new Event("play")); return Promise.resolve(); };
+    audio.pause = () => { playing = false; audio.dispatchEvent(new Event("pause")); };
+    audio.dispatchEvent(new Event("loadedmetadata"));
+    audio.dispatchEvent(new Event("timeupdate"));
+  });
+  await expect(page.locator(".voice-current")).toHaveText("0:09");
+  await expect(page.locator(".voice-wave .played")).not.toHaveCount(0);
+  const play = page.locator(".voice-play");
+  await play.click();
+  await expect(play).toHaveText("Ⅱ");
+  await play.click();
+  await expect(play).toHaveText("▶");
+});
+
+test("gallery picker accepts and sends multiple photos and videos sequentially", async ({ page }) => {
+  await mockAuthenticatedChat(page);
+  await page.goto("/messages.html?with=peer-1");
+  const picker = page.locator("#attachment-input");
+  await expect(picker).toHaveAttribute("multiple", "");
+  await picker.setInputFiles([
+    { name: "gallery-photo.png", mimeType: "image/png", buffer: Buffer.from("photo-test") },
+    { name: "gallery-video.mp4", mimeType: "video/mp4", buffer: Buffer.from("video-test") }
+  ]);
+  await expect.poll(() => page.evaluate(() => window.__chatTestState.inserts.length)).toBe(2);
+  const state = await page.evaluate(() => ({
+    inserts: window.__chatTestState.inserts.map(row => ({ name: row.attachment_name, mime: row.attachment_mime })),
+    messages: window.__chatTestState.messages.length,
+    uploads: window.__chatTestState.uploads.length
+  }));
+  expect(state.inserts).toEqual([
+    { name: "gallery-photo.png", mime: "image/png" },
+    { name: "gallery-video.mp4", mime: "video/mp4" }
+  ]);
+  expect(state.messages).toBe(2);
+  expect(state.uploads).toBe(2);
 });
