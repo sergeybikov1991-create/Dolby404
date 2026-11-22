@@ -27,7 +27,7 @@ async function mockAuthenticatedChat(page, options = {}) {
   await page.addInitScript(config => {
     const state = window.__chatTestState = {
       messages: config.initialMessages || [], signedBatches: [], inserts: [], removed: [], uploads: [],
-      previousUploads: [], resumedUploads: 0, startedUploads: 0, insertHandler: null, updateHandler: null
+      previousUploads: [], resumedUploads: 0, startedUploads: 0, insertHandler: null, updateHandler: null, micRequests: 0, micStopped: 0, recorderStarts: 0
     };
     const profile = { id: "peer-1", username: "peer", display_name: "Peer", avatar_url: null };
     const client = {
@@ -56,7 +56,7 @@ async function mockAuthenticatedChat(page, options = {}) {
           insert(row) {
             state.inserts.push(row);
             if (state.messages.some(existing => existing.id === row.id)) return Promise.resolve({ error: { message: "duplicate key", status: 409 } });
-            state.messages.push({ ...row, created_at: new Date().toISOString() });
+            state.messages.push({ ...row, id: row.id || "generated-" + (state.messages.length + 1), created_at: new Date().toISOString() });
             return Promise.resolve({ error: config.ambiguousInsert ? { message: "simulated response lost" } : null });
           }
         };
@@ -79,6 +79,28 @@ async function mockAuthenticatedChat(page, options = {}) {
       removeChannel: async () => ({ error: null })
     };
     window.supabase = { createClient: () => client };
+    window.__FLOUSTREAM_TEST_HOLD_MS = config.voiceHoldMs || 3000;
+    Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: {
+      getUserMedia: async () => {
+        state.micRequests += 1;
+        if (config.micPermissionDenied) throw new Error("Permission denied by test");
+        const track = { stop: () => { state.micStopped += 1; } };
+        return { getTracks: () => [track] };
+      }
+    } });
+    window.MediaRecorder = class {
+      static isTypeSupported(type) { return type.startsWith("audio/webm") || type === "audio/mp4"; }
+      constructor(stream, recorderOptions) { this.stream = stream; this.mimeType = recorderOptions?.mimeType || "audio/webm"; this.state = "inactive"; this.ondataavailable = null; this.onstop = null; this.onerror = null; }
+      start() {
+        this.state = "recording"; state.recorderStarts += 1;
+        setTimeout(() => { if (this.state === "recording") this.ondataavailable?.({ data: new Blob([new Uint8Array(512)], { type: this.mimeType }) }); }, 10);
+      }
+      stop() {
+        if (this.state === "inactive") return;
+        this.state = "inactive"; this.ondataavailable?.({ data: new Blob([new Uint8Array(512)], { type: this.mimeType }) });
+        setTimeout(() => this.onstop?.(), 0);
+      }
+    };
     window.tus = { Upload: class {
       constructor(file, tusOptions) { this.file = file; this.options = tusOptions; this.resumed = false; state.uploads.push(this); state.lastTusOptions = tusOptions; }
       findPreviousUploads() { return Promise.resolve(state.previousUploads.slice()); }
