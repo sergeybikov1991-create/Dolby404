@@ -594,15 +594,16 @@ test("chat photos persist in an account-scoped local cache across chat reloads",
   await expect(page.locator(".message-media-image")).toHaveAttribute("src", /^blob:/);
 });
 
-test("voice notes from both chat sides share one frameless player, including legacy audio names", async ({ page }) => {
+test("all incoming and outgoing audio attachments share one frameless player, even without voice filename or duration", async ({ page }) => {
   const initialMessages = [
-    { id: "voice-incoming", sender_id: "peer-1", recipient_id: "sender-1", content: "00:18", attachment_path: "peer-1/voice-message-18s.webm", attachment_name: "voice-message-18s.webm", attachment_mime: "audio/webm", created_at: new Date().toISOString() },
+    { id: "voice-incoming", sender_id: "peer-1", recipient_id: "sender-1", content: "", attachment_path: "peer-1/recording.m4a", attachment_name: "recording.m4a", attachment_mime: "audio/mp4", created_at: new Date().toISOString() },
     { id: "voice-outgoing", sender_id: "sender-1", recipient_id: "peer-1", content: "00:12", attachment_path: "sender-1/recording.webm", attachment_name: "recording.webm", attachment_mime: "audio/webm", created_at: new Date(Date.now() + 1000).toISOString() }
   ];
   await mockAuthenticatedChat(page, { initialMessages });
   await page.goto("/messages.html?with=peer-1");
   await expect(page.locator(".voice-player")).toHaveCount(2);
-  await expect(page.locator(".voice-total").first()).toHaveText("0:18");
+  await expect(page.locator(".voice-player")).toHaveCount(2);
+  await expect(page.locator(".voice-total").first()).toHaveText("0:00");
   await expect(page.locator(".message-media-audio[controls]")).toHaveCount(0);
   const frameStyles = await page.locator(".voice-player").first().evaluate(player => {
     const bubble = player.closest(".bubble");
