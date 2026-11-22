@@ -594,15 +594,25 @@ test("chat photos persist in an account-scoped local cache across chat reloads",
   await expect(page.locator(".message-media-image")).toHaveAttribute("src", /^blob:/);
 });
 
-test("voice notes use a compact play-stop player with elapsed time and duration", async ({ page }) => {
+test("voice notes from both chat sides share one frameless player, including legacy audio names", async ({ page }) => {
   const initialMessages = [
-    { id: "voice-1", sender_id: "peer-1", recipient_id: "sender-1", content: "00:18", attachment_path: "peer-1/voice-message-18s.webm", attachment_name: "voice-message-18s.webm", attachment_mime: "audio/webm", created_at: new Date().toISOString() }
+    { id: "voice-incoming", sender_id: "peer-1", recipient_id: "sender-1", content: "00:18", attachment_path: "peer-1/voice-message-18s.webm", attachment_name: "voice-message-18s.webm", attachment_mime: "audio/webm", created_at: new Date().toISOString() },
+    { id: "voice-outgoing", sender_id: "sender-1", recipient_id: "peer-1", content: "00:12", attachment_path: "sender-1/recording.webm", attachment_name: "recording.webm", attachment_mime: "audio/webm", created_at: new Date(Date.now() + 1000).toISOString() }
   ];
   await mockAuthenticatedChat(page, { initialMessages });
   await page.goto("/messages.html?with=peer-1");
-  await expect(page.locator(".voice-player")).toBeVisible();
-  await expect(page.locator(".voice-total")).toHaveText("0:18");
+  await expect(page.locator(".voice-player")).toHaveCount(2);
+  await expect(page.locator(".voice-total").first()).toHaveText("0:18");
   await expect(page.locator(".message-media-audio[controls]")).toHaveCount(0);
+  const frameStyles = await page.locator(".voice-player").first().evaluate(player => {
+    const bubble = player.closest(".bubble");
+    const playerStyle = getComputedStyle(player), bubbleStyle = getComputedStyle(bubble);
+    return {
+      playerBorder: playerStyle.borderTopWidth, playerOutline: playerStyle.outlineWidth, playerShadow: playerStyle.boxShadow,
+      bubbleBorder: bubbleStyle.borderTopWidth, bubbleOutline: bubbleStyle.outlineWidth, bubbleShadow: bubbleStyle.boxShadow
+    };
+  });
+  expect(frameStyles).toEqual({ playerBorder: "0px", playerOutline: "0px", playerShadow: "none", bubbleBorder: "0px", bubbleOutline: "0px", bubbleShadow: "none" });
 
   await page.evaluate(() => {
     const audio = document.querySelector(".message-media-audio");
@@ -615,15 +625,14 @@ test("voice notes use a compact play-stop player with elapsed time and duration"
     audio.dispatchEvent(new Event("loadedmetadata"));
     audio.dispatchEvent(new Event("timeupdate"));
   });
-  await expect(page.locator(".voice-current")).toHaveText("0:09");
-  await expect(page.locator(".voice-wave .played")).not.toHaveCount(0);
-  const play = page.locator(".voice-play");
+  await expect(page.locator(".voice-current").first()).toHaveText("0:09");
+  await expect(page.locator(".voice-wave .played").first()).not.toHaveCount(0);
+  const play = page.locator(".voice-play").first();
   await play.click();
   await expect(play).toHaveText("Ⅱ");
   await play.click();
   await expect(play).toHaveText("▶");
 });
-
 test("gallery picker previews, allows reselect after cancel, and sends multiple media on mobile", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mockAuthenticatedChat(page);
