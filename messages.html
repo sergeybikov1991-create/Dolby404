@@ -325,16 +325,80 @@ async function start(){
   if(deletedAccount)showNotice("Этот аккаунт удалён. История переписки сохранена; отправлять новые сообщения нельзя.");
   await loadMessages();
   if(!deletedAccount){
-   $("composer").addEventListener("submit",async event=>{
-    event.preventDefault();const input=$("message-input"),content=input.value.trim();if(!content)return;
-    const button=$("send");if(button.disabled)return;button.disabled=true;showNotice("Отправляем…");
-    try{
-     const result=await client.from("direct_messages").insert({sender_id:viewer.id,recipient_id:peerId,content});
-     if(result.error)throw result.error;
-     input.value="";showNotice("Сообщение отправлено.");await loadMessages();
-    }catch(error){showNotice("Не удалось отправить: "+(error.message||"ошибка соединения"),true);}
-    finally{button.disabled=false;input.focus();}
-   });
+   let voiceHoldTimer=null,voiceTimer=null,voicePointerActive=false,voiceHoldTriggered=false,voiceRecording=false,voiceCancelled=false,voiceRecorder=null,voiceStream=null,voiceChunks=[],voiceStartedAt=0,voiceStartX=0,voiceAttempt=0,voiceStartError="",voiceSuppressSubmitUntil=0;
+const voiceHoldDuration=Number(window.__FLOUSTREAM_TEST_HOLD_MS)||3000;
+function formatVoiceDuration(seconds){return String(Math.floor(seconds/60)).padStart(2,"0")+":"+String(seconds%60).padStart(2,"0");}
+function resetVoiceButton(){const button=$("send");button.classList.remove("arming","recording");button.textContent="➤";button.setAttribute("aria-label","Отправить");}
+function releaseVoiceResources(){clearInterval(voiceTimer);voiceTimer=null;if(voiceStream)voiceStream.getTracks().forEach(track=>track.stop());voiceStream=null;voiceRecorder=null;voiceRecording=false;voiceChunks=[];resetVoiceButton();}
+function updateVoiceNotice(){const seconds=Math.max(0,Math.floor((Date.now()-voiceStartedAt)/1000));showNotice("Запись "+formatVoiceDuration(seconds)+" · свайп в сторону отменяет");}
+async function startVoiceRecording(){
+ const attempt=++voiceAttempt;if(!voicePointerActive||voiceCancelled)return;
+ voiceStartError="";
+ if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){voiceStartError="этот браузер не поддерживает запись аудио";showNotice("Не удалось начать запись: "+voiceStartError,true);return;}
+ showNotice("Запрашиваем доступ к микрофону…");
+ try{
+  const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+  if(attempt!==voiceAttempt||!voicePointerActive||voiceCancelled){stream.getTracks().forEach(track=>track.stop());return;}
+  voiceStream=stream;
+  const supported=["audio/webm;codecs=opus","audio/mp4","audio/webm","audio/ogg;codecs=opus"].find(type=>MediaRecorder.isTypeSupported?.(type));
+  const recorder=supported?new MediaRecorder(stream,{mimeType:supported}):new MediaRecorder(stream);
+  voiceRecorder=recorder;voiceChunks=[];voiceRecording=true;voiceStartedAt=Date.now();
+  recorder.ondataavailable=event=>{if(event.data?.size)voiceChunks.push(event.data);};
+  recorder.onerror=()=>{voiceCancelled=true;voiceStartError="ошибка записи аудио";if(recorder.state!=="inactive")recorder.stop();};
+  recorder.onstop=()=>{
+   const chunks=voiceChunks.slice(),type=recorder.mimeType||"audio/webm",duration=Math.max(1,Math.floor((Date.now()-voiceStartedAt)/1000)),cancelled=voiceCancelled,blob=new Blob(chunks,{type});
+   releaseVoiceResources();voicePointerActive=false;voiceHoldTriggered=false;voiceCancelled=false;
+   if(cancelled){showNotice(voiceStartError?"Ошибка записи: "+voiceStartError:"Запись отменена.",!!voiceStartError);voiceStartError="";return;}
+   if(blob.size<256){showNotice("Запись слишком короткая. Попробуй ещё раз.",true);return;}
+   const uploadType=type.split(";")[0].trim().toLowerCase()||"audio/webm",extension=uploadType==="audio/mp4"?"m4a":uploadType==="audio/ogg"?"ogg":uploadType==="audio/mpeg"?"mp3":"webm";
+   const file=new File([blob],"voice-message-"+duration+"s."+extension,{type:uploadType,lastModified:Date.now()});
+   void sendAttachmentFile(file,{successMessage:"Голосовое сообщение отправлено.",content:formatVoiceDuration(duration)});
+  };
+  recorder.start(250);
+  const button=$("send");button.classList.remove("arming");button.classList.add("recording");button.textContent="●";button.setAttribute("aria-label","Отпустить, чтобы отправить голосовое сообщение");
+  updateVoiceNotice();voiceTimer=setInterval(updateVoiceNotice,1000);
+ }catch(error){
+  if(attempt!==voiceAttempt||voiceCancelled||!voicePointerActive){if(voiceStream)releaseVoiceResources();return;}
+  voiceStartError=error.message||"проверь разрешение на микрофон";showNotice("Не удалось начать запись: "+voiceStartError,true);$("send").classList.remove("arming");
+ }
+}
+function cancelVoiceRecording(){
+ if(!voicePointerActive&&!voiceRecording)return;
+ voiceCancelled=true;voicePointerActive=false;voiceAttempt++;voiceSuppressSubmitUntil=Date.now()+1200;clearTimeout(voiceHoldTimer);voiceHoldTimer=null;
+ if(voiceRecorder&&voiceRecorder.state!=="inactive"){voiceRecorder.stop();return;}
+ if(voiceStream)voiceStream.getTracks().forEach(track=>track.stop());voiceStream=null;voiceRecorder=null;voiceChunks=[];voiceRecording=false;voiceHoldTriggered=false;clearInterval(voiceTimer);voiceTimer=null;resetVoiceButton();showNotice("Запись отменена.");
+}
+function finishVoicePointer(){
+ if(!voicePointerActive)return;
+ voicePointerActive=false;clearTimeout(voiceHoldTimer);voiceHoldTimer=null;
+ if(!voiceHoldTriggered){resetVoiceButton();if($("notice").textContent.startsWith("Удерживай"))showNotice("");return;}
+ voiceSuppressSubmitUntil=Date.now()+1200;
+ if(voiceRecording&&voiceRecorder&&voiceRecorder.state!=="inactive"){voiceRecorder.stop();return;}
+ voiceCancelled=true;voiceAttempt++;clearInterval(voiceTimer);voiceTimer=null;resetVoiceButton();
+ if(voiceStream)voiceStream.getTracks().forEach(track=>track.stop());voiceStream=null;voiceHoldTriggered=false;
+ showNotice(voiceStartError?"Не удалось начать запись: "+voiceStartError:"Запись отменена: микрофон не успел запуститься.",true);
+}
+$("composer").addEventListener("submit",async event=>{
+ event.preventDefault();if(attachmentSending||Date.now()<voiceSuppressSubmitUntil)return;
+ const input=$("message-input"),content=input.value.trim();if(!content)return;
+ const button=$("send");if(button.disabled)return;button.disabled=true;showNotice("Отправляем…");
+ try{const result=await client.from("direct_messages").insert({sender_id:viewer.id,recipient_id:peerId,content});if(result.error)throw result.error;input.value="";showNotice("Сообщение отправлено.");await loadMessages();}
+ catch(error){showNotice("Не удалось отправить: "+(error.message||"ошибка соединения"),true);}
+ finally{button.disabled=false;input.focus();}
+});
+const sendButton=$("send");
+sendButton.addEventListener("pointerdown",event=>{
+ if(attachmentSending||sendButton.disabled||event.isPrimary===false||(event.pointerType==="mouse"&&event.button!==0))return;
+ voicePointerActive=true;voiceHoldTriggered=false;voiceCancelled=false;voiceStartError="";voiceStartX=event.clientX;clearTimeout(voiceHoldTimer);
+ try{sendButton.setPointerCapture(event.pointerId);}catch(_){ }
+ sendButton.classList.add("arming");showNotice("Удерживай 3 секунды для записи голосового сообщения.");
+ voiceHoldTimer=setTimeout(()=>{if(!voicePointerActive||voiceCancelled)return;voiceHoldTriggered=true;void startVoiceRecording();},voiceHoldDuration);
+});
+sendButton.addEventListener("pointerup",finishVoicePointer);
+sendButton.addEventListener("pointercancel",()=>{if(voiceHoldTriggered||voiceRecording)cancelVoiceRecording();else{voicePointerActive=false;clearTimeout(voiceHoldTimer);voiceHoldTimer=null;resetVoiceButton();if($("notice").textContent.startsWith("Удерживай"))showNotice("");}});
+sendButton.addEventListener("pointermove",event=>{if(voicePointerActive&&voiceHoldTriggered&&Math.abs(event.clientX-voiceStartX)>90)cancelVoiceRecording();});
+sendButton.addEventListener("contextmenu",event=>event.preventDefault());
+window.addEventListener("pagehide",()=>{voiceCancelled=true;clearTimeout(voiceHoldTimer);clearInterval(voiceTimer);if(voiceRecorder&&voiceRecorder.state!=="inactive")voiceRecorder.stop();if(voiceStream)voiceStream.getTracks().forEach(track=>track.stop());},{once:true});
    $("message-input").addEventListener("keydown",event=>{if(event.key==="Enter"&&!event.shiftKey){event.preventDefault();$("composer").requestSubmit();}});
    $("attach").addEventListener("click",()=>$("attachment-input").click());
    async function attachmentFingerprint(file){
