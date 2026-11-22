@@ -338,20 +338,36 @@ async function start(){
    $("attach").addEventListener("click",()=>$("attachment-input").click());
    $("attachment-input").addEventListener("change",async event=>{
     const file=event.target.files?.[0];if(!file)return;
-    const button=$("attach");button.disabled=true;showNotice("Загружаем вложение…");let path=null;
+    if(attachmentSending){event.target.value="";return;}
+    attachmentSending=true;
+    const button=$("attach"),input=event.target;button.disabled=true;input.disabled=true;
+    let path=null,uploadCompleted=false,keepUploaded=false;
     try{
+     if(file.size<=0)throw new Error("Файл пустой.");
      if(file.size>50*1024*1024)throw new Error("Файл больше 50 МБ.");
      const safeName=file.name.replace(/[^A-Za-z0-9._-]/g,"_").slice(0,100)||"attachment";
      path=viewer.id+"/"+crypto.randomUUID()+"_"+safeName;
-     const uploaded=await client.storage.from("message-media").upload(path,file,{upsert:false,contentType:file.type||"application/octet-stream"});
-     if(uploaded.error)throw uploaded.error;
-     const sent=await client.from("direct_messages").insert({sender_id:viewer.id,recipient_id:peerId,content:"",attachment_path:path,attachment_name:file.name,attachment_mime:file.type||"application/octet-stream"});
-     if(sent.error)throw sent.error;
+     let messageId=crypto.randomUUID();
+     setUploadProgress(0);showNotice("Подготавливаем защищённую загрузку…");
+     const uploaded=await uploadFileResumable(file,path,messageId);
+     path=uploaded.path;messageId=uploaded.messageId;uploadCompleted=true;
+     const row={id:messageId,sender_id:viewer.id,recipient_id:peerId,content:"",attachment_path:path,attachment_name:file.name,attachment_mime:file.type||"application/octet-stream"};
+     try{
+      const sent=await withTimeout(client.from("direct_messages").insert(row),15000,"Сервер не подтвердил отправку сообщения за 15 секунд.");
+      if(sent.error)throw sent.error;
+     }catch(insertError){
+      let confirmation;
+      try{confirmation=await withTimeout(client.from("direct_messages").select("id,attachment_path").eq("id",messageId).maybeSingle(),8000,"Не удалось проверить результат отправки.");}
+      catch(checkError){keepUploaded=true;throw new Error("Файл загружен, но подтверждение сообщения не получено. Не отправляй его повторно — обнови переписку через несколько секунд.");}
+      if(!confirmation.data?.id||confirmation.data.attachment_path!==path)throw insertError;
+     }
      showNotice("Вложение отправлено.");await loadMessages();
     }catch(error){
-     if(path)await client.storage.from("message-media").remove([path]);
-     showNotice("Не удалось отправить файл: "+error.message,true);
-    }finally{button.disabled=false;event.target.value="";}
+     if(uploadCompleted&&path&&!keepUploaded){try{await withTimeout(client.storage.from("message-media").remove([path]),10000,"Тайм-аут очистки неиспользованного файла.");}catch(cleanupError){console.warn("FLOUSTREAM orphan attachment cleanup:",cleanupError);}}
+     showNotice("Не удалось отправить файл: "+(error.message||"ошибка соединения"),true);
+    }finally{
+     attachmentSending=false;button.disabled=false;input.disabled=false;input.value="";setUploadProgress(null);
+    }
    });
   }
   let wasSubscribed=false;
