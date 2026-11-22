@@ -479,8 +479,8 @@ test("photo albums are private by default and are not displayed on public profil
   expect(migration).toContain('drop policy if exists "Public album photos are readable by permanent users"');
   expect(migration).toContain('create policy "Owners read own photo album files"');
   expect(migration).toContain("when 'album' then false");
-  expect(migration).not.toMatch(/delete\\s+from\\s+(public\\.)?photo_album_photos/i);
-  expect(migration).not.toMatch(/delete\\s+from\\s+storage\\.objects/i);
+  expect(migration).not.toMatch(/delete\s+from\s+(public\.)?photo_album_photos/i);
+  expect(migration).not.toMatch(/delete\s+from\s+storage\.objects/i);
 });
 
 test("photos from both owner-only albums are shared to direct chats, never to the feed", () => {
