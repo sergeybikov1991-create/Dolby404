@@ -950,15 +950,16 @@ class MainActivity : ComponentActivity() {
         val script = """
             (function() {
                 try {
+                    // Keep this override confined to the conversation page.
+                    if (!location.pathname.toLowerCase().endsWith('/messages.html')) return;
+                    if (window.__floustreamAndroidChatMediaStyleInstalled) return;
+                    window.__floustreamAndroidChatMediaStyleInstalled = true;
+
                     const styleId = 'floustream-android-message-media-no-frames';
-                    if (document.getElementById(styleId)) return;
                     const style = document.createElement('style');
                     style.id = styleId;
                     style.textContent = [
-                        '.bubble:has(> .message-media-image),',
-                        '.bubble:has(> .message-media-video),',
-                        '.bubble:has(> .message-media-audio),',
-                        '.bubble:has(> .message-file) {',
+                        '.bubble.floustream-android-attachment-bubble {',
                         '  border: 0 !important;',
                         '  outline: 0 !important;',
                         '  box-shadow: none !important;',
@@ -977,7 +978,29 @@ class MainActivity : ComponentActivity() {
                         '}'
                     ].join('\\n');
                     (document.head || document.documentElement).appendChild(style);
-                } catch (_) {}
+
+                    const attachmentSelector =
+                        '.message-media-image, .message-media-video, .message-media-audio, .message-file';
+                    const markAttachmentBubbles = () => {
+                        document.querySelectorAll('.bubble').forEach((bubble) => {
+                            if (bubble.querySelector(attachmentSelector)) {
+                                bubble.classList.add('floustream-android-attachment-bubble');
+                            } else {
+                                bubble.classList.remove('floustream-android-attachment-bubble');
+                            }
+                        });
+                    };
+
+                    markAttachmentBubbles();
+                    const observer = new MutationObserver(markAttachmentBubbles);
+                    observer.observe(document.documentElement, {
+                        childList: true,
+                        subtree: true
+                    });
+                    window.__floustreamAndroidChatMediaStyleObserver = observer;
+                } catch (error) {
+                    console.warn('FLOUSTREAM chat media styling:', error);
+                }
             })();
         """.trimIndent()
         view.evaluateJavascript(script, null)
