@@ -1301,19 +1301,9 @@ class MainActivity : ComponentActivity() {
                     const form = document.getElementById('composer');
                     const input = document.getElementById('attachment-input');
                     const text = document.getElementById('message-input');
-                    if (!form || !input || !text || window.__floustreamAndroidVoiceRecorderInstalled) return;
+                    const button = document.getElementById('send');
+                    if (!form || !input || !text || !button || window.__floustreamAndroidVoiceRecorderInstalled) return;
                     window.__floustreamAndroidVoiceRecorderInstalled = true;
-
-                    const button = document.createElement('button');
-                    button.type = 'button';
-                    button.id = 'floustream-voice-record';
-                    button.className = 'attach';
-                    button.textContent = '🎙';
-                    button.setAttribute('aria-label', 'Записать голосовое сообщение');
-                    button.title = 'Записать голосовое сообщение';
-                    button.style.flex = '0 0 44px';
-                    button.style.touchAction = 'manipulation';
-                    form.insertBefore(button, text);
 
                     const bridgeToken = '$bridgeToken';
                     let recording = false;
@@ -1334,10 +1324,11 @@ class MainActivity : ComponentActivity() {
                     function resetButton() {
                         recording = false;
                         button.disabled = false;
-                        button.textContent = '🎙';
+                        button.textContent = '➤';
                         button.classList.remove('recording');
-                        button.setAttribute('aria-label', 'Записать голосовое сообщение');
-                        button.title = 'Записать голосовое сообщение';
+                        button.setAttribute('aria-label', 'Отправить');
+                        button.title = 'Отправить';
+                        text.disabled = false;
                     }
                     function stopPermissionStream() {
                         if (permissionStream) permissionStream.getTracks().forEach(track => track.stop());
@@ -1345,7 +1336,7 @@ class MainActivity : ComponentActivity() {
                     }
 
                     async function startRecording() {
-                        if (disposed || document.getElementById('attach')?.disabled) return;
+                        if (disposed || button.disabled || document.getElementById('attach')?.disabled) return;
                         button.disabled = true;
                         if (!window.FloustreamVoiceAudio ||
                             !navigator.mediaDevices ||
@@ -1361,8 +1352,6 @@ class MainActivity : ComponentActivity() {
                         }
                         leaseHeld = true;
                         try {
-                            // Ask Android for RECORD_AUDIO through WebChromeClient.
-                            // Stop this short permission stream before native MediaRecorder opens the mic.
                             permissionStream = await navigator.mediaDevices.getUserMedia({
                                 audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
                             });
@@ -1384,6 +1373,7 @@ class MainActivity : ComponentActivity() {
                             button.classList.add('recording');
                             button.setAttribute('aria-label', 'Остановить и отправить голосовое сообщение');
                             button.title = 'Остановить и отправить';
+                            text.disabled = true;
                             notice('Идёт запись M4A… Нажми ■, чтобы отправить голосовое сообщение.');
                         } catch (error) {
                             stopPermissionStream();
@@ -1436,10 +1426,15 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    button.addEventListener('click', () => {
-                        if (!recording) startRecording();
-                        else stopRecording();
-                    });
+                    form.addEventListener('click', event => {
+                        const sendButton = event.target && event.target.closest ? event.target.closest('#send') : null;
+                        if (!sendButton) return;
+                        if (!recording && text.value.trim()) return;
+                        event.preventDefault();
+                        event.stopImmediatePropagation();
+                        if (recording) stopRecording();
+                        else startRecording();
+                    }, true);
 
                     window.addEventListener('pagehide', () => {
                         disposed = true;
