@@ -330,14 +330,14 @@ const voiceHoldDuration=Number(window.__FLOUSTREAM_TEST_HOLD_MS)||3000;
 function formatVoiceDuration(seconds){return String(Math.floor(seconds/60)).padStart(2,"0")+":"+String(seconds%60).padStart(2,"0");}
 function resetVoiceButton(){const button=$("send");button.classList.remove("arming","recording");button.textContent="➤";button.setAttribute("aria-label","Отправить");}
 function releaseVoiceResources(){clearInterval(voiceTimer);voiceTimer=null;if(voiceStream)voiceStream.getTracks().forEach(track=>track.stop());voiceStream=null;voiceRecorder=null;voiceRecording=false;voiceChunks=[];resetVoiceButton();}
-function updateVoiceNotice(){const seconds=Math.max(0,Math.floor((Date.now()-voiceStartedAt)/1000));showNotice("Запись "+formatVoiceDuration(seconds)+" · свайп в сторону отменяет");}
+function updateVoiceNotice(){const seconds=Math.max(0,Math.floor((Date.now()-voiceStartedAt)/1000));showNotice("Запись "+formatVoiceDuration(seconds)+" · отпусти для отправки · свайп отменяет");}
 async function startVoiceRecording(){
  const attempt=++voiceAttempt;if(!voicePointerActive||voiceCancelled)return;
  voiceStartError="";
  if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){voiceStartError="этот браузер не поддерживает запись аудио";showNotice("Не удалось начать запись: "+voiceStartError,true);return;}
  showNotice("Запрашиваем доступ к микрофону…");
  try{
-  const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+  let stream;try{stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});}catch(error){if(error.name!=="OverconstrainedError"&&error.name!=="TypeError")throw error;stream=await navigator.mediaDevices.getUserMedia({audio:true});}
   if(attempt!==voiceAttempt||!voicePointerActive||voiceCancelled){stream.getTracks().forEach(track=>track.stop());return;}
   voiceStream=stream;
   const supported=["audio/webm;codecs=opus","audio/mp4","audio/webm","audio/ogg;codecs=opus"].find(type=>MediaRecorder.isTypeSupported?.(type));
