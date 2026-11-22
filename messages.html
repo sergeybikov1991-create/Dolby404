@@ -337,7 +337,18 @@ async function start(){
    });
    $("message-input").addEventListener("keydown",event=>{if(event.key==="Enter"&&!event.shiftKey){event.preventDefault();$("composer").requestSubmit();}});
    $("attach").addEventListener("click",()=>$("attachment-input").click());
-   $("attachment-input").addEventListener("change",async event=>{
+   async function attachmentFingerprint(file){
+ const partSize=65536;
+ try{
+  const first=await file.slice(0,Math.min(partSize,file.size)).arrayBuffer();
+  const last=file.size>partSize?await file.slice(Math.max(partSize,file.size-partSize)).arrayBuffer():new ArrayBuffer(0);
+  const bytes=new Uint8Array(first.byteLength+last.byteLength);bytes.set(new Uint8Array(first),0);bytes.set(new Uint8Array(last),first.byteLength);
+  const digest=await crypto.subtle.digest("SHA-256",bytes);
+  const hash=Array.from(new Uint8Array(digest)).map(value=>value.toString(16).padStart(2,"0")).join("");
+  return file.name+"|"+file.size+"|"+(file.type||"")+"|"+hash;
+ }catch(_){return file.name+"|"+file.size+"|"+(file.type||"")+"|"+file.lastModified;}
+}
+$("attachment-input").addEventListener("change",async event=>{
     const file=event.target.files?.[0];if(!file)return;
     if(attachmentSending){event.target.value="";return;}
     attachmentSending=true;
@@ -347,7 +358,7 @@ async function start(){
      if(file.size<=0)throw new Error("Файл пустой.");
      if(file.size>50*1024*1024)throw new Error("Файл больше 50 МБ.");
      const safeName=file.name.replace(/[^A-Za-z0-9._-]/g,"_").slice(0,100)||"attachment";
-     pendingKey="floustream-pending-attachment:"+viewer.id+":"+peerId+":"+encodeURIComponent(file.name)+":"+file.size+":"+file.lastModified+":"+encodeURIComponent(file.type||"");
+     const fingerprint=await attachmentFingerprint(file);pendingKey="floustream-pending-attachment:"+viewer.id+":"+peerId+":"+encodeURIComponent(fingerprint);
      let pending=null;try{pending=JSON.parse(sessionStorage.getItem(pendingKey)||"null");}catch(_){pending=null;}
      if(!pending?.path||!pending?.messageId||Date.now()-(pending.updatedAt||0)>86400000){pending={path:viewer.id+"/"+crypto.randomUUID()+"_"+safeName,messageId:crypto.randomUUID(),uploaded:false,updatedAt:Date.now()};try{sessionStorage.setItem(pendingKey,JSON.stringify(pending));}catch(_){}}
      path=pending.path;let messageId=pending.messageId;
