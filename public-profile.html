@@ -343,20 +343,21 @@ async function openAvatarOriginal(){
  const src=await resolveAvatarSource(target);
  if(src)openPhotoViewer(src,{profilePhoto:true});
 }
+function formatAvatarPhotoLikeCount(count){const value=Math.abs(Number(count)||0),lastTwo=value%100,last=value%10,word=lastTwo>=11&&lastTwo<=14?"лайков":last===1?"лайк":last>=2&&last<=4?"лайка":"лайков";return value+" "+word;}
 async function refreshAvatarPhotoLikes(){
  const actions=$("avatar-photo-actions"),button=$("avatar-photo-like"),count=$("avatar-photo-like-count"),note=$("avatar-photo-like-note");
  if(!actions||!button||!count||!note||!target)return;
- button.disabled=true;note.textContent="Загружаем…";
+ let loaded=false;button.disabled=true;note.textContent="Загружаем…";
  try{
   const rows=await client.from("profile_photo_likes").select("user_id,created_at").eq("profile_id",target.id).order("created_at",{ascending:false});
   if(rows.error)throw rows.error;
-  const likes=rows.data||[];
-  count.textContent=likes.length+" "+(likes.length===1?"лайк":"лайков");
+  const likes=rows.data||[];loaded=true;
+  count.textContent=formatAvatarPhotoLikeCount(likes.length);
   if(!viewer){button.textContent="♡ Нравится";button.dataset.liked="false";button.disabled=true;note.textContent="Войдите, чтобы поставить лайк";return;}
   const mine=likes.some(row=>row.user_id===viewer.id);
   button.textContent=mine?"♥ Нравится":"♡ Нравится";button.dataset.liked=mine?"true":"false";button.classList.toggle("liked",mine);note.textContent="";
  }catch(error){note.textContent="Не удалось загрузить лайки";console.warn("FLOUSTREAM avatar likes:",error);}
- finally{if(viewer)button.disabled=false;}
+ finally{button.disabled=!viewer||!loaded;}
 }
 $("avatar-photo-like").addEventListener("click",async()=>{
  if(!viewer||!target)return;

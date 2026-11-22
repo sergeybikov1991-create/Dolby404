@@ -122,6 +122,65 @@ async function mockAuthenticatedChat(page, options = {}) {
   }, options);
 }
 
+async function mockPublicProfile(page, options = {}) {
+  await page.route("**/message-notifications.js", route => route.fulfill({ contentType: "application/javascript", body: "" }));
+  await page.route("**/friend-notifications.js", route => route.fulfill({ contentType: "application/javascript", body: "" }));
+  await page.route("https://images.test/avatar.png", route => route.fulfill({ status: 200, contentType: "image/png", body: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/S2sAAAAASUVORK5CYII=", "base64") }));
+  await page.addInitScript(config => {
+    const storageKey = "floustream-test-profile-photo-likes";
+    const state = window.__publicProfileTestState = { likes: JSON.parse(localStorage.getItem(storageKey) || "[]"), inserts: JSON.parse(localStorage.getItem(storageKey + "-inserts") || "[]"), deletes: JSON.parse(localStorage.getItem(storageKey + "-deletes") || "[]"), visits: [] };
+    const profile = { id: "profile-1", username: "profile", display_name: "Profile Owner", bio: "Profile bio", avatar_url: "https://images.test/avatar.png", avatar_photo_id: null, cover_url: null, last_activity_at: null, time_zone: "UTC" };
+    const viewer = config.signedIn ? { id: "viewer-1" } : null;
+    const client = {
+      auth: { getSession: async () => ({ data: { session: viewer ? { access_token: "test-token" } : null }, error: null }), getUser: async () => ({ data: { user: viewer }, error: null }) },
+      from(table) {
+        let action = "select"; const filters = {};
+        const query = {
+          select() { action = "select"; return query; },
+          eq(key, value) { filters[key] = value; return query; },
+          in(key, value) { filters[key] = value; return query; },
+          order() { return query; },
+          limit() { return Promise.resolve({ data: [], error: null }); },
+          maybeSingle() {
+            if (table === "profiles") return Promise.resolve({ data: profile, error: null });
+            return Promise.resolve({ data: null, error: null });
+          },
+          upsert(row) { state.visits.push(row); return Promise.resolve({ error: null }); },
+          insert(row) {
+            if (table === "profile_photo_likes") {
+              state.inserts.push(row); localStorage.setItem(storageKey + "-inserts", JSON.stringify(state.inserts));
+              if (state.likes.some(item => item.profile_id === row.profile_id && item.user_id === row.user_id)) return Promise.resolve({ error: { code: "23505", message: "duplicate like" } });
+              state.likes.push(row); localStorage.setItem(storageKey, JSON.stringify(state.likes));
+            }
+            return Promise.resolve({ error: null });
+          },
+          delete() { action = "delete"; return query; },
+          then(resolve, reject) {
+            if (table === "profile_photo_likes" && action === "delete") {
+              state.deletes.push({ ...filters }); localStorage.setItem(storageKey + "-deletes", JSON.stringify(state.deletes));
+              state.likes = state.likes.filter(item => !(item.profile_id === filters.profile_id && item.user_id === filters.user_id));
+              localStorage.setItem(storageKey, JSON.stringify(state.likes));
+              return Promise.resolve({ data: null, error: null }).then(resolve, reject);
+            }
+            if (table === "profile_photo_likes") {
+              const rows = state.likes.filter(item => !filters.profile_id || item.profile_id === filters.profile_id);
+              return Promise.resolve({ data: rows, error: null }).then(resolve, reject);
+            }
+            return Promise.resolve({ data: [], error: null }).then(resolve, reject);
+          }
+        };
+        return query;
+      },
+      channel() { const channel = { on() { return channel; }, subscribe(callback) { callback("SUBSCRIBED"); return channel; }, presenceState() { return {}; } }; return channel; },
+      removeChannel: async () => ({ error: null }),
+      storage: { from() { return { createSignedUrl: async () => ({ data: { signedUrl: "https://images.test/avatar.png" }, error: null }), createSignedUrls: async paths => ({ data: paths.map(path => ({ path, signedUrl: "https://images.test/" + path })), error: null }) }; } }
+    };
+    window.supabase = { createClient: () => client };
+    window.initFloustreamMessageNotifications = () => {};
+    window.initFloustreamFriendNotifications = () => {};
+  }, options);
+}
+
 test("portal loads and enables authentication controls", async ({ page }) => {
   const pageErrors = [];
   page.on("pageerror", error => pageErrors.push(error.message));
@@ -348,4 +407,50 @@ test("microphone permission denial does not send a text or empty voice message",
   expect(state.micRequests).toBe(1);
   expect(state.uploads).toBe(0);
   expect(state.messages).toBe(0);
+});
+
+test("public profile avatar opens fullscreen and its like toggles persist across reloads", async ({ page }) => {
+  await mockPublicProfile(page, { signedIn: true });
+  await page.goto("/public-profile.html?id=profile-1");
+  await expect(page.locator("#avatar")).toHaveClass(/has-original/);
+  await expect(page.locator("#avatar")).toHaveAttribute("role", "button");
+  await page.locator("#avatar").click();
+  await expect(page.locator("#photo-lightbox")).toHaveClass(/is-open/);
+  await expect(page.locator("#photo-lightbox-image")).toHaveAttribute("src", "https://images.test/avatar.png");
+  await expect(page.locator("#avatar-photo-actions")).toBeVisible();
+  await expect(page.locator("#avatar-photo-like-count")).toHaveText("0 лайков");
+  await expect(page.locator("#photo-lightbox > *")).toHaveCount(3);
+  const like = page.locator("#avatar-photo-like");
+  await like.click();
+  await expect(page.locator("#avatar-photo-like-count")).toHaveText("1 лайк");
+  await expect(like).toHaveText("♥ Нравится");
+  await expect(like).toHaveClass(/liked/);
+  await page.reload();
+  await page.locator("#avatar").click();
+  await expect(page.locator("#avatar-photo-like-count")).toHaveText("1 лайк");
+  await expect(page.locator("#avatar-photo-like")).toHaveText("♥ Нравится");
+  await page.locator("#avatar-photo-like").click();
+  await expect(page.locator("#avatar-photo-like-count")).toHaveText("0 лайков");
+  await expect(page.locator("#avatar-photo-like")).toHaveText("♡ Нравится");
+  const state = await page.evaluate(() => window.__publicProfileTestState);
+  expect(state.inserts).toHaveLength(1);
+  expect(state.deletes).toHaveLength(1);
+  expect(state.likes).toHaveLength(0);
+  await page.locator("#photo-lightbox-close").click();
+  await expect(page.locator("#photo-lightbox")).not.toHaveClass(/is-open/);
+});
+
+test("guest can open another users avatar but cannot like it", async ({ page }) => {
+  await mockPublicProfile(page, { signedIn: false });
+  await page.goto("/public-profile.html?id=profile-1");
+  await page.locator("#avatar").click();
+  await expect(page.locator("#photo-lightbox")).toHaveClass(/is-open/);
+  await expect(page.locator("#avatar-photo-actions")).toBeVisible();
+  await expect(page.locator("#avatar-photo-like")).toBeDisabled();
+  await expect(page.locator("#avatar-photo-like-note")).toHaveText("Войдите, чтобы поставить лайк");
+  const state = await page.evaluate(() => window.__publicProfileTestState);
+  expect(state.inserts).toHaveLength(0);
+  expect(state.deletes).toHaveLength(0);
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#photo-lightbox")).not.toHaveClass(/is-open/);
 });
