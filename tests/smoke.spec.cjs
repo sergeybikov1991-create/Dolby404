@@ -45,12 +45,17 @@ async function mockAuthenticatedChat(page, options = {}) {
           eq(column, value) { if (column === "id") selectedId = value; return query; },
           maybeSingle() {
             if (table === "profiles") return Promise.resolve({ data: profile, error: null });
+            if (config.failConfirmationFirst && !state.confirmationFailed) {
+              state.confirmationFailed = true;
+              return Promise.resolve({ data: null, error: { message: "simulated confirmation unavailable" } });
+            }
             return Promise.resolve({ data: state.messages.find(row => row.id === selectedId) || null, error: null });
           },
           update() { return query; },
           is() { return Promise.resolve({ error: null }); },
           insert(row) {
             state.inserts.push(row);
+            if (state.messages.some(existing => existing.id === row.id)) return Promise.resolve({ error: { message: "duplicate key", status: 409 } });
             state.messages.push({ ...row, created_at: new Date().toISOString() });
             return Promise.resolve({ error: config.ambiguousInsert ? { message: "simulated response lost" } : null });
           }
@@ -207,13 +212,15 @@ test("chat photos have no message frame and open in a closable fullscreen viewer
 });
 
 test("chat media upload resumes after interruption and prevents duplicate message rows", async ({ page }) => {
-  await mockAuthenticatedChat(page, { failFirstUpload: true, ambiguousInsert: true, uploadDelay: 120 });
+  await mockAuthenticatedChat(page, { failFirstUpload: true, ambiguousInsert: true, failConfirmationFirst: true, uploadDelay: 120 });
   await page.goto("/messages.html?with=peer-1");
   const file = { name: "clip.mp4", mimeType: "video/mp4", buffer: Buffer.alloc(7 * 1024 * 1024) };
   await page.locator("#attachment-input").setInputFiles(file);
   await expect(page.locator("#notice")).toContainText("simulated network interruption");
   await page.locator("#attachment-input").setInputFiles(file);
   await page.evaluate(() => document.getElementById("attachment-input").dispatchEvent(new Event("change", { bubbles: true })));
+  await expect(page.locator("#notice")).toContainText("Не удалось проверить запись сообщения");
+  await page.locator("#attachment-input").setInputFiles(file);
   await expect(page.locator("#notice")).toHaveText("Вложение отправлено.");
   const state = await page.evaluate(() => ({
     uploads: window.__chatTestState.uploads.length, resumed: window.__chatTestState.resumedUploads,
@@ -224,9 +231,10 @@ test("chat media upload resumes after interruption and prevents duplicate messag
   }));
   expect(state.uploads).toBe(2);
   expect(state.resumed).toBe(1);
-  expect(state.inserts).toHaveLength(1);
+  expect(state.inserts).toHaveLength(2);
   expect(state.messages).toHaveLength(1);
   expect(state.messages[0].id).toBe(state.inserts[0].id);
+  expect(state.inserts[1].id).toBe(state.inserts[0].id);
   expect(state.messages[0].attachment_path).toContain("sender-1/");
   expect(state.removed).toHaveLength(0);
   expect(state.endpoint).toContain(".storage.supabase.co/storage/v1/upload/resumable");
