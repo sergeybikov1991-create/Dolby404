@@ -1,10 +1,10 @@
-name: FLOUSTREAM Android 1.5 Release Candidate
+name: FLOUSTREAM Android 1.6 Release Candidate
 
 on:
   workflow_dispatch:
     inputs:
       publish_release:
-        description: "Опубликовать публичный GitHub Release v1.5 (только после проверки APK)"
+        description: "Опубликовать публичный GitHub Release v1.6 (только после проверки APK)"
         required: false
         type: boolean
         default: false
@@ -14,6 +14,7 @@ on:
       - feature/apk-2.0-release-fcm
       - feature/android-1.4-step1-fullscreen-video
       - feature/android-1.5-repair-from-1.4
+      - feature/android-1.6-compact-audio-launcher
     paths:
       - "android-web-shell-test/**"
       - ".github/workflows/android-release-1.0.yml"
@@ -22,7 +23,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: floustream-android-release-1-5
+  group: floustream-android-release-1-6
   cancel-in-progress: false
 
 jobs:
@@ -59,7 +60,7 @@ jobs:
         run: |
           if [ -z "$KEYSTORE_B64" ] || [ -z "$STORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
             echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::error::Release signing secrets are missing or empty. Configure all four repository Actions secrets before building FLOUSTREAM 1.5."
+            echo "::error::Release signing secrets are missing or empty. Configure all four repository Actions secrets before building FLOUSTREAM 1.6."
             exit 1
           fi
           echo "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/floustream-release.jks"
@@ -104,7 +105,7 @@ jobs:
             exit 1
           fi
           echo "APK signing certificate matches the FLOUSTREAM release passport."
-          $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android' versionCode='105' versionName='1.5'"
+          $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android' versionCode='106' versionName='1.6'"
 
       - name: Generate checksum and updater manifest
         if: steps.signing.outputs.ready == 'true'
@@ -112,12 +113,12 @@ jobs:
           APK=android-web-shell-test/app/build/outputs/apk/release/app-release.apk
           SHA=$(sha256sum "$APK" | cut -d' ' -f1)
           printf '%s  %s\n' "$SHA" "app-release.apk" > "$APK.sha256"
-          printf '{"versionCode":105,"versionName":"1.5","apkUrl":"https://github.com/sergeybikov1991-create/Dolby404/releases/download/v1.5/app-release.apk","sha256":"%s"}\n' "$SHA" > android-web-shell-test/app/build/outputs/apk/release/update.json
+          printf '{"versionCode":106,"versionName":"1.6","apkUrl":"https://github.com/sergeybikov1991-create/Dolby404/releases/download/v1.6/app-release.apk","sha256":"%s"}\n' "$SHA" > android-web-shell-test/app/build/outputs/apk/release/update.json
 
       - name: Upload CI artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: FLOUSTREAM-Android-1.5-RC
+          name: FLOUSTREAM-Android-1.6-RC
           path: |
             android-web-shell-test/app/build/outputs/apk/debug/app-debug.apk
             android-web-shell-test/app/build/outputs/apk/release/app-release.apk
@@ -130,10 +131,10 @@ jobs:
         if: steps.signing.outputs.ready == 'true' && github.event_name == 'workflow_dispatch' && inputs.publish_release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.5
-          name: FLOUSTREAM Android 1.5
+          tag_name: v1.6
+          name: FLOUSTREAM Android 1.6
           body: |
-            FLOUSTREAM Android 1.5:
+            FLOUSTREAM Android 1.6:
             - закрытие фото- и видеоальбомов для гостевых и анонимных сессий;
             - запись голосовых сообщений удержанием кнопки отправки без второго микрофонного потока;
             - медиа без рамок;
