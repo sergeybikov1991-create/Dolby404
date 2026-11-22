@@ -85,6 +85,7 @@ async function mockAuthenticatedChat(page, options = {}) {
       resumeFromPreviousUpload(previous) { this.resumed = true; state.resumedUploads += 1; this.previous = previous; }
       start() {
         state.startedUploads += 1;
+        if (config.emitDuplicateChange && state.startedUploads === 2) document.getElementById("attachment-input").dispatchEvent(new Event("change", { bubbles: true }));
         if (config.failFirstUpload && state.startedUploads === 1) {
           state.previousUploads = [{ metadata: this.options.metadata, creationTime: new Date().toISOString(), uploadUrl: "https://upload.test/resume" }];
           this.options.onError(new Error("simulated network interruption"));
@@ -212,13 +213,12 @@ test("chat photos have no message frame and open in a closable fullscreen viewer
 });
 
 test("chat media upload resumes after interruption and prevents duplicate message rows", async ({ page }) => {
-  await mockAuthenticatedChat(page, { failFirstUpload: true, ambiguousInsert: true, failConfirmationFirst: true, uploadDelay: 800 });
+  await mockAuthenticatedChat(page, { failFirstUpload: true, ambiguousInsert: true, failConfirmationFirst: true, emitDuplicateChange: true, uploadDelay: 800 });
   await page.goto("/messages.html?with=peer-1");
   const file = { name: "clip.mp4", mimeType: "video/mp4", buffer: Buffer.alloc(7 * 1024 * 1024) };
   await page.locator("#attachment-input").setInputFiles(file);
   await expect(page.locator("#notice")).toContainText("simulated network interruption");
   await page.locator("#attachment-input").setInputFiles(file);
-  await page.evaluate(() => document.getElementById("attachment-input").dispatchEvent(new Event("change", { bubbles: true })));
   await expect(page.locator("#notice")).toContainText("Не удалось проверить запись сообщения");
   await page.locator("#attachment-input").setInputFiles(file);
   await expect(page.locator("#notice")).toHaveText("Вложение отправлено.");
