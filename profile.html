@@ -276,10 +276,10 @@ textarea{min-height:90px;resize:vertical}
 .album-viewer-tools button{width:48px;height:48px;padding:0;border-radius:50%;font-size:23px;display:grid;place-items:center;background:#21172eea;border:1px solid #a66bff88;box-shadow:0 5px 22px #0009}
 .album-viewer-tools button.danger{border-color:#ff718b99;background:#401b2bea;color:#ffe2e8}
 #album-viewer-share,#private-album-share{position:relative;isolation:isolate;overflow:visible;border:1px solid #d9b5ff;background:linear-gradient(145deg,#d7a8ff 0%,#9252e8 42%,#4a2a91 100%);color:#fff;box-shadow:0 0 0 1px #a66bff55,0 0 18px #a66bff99,0 7px 24px #000b;transition:transform .18s ease,box-shadow .18s ease}
-#album-viewer-share,#private-album-share::before{content:"";position:absolute;inset:-5px;border-radius:50%;z-index:-1;background:radial-gradient(circle,#b77aff55 0%,transparent 70%);filter:blur(4px)}
+#album-viewer-share::before,#private-album-share::before{content:"";position:absolute;inset:-5px;border-radius:50%;z-index:-1;background:radial-gradient(circle,#b77aff55 0%,transparent 70%);filter:blur(4px)}
 #album-viewer-share,#private-album-share{width:44px;min-width:44px;padding:0;border-radius:14px;font-size:12px;font-weight:900;letter-spacing:.3px;text-transform:none;text-shadow:0 1px 3px #3c176e99}
-#album-viewer-share,#private-album-share:active{transform:scale(.92);box-shadow:0 0 0 2px #d9b5ff66,0 0 24px #b77affcc,0 5px 16px #000b}
-@media(hover:hover){#album-viewer-share,#private-album-share:hover{transform:translateY(-2px);box-shadow:0 0 0 1px #e6cfff,0 0 25px #b77affcc,0 9px 26px #000b}}
+#album-viewer-share:active,#private-album-share:active{transform:scale(.92);box-shadow:0 0 0 2px #d9b5ff66,0 0 24px #b77affcc,0 5px 16px #000b}
+@media(hover:hover){#album-viewer-share:hover,#private-album-share:hover{transform:translateY(-2px);box-shadow:0 0 0 1px #e6cfff,0 0 25px #b77affcc,0 9px 26px #000b}}
 .album-viewer-tools button:active{transform:scale(.94)}
 .album-viewer-counter{bottom:max(14px,env(safe-area-inset-bottom))!important}
 .album-item{position:relative;aspect-ratio:1;border:1px solid #49375f;border-radius:10px;overflow:hidden;background:#100e19}
@@ -1564,8 +1564,8 @@ $("album-add-cancel").addEventListener("click",()=>{
 });
 let albumViewerItems=[],albumViewerIndex=0,albumTouchStartX=0,albumTouchStartY=0;
 function closeAlbumViewer(){$("album-viewer").hidden=true;$("album-viewer-image").removeAttribute("src");}
-$("album-share-close").addEventListener("click",()=>$("album-share-backdrop").hidden=true);
-$("album-share-backdrop").addEventListener("click",e=>{if(e.target===$("album-share-backdrop"))$("album-share-backdrop").hidden=true;});
+$("album-share-close").addEventListener("click",()=>{$("album-share-backdrop").hidden=true;albumShareSource=null;albumSelectedFriend=null;});
+$("album-share-backdrop").addEventListener("click",e=>{if(e.target===$("album-share-backdrop")){$("album-share-backdrop").hidden=true;albumShareSource=null;albumSelectedFriend=null;}});
 async function loadAlbumShareFriends(){
  const host=$("album-share-friends");host.replaceChildren();
  try{
@@ -1597,12 +1597,12 @@ async function loadAlbumShareFriends(){
  }catch(error){host.innerHTML='<div class="album-empty">Не удалось загрузить друзей: '+String(error.message||error).replace(/[<>]/g,"")+'</div>';}
 }
 $("album-share-send").addEventListener("click",async()=>{
- const friend=albumSelectedFriend,item=albumViewerItems[albumViewerIndex];
- if(!friend||!item)return;
+ const friend=albumSelectedFriend,share=albumShareSource,item=share?.item;
+ if(!friend||!item||!share?.bucket)return;
  const button=$("album-share-send");button.disabled=true;$("album-share-status").textContent="Отправляем фото…";
  let newPath=null;
  try{
-  const downloaded=await client.storage.from("photo-albums").download(item.object_path);
+  const downloaded=await client.storage.from(share.bucket).download(item.object_path);
   if(downloaded.error)throw downloaded.error;
   const ext=(item.mime_type||"image/jpeg").split("/")[1]||"jpg";
   newPath=user.id+"/"+crypto.randomUUID()+"."+ext;
@@ -1612,7 +1612,7 @@ $("album-share-send").addEventListener("click",async()=>{
   if(sent.error)throw sent.error;
   $("album-share-status").textContent="Фото отправлено пользователю "+(friend.display_name||friend.username||"");
   button.disabled=true;
-  setTimeout(()=>$("album-share-backdrop").hidden=true,900);
+  setTimeout(()=>{$("album-share-backdrop").hidden=true;albumShareSource=null;albumSelectedFriend=null;},900);
  }catch(error){
   if(newPath)await client.storage.from("message-media").remove([newPath]);
   $("album-share-status").textContent="Не удалось отправить фото: "+error.message;button.disabled=false;
@@ -1642,7 +1642,8 @@ function stepAlbumViewerPhoto(delta){
  const base=albumViewerPendingIndex===null?albumViewerIndex:albumViewerPendingIndex;
  showAlbumViewerPhoto(base+delta);
 }
-let albumSelectedFriend=null;
+let albumSelectedFriend=null,albumShareSource=null;
+async function openAlbumShare(source){if(!source?.item)return;albumShareSource=source;$("album-share-backdrop").hidden=false;$("album-share-status").textContent="";$("album-share-send").disabled=true;albumSelectedFriend=null;await loadAlbumShareFriends();}
 $("album-viewer-delete").addEventListener("click",async()=>{
  const item=albumViewerItems[albumViewerIndex];if(!item)return;
  if(!confirm("Удалить эту фотографию без возможности восстановления?"))return;
@@ -1671,11 +1672,8 @@ $("album-viewer-delete").addEventListener("click",async()=>{
  }catch(error){$("album-status").textContent="Не удалось удалить фото: "+error.message;}
  finally{button.disabled=false;}
 });
-$("album-viewer-share").addEventListener("click",async()=>{
- $("album-share-backdrop").hidden=false;
- $("album-share-status").textContent="";$("album-share-send").disabled=true;albumSelectedFriend=null;
- await loadAlbumShareFriends();
-});
+$("album-viewer-share").addEventListener("click",()=>openAlbumShare({item:albumViewerItems[albumViewerIndex],bucket:"photo-albums"}));
+$("private-album-share").addEventListener("click",()=>openAlbumShare({item:privateAlbumItems[privateAlbumIndex],bucket:"private-albums"}));
 $("album-viewer-close").addEventListener("click",closeAlbumViewer);
 $("album-viewer-prev").addEventListener("click",()=>stepAlbumViewerPhoto(-1));
 $("album-viewer-next").addEventListener("click",()=>stepAlbumViewerPhoto(1));
