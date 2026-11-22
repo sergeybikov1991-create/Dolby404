@@ -367,6 +367,7 @@ body.embed .game-notice{flex:0 0 auto}
 @media(prefers-reduced-motion:reduce){.die.rolling .die-cube,.die.rolling::after{animation:none}}
 
 </style>
+<link rel="stylesheet" href="assets/floustream-drawer.css?v=20261120-3">
 </head>
 <body>
 <header class="topbar">
@@ -419,5 +420,6 @@ body.embed .game-notice{flex:0 0 auto}
 <div id="loading" class="empty-board">Подключаем игровой зал FLOUSTREAM…</div>
 <script>if(new URLSearchParams(location.search).get("embed")==="1")document.body.classList.add("embed");</script>
 <script type="module" src="backgammon.js"></script>
+<script src="assets/floustream-drawer.js?v=20261120-3"></script>
 </body>
 </html>
