@@ -99,6 +99,7 @@ class VoiceMessageAudioBridge(
 
         var createdRecorder: MediaRecorder? = null
         var createdFile: File? = null
+        var stage = "create recorder"
         return try {
             val file = File(context.cacheDir, "voice_${UUID.randomUUID()}.m4a")
             createdFile = file
@@ -109,13 +110,20 @@ class VoiceMessageAudioBridge(
                 MediaRecorder()
             }
             createdRecorder = activeRecorder
+            stage = "select microphone source"
             activeRecorder.setAudioSource(MediaRecorder.AudioSource.MIC)
+            stage = "configure MP4 container"
             activeRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            stage = "configure AAC encoder"
             activeRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-            activeRecorder.setAudioEncodingBitRate(96_000)
-            activeRecorder.setAudioSamplingRate(44_100)
+            // Let Android choose device-supported bitrate and sample rate.
+            // Hard-coding 44.1 kHz can fail on devices whose input path exposes
+            // a different native capture rate.
+            stage = "set output file"
             activeRecorder.setOutputFile(file.absolutePath)
+            stage = "prepare audio recorder"
             activeRecorder.prepare()
+            stage = "start audio capture"
             activeRecorder.start()
             recordingFile = file
             recorder = activeRecorder
@@ -123,7 +131,7 @@ class VoiceMessageAudioBridge(
             lastStartError = ""
             true
         } catch (error: Exception) {
-            lastStartError = "${error.javaClass.simpleName}: ${error.message ?: "no detail"}"
+            lastStartError = "$stage — ${error.javaClass.simpleName}: ${error.message ?: "no detail"}"
             try { createdRecorder?.reset() } catch (_: Exception) { }
             try { createdRecorder?.release() } catch (_: Exception) { }
             createdFile?.delete()
