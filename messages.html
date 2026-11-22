@@ -78,6 +78,9 @@ const mediaObjectUrls=new Map();
 function chatMediaCacheRequest(path){
  return new Request(new URL("/__floustream_chat_media_cache__/"+encodeURIComponent(viewer.id)+"/"+encodeURIComponent(path),location.origin).href);
 }
+function chatLegacyImageCacheRequest(path){
+ return new Request(new URL("/__floustream_chat_image_cache__/"+encodeURIComponent(viewer.id)+"/"+encodeURIComponent(path),location.origin).href);
+}
 async function openChatMediaCache(){
  if(!("caches" in window)||!viewer?.id)return null;
  return caches.open("floustream-chat-media-v1-"+viewer.id);
@@ -90,7 +93,7 @@ async function getCachedChatMediaUrl(path,mime){
   // Keep photos saved by the previous photo-only cache when upgrading.
   if(!response&&String(mime||"").toLowerCase().startsWith("image/")&&"caches" in window){
    const legacy=await caches.open("floustream-chat-images-v1-"+viewer.id);
-   response=await legacy.match(chatMediaCacheRequest(path));
+   response=await legacy.match(chatLegacyImageCacheRequest(path));
    if(response)try{await cache.put(chatMediaCacheRequest(path),response.clone());}catch(migrationError){console.warn("FLOUSTREAM photo cache migration:",migrationError);}
   }
   if(!response)return null;
