@@ -631,7 +631,13 @@ test("gallery picker accepts and sends multiple photos and videos sequentially",
     { name: "gallery-photo.png", mimeType: "image/png", buffer: Buffer.from("photo-test") },
     { name: "gallery-video.mp4", mimeType: "video/mp4", buffer: Buffer.from("video-test") }
   ]);
+  await expect(page.locator("#attachment-preview")).toBeVisible();
+  await expect(page.locator(".attachment-preview-item")).toHaveCount(2);
+  await expect(page.locator("#attachment-preview-count")).toHaveText("Выбрано файлов: 2");
+  await expect.poll(() => page.evaluate(() => window.__chatTestState.inserts.length)).toBe(0);
+  await page.locator("#attachment-send").click();
   await expect.poll(() => page.evaluate(() => window.__chatTestState.inserts.length)).toBe(2);
+  await expect(page.locator("#attachment-preview")).toBeHidden();
   const state = await page.evaluate(() => ({
     inserts: window.__chatTestState.inserts.map(row => ({ name: row.attachment_name, mime: row.attachment_mime })),
     messages: window.__chatTestState.messages.length,
