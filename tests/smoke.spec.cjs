@@ -223,13 +223,14 @@ test("chat media upload resumes after interruption and prevents duplicate messag
   await page.locator("#attachment-input").setInputFiles(file);
   await expect(page.locator("#notice")).toHaveText("Вложение отправлено.");
   const state = await page.evaluate(() => ({
-    uploads: window.__chatTestState.uploads.length, resumed: window.__chatTestState.resumedUploads,
+    uploads: window.__chatTestState.uploads.length, started: window.__chatTestState.startedUploads, resumed: window.__chatTestState.resumedUploads,
     inserts: window.__chatTestState.inserts, messages: window.__chatTestState.messages, removed: window.__chatTestState.removed,
+    pendingKeys: Object.keys(sessionStorage), pendingValues: Object.keys(sessionStorage).map(key => sessionStorage.getItem(key)),
     endpoint: window.__chatTestState.lastTusOptions.endpoint, chunkSize: window.__chatTestState.lastTusOptions.chunkSize,
     retryDelays: window.__chatTestState.lastTusOptions.retryDelays, hasAuth: !!window.__chatTestState.lastTusOptions.headers.authorization,
     hasApiKey: !!window.__chatTestState.lastTusOptions.headers.apikey
   }));
-  expect(state.uploads).toBe(2);
+  expect(state.uploads, JSON.stringify({ started: state.started, resumed: state.resumed, inserts: state.inserts, pendingKeys: state.pendingKeys, pendingValues: state.pendingValues })).toBe(2);
   expect(state.resumed).toBe(1);
   expect(state.inserts).toHaveLength(2);
   expect(state.messages).toHaveLength(1);
