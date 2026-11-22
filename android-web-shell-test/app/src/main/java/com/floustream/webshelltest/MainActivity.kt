@@ -975,6 +975,10 @@ class MainActivity : ComponentActivity() {
                             '  background: transparent !important;',
                             '  padding: 0 !important;',
                             '}',
+                            '.floustream-audio-player { display:flex; align-items:center; gap:8px; width:min(270px,100%); min-height:34px; padding:2px 0; background:transparent; border:0; box-shadow:none; }',
+                            '.floustream-audio-toggle { width:30px; height:30px; flex:0 0 30px; display:grid; place-items:center; padding:0; border:0; border-radius:50%; background:linear-gradient(135deg,#8d55e8,#56308c); color:#fff; font-size:13px; line-height:1; cursor:pointer; }',
+                            '.floustream-audio-progress { min-width:0; flex:1; width:100%; height:3px; accent-color:#b78aff; cursor:pointer; }',
+                            '.floustream-audio-time { min-width:34px; color:#c8bdd8; font:10px Arial,sans-serif; text-align:right; white-space:nowrap; }',
                             '.message-media-video {',
                             '  display: block !important;',
                             '  background: #090811 !important;',
@@ -995,6 +999,99 @@ class MainActivity : ComponentActivity() {
                             media.style.setProperty('border', '0', 'important');
                             media.style.setProperty('outline', '0', 'important');
                             media.style.setProperty('box-shadow', 'none', 'important');
+                            if (media.tagName === 'AUDIO') {
+                                if (media.dataset.floustreamCompactPlayer === '1') return;
+                                media.dataset.floustreamCompactPlayer = '1';
+                                media.controls = false;
+                                media.removeAttribute('controls');
+                                media.preload = 'metadata';
+                                media.style.setProperty('display', 'none', 'important');
+
+                                const player = document.createElement('div');
+                                player.className = 'floustream-audio-player';
+                                const toggle = document.createElement('button');
+                                toggle.type = 'button';
+                                toggle.className = 'floustream-audio-toggle';
+                                toggle.textContent = '▶';
+                                toggle.setAttribute('aria-label', 'Воспроизвести голосовое сообщение');
+                                const progress = document.createElement('input');
+                                progress.type = 'range';
+                                progress.className = 'floustream-audio-progress';
+                                progress.min = '0';
+                                progress.max = '1000';
+                                progress.value = '0';
+                                progress.setAttribute('aria-label', 'Позиция воспроизведения');
+                                const time = document.createElement('span');
+                                time.className = 'floustream-audio-time';
+                                time.textContent = '0:00';
+                                player.append(toggle, progress, time);
+                                media.insertAdjacentElement('afterend', player);
+
+                                function clock(value) {
+                                    const seconds = Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
+                                    return Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2, '0');
+                                }
+                                function refresh() {
+                                    const duration = Number.isFinite(media.duration) ? media.duration : 0;
+                                    const current = Number.isFinite(media.currentTime) ? media.currentTime : 0;
+                                    progress.value = duration > 0 ? String(Math.round(current / duration * 1000)) : '0';
+                                    time.textContent = clock(current);
+                                }
+                                function stopAndReset() {
+                                    media.pause();
+                                    try { media.currentTime = 0; } catch (_) {}
+                                    toggle.textContent = '▶';
+                                    toggle.setAttribute('aria-label', 'Воспроизвести голосовое сообщение');
+                                    refresh();
+                                }
+                                toggle.addEventListener('click', function(event) {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    if (!media.paused && !media.ended) {
+                                        stopAndReset();
+                                        if (window.__floustreamActiveMessageAudio === media) window.__floustreamActiveMessageAudio = null;
+                                        return;
+                                    }
+                                    const active = window.__floustreamActiveMessageAudio;
+                                    if (active && active !== media) {
+                                        active.pause();
+                                        try { active.currentTime = 0; } catch (_) {}
+                                        active.dispatchEvent(new Event('floustream-stop'));
+                                    }
+                                    window.__floustreamActiveMessageAudio = media;
+                                    media.play().then(function() {
+                                        toggle.textContent = '■';
+                                        toggle.setAttribute('aria-label', 'Остановить голосовое сообщение');
+                                    }).catch(function() {
+                                        stopAndReset();
+                                        window.__floustreamActiveMessageAudio = null;
+                                    });
+                                });
+                                progress.addEventListener('input', function() {
+                                    if (Number.isFinite(media.duration) && media.duration > 0) {
+                                        media.currentTime = Number(progress.value) / 1000 * media.duration;
+                                        refresh();
+                                    }
+                                });
+                                media.addEventListener('timeupdate', refresh);
+                                media.addEventListener('loadedmetadata', refresh);
+                                media.addEventListener('play', function() {
+                                    toggle.textContent = '■';
+                                    toggle.setAttribute('aria-label', 'Остановить голосовое сообщение');
+                                });
+                                media.addEventListener('pause', function() {
+                                    toggle.textContent = '▶';
+                                    toggle.setAttribute('aria-label', 'Воспроизвести голосовое сообщение');
+                                });
+                                media.addEventListener('ended', function() {
+                                    stopAndReset();
+                                    if (window.__floustreamActiveMessageAudio === media) window.__floustreamActiveMessageAudio = null;
+                                });
+                                media.addEventListener('floustream-stop', stopAndReset);
+                                media.addEventListener('error', stopAndReset);
+                                refresh();
+                                return;
+                            }
                             if (media.tagName !== 'VIDEO') return;
 
                             media.preload = 'auto';
