@@ -855,8 +855,7 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
   <button type="button" class="primary privacy-toggle" id="privacy-toggle" aria-expanded="false" aria-controls="privacy-panel">Приватность <span class="privacy-chevron" aria-hidden="true">⌄</span></button>
   <div class="privacy-panel" id="privacy-panel" aria-hidden="true">
    <div class="privacy-panel-inner" inert>
-    <p class="settings-help">Управляй тем, что видно другим пользователям. Секретные фото- и видеоальбомы здесь не отображаются и не управляются этими настройками.</p>
-    <label class="privacy-option"><input id="privacy-public-album" type="checkbox" checked> <span>Обычный фотоальбом — виден всем</span></label>
+    <p class="settings-help">Фотоальбомы всегда доступны только владельцу. Здесь можно управлять видимостью видео, комментариев и публикаций.</p>
      <label class="privacy-option"><input id="privacy-video-visible" type="checkbox" checked> <span>Обычный видеоальбом — виден всем</span></label>
     <label class="privacy-option"><input id="privacy-comments-visible" type="checkbox" checked> <span>Комментарии — видны всем</span></label>
     <label class="privacy-option"><input id="privacy-feed-visible" type="checkbox" checked> <span>Публикации в ленте профиля — видны всем</span></label>
@@ -1149,13 +1148,12 @@ function recordNavigation(action,label,icon){
 }
 
 async function loadPrivacySettings(){
- const defaults={owner_id:user.id,public_album_visible:true,video_album_visible:true,music_visible:true,comments_visible:true,feed_posts_visible:true};
+ const defaults={owner_id:user.id,video_album_visible:true,music_visible:true,comments_visible:true,feed_posts_visible:true};
  const saved=await client.from("profile_privacy_settings").upsert(defaults,{onConflict:"owner_id",ignoreDuplicates:true});
  if(saved.error)throw saved.error;
  const result=await client.from("profile_privacy_settings").select("*").eq("owner_id",user.id).single();
  if(result.error)throw result.error;
  const row=result.data;
- $("privacy-public-album").checked=row.public_album_visible;
   $("privacy-video-visible").checked=row.video_album_visible!==false;
  $("privacy-comments-visible").checked=row.comments_visible;
  $("privacy-feed-visible").checked=row.feed_posts_visible;
@@ -1178,7 +1176,6 @@ $("save-privacy-settings").addEventListener("click",async()=>{
  try{
   const result=await client.from("profile_privacy_settings").upsert({
    owner_id:user.id,
-   public_album_visible:$("privacy-public-album").checked,
     video_album_visible:$("privacy-video-visible").checked,
    music_visible:true,
    comments_visible:$("privacy-comments-visible").checked,

@@ -496,3 +496,16 @@ test("photos from both owner-only albums are shared to direct chats, never to th
   expect(shareHandler).toContain('client.from("direct_messages").insert');
   expect(shareHandler).not.toContain('client.from("posts").insert');
 });
+
+test("privacy settings no longer expose photo visibility and keep other controls intact", () => {
+  const profile = fs.readFileSync(path.join(__dirname, "..", "profile.html"), "utf8");
+  expect(profile).not.toContain('id="privacy-public-album"');
+  expect(profile).not.toContain("public_album_visible");
+  expect(profile).toContain('id="privacy-video-visible"');
+  expect(profile).toContain('id="privacy-comments-visible"');
+  expect(profile).toContain('id="privacy-feed-visible"');
+  expect(profile).toContain("video_album_visible:");
+  expect(profile).toContain("comments_visible:");
+  expect(profile).toContain("feed_posts_visible:");
+  expect(profile).toContain("Фотоальбомы всегда доступны только владельцу.");
+});
