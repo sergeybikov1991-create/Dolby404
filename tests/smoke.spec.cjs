@@ -27,7 +27,7 @@ async function mockAuthenticatedChat(page, options = {}) {
   await page.addInitScript(config => {
     const state = window.__chatTestState = {
       messages: config.initialMessages || [], signedBatches: [], inserts: [], removed: [], uploads: [],
-      previousUploads: [], resumedUploads: 0, startedUploads: 0, insertHandler: null, updateHandler: null
+      previousUploads: [], resumedUploads: 0, startedUploads: 0, insertHandler: null, updateHandler: null, micRequests: 0, micStopped: 0, recorderStarts: 0
     };
     const profile = { id: "peer-1", username: "peer", display_name: "Peer", avatar_url: null };
     const client = {
@@ -56,7 +56,7 @@ async function mockAuthenticatedChat(page, options = {}) {
           insert(row) {
             state.inserts.push(row);
             if (state.messages.some(existing => existing.id === row.id)) return Promise.resolve({ error: { message: "duplicate key", status: 409 } });
-            state.messages.push({ ...row, created_at: new Date().toISOString() });
+            state.messages.push({ ...row, id: row.id || "generated-" + (state.messages.length + 1), created_at: new Date().toISOString() });
             return Promise.resolve({ error: config.ambiguousInsert ? { message: "simulated response lost" } : null });
           }
         };
@@ -79,6 +79,28 @@ async function mockAuthenticatedChat(page, options = {}) {
       removeChannel: async () => ({ error: null })
     };
     window.supabase = { createClient: () => client };
+    window.__FLOUSTREAM_TEST_HOLD_MS = config.voiceHoldMs || 3000;
+    Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: {
+      getUserMedia: async () => {
+        state.micRequests += 1;
+        if (config.micPermissionDenied) throw new Error("Permission denied by test");
+        const track = { stop: () => { state.micStopped += 1; } };
+        return { getTracks: () => [track] };
+      }
+    } });
+    window.MediaRecorder = class {
+      static isTypeSupported(type) { return type.startsWith("audio/webm") || type === "audio/mp4"; }
+      constructor(stream, recorderOptions) { this.stream = stream; this.mimeType = recorderOptions?.mimeType || "audio/webm"; this.state = "inactive"; this.ondataavailable = null; this.onstop = null; this.onerror = null; }
+      start() {
+        this.state = "recording"; state.recorderStarts += 1;
+        setTimeout(() => { if (this.state === "recording") this.ondataavailable?.({ data: new Blob([new Uint8Array(512)], { type: this.mimeType }) }); }, 10);
+      }
+      stop() {
+        if (this.state === "inactive") return;
+        this.state = "inactive"; this.ondataavailable?.({ data: new Blob([new Uint8Array(512)], { type: this.mimeType }) });
+        setTimeout(() => this.onstop?.(), 0);
+      }
+    };
     window.tus = { Upload: class {
       constructor(file, tusOptions) { this.file = file; this.options = tusOptions; this.resumed = false; state.uploads.push(this); state.lastTusOptions = tusOptions; }
       findPreviousUploads() { return Promise.resolve(state.previousUploads.slice()); }
@@ -265,4 +287,65 @@ test("chat attachment previews are signed in one batch and existing video nodes 
   expect(batches[0]).toHaveLength(2);
   expect(batches[1]).toEqual(["peer-1/photo-2.jpg"]);
   expect(await video.evaluate(node => node.isConnected)).toBe(true);
+});
+
+test("short tap on the send button continues to send text normally", async ({ page }) => {
+  await mockAuthenticatedChat(page);
+  await page.goto("/messages.html?with=peer-1");
+  await page.locator("#message-input").fill("Привет");
+  await page.locator("#send").click();
+  await expect(page.locator(".bubble-row")).toHaveCount(1);
+  const state = await page.evaluate(() => ({ message: window.__chatTestState.messages[0], micRequests: window.__chatTestState.micRequests, recorderStarts: window.__chatTestState.recorderStarts, uploads: window.__chatTestState.uploads.length }));
+  expect(state.message.content).toBe("Привет");
+  expect(state.micRequests).toBe(0);
+  expect(state.recorderStarts).toBe(0);
+  expect(state.uploads).toBe(0);
+});
+
+test("holding the existing send button records and automatically sends a voice message", async ({ page }) => {
+  await mockAuthenticatedChat(page, { voiceHoldMs: 35, uploadDelay: 30 });
+  await page.goto("/messages.html?with=peer-1");
+  const send = page.locator("#send");
+  await send.dispatchEvent("pointerdown", { pointerId: 1, pointerType: "touch", isPrimary: true, button: 0, clientX: 100, clientY: 100 });
+  await expect(page.locator("#notice")).toContainText("Запись 00:00");
+  await send.dispatchEvent("pointerup", { pointerId: 1, pointerType: "touch", isPrimary: true, button: 0, clientX: 100, clientY: 100 });
+  await expect(page.locator("#notice")).toHaveText("Голосовое сообщение отправлено.");
+  await expect(page.locator(".message-media-audio")).toHaveCount(1);
+  const state = await page.evaluate(() => ({ message: window.__chatTestState.messages[0], micRequests: window.__chatTestState.micRequests, micStopped: window.__chatTestState.micStopped, recorderStarts: window.__chatTestState.recorderStarts, uploads: window.__chatTestState.uploads.length }));
+  expect(state.micRequests).toBe(1);
+  expect(state.micStopped).toBe(1);
+  expect(state.recorderStarts).toBe(1);
+  expect(state.uploads).toBe(1);
+  expect(state.message.attachment_mime).toBe("audio/webm");
+  expect(state.message.attachment_name).toMatch(/^voice-message-/);
+  expect(state.message.content).toMatch(/^00:0[1-9]$/);
+});
+
+test("swiping sideways cancels a voice recording and releases the microphone", async ({ page }) => {
+  await mockAuthenticatedChat(page, { voiceHoldMs: 35 });
+  await page.goto("/messages.html?with=peer-1");
+  const send = page.locator("#send");
+  await send.dispatchEvent("pointerdown", { pointerId: 2, pointerType: "touch", isPrimary: true, button: 0, clientX: 100, clientY: 100 });
+  await expect(page.locator("#notice")).toContainText("Запись 00:00");
+  await send.dispatchEvent("pointermove", { pointerId: 2, pointerType: "touch", isPrimary: true, button: 0, clientX: 220, clientY: 100 });
+  await expect(page.locator("#notice")).toHaveText("Запись отменена.");
+  await send.dispatchEvent("pointerup", { pointerId: 2, pointerType: "touch", isPrimary: true, button: 0, clientX: 220, clientY: 100 });
+  const state = await page.evaluate(() => ({ micStopped: window.__chatTestState.micStopped, uploads: window.__chatTestState.uploads.length, inserts: window.__chatTestState.inserts.length, messages: window.__chatTestState.messages.length }));
+  expect(state.micStopped).toBe(1);
+  expect(state.uploads).toBe(0);
+  expect(state.inserts).toBe(0);
+  expect(state.messages).toBe(0);
+});
+
+test("microphone permission denial does not send a text or empty voice message", async ({ page }) => {
+  await mockAuthenticatedChat(page, { voiceHoldMs: 35, micPermissionDenied: true });
+  await page.goto("/messages.html?with=peer-1");
+  const send = page.locator("#send");
+  await send.dispatchEvent("pointerdown", { pointerId: 3, pointerType: "touch", isPrimary: true, button: 0, clientX: 100, clientY: 100 });
+  await expect(page.locator("#notice")).toContainText("Permission denied by test");
+  await send.dispatchEvent("pointerup", { pointerId: 3, pointerType: "touch", isPrimary: true, button: 0, clientX: 100, clientY: 100 });
+  const state = await page.evaluate(() => ({ micRequests: window.__chatTestState.micRequests, uploads: window.__chatTestState.uploads.length, messages: window.__chatTestState.messages.length }));
+  expect(state.micRequests).toBe(1);
+  expect(state.uploads).toBe(0);
+  expect(state.messages).toBe(0);
 });

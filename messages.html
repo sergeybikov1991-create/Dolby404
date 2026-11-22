@@ -26,9 +26,9 @@ body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 18% 0%,#281
 .composer{display:flex;align-items:flex-end;gap:9px;padding:12px;border-top:1px solid #382b4b;background:#110e19}
 .composer textarea{flex:1;min-height:44px;max-height:130px;resize:vertical;padding:12px;border:1px solid #49385e;border-radius:13px;background:#090811;color:#fff;font:inherit;font-size:14px;line-height:1.4;outline:none}
 .composer textarea:focus{border-color:#a66bff;box-shadow:0 0 0 2px #a66bff22}
-.send{width:46px;height:44px;flex:0 0 46px;border:1px solid #9a69c7;border-radius:13px;background:linear-gradient(135deg,#7139c9,#48216f);color:#fff;font-size:21px;font-weight:800;cursor:pointer}
+.send{width:46px;height:44px;flex:0 0 46px;border:1px solid #9a69c7;border-radius:13px;background:linear-gradient(135deg,#7139c9,#48216f);color:#fff;font-size:21px;font-weight:800;cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none}.send.arming{box-shadow:0 0 0 3px #b879e866}.send.recording{background:linear-gradient(135deg,#d34c76,#7d1f4d);border-color:#ff8eaf;box-shadow:0 0 16px #e34f8566;transform:scale(1.04)}
 .send:disabled{opacity:.5;cursor:default}
-.notice{min-height:19px;padding:0 14px 8px;color:#c8a7e8;font-size:11px}.upload-progress{display:block;width:calc(100% - 28px);height:4px;margin:0 14px 8px;accent-color:#b879e8}.upload-progress[hidden]{display:none}.message-media-loading,.message-attachment-retry{display:block;padding:10px 12px;border:1px solid #49385e;border-radius:10px;background:#171321;color:#c8a7e8;font-size:12px}.message-attachment-retry{cursor:pointer}
+.notice{min-height:19px;padding:0 14px 8px;color:#c8a7e8;font-size:11px}.upload-progress{display:block;width:calc(100% - 28px);height:4px;margin:0 14px 8px;accent-color:#b879e8}.upload-progress[hidden]{display:none}.message-media-loading,.message-attachment-retry{display:block;padding:10px 12px;border:1px solid #49385e;border-radius:10px;background:#171321;color:#c8a7e8;font-size:12px}.message-attachment-retry{cursor:pointer}.voice-duration{margin:0 0 4px;color:#c8a7e8;font-size:11px;font-variant-numeric:tabular-nums}
 .inbox-list{display:flex;flex-direction:column;gap:9px;padding:12px;overflow:auto}.inbox-item{display:flex;align-items:center;gap:12px;width:100%;min-height:72px;padding:11px;border:1px solid #392b4b;border-radius:14px;background:linear-gradient(120deg,#21182d,#14111d);color:var(--text);text-align:left;text-decoration:none;cursor:pointer}.inbox-item:active{border-color:#a66bff;background:#2a1c3a}.inbox-avatar{width:48px;height:48px;flex:0 0 48px;display:grid;place-items:center;overflow:hidden;border:1px solid #9a69c7;border-radius:50%;background:#352044;font-weight:800}.inbox-avatar img{width:100%;height:100%;object-fit:cover}.inbox-copy{display:grid;gap:5px;min-width:0;flex:1}.inbox-name{font-size:14px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.inbox-preview{font-size:12px;color:#b9adc8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.inbox-meta{display:grid;justify-items:end;gap:7px;align-self:stretch}.inbox-time{font-size:10px;color:#a99bbd;white-space:nowrap}.inbox-unread{display:grid;min-width:20px;height:20px;padding:0 5px;place-items:center;border-radius:999px;background:linear-gradient(135deg,#ff4f91,#c51e68);color:white;font-size:11px;font-weight:800}.inbox-unread[hidden]{display:none}.inbox-empty{margin:auto;padding:26px;text-align:center;color:#a99bbd;line-height:1.6}.game-toggle{border:1px solid #8b63b1;border-radius:11px;padding:9px 13px;background:linear-gradient(135deg,#3d2458,#24182f);color:#f2e5ff;font-weight:700;cursor:pointer}.game-toggle[hidden]{display:none}.game-frame{display:block;width:100%;flex:1;min-height:0;border:0;background:#090811}.game-frame[hidden]{display:none}.messages[hidden],.composer[hidden]{display:none!important}@media(max-width:600px){.wrap{height:100dvh;padding:9px}.chat{border-radius:15px}.messages{padding:14px 10px}.composer{padding:9px}}
 </style>
 </head>
@@ -220,7 +220,7 @@ function renderMessages(rows){
   const line=document.createElement("div");line.className="bubble-row"+(row.sender_id===viewer.id?" mine":"");line.dataset.createdAt=row.created_at||"";line.dataset.messageId=id;
   const bubble=document.createElement("div");bubble.className="bubble";
   if(row.attachment_path){const placeholder=document.createElement("div");placeholder.className="message-media-loading";placeholder.textContent="Подготавливаем вложение…";bubble.append(placeholder);pendingAttachments.push({row,placeholder,host});}
-  if(row.content&&row.content!==row.attachment_name){const body=document.createElement("div");body.textContent=row.content;bubble.append(body);}
+  if(row.content&&row.content!==row.attachment_name){const body=document.createElement("div");body.textContent=row.content;if((row.attachment_mime||"").startsWith("audio/")&&(row.attachment_name||"").startsWith("voice-message-"))body.className="voice-duration";bubble.append(body);}
   const time=document.createElement("span");time.className="time";time.textContent=timeText(row.created_at);bubble.append(time);line.append(bubble);host.append(line);
  }
  if(pendingAttachments.length)loadAttachmentUrls(pendingAttachments);
@@ -325,16 +325,81 @@ async function start(){
   if(deletedAccount)showNotice("Этот аккаунт удалён. История переписки сохранена; отправлять новые сообщения нельзя.");
   await loadMessages();
   if(!deletedAccount){
-   $("composer").addEventListener("submit",async event=>{
-    event.preventDefault();const input=$("message-input"),content=input.value.trim();if(!content)return;
-    const button=$("send");if(button.disabled)return;button.disabled=true;showNotice("Отправляем…");
-    try{
-     const result=await client.from("direct_messages").insert({sender_id:viewer.id,recipient_id:peerId,content});
-     if(result.error)throw result.error;
-     input.value="";showNotice("Сообщение отправлено.");await loadMessages();
-    }catch(error){showNotice("Не удалось отправить: "+(error.message||"ошибка соединения"),true);}
-    finally{button.disabled=false;input.focus();}
-   });
+   let voiceHoldTimer=null,voiceTimer=null,voicePointerActive=false,voiceHoldTriggered=false,voiceRecording=false,voiceCancelled=false,voiceRecorder=null,voiceStream=null,voiceChunks=[],voiceStartedAt=0,voiceStartX=0,voiceAttempt=0,voiceStartError="",voiceSuppressSubmitUntil=0;
+const voiceHoldDuration=Number(window.__FLOUSTREAM_TEST_HOLD_MS)||3000;
+function formatVoiceDuration(seconds){return String(Math.floor(seconds/60)).padStart(2,"0")+":"+String(seconds%60).padStart(2,"0");}
+function resetVoiceButton(){const button=$("send");button.classList.remove("arming","recording");button.textContent="➤";button.setAttribute("aria-label","Отправить");}
+function releaseVoiceResources(){clearInterval(voiceTimer);voiceTimer=null;if(voiceStream)voiceStream.getTracks().forEach(track=>track.stop());voiceStream=null;voiceRecorder=null;voiceRecording=false;voiceChunks=[];resetVoiceButton();}
+function updateVoiceNotice(){const seconds=Math.max(0,Math.floor((Date.now()-voiceStartedAt)/1000));showNotice("Запись "+formatVoiceDuration(seconds)+" · отпусти для отправки · свайп отменяет");}
+async function startVoiceRecording(){
+ const attempt=++voiceAttempt;if(!voicePointerActive||voiceCancelled)return;
+ voiceStartError="";
+ if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){voiceStartError="этот браузер не поддерживает запись аудио";showNotice("Не удалось начать запись: "+voiceStartError,true);return;}
+ showNotice("Запрашиваем доступ к микрофону…");
+ try{
+  let stream;try{stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});}catch(error){if(error.name!=="OverconstrainedError"&&error.name!=="TypeError")throw error;stream=await navigator.mediaDevices.getUserMedia({audio:true});}
+  if(attempt!==voiceAttempt||!voicePointerActive||voiceCancelled){stream.getTracks().forEach(track=>track.stop());return;}
+  voiceStream=stream;
+  const supported=["audio/webm;codecs=opus","audio/mp4","audio/webm","audio/ogg;codecs=opus"].find(type=>MediaRecorder.isTypeSupported?.(type));
+  const recorder=supported?new MediaRecorder(stream,{mimeType:supported}):new MediaRecorder(stream);
+  voiceRecorder=recorder;voiceChunks=[];voiceRecording=true;voiceStartedAt=Date.now();
+  recorder.ondataavailable=event=>{if(event.data?.size)voiceChunks.push(event.data);};
+  recorder.onerror=()=>{voiceCancelled=true;voiceStartError="ошибка записи аудио";if(recorder.state!=="inactive")recorder.stop();};
+  recorder.onstop=()=>{
+   const chunks=voiceChunks.slice(),type=recorder.mimeType||"audio/webm",duration=Math.max(1,Math.floor((Date.now()-voiceStartedAt)/1000)),cancelled=voiceCancelled,blob=new Blob(chunks,{type});
+   releaseVoiceResources();voicePointerActive=false;voiceHoldTriggered=false;voiceCancelled=false;
+   if(cancelled){showNotice(voiceStartError?"Ошибка записи: "+voiceStartError:"Запись отменена.",!!voiceStartError);voiceStartError="";return;}
+   if(blob.size<256){showNotice("Запись слишком короткая. Попробуй ещё раз.",true);return;}
+   const uploadType=type.split(";")[0].trim().toLowerCase()||"audio/webm",extension=uploadType==="audio/mp4"?"m4a":uploadType==="audio/ogg"?"ogg":uploadType==="audio/mpeg"?"mp3":"webm";
+   const file=new File([blob],"voice-message-"+duration+"s."+extension,{type:uploadType,lastModified:Date.now()});
+   void sendAttachmentFile(file,{successMessage:"Голосовое сообщение отправлено.",content:formatVoiceDuration(duration)});
+  };
+  recorder.start(250);
+  const button=$("send");button.classList.remove("arming");button.classList.add("recording");button.textContent="●";button.setAttribute("aria-label","Отпустить, чтобы отправить голосовое сообщение");
+  updateVoiceNotice();voiceTimer=setInterval(updateVoiceNotice,1000);
+ }catch(error){
+  if(attempt!==voiceAttempt||voiceCancelled||!voicePointerActive){if(voiceStream)releaseVoiceResources();return;}
+  if(voiceStream)voiceStream.getTracks().forEach(track=>track.stop());voiceStream=null;voiceRecorder=null;voiceRecording=false;voiceChunks=[];
+  voiceStartError=error.message||"проверь разрешение на микрофон";showNotice("Не удалось начать запись: "+voiceStartError,true);$("send").classList.remove("arming");
+ }
+}
+function cancelVoiceRecording(){
+ if(!voicePointerActive&&!voiceRecording)return;
+ voiceCancelled=true;voicePointerActive=false;voiceAttempt++;voiceSuppressSubmitUntil=Date.now()+1200;clearTimeout(voiceHoldTimer);voiceHoldTimer=null;
+ if(voiceRecorder&&voiceRecorder.state!=="inactive"){voiceRecorder.stop();return;}
+ if(voiceStream)voiceStream.getTracks().forEach(track=>track.stop());voiceStream=null;voiceRecorder=null;voiceChunks=[];voiceRecording=false;voiceHoldTriggered=false;clearInterval(voiceTimer);voiceTimer=null;resetVoiceButton();showNotice("Запись отменена.");
+}
+function finishVoicePointer(){
+ if(!voicePointerActive)return;
+ voicePointerActive=false;clearTimeout(voiceHoldTimer);voiceHoldTimer=null;
+ if(!voiceHoldTriggered){resetVoiceButton();if($("notice").textContent.startsWith("Удерживай"))showNotice("");return;}
+ voiceSuppressSubmitUntil=Date.now()+1200;
+ if(voiceRecording&&voiceRecorder&&voiceRecorder.state!=="inactive"){voiceRecorder.stop();return;}
+ voiceCancelled=true;voiceAttempt++;clearInterval(voiceTimer);voiceTimer=null;resetVoiceButton();
+ if(voiceStream)voiceStream.getTracks().forEach(track=>track.stop());voiceStream=null;voiceHoldTriggered=false;
+ showNotice(voiceStartError?"Не удалось начать запись: "+voiceStartError:"Запись отменена: микрофон не успел запуститься.",true);
+}
+$("composer").addEventListener("submit",async event=>{
+ event.preventDefault();if(attachmentSending||Date.now()<voiceSuppressSubmitUntil)return;
+ const input=$("message-input"),content=input.value.trim();if(!content)return;
+ const button=$("send");if(button.disabled)return;button.disabled=true;showNotice("Отправляем…");
+ try{const result=await client.from("direct_messages").insert({sender_id:viewer.id,recipient_id:peerId,content});if(result.error)throw result.error;input.value="";showNotice("Сообщение отправлено.");await loadMessages();}
+ catch(error){showNotice("Не удалось отправить: "+(error.message||"ошибка соединения"),true);}
+ finally{button.disabled=false;input.focus();}
+});
+const sendButton=$("send");
+sendButton.addEventListener("pointerdown",event=>{
+ if(attachmentSending||sendButton.disabled||event.isPrimary===false||(event.pointerType==="mouse"&&event.button!==0))return;
+ voicePointerActive=true;voiceHoldTriggered=false;voiceCancelled=false;voiceStartError="";voiceStartX=event.clientX;clearTimeout(voiceHoldTimer);
+ try{sendButton.setPointerCapture(event.pointerId);}catch(_){ }
+ sendButton.classList.add("arming");showNotice("Удерживай 3 секунды для записи голосового сообщения.");
+ voiceHoldTimer=setTimeout(()=>{if(!voicePointerActive||voiceCancelled)return;voiceHoldTriggered=true;void startVoiceRecording();},voiceHoldDuration);
+});
+sendButton.addEventListener("pointerup",finishVoicePointer);
+sendButton.addEventListener("pointercancel",()=>{if(voiceHoldTriggered||voiceRecording)cancelVoiceRecording();else{voicePointerActive=false;clearTimeout(voiceHoldTimer);voiceHoldTimer=null;resetVoiceButton();if($("notice").textContent.startsWith("Удерживай"))showNotice("");}});
+sendButton.addEventListener("pointermove",event=>{if(voicePointerActive&&voiceHoldTriggered&&Math.abs(event.clientX-voiceStartX)>90)cancelVoiceRecording();});
+sendButton.addEventListener("contextmenu",event=>event.preventDefault());
+window.addEventListener("pagehide",()=>{voiceCancelled=true;clearTimeout(voiceHoldTimer);clearInterval(voiceTimer);if(voiceRecorder&&voiceRecorder.state!=="inactive")voiceRecorder.stop();if(voiceStream)voiceStream.getTracks().forEach(track=>track.stop());},{once:true});
    $("message-input").addEventListener("keydown",event=>{if(event.key==="Enter"&&!event.shiftKey){event.preventDefault();$("composer").requestSubmit();}});
    $("attach").addEventListener("click",()=>$("attachment-input").click());
    async function attachmentFingerprint(file){
@@ -348,45 +413,38 @@ async function start(){
   return file.name+"|"+file.size+"|"+(file.type||"")+"|"+hash;
  }catch(_){return file.name+"|"+file.size+"|"+(file.type||"")+"|"+file.lastModified;}
 }
-$("attachment-input").addEventListener("change",async event=>{
-    const file=event.target.files?.[0];if(!file)return;
-    if(attachmentSending){event.target.value="";return;}
-    attachmentSending=true;
-    const button=$("attach"),input=event.target;button.disabled=true;input.disabled=true;
-    let path=null,uploadCompleted=false,keepUploaded=false,pendingKey=null;
-    try{
-     if(file.size<=0)throw new Error("Файл пустой.");
-     if(file.size>50*1024*1024)throw new Error("Файл больше 50 МБ.");
-     const safeName=file.name.replace(/[^A-Za-z0-9._-]/g,"_").slice(0,100)||"attachment";
-     const fingerprint=await attachmentFingerprint(file);pendingKey="floustream-pending-attachment:"+viewer.id+":"+peerId+":"+encodeURIComponent(fingerprint);
-     let pending=null;try{pending=JSON.parse(sessionStorage.getItem(pendingKey)||"null");}catch(_){pending=null;}
-     if(!pending?.path||!pending?.messageId||Date.now()-(pending.updatedAt||0)>86400000){pending={path:viewer.id+"/"+crypto.randomUUID()+"_"+safeName,messageId:crypto.randomUUID(),uploaded:false,updatedAt:Date.now()};try{sessionStorage.setItem(pendingKey,JSON.stringify(pending));}catch(_){}}
-     path=pending.path;let messageId=pending.messageId;
-     if(!pending.uploaded){
-      setUploadProgress(0);showNotice("Подготавливаем защищённую загрузку…");
-      const uploaded=await uploadFileResumable(file,path,messageId);path=uploaded.path;messageId=uploaded.messageId;uploadCompleted=true;
-      pending={path,messageId,uploaded:true,updatedAt:Date.now()};try{sessionStorage.setItem(pendingKey,JSON.stringify(pending));}catch(_){}
-     }else{uploadCompleted=true;setUploadProgress(100);showNotice("Проверяем результат предыдущей отправки…");}
-     const row={id:messageId,sender_id:viewer.id,recipient_id:peerId,content:"",attachment_path:path,attachment_name:file.name,attachment_mime:file.type||"application/octet-stream"};
-     try{
-      const sent=await withTimeout(client.from("direct_messages").insert(row),15000,"Сервер не подтвердил отправку сообщения за 15 секунд.");
-      if(sent.error)throw sent.error;
-     }catch(insertError){
-      let confirmation;
-      try{confirmation=await withTimeout(client.from("direct_messages").select("id,attachment_path").eq("id",messageId).maybeSingle(),8000,"Не удалось проверить результат отправки.");}
-      catch(checkError){keepUploaded=true;throw new Error("Файл загружен, но подтверждение сообщения не получено. Не отправляй его повторно — обнови переписку через несколько секунд.");}
-      if(confirmation.error){keepUploaded=true;throw new Error("Не удалось проверить запись сообщения. Файл оставлен в хранилище, чтобы не повредить возможную отправку. Обнови переписку через несколько секунд.");}
-      if(!confirmation.data?.id||confirmation.data.attachment_path!==path){const ambiguous=insertError.message==="Сервер не подтвердил отправку сообщения за 15 секунд."||!Number.isFinite(Number(insertError.status))||Number(insertError.status)>=500;if(ambiguous){keepUploaded=true;throw new Error("Сервер пока не подтвердил отправку. Файл оставлен в хранилище — не отправляй его повторно, обнови переписку через несколько секунд.");}throw insertError;}
-     }
-     try{sessionStorage.removeItem(pendingKey);}catch(_){ }
-     showNotice("Вложение отправлено.");await loadMessages();
-    }catch(error){
-     if(uploadCompleted&&path&&!keepUploaded){try{await withTimeout(client.storage.from("message-media").remove([path]),10000,"Тайм-аут очистки неиспользованного файла.");}catch(cleanupError){console.warn("FLOUSTREAM orphan attachment cleanup:",cleanupError);}try{if(pendingKey)sessionStorage.removeItem(pendingKey);}catch(_){}}
-     showNotice("Не удалось отправить файл: "+(error.message||"ошибка соединения"),true);
-    }finally{
-     attachmentSending=false;button.disabled=false;input.disabled=false;input.value="";setUploadProgress(null);
-    }
-   });
+async function sendAttachmentFile(file,options={}){
+ if(!file||attachmentSending)return false;
+ attachmentSending=true;
+ const button=$("attach"),input=$("attachment-input"),sendButton=$("send");button.disabled=true;input.disabled=true;sendButton.disabled=true;
+ let path=null,uploadCompleted=false,keepUploaded=false,pendingKey=null;
+ try{
+  if(file.size<=0)throw new Error("Файл пустой.");
+  if(file.size>50*1024*1024)throw new Error("Файл больше 50 МБ.");
+  const safeName=file.name.replace(/[^A-Za-z0-9._-]/g,"_").slice(0,100)||"attachment";
+  const fingerprint=await attachmentFingerprint(file);pendingKey="floustream-pending-attachment:"+viewer.id+":"+peerId+":"+encodeURIComponent(fingerprint);
+  let pending=null;try{pending=JSON.parse(sessionStorage.getItem(pendingKey)||"null");}catch(_){pending=null;}
+  if(!pending?.path||!pending?.messageId||Date.now()-(pending.updatedAt||0)>86400000){pending={path:viewer.id+"/"+crypto.randomUUID()+"_"+safeName,messageId:crypto.randomUUID(),uploaded:false,updatedAt:Date.now()};try{sessionStorage.setItem(pendingKey,JSON.stringify(pending));}catch(_){}}
+  path=pending.path;let messageId=pending.messageId;
+  if(!pending.uploaded){setUploadProgress(0);showNotice("Подготавливаем защищённую загрузку…");const uploaded=await uploadFileResumable(file,path,messageId);path=uploaded.path;messageId=uploaded.messageId;uploadCompleted=true;pending={path,messageId,uploaded:true,updatedAt:Date.now()};try{sessionStorage.setItem(pendingKey,JSON.stringify(pending));}catch(_){}}
+  else{uploadCompleted=true;setUploadProgress(100);showNotice("Проверяем результат предыдущей отправки…");}
+  const row={id:messageId,sender_id:viewer.id,recipient_id:peerId,content:options.content||"",attachment_path:path,attachment_name:file.name,attachment_mime:file.type||"application/octet-stream"};
+  try{const sent=await withTimeout(client.from("direct_messages").insert(row),15000,"Сервер не подтвердил отправку сообщения за 15 секунд.");if(sent.error)throw sent.error;}
+  catch(insertError){
+   let confirmation;
+   try{confirmation=await withTimeout(client.from("direct_messages").select("id,attachment_path").eq("id",messageId).maybeSingle(),8000,"Не удалось проверить результат отправки.");}
+   catch(checkError){keepUploaded=true;throw new Error("Файл загружен, но подтверждение сообщения не получено. Не отправляй его повторно — обнови переписку через несколько секунд.");}
+   if(confirmation.error){keepUploaded=true;throw new Error("Не удалось проверить запись сообщения. Файл оставлен в хранилище, чтобы не повредить возможную отправку. Обнови переписку через несколько секунд.");}
+   if(!confirmation.data?.id||confirmation.data.attachment_path!==path){const ambiguous=insertError.message==="Сервер не подтвердил отправку сообщения за 15 секунд."||!Number.isFinite(Number(insertError.status))||Number(insertError.status)>=500;if(ambiguous){keepUploaded=true;throw new Error("Сервер пока не подтвердил отправку. Файл оставлен в хранилище — не отправляй его повторно, обнови переписку через несколько секунд.");}throw insertError;}
+  }
+  try{sessionStorage.removeItem(pendingKey);}catch(_){ }
+  showNotice(options.successMessage||"Вложение отправлено.");await loadMessages();return true;
+ }catch(error){
+  if(uploadCompleted&&path&&!keepUploaded){try{await withTimeout(client.storage.from("message-media").remove([path]),10000,"Тайм-аут очистки неиспользованного файла.");}catch(cleanupError){console.warn("FLOUSTREAM orphan attachment cleanup:",cleanupError);}try{if(pendingKey)sessionStorage.removeItem(pendingKey);}catch(_){}}
+  showNotice("Не удалось отправить файл: "+(error.message||"ошибка соединения"),true);return false;
+ }finally{attachmentSending=false;button.disabled=false;input.disabled=false;input.value="";sendButton.disabled=false;setUploadProgress(null);}
+}
+$("attachment-input").addEventListener("change",event=>{const file=event.target.files?.[0];if(file)void sendAttachmentFile(file);});
   }
   let wasSubscribed=false;
   const chatChannel=client.channel("floustream-direct-"+[viewer.id,peerId].sort().join("-"))
