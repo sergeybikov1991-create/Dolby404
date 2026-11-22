@@ -128,7 +128,7 @@ async function mockPublicProfile(page, options = {}) {
   await page.route("https://images.test/avatar.png", route => route.fulfill({ status: 200, contentType: "image/png", body: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/S2sAAAAASUVORK5CYII=", "base64") }));
   await page.addInitScript(config => {
     const storageKey = "floustream-test-profile-photo-likes";
-    const state = window.__publicProfileTestState = { likes: JSON.parse(localStorage.getItem(storageKey) || "[]"), inserts: [], deletes: [], visits: [] };
+    const state = window.__publicProfileTestState = { likes: JSON.parse(localStorage.getItem(storageKey) || "[]"), inserts: JSON.parse(localStorage.getItem(storageKey + "-inserts") || "[]"), deletes: JSON.parse(localStorage.getItem(storageKey + "-deletes") || "[]"), visits: [] };
     const profile = { id: "profile-1", username: "profile", display_name: "Profile Owner", bio: "Profile bio", avatar_url: "https://images.test/avatar.png", avatar_photo_id: null, cover_url: null, last_activity_at: null, time_zone: "UTC" };
     const viewer = config.signedIn ? { id: "viewer-1" } : null;
     const client = {
@@ -148,7 +148,7 @@ async function mockPublicProfile(page, options = {}) {
           upsert(row) { state.visits.push(row); return Promise.resolve({ error: null }); },
           insert(row) {
             if (table === "profile_photo_likes") {
-              state.inserts.push(row);
+              state.inserts.push(row); localStorage.setItem(storageKey + "-inserts", JSON.stringify(state.inserts));
               if (state.likes.some(item => item.profile_id === row.profile_id && item.user_id === row.user_id)) return Promise.resolve({ error: { code: "23505", message: "duplicate like" } });
               state.likes.push(row); localStorage.setItem(storageKey, JSON.stringify(state.likes));
             }
@@ -157,7 +157,7 @@ async function mockPublicProfile(page, options = {}) {
           delete() { action = "delete"; return query; },
           then(resolve, reject) {
             if (table === "profile_photo_likes" && action === "delete") {
-              state.deletes.push({ ...filters });
+              state.deletes.push({ ...filters }); localStorage.setItem(storageKey + "-deletes", JSON.stringify(state.deletes));
               state.likes = state.likes.filter(item => !(item.profile_id === filters.profile_id && item.user_id === filters.user_id));
               localStorage.setItem(storageKey, JSON.stringify(state.likes));
               return Promise.resolve({ data: null, error: null }).then(resolve, reject);
