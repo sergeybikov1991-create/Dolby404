@@ -563,35 +563,45 @@ test("chat photos have zero frame and open fullscreen without changing the video
   await expect(page.locator("#photo-viewer")).toBeHidden();
 });
 
-test("chat photos persist in an account-scoped local cache across chat reloads", async ({ page }) => {
+test("chat photos, videos and voice messages persist in the account-scoped local cache across reloads", async ({ page }) => {
   const initialMessages = [
-    { id: "cached-photo-1", sender_id: "peer-1", recipient_id: "sender-1", content: "", attachment_path: "peer-1/cached-photo.jpg", attachment_name: "cached-photo.jpg", attachment_mime: "image/jpeg", created_at: new Date().toISOString() }
+    { id: "cached-photo-1", sender_id: "peer-1", recipient_id: "sender-1", content: "", attachment_path: "peer-1/cached-photo.jpg", attachment_name: "cached-photo.jpg", attachment_mime: "image/jpeg", created_at: new Date().toISOString() },
+    { id: "cached-video-1", sender_id: "peer-1", recipient_id: "sender-1", content: "", attachment_path: "peer-1/cached-video.mp4", attachment_name: "cached-video.mp4", attachment_mime: "video/mp4", created_at: new Date(Date.now() + 1000).toISOString() },
+    { id: "cached-audio-1", sender_id: "peer-1", recipient_id: "sender-1", content: "", attachment_path: "peer-1/cached-audio.m4a", attachment_name: "cached-audio.m4a", attachment_mime: "audio/mp4", created_at: new Date(Date.now() + 2000).toISOString() }
   ];
   let mediaFetches = 0;
   await mockAuthenticatedChat(page, { initialMessages });
   await page.route("https://media.test/**", route => {
     mediaFetches += 1;
+    const url = route.request().url();
+    const contentType = url.endsWith(".mp4") ? "video/mp4" : url.endsWith(".m4a") ? "audio/mp4" : "image/png";
     return route.fulfill({
       status: 200,
-      contentType: "image/png",
+      contentType,
       headers: { "access-control-allow-origin": "*" },
-      body: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/S2sAAAAASUVORK5CYII=", "base64")
+      body: Buffer.from("FLOUSTREAM test media payload")
     });
   });
   await page.goto("/messages.html?with=peer-1");
   await expect(page.locator(".message-media-image")).toBeVisible();
+  await expect(page.locator(".message-media-video")).toHaveCount(1);
+  await expect(page.locator(".voice-player")).toHaveCount(1);
   await expect.poll(() => page.evaluate(async () => {
-    const name = (await caches.keys()).find(key => key.startsWith("floustream-chat-images-v1-"));
+    const name = (await caches.keys()).find(key => key.startsWith("floustream-chat-media-v1-"));
     if (!name) return 0;
     return (await (await caches.open(name)).keys()).length;
-  })).toBe(1);
-  expect(mediaFetches).toBe(1);
+  })).toBe(3);
+  expect(mediaFetches).toBe(3);
 
   await page.reload();
   await expect(page.locator(".message-media-image")).toBeVisible();
+  await expect(page.locator(".message-media-video")).toHaveCount(1);
+  await expect(page.locator(".voice-player")).toHaveCount(1);
   await expect.poll(() => page.evaluate(() => window.__chatTestState.signedBatches.length)).toBe(0);
-  expect(mediaFetches).toBe(1);
+  expect(mediaFetches).toBe(3);
   await expect(page.locator(".message-media-image")).toHaveAttribute("src", /^blob:/);
+  await expect(page.locator(".message-media-video")).toHaveAttribute("src", /^blob:/);
+  await expect(page.locator(".message-media-audio")).toHaveAttribute("src", /^blob:/);
 });
 
 test("all incoming and outgoing audio attachments share one frameless player, even without voice filename or duration", async ({ page }) => {
