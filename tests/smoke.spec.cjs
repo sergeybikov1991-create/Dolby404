@@ -556,7 +556,7 @@ test("chat photos have zero frame and open fullscreen without changing the video
   expect(styles.videoMaxHeight).toBe("360px");
   await page.locator(".message-media-image").click();
   await expect(page.locator("#photo-viewer")).toBeVisible();
-  await expect(page.locator("#photo-viewer-image")).toHaveAttribute("src", /media\\.test/);
+  await expect(page.locator("#photo-viewer-image")).toHaveAttribute("src", /media\.test/);
   await page.keyboard.press("Escape");
   await expect(page.locator("#photo-viewer")).toBeHidden();
 });
