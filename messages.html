@@ -572,6 +572,7 @@ function renderGalleryPreview(){
  $("attachment-preview-count").textContent=pendingGalleryFiles.length?"Выбрано файлов: "+pendingGalleryFiles.length:"";
  $("attachment-preview").hidden=pendingGalleryFiles.length===0;
  $("attachment-send").disabled=pendingGalleryFiles.length===0||attachmentSending;
+ $("attachment-cancel").disabled=attachmentSending;
 }
 async function sendAttachmentFiles(files){
  const selected=Array.from(files||[]);
@@ -582,16 +583,16 @@ async function sendAttachmentFiles(files){
  }
  return true;
 }
-$("attachment-cancel").addEventListener("click",()=>{pendingGalleryFiles=[];renderGalleryPreview();});
+$("attachment-cancel").addEventListener("click",()=>{pendingGalleryFiles=[];$("attachment-input").value="";renderGalleryPreview();});
 $("attachment-send").addEventListener("click",async()=>{
  if(!pendingGalleryFiles.length||attachmentSending)return;
- $("attachment-send").disabled=true;
+ $("attachment-send").disabled=true;$("attachment-cancel").disabled=true;
  const sent=await sendAttachmentFiles(pendingGalleryFiles);
  if(sent)pendingGalleryFiles=[];
- renderGalleryPreview();
+ renderGalleryPreview();$("attachment-cancel").disabled=false;
 });
 $("attachment-input").addEventListener("change",event=>{
- const files=Array.from(event.target.files||[]);
+ const files=Array.from(event.target.files||[]);event.target.value="";
  if(files.length){pendingGalleryFiles=files;renderGalleryPreview();}
 });
   }
