@@ -439,7 +439,7 @@ class MainActivity : ComponentActivity() {
                         'html.floustream-android-guest #album-share-backdrop {',
                         '  display: none !important;',
                         '}'
-                    ].join(' ');
+                    ].join('\\\\n');
                     (document.head || document.documentElement).appendChild(style);
 
                     const applyGuestState = (session) => {
@@ -976,7 +976,7 @@ class MainActivity : ComponentActivity() {
                         '  padding: 0 !important;',
                         '  border-radius: 0 !important;',
                         '}'
-                    ].join('\\n');
+                    ].join(' ');
                     (document.head || document.documentElement).appendChild(style);
 
                     const attachmentSelector =
