@@ -275,11 +275,11 @@ textarea{min-height:90px;resize:vertical}
 .album-viewer-tools{position:absolute;top:14px;right:68px;left:auto;bottom:auto;transform:none;z-index:6;display:flex;gap:8px;align-items:center}
 .album-viewer-tools button{width:48px;height:48px;padding:0;border-radius:50%;font-size:23px;display:grid;place-items:center;background:#21172eea;border:1px solid #a66bff88;box-shadow:0 5px 22px #0009}
 .album-viewer-tools button.danger{border-color:#ff718b99;background:#401b2bea;color:#ffe2e8}
-#album-viewer-share{position:relative;isolation:isolate;overflow:visible;border:1px solid #d9b5ff;background:linear-gradient(145deg,#d7a8ff 0%,#9252e8 42%,#4a2a91 100%);color:#fff;box-shadow:0 0 0 1px #a66bff55,0 0 18px #a66bff99,0 7px 24px #000b;transition:transform .18s ease,box-shadow .18s ease}
-#album-viewer-share::before{content:"";position:absolute;inset:-5px;border-radius:50%;z-index:-1;background:radial-gradient(circle,#b77aff55 0%,transparent 70%);filter:blur(4px)}
-#album-viewer-share{width:44px;min-width:44px;padding:0;border-radius:14px;font-size:12px;font-weight:900;letter-spacing:.3px;text-transform:none;text-shadow:0 1px 3px #3c176e99}
-#album-viewer-share:active{transform:scale(.92);box-shadow:0 0 0 2px #d9b5ff66,0 0 24px #b77affcc,0 5px 16px #000b}
-@media(hover:hover){#album-viewer-share:hover{transform:translateY(-2px);box-shadow:0 0 0 1px #e6cfff,0 0 25px #b77affcc,0 9px 26px #000b}}
+#album-viewer-share,#private-album-share{position:relative;isolation:isolate;overflow:visible;border:1px solid #d9b5ff;background:linear-gradient(145deg,#d7a8ff 0%,#9252e8 42%,#4a2a91 100%);color:#fff;box-shadow:0 0 0 1px #a66bff55,0 0 18px #a66bff99,0 7px 24px #000b;transition:transform .18s ease,box-shadow .18s ease}
+#album-viewer-share,#private-album-share::before{content:"";position:absolute;inset:-5px;border-radius:50%;z-index:-1;background:radial-gradient(circle,#b77aff55 0%,transparent 70%);filter:blur(4px)}
+#album-viewer-share,#private-album-share{width:44px;min-width:44px;padding:0;border-radius:14px;font-size:12px;font-weight:900;letter-spacing:.3px;text-transform:none;text-shadow:0 1px 3px #3c176e99}
+#album-viewer-share,#private-album-share:active{transform:scale(.92);box-shadow:0 0 0 2px #d9b5ff66,0 0 24px #b77affcc,0 5px 16px #000b}
+@media(hover:hover){#album-viewer-share,#private-album-share:hover{transform:translateY(-2px);box-shadow:0 0 0 1px #e6cfff,0 0 25px #b77affcc,0 9px 26px #000b}}
 .album-viewer-tools button:active{transform:scale(.94)}
 .album-viewer-counter{bottom:max(14px,env(safe-area-inset-bottom))!important}
 .album-item{position:relative;aspect-ratio:1;border:1px solid #49375f;border-radius:10px;overflow:hidden;background:#100e19}
@@ -1012,8 +1012,7 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
   <div class="album-upload" id="album-upload-panel" hidden>
    <strong style="color:#eee4ff">Добавить фотографии</strong>
    <input id="album-file" type="file" accept="image/jpeg,image/png,image/webp" multiple>
-   <label><input id="album-private" type="checkbox"> <span>Приватный фотоальбом</span></label>
-   <p class="album-note" id="album-privacy-note">Обычные фотографии будут доступны всем. Если включить галочку, все выбранные фото попадут в секретный альбом, который виден только тебе.</p>
+   <p class="album-note" id="album-privacy-note">Все фотографии сохраняются в личный альбом и доступны только тебе. Чтобы поделиться, открой фото и отправь его другу в личный чат.</p>
    <button type="button" class="primary" id="album-upload-button">Загрузить выбранные фото</button>
    <button type="button" class="album-cancel-upload" id="album-add-cancel">Отмена</button>
   </div>
@@ -1022,7 +1021,7 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
  </section>
 </div>
 <div class="private-album-backdrop" id="private-album-backdrop" hidden><section class="private-album-panel" role="dialog" aria-modal="true" aria-labelledby="private-album-title"><div class="album-head"><h2 id="private-album-title">🔒 Приватный фотоальбом</h2><button type="button" class="settings-close" id="private-album-close" aria-label="Закрыть приватный альбом">×</button></div><p class="private-album-note">Только ты можешь просматривать эти фотографии. Альбом не отображается в настройках приватности и обычном профиле.</p><div class="album-status" id="private-album-status" aria-live="polite"></div><div class="album-grid" id="private-album-grid"></div></section></div>
-<div class="private-album-viewer" id="private-album-viewer" hidden><button type="button" class="album-viewer-close" id="private-album-viewer-close" aria-label="Закрыть просмотр">×</button><button type="button" class="album-viewer-nav album-viewer-prev" id="private-album-prev" aria-label="Предыдущее фото">‹</button><img id="private-album-image" alt="Приватная фотография" draggable="false"><button type="button" class="album-viewer-nav album-viewer-next" id="private-album-next" aria-label="Следующее фото">›</button><div class="album-viewer-tools"><button type="button" id="private-album-delete" class="danger" aria-label="Удалить приватное фото" title="Удалить фото">⌫</button></div><div class="album-viewer-counter" id="private-album-counter"></div><div class="album-viewer-thumbnails" id="private-album-thumbnails" hidden><div class="album-viewer-thumbnails-track" id="private-album-thumbnails-track"></div></div></div>
+<div class="private-album-viewer" id="private-album-viewer" hidden><button type="button" class="album-viewer-close" id="private-album-viewer-close" aria-label="Закрыть просмотр">×</button><button type="button" class="album-viewer-nav album-viewer-prev" id="private-album-prev" aria-label="Предыдущее фото">‹</button><img id="private-album-image" alt="Приватная фотография" draggable="false"><button type="button" class="album-viewer-nav album-viewer-next" id="private-album-next" aria-label="Следующее фото">›</button><div class="album-viewer-tools" aria-label="Действия с приватной фотографией"><button type="button" id="private-album-share" aria-label="Поделиться приватным фото" title="Отправить фото другу">flow</button><button type="button" id="private-album-delete" class="danger" aria-label="Удалить приватное фото" title="Удалить фото">⌫</button></div><div class="album-viewer-counter" id="private-album-counter"></div><div class="album-viewer-thumbnails" id="private-album-thumbnails" hidden><div class="album-viewer-thumbnails-track" id="private-album-thumbnails-track"></div></div></div>
 <div class="album-viewer" id="album-viewer" hidden>
  <button type="button" class="album-viewer-close" id="album-viewer-close" aria-label="Закрыть просмотр">×</button>
  <button type="button" class="album-viewer-nav album-viewer-prev" id="album-viewer-prev" aria-label="Предыдущее фото">‹</button>
@@ -1492,7 +1491,7 @@ $("private-video-viewer").addEventListener("click",e=>{if(e.target===$("private-
 
 async function openPhotoAlbum(){
  $("album-backdrop").hidden=false;
- $("album-file").value="";$("album-private").checked=false;$("album-status").textContent="";
+ $("album-file").value="";$("album-status").textContent="";
  $("album-upload-panel").hidden=true;$("album-viewer").hidden=true;
  await loadPhotoAlbum();
 }
@@ -1805,11 +1804,6 @@ async function loadPhotoAlbum(){
 }
 $("album-close").addEventListener("click",()=>$("album-backdrop").hidden=true);
 $("album-backdrop").addEventListener("click",e=>{if(e.target===$("album-backdrop"))$("album-backdrop").hidden=true;});
-$("album-private").addEventListener("change",()=>{
- $("album-privacy-note").textContent=$("album-private").checked
- ? "🔒 Фото сохранится в закрытом хранилище. Только твой аккаунт сможет его открыть."
- : "Обычная фотография будет доступна всем. Для полной секретности включи галочку.";
-});
 $("album-upload-button").addEventListener("click",async()=>{
  const files=Array.from($("album-file").files||[]);
  if(!files.length){$("album-status").textContent="Сначала выбери одну или несколько фотографий.";return;}
@@ -1817,9 +1811,8 @@ $("album-upload-button").addEventListener("click",async()=>{
  if(invalid){$("album-status").textContent="Файл «"+invalid.name+"» имеет неподдерживаемый формат. Подойдут JPG, PNG и WebP.";return;}
  const tooLarge=files.find(file=>file.size>50*1024*1024);
  if(tooLarge){$("album-status").textContent="Файл «"+tooLarge.name+"» больше 50 МБ.";return;}
- const isPrivate=$("album-private").checked;
- const bucket=isPrivate?"private-albums":"photo-albums";
- const table=isPrivate?"private_album_photos":"photo_album_photos";
+ const bucket="photo-albums";
+ const table="photo_album_photos";
  const button=$("album-upload-button");button.disabled=true;
  let uploadedCount=0;const failures=[];
  try{
@@ -1837,7 +1830,7 @@ $("album-upload-button").addEventListener("click",async()=>{
    }catch(error){failures.push(file.name+": "+error.message);}
   }
   $("album-file").value="";
-  $("album-status").textContent=(isPrivate?"🔒 ":"")+ "Добавлено фотографий: "+uploadedCount+" из "+files.length+(failures.length?". Не удалось загрузить: "+failures.length+".":"." );
+  $("album-status").textContent="Добавлено фотографий: "+uploadedCount+" из "+files.length+(failures.length?". Не удалось загрузить: "+failures.length+".":"." );
   if(failures.length)$("album-status").title=failures.join("\n");
   await loadPhotoAlbum();
   if(uploadedCount===files.length)$("album-upload-panel").hidden=true;
