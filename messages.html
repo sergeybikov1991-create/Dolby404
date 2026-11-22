@@ -137,31 +137,57 @@ function closePhotoViewer(){const viewer=$("photo-viewer");if(viewer.hidden)retu
 $("photo-viewer-close").addEventListener("click",closePhotoViewer);
 $("photo-viewer").addEventListener("click",event=>{if(event.target===$("photo-viewer"))closePhotoViewer();});
 document.addEventListener("keydown",event=>{if(event.key==="Escape")closePhotoViewer();});
-async function renderMessages(rows){
- const signedUrls=new Map();
- await Promise.all(rows.filter(row=>row.attachment_path).map(async row=>{
-  try{const result=await client.storage.from("message-media").createSignedUrl(row.attachment_path,3600);if(!result.error)signedUrls.set(row.id,result.data.signedUrl);}catch(_){}
- }));
- const host=$("messages");host.replaceChildren();
- if(!rows.length){const empty=document.createElement("div");empty.className="empty";empty.textContent="Это начало вашей переписки. Отправь первое сообщение!";host.append(empty);return;}
- for(const row of rows){
-  const line=document.createElement("div");line.className="bubble-row"+(row.sender_id===viewer.id?" mine":"");line.dataset.createdAt=row.created_at||"";line.dataset.messageId=String(row.id||"");
-  const bubble=document.createElement("div");bubble.className="bubble";
-  if(row.attachment_path){
-   try{
-    const url=signedUrls.get(row.id);if(!url)throw new Error("Вложение недоступно");
-    const mime=(row.attachment_mime||"").toLowerCase();
-    if(mime.startsWith("image/")){const media=document.createElement("img");media.className="message-media-image";media.src=url;media.alt=row.attachment_name||"Изображение";media.loading="lazy";media.addEventListener("load",()=>scrollToNewestMessage(host),{once:true});media.addEventListener("click",()=>openPhotoViewer(url,media.alt));media.tabIndex=0;media.setAttribute("role","button");media.setAttribute("aria-label","Открыть фотографию на весь экран");media.addEventListener("keydown",event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();openPhotoViewer(url,media.alt);}});bubble.append(media);}
-    else if(mime.startsWith("video/")){const media=document.createElement("video");media.className="message-media-video";media.src=url;media.controls=true;media.playsInline=true;media.preload="metadata";bubble.append(media);}
-    else if(mime.startsWith("audio/")){const media=document.createElement("audio");media.className="message-media-audio";media.src=url;media.controls=true;media.preload="metadata";bubble.append(media);}
-    else{const link=document.createElement("a");link.className="message-file";link.href=url;link.target="_blank";link.rel="noopener";link.download=row.attachment_name||"";link.textContent="📄 "+(row.attachment_name||"Открыть файл");bubble.append(link);}
-   }catch(_){const fallback=document.createElement("span");fallback.textContent="📎 "+(row.attachment_name||"Вложение недоступно");bubble.append(fallback);}
+function createAttachmentElement(row,url,host){
+ const mime=(row.attachment_mime||"").toLowerCase();
+ if(mime.startsWith("image/")){
+  const media=document.createElement("img");media.className="message-media-image";media.src=url;media.alt=row.attachment_name||"Изображение";media.loading="lazy";
+  media.addEventListener("load",()=>scrollToNewestMessage(host),{once:true});
+  media.addEventListener("click",()=>openPhotoViewer(media.currentSrc||url,media.alt));
+  media.tabIndex=0;media.setAttribute("role","button");media.setAttribute("aria-label","Открыть фотографию на весь экран");
+  media.addEventListener("keydown",event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();openPhotoViewer(media.currentSrc||url,media.alt);}});
+  return media;
+ }
+ if(mime.startsWith("video/")){const media=document.createElement("video");media.className="message-media-video";media.src=url;media.controls=true;media.playsInline=true;media.preload="metadata";return media;}
+ if(mime.startsWith("audio/")){const media=document.createElement("audio");media.className="message-media-audio";media.src=url;media.controls=true;media.preload="metadata";return media;}
+ const link=document.createElement("a");link.className="message-file";link.href=url;link.target="_blank";link.rel="noopener";link.download=row.attachment_name||"";link.textContent="📄 "+(row.attachment_name||"Открыть файл");return link;
+}
+async function loadAttachmentUrls(items){
+ const paths=[...new Set(items.filter(item=>item.placeholder.isConnected).map(item=>item.row.attachment_path))];
+ const missing=paths.filter(path=>{const cached=mediaUrlCache.get(path);return !cached||cached.expiresAt<=Date.now();});
+ if(missing.length){
+  try{
+   const result=await withTimeout(client.storage.from("message-media").createSignedUrls(missing,3600),12000,"Хранилище не выдало ссылки на вложения за 12 секунд.");
+   if(result.error)throw result.error;
+   const expiresAt=Date.now()+55*60*1000;
+   for(const item of result.data||[])if(item.path&&item.signedUrl)mediaUrlCache.set(item.path,{url:item.signedUrl,expiresAt});
+  }catch(error){console.warn("FLOUSTREAM signed media URLs:",error);}
+ }
+ for(const item of items){
+  const placeholder=item.placeholder;if(!placeholder.isConnected)continue;
+  const cached=mediaUrlCache.get(item.row.attachment_path);
+  if(!cached||cached.expiresAt<=Date.now()){
+   const retry=document.createElement("button");retry.type="button";retry.className="message-attachment-retry";retry.textContent="📎 "+(item.row.attachment_name||"Вложение")+" — повторить загрузку";
+   retry.addEventListener("click",()=>loadAttachmentUrls([{row:item.row,placeholder:retry}]));placeholder.replaceWith(retry);continue;
   }
+  placeholder.replaceWith(createAttachmentElement(item.row,cached.url,item.host));
+ }
+}
+function renderMessages(rows){
+ const host=$("messages");
+ const existingIds=new Set([...host.querySelectorAll(".bubble-row")].map(node=>node.dataset.messageId));
+ if(!existingIds.size)host.replaceChildren();
+ if(!rows.length){const empty=document.createElement("div");empty.className="empty";empty.textContent="Это начало вашей переписки. Отправь первое сообщение!";host.replaceChildren(empty);lastMessageId="";return;}
+ const pendingAttachments=[];
+ for(const row of rows){
+  const id=String(row.id||"");if(existingIds.has(id))continue;existingIds.add(id);
+  const line=document.createElement("div");line.className="bubble-row"+(row.sender_id===viewer.id?" mine":"");line.dataset.createdAt=row.created_at||"";line.dataset.messageId=id;
+  const bubble=document.createElement("div");bubble.className="bubble";
+  if(row.attachment_path){const placeholder=document.createElement("div");placeholder.className="message-media-loading";placeholder.textContent="Подготавливаем вложение…";bubble.append(placeholder);pendingAttachments.push({row,placeholder,host});}
   if(row.content&&row.content!==row.attachment_name){const body=document.createElement("div");body.textContent=row.content;bubble.append(body);}
   const time=document.createElement("span");time.className="time";time.textContent=timeText(row.created_at);bubble.append(time);line.append(bubble);host.append(line);
  }
- scrollToNewestMessage(host);
- requestAnimationFrame(()=>requestAnimationFrame(()=>scrollToNewestMessage(host)));
+ if(pendingAttachments.length)loadAttachmentUrls(pendingAttachments);
+ scrollToNewestMessage(host);requestAnimationFrame(()=>requestAnimationFrame(()=>scrollToNewestMessage(host)));
  lastMessageId=rows[rows.length-1]?.id||lastMessageId;
 }
 async function loadMessages(silent=false,forceRender=false){
