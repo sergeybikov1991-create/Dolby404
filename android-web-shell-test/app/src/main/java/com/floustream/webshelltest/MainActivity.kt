@@ -457,8 +457,7 @@ class MainActivity : ComponentActivity() {
                         } catch (_) {}
                         document.documentElement.classList.toggle('floustream-android-guest', isGuest);
                         if (window.__floustreamAndroidMediaUserChanged) {
-                            window.__floustreamAndroidMediaUserChanged();
-                        }
+                                }
                         if (window.__floustreamAndroidDataUserChanged) {
                             window.__floustreamAndroidDataUserChanged();
                         }
@@ -501,7 +500,7 @@ class MainActivity : ComponentActivity() {
                     const cachePrefix = 'floustream-android-media-v1-';
                     const cacheNameFor = userId => cachePrefix + encodeURIComponent(userId);
                     const active = new WeakMap();
-                    let lastCacheUser = currentUserKey();
+                    let lastCacheUser = null;
                     const MAX_MEDIA_ENTRIES = 1500;
                     const MAX_MEDIA_BYTES = 200 * 1024 * 1024;
                     const MAX_MEDIA_ITEM_BYTES = 25 * 1024 * 1024;
@@ -871,8 +870,6 @@ class MainActivity : ComponentActivity() {
                     window.__floustreamAndroidDataUserChanged = function() {
                         purgeOtherAccounts().catch(function() {});
                     };
-                    window.__floustreamAndroidDataUserChanged();
-
                     const originalFetch = window.fetch.bind(window);
                     window.fetch = async function(input, init) {
                         let request;
