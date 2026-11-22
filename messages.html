@@ -268,7 +268,7 @@ function createAttachmentElement(row,url,host){
   return media;
  }
  if(mime.startsWith("video/")){const media=document.createElement("video");media.className="message-media-video";media.src=url;media.controls=true;media.playsInline=true;media.preload="metadata";return media;}
- if(mime.startsWith("audio/")){if(isVoiceMessage(row))return createVoiceMessagePlayer(row,url);const media=document.createElement("audio");media.className="message-media-audio";media.src=url;media.controls=true;media.preload="metadata";return media;}
+ if(mime.startsWith("audio/"))return createVoiceMessagePlayer(row,url);
  const link=document.createElement("a");link.className="message-file";link.href=url;link.target="_blank";link.rel="noopener";link.download=row.attachment_name||"";link.textContent="📄 "+(row.attachment_name||"Открыть файл");return link;
 }
 async function loadAttachmentUrls(items){
@@ -315,7 +315,7 @@ function renderMessages(rows){
   const id=String(row.id||"");if(existingIds.has(id))continue;existingIds.add(id);
   const line=document.createElement("div");line.className="bubble-row"+(row.sender_id===viewer.id?" mine":"");line.dataset.createdAt=row.created_at||"";line.dataset.messageId=id;
   const bubble=document.createElement("div");bubble.className="bubble";
-  const isPhotoAttachment=(row.attachment_mime||"").toLowerCase().startsWith("image/"),isVoiceAttachment=isVoiceMessage(row);if(isPhotoAttachment)bubble.classList.add("photo-message");if(isVoiceAttachment)bubble.classList.add("voice-message-bubble");
+  const isPhotoAttachment=(row.attachment_mime||"").toLowerCase().startsWith("image/"),isAudioAttachment=(row.attachment_mime||"").toLowerCase().startsWith("audio/");if(isPhotoAttachment)bubble.classList.add("photo-message");if(isAudioAttachment)bubble.classList.add("voice-message-bubble");
   if(row.attachment_path){const placeholder=document.createElement("div");placeholder.className="message-media-loading"+(isPhotoAttachment?" photo-loading":"");placeholder.textContent="Подготавливаем вложение…";bubble.append(placeholder);pendingAttachments.push({row,placeholder,host});}
   if(row.content&&row.content!==row.attachment_name&&!isVoiceMessage(row)){const body=document.createElement("div");body.textContent=row.content;bubble.append(body);}
   const time=document.createElement("span");time.className="time";time.textContent=timeText(row.created_at);bubble.append(time);line.append(bubble);host.append(line);
@@ -352,7 +352,7 @@ function renderInbox(rows,profiles){
  const profileMap=new Map((profiles||[]).map(p=>[p.id,p]));const threads=new Map();
  for(const row of rows){const other=row.sender_id===viewer.id?row.recipient_id:row.sender_id;if(!threads.has(other))threads.set(other,{last:row,unread:0});if(row.recipient_id===viewer.id&&row.sender_id===other&&!row.read_at)threads.get(other).unread++;}
  for(const [id,thread] of threads){
-  const deletedAccount=!profileMap.has(id);const person=profileMap.get(id)||{};const link=document.createElement("a");link.className="inbox-item";link.href="messages.html?v=20261115-2&with="+encodeURIComponent(id);
+  const deletedAccount=!profileMap.has(id);const person=profileMap.get(id)||{};const link=document.createElement("a");link.className="inbox-item";link.href="messages.html?v=20261123-1&with="+encodeURIComponent(id);
   const avatar=document.createElement("div");avatar.className="inbox-avatar";const avatarUrl=safeUrl(person.avatar_url);
   if(avatarUrl){const img=document.createElement("img");img.src=avatarUrl;img.alt="";avatar.append(img);}else avatar.textContent=((person.display_name||person.username||"◉").trim()[0]||"◉").toUpperCase();
   const copy=document.createElement("div");copy.className="inbox-copy";const name=document.createElement("div");name.className="inbox-name";name.textContent=deletedAccount?"Удалённый аккаунт":(person.display_name||person.username||"Пользователь");
