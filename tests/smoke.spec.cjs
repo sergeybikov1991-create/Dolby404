@@ -109,9 +109,9 @@ test("messenger uses realtime subscriptions instead of five-second polling", () 
 test("chat photos have no message frame and open in a closable fullscreen viewer", async ({ page }) => {
   await mockSupabaseCdn(page);
   await page.goto("/messages.html?with=photo-viewer-test");
-  const messages = await page.locator("body").innerHTML();
-  expect(messages).toContain(".bubble:has(.message-media-image){padding:0;border:0;background:transparent;box-shadow:none}");
-  expect(messages).toContain('media.addEventListener("click",()=>openPhotoViewer(url,media.alt))');
+  const source = await page.evaluate(() => ({ styles: [...document.querySelectorAll("style")].map(node => node.textContent).join("\n"), scripts: [...document.scripts].map(node => node.textContent).join("\n") }));
+  expect(source.styles).toContain(".bubble:has(.message-media-image){padding:0;border:0;background:transparent;box-shadow:none}");
+  expect(source.scripts).toContain('media.addEventListener("click",()=>openPhotoViewer(url,media.alt))');
 
   await page.evaluate(() => window.openPhotoViewer("data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=", "Тестовое фото"));
   await expect(page.locator("#photo-viewer")).toBeVisible();
