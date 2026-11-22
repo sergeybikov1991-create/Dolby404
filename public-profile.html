@@ -250,8 +250,7 @@ body{background:radial-gradient(ellipse at 15% 0%,#281342 0,transparent 38%),#09
  <p class="bio" id="bio"></p>
  <div class="profile-actions" id="profile-actions" hidden><a class="contact-cta" id="contact-cta" href="messages.html"><span class="contact-cta-label">Связаться</span></a><button class="friend-cta" id="friend-cta" type="button"><span aria-hidden="true">♧＋</span><span id="friend-cta-label">В друзья</span></button></div><p class="friend-action-status" id="friend-action-status" aria-live="polite"></p>
 </section>
-<section class="public-albums" id="public-albums" hidden aria-label="Публичные альбомы">
- <div class="public-album-section" id="public-photos-section" hidden><h2 class="public-album-title">Фотоальбом</h2><div class="public-album-grid" id="public-photo-grid"></div></div>
+<section class="public-albums" id="public-albums" hidden aria-label="Публичный видеоальбом">
  <div class="public-album-section" id="public-videos-section" hidden><h2 class="public-album-title">Видеоальбом</h2><div class="public-album-grid" id="public-video-grid"></div></div>
 </section>
 <section class="feed-section"><h2 class="feed-title">Публикации</h2><div class="feed" id="feed"><div class="status" id="status">Загружаем публикации…</div></div></section>
@@ -496,33 +495,22 @@ async function loadProfileVisitHistory(){
 }
 window.addEventListener("pageshow",()=>{if(viewer&&client)loadProfileVisitHistory();});
 async function loadPublicAlbums(){
- const host=$("public-albums"),photoSection=$("public-photos-section"),videoSection=$("public-videos-section");
- const photoGrid=$("public-photo-grid"),videoGrid=$("public-video-grid");
- photoGrid.replaceChildren();videoGrid.replaceChildren();photoSection.hidden=true;videoSection.hidden=true;host.hidden=true;
+ const host=$("public-albums"),videoSection=$("public-videos-section"),videoGrid=$("public-video-grid");
+ videoGrid.replaceChildren();videoSection.hidden=true;host.hidden=true;
  try{
-  // Только публичные таблицы. Секретные фото- и видеоальбомы здесь никогда не запрашиваются.
-  const [photoResult,videoResult]=await Promise.all([
-   client.from("photo_album_photos").select("id,object_path,file_name,created_at").eq("owner_id",target.id).order("created_at",{ascending:false}).limit(36),
-   client.from("video_album_videos").select("id,object_path,file_name,created_at").eq("owner_id",target.id).order("created_at",{ascending:false}).limit(18)
-  ]);
-  if(photoResult.error)throw photoResult.error;if(videoResult.error)throw videoResult.error;
-  const photos=photoResult.data||[],videos=videoResult.data||[];
-  if(photos.length){
-   const signed=await client.storage.from("photo-albums").createSignedUrls(photos.map(x=>x.object_path),3600);
-   if(signed.error)throw signed.error;
-   const urls=new Map((signed.data||[]).filter(x=>x.signedUrl&&!x.error).map(x=>[x.path,x.signedUrl]));
-   for(const item of photos){const url=urls.get(item.object_path);if(!url)continue;const button=document.createElement("button");button.type="button";button.className="public-album-photo";button.setAttribute("aria-label",item.file_name||"Открыть фотографию");const img=document.createElement("img");img.src=url;img.alt=item.file_name||"Фотография";img.loading="lazy";button.append(img);button.addEventListener("click",()=>openPhotoViewer(url));photoGrid.append(button);}
-   photoSection.hidden=!photoGrid.childElementCount;
-  }
+  // Photo albums are owner-only. Public profiles expose videos only; profile avatars remain a separate public profile asset.
+  const videoResult=await client.from("video_album_videos").select("id,object_path,file_name,created_at").eq("owner_id",target.id).order("created_at",{ascending:false}).limit(18);
+  if(videoResult.error)throw videoResult.error;
+  const videos=videoResult.data||[];
   if(videos.length){
-   const signed=await client.storage.from("video-albums").createSignedUrls(videos.map(x=>x.object_path),3600);
+   const signed=await client.storage.from("video-albums").createSignedUrls(videos.map(item=>item.object_path),3600);
    if(signed.error)throw signed.error;
-   const urls=new Map((signed.data||[]).filter(x=>x.signedUrl&&!x.error).map(x=>[x.path,x.signedUrl]));
+   const urls=new Map((signed.data||[]).filter(item=>item.signedUrl&&!item.error).map(item=>[item.path,item.signedUrl]));
    for(const item of videos){const url=urls.get(item.object_path);if(!url)continue;const card=document.createElement("article");card.className="public-album-video";const video=document.createElement("video");video.src=url;video.controls=true;video.playsInline=true;video.preload="metadata";video.setAttribute("aria-label",item.file_name||"Видео");const name=document.createElement("div");name.className="public-album-video-name";name.textContent=item.file_name||"Видео";card.append(video,name);videoGrid.append(card);}
    videoSection.hidden=!videoGrid.childElementCount;
   }
-  host.hidden=photoSection.hidden&&videoSection.hidden;
- }catch(error){console.warn("FLOUSTREAM public albums:",error);host.hidden=true;}
+  host.hidden=videoSection.hidden;
+ }catch(error){console.warn("FLOUSTREAM public videos:",error);host.hidden=true;}
 }
 
 async function start(){

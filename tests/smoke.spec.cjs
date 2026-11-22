@@ -1,4 +1,6 @@
 const { test, expect } = require("@playwright/test");
+const fs = require("node:fs");
+const path = require("node:path");
 
 const supabaseBrowserStub = `
   window.supabase = {
@@ -453,4 +455,44 @@ test("guest can open another users avatar but cannot like it", async ({ page }) 
   expect(state.deletes).toHaveLength(0);
   await page.keyboard.press("Escape");
   await expect(page.locator("#photo-lightbox")).not.toHaveClass(/is-open/);
+});
+
+test("photo albums are private by default and are not displayed on public profiles", () => {
+  const profile = fs.readFileSync(path.join(__dirname, "..", "profile.html"), "utf8");
+  const publicProfile = fs.readFileSync(path.join(__dirname, "..", "public-profile.html"), "utf8");
+  const migration = fs.readFileSync(path.join(__dirname, "..", "supabase", "migrations", "20261122170000_private_photo_album.sql"), "utf8");
+  const uploadStart = profile.indexOf('$("album-upload-button").addEventListener("click"');
+  const uploadEnd = profile.indexOf("\n});", uploadStart);
+  const uploadHandler = profile.slice(uploadStart, uploadEnd);
+  const publicLoadStart = publicProfile.indexOf("async function loadPublicAlbums(){");
+  const publicLoadEnd = publicProfile.indexOf("\n\nasync function start(){", publicLoadStart);
+  const publicLoad = publicProfile.slice(publicLoadStart, publicLoadEnd);
+  expect(profile).not.toContain('id="album-private"');
+  expect(profile).toContain('id="album-privacy-note">Все фотографии сохраняются в личный альбом');
+  expect(uploadHandler).toContain('const bucket="photo-albums"');
+  expect(uploadHandler).toContain('const table="photo_album_photos"');
+  expect(uploadHandler).not.toContain('from("posts")');
+  expect(publicProfile).not.toContain('id="public-photos-section"');
+  expect(publicLoad).not.toContain("photo_album_photos");
+  expect(publicLoad).toContain("video_album_videos");
+  expect(migration).toContain('drop policy if exists "Public album photos are viewable by permanent users"');
+  expect(migration).toContain('drop policy if exists "Public album photos are readable by permanent users"');
+  expect(migration).toContain('create policy "Owners read own photo album files"');
+  expect(migration).toContain("when 'album' then false");
+  expect(migration).not.toMatch(/delete\s+from\s+(public\.)?photo_album_photos/i);
+  expect(migration).not.toMatch(/delete\s+from\s+storage\.objects/i);
+});
+
+test("photos from both owner-only albums are shared to direct chats, never to the feed", () => {
+  const profile = fs.readFileSync(path.join(__dirname, "..", "profile.html"), "utf8");
+  expect(profile).toContain('id="private-album-share"');
+  expect(profile).toContain('openAlbumShare({item:albumViewerItems[albumViewerIndex],bucket:"photo-albums"})');
+  expect(profile).toContain('openAlbumShare({item:privateAlbumItems[privateAlbumIndex],bucket:"private-albums"})');
+  const shareStart = profile.indexOf('$("album-share-send").addEventListener("click"');
+  const shareEnd = profile.indexOf("\n});", shareStart);
+  const shareHandler = profile.slice(shareStart, shareEnd);
+  expect(shareHandler).toContain("client.storage.from(share.bucket).download(item.object_path)");
+  expect(shareHandler).toContain('client.storage.from("message-media").upload');
+  expect(shareHandler).toContain('client.from("direct_messages").insert');
+  expect(shareHandler).not.toContain('client.from("posts").insert');
 });
