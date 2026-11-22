@@ -137,6 +137,42 @@ function closePhotoViewer(){const viewer=$("photo-viewer");if(viewer.hidden)retu
 $("photo-viewer-close").addEventListener("click",closePhotoViewer);
 $("photo-viewer").addEventListener("click",event=>{if(event.target===$("photo-viewer"))closePhotoViewer();});
 document.addEventListener("keydown",event=>{if(event.key==="Escape")closePhotoViewer();});
+async function uploadFileResumable(file,initialPath,initialMessageId){
+ const sessionResult=await withTimeout(client.auth.getSession(),10000,"Не удалось проверить сессию перед загрузкой.");
+ if(sessionResult.error)throw sessionResult.error;
+ const accessToken=sessionResult.data?.session?.access_token;
+ if(!accessToken)throw new Error("Сессия завершилась. Войди снова и повтори отправку.");
+ const tusLibrary=await loadTusLibrary();
+ let path=initialPath,messageId=initialMessageId;
+ return new Promise((resolve,reject)=>{
+  let upload=null,settled=false,totalTimer=null,stallTimer=null;
+  const finish=(error,value)=>{if(settled)return;settled=true;clearTimeout(totalTimer);clearTimeout(stallTimer);if(error)reject(error);else resolve(value);};
+  const abortAndFail=message=>{if(upload)Promise.resolve(upload.abort(false)).catch(()=>{}).finally(()=>finish(new Error(message)));else finish(new Error(message));};
+  const armStall=()=>{clearTimeout(stallTimer);stallTimer=setTimeout(()=>abortAndFail("Передача остановлена: хранилище не отвечало 90 секунд. Выбери тот же файл ещё раз — загрузка продолжится."),90000);};
+  const timeoutMs=Math.min(15*60*1000,Math.max(120000,Math.ceil(file.size/(96*1024)*1000)+60000));
+  try{
+   upload=new tusLibrary.Upload(file,{
+    endpoint:"https://qhpobdktlbhdqsnajypr.storage.supabase.co/storage/v1/upload/resumable",
+    retryDelays:[0,3000,5000,10000,20000],
+    headers:{authorization:"Bearer "+accessToken,apikey:SUPABASE_KEY,"x-upsert":"false"},
+    metadata:{bucketName:"message-media",objectName:path,contentType:file.type||"application/octet-stream",cacheControl:"3600",metadata:JSON.stringify({senderId:viewer.id,recipientId:peerId,messageId})},
+    uploadDataDuringCreation:true,removeFingerprintOnSuccess:true,chunkSize:6*1024*1024,
+    onProgress:(bytesUploaded,bytesTotal)=>{armStall();const percent=bytesTotal?Math.floor(bytesUploaded/bytesTotal*100):0;setUploadProgress(percent);showNotice("Загружаем вложение… "+percent+"%");},
+    onChunkComplete:(chunkSize,bytesAccepted,bytesTotal)=>{const percent=bytesTotal?Math.floor(bytesAccepted/bytesTotal*100):0;setUploadProgress(percent);showNotice("Передано в хранилище… "+percent+"%");},
+    onError:error=>finish(error instanceof Error?error:new Error(String(error))),
+    onSuccess:()=>finish(null,{path,messageId})
+   });
+   totalTimer=setTimeout(()=>abortAndFail("Загрузка превысила допустимое время. Попробуй ещё раз — незавершённая передача будет продолжена."),timeoutMs);
+   upload.findPreviousUploads().then(previousUploads=>{
+    const matching=(previousUploads||[]).filter(item=>{
+     try{const metadata=JSON.parse(item.metadata?.metadata||"{}");return item.metadata?.bucketName==="message-media"&&item.metadata?.objectName&&metadata.senderId===viewer.id&&metadata.recipientId===peerId&&metadata.messageId;}catch(_){return false;}
+    }).sort((a,b)=>(Date.parse(b.creationTime)||0)-(Date.parse(a.creationTime)||0));
+    if(matching.length){const previous=matching[0],metadata=JSON.parse(previous.metadata.metadata);path=previous.metadata.objectName;messageId=metadata.messageId;upload.resumeFromPreviousUpload(previous);}
+    armStall();upload.start();
+   }).catch(error=>finish(error));
+  }catch(error){finish(error);}
+ });
+}
 function createAttachmentElement(row,url,host){
  const mime=(row.attachment_mime||"").toLowerCase();
  if(mime.startsWith("image/")){
