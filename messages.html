@@ -22,7 +22,7 @@ body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 18% 0%,#281
 .bubble-row{display:flex;flex:0 0 auto}.bubble-row.mine{justify-content:flex-end}
 .bubble{max-width:min(82%,520px);padding:10px 13px;border:1px solid #49385e;border-radius:15px 15px 15px 4px;background:#21192d;color:#f2eaff;white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:1.5}
 .mine .bubble{border-color:#7952a0;border-radius:15px 15px 4px 15px;background:linear-gradient(135deg,#553078,#342047)}
-.message-media-image{display:block;width:100%;max-width:420px;max-height:360px;object-fit:contain;border-radius:11px}.message-media-video{display:block;width:100%;max-width:420px;max-height:360px;border-radius:11px;background:#050509}.message-media-audio{display:block;width:min(360px,100%);height:42px}.message-file{display:inline-flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid #8c68ad;border-radius:10px;color:#f1e5ff;text-decoration:none;background:#171021}.attach{width:44px;height:44px;flex:0 0 44px;border:1px solid #65458a;border-radius:13px;background:#21172f;color:#e9d8ff;font-size:25px;cursor:pointer}.attach:disabled{opacity:.5}.time{display:block;margin-top:5px;color:#bca9d2;font-size:10px;text-align:right}
+.message-media-image{display:block;width:100%;max-width:420px;max-height:360px;object-fit:contain;border-radius:11px;cursor:zoom-in}.bubble:has(.message-media-image){padding:0;border:0;background:transparent;box-shadow:none}.mine .bubble:has(.message-media-image){border:0;background:transparent;box-shadow:none}.photo-viewer{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;padding:20px;background:#05040af2}.photo-viewer[hidden]{display:none!important}.photo-viewer img{display:block;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}.photo-viewer-close{position:absolute;top:max(14px,env(safe-area-inset-top));right:max(14px,env(safe-area-inset-right));width:44px;height:44px;border:1px solid #ffffff55;border-radius:50%;background:#171321;color:#fff;font-size:28px;line-height:1;cursor:pointer}.message-media-video{display:block;width:100%;max-width:420px;max-height:360px;border-radius:11px;background:#050509}.message-media-audio{display:block;width:min(360px,100%);height:42px}.message-file{display:inline-flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid #8c68ad;border-radius:10px;color:#f1e5ff;text-decoration:none;background:#171021}.attach{width:44px;height:44px;flex:0 0 44px;border:1px solid #65458a;border-radius:13px;background:#21172f;color:#e9d8ff;font-size:25px;cursor:pointer}.attach:disabled{opacity:.5}.time{display:block;margin-top:5px;color:#bca9d2;font-size:10px;text-align:right}
 .composer{display:flex;align-items:flex-end;gap:9px;padding:12px;border-top:1px solid #382b4b;background:#110e19}
 .composer textarea{flex:1;min-height:44px;max-height:130px;resize:vertical;padding:12px;border:1px solid #49385e;border-radius:13px;background:#090811;color:#fff;font:inherit;font-size:14px;line-height:1.4;outline:none}
 .composer textarea:focus{border-color:#a66bff;box-shadow:0 0 0 2px #a66bff22}
@@ -52,6 +52,10 @@ body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 18% 0%,#281
  </form>
 </section>
 </main>
+<div class="photo-viewer" id="photo-viewer" role="dialog" aria-modal="true" aria-label="Просмотр фотографии" hidden>
+ <button class="photo-viewer-close" id="photo-viewer-close" type="button" aria-label="Закрыть фотографию">×</button>
+ <img id="photo-viewer-image" alt="">
+</div>
 <script>
 const SUPABASE_URL="https://qhpobdktlbhdqsnajypr.supabase.co";
 const SUPABASE_KEY="sb_publishable_tzG1qVsbjaW8YE_LBVN87Q_v0CahKN5";
@@ -98,6 +102,11 @@ function scrollToNewestMessage(host){
  host.scrollTop+=messageRect.bottom-hostRect.bottom;
 }
 function showNotice(message,error=false){$("notice").textContent=message||"";$("notice").style.color=error?"#ffb4c0":"#c8a7e8";}
+function openPhotoViewer(url,alt){const viewer=$("photo-viewer"),image=$("photo-viewer-image");image.src=url;image.alt=alt||"Фотография";viewer.hidden=false;document.body.style.overflow="hidden";$("photo-viewer-close").focus();}
+function closePhotoViewer(){const viewer=$("photo-viewer");if(viewer.hidden)return;viewer.hidden=true;$("photo-viewer-image").removeAttribute("src");document.body.style.overflow="";}
+$("photo-viewer-close").addEventListener("click",closePhotoViewer);
+$("photo-viewer").addEventListener("click",event=>{if(event.target===$("photo-viewer"))closePhotoViewer();});
+document.addEventListener("keydown",event=>{if(event.key==="Escape")closePhotoViewer();});
 async function renderMessages(rows){
  const signedUrls=new Map();
  await Promise.all(rows.filter(row=>row.attachment_path).map(async row=>{
@@ -112,7 +121,7 @@ async function renderMessages(rows){
    try{
     const url=signedUrls.get(row.id);if(!url)throw new Error("Вложение недоступно");
     const mime=(row.attachment_mime||"").toLowerCase();
-    if(mime.startsWith("image/")){const media=document.createElement("img");media.className="message-media-image";media.src=url;media.alt=row.attachment_name||"Изображение";media.loading="lazy";media.addEventListener("load",()=>scrollToNewestMessage(host),{once:true});bubble.append(media);}
+    if(mime.startsWith("image/")){const media=document.createElement("img");media.className="message-media-image";media.src=url;media.alt=row.attachment_name||"Изображение";media.loading="lazy";media.addEventListener("load",()=>scrollToNewestMessage(host),{once:true});media.addEventListener("click",()=>openPhotoViewer(url,media.alt));media.tabIndex=0;media.setAttribute("role","button");media.setAttribute("aria-label","Открыть фотографию на весь экран");media.addEventListener("keydown",event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();openPhotoViewer(url,media.alt);}});bubble.append(media);}
     else if(mime.startsWith("video/")){const media=document.createElement("video");media.className="message-media-video";media.src=url;media.controls=true;media.playsInline=true;media.preload="metadata";bubble.append(media);}
     else if(mime.startsWith("audio/")){const media=document.createElement("audio");media.className="message-media-audio";media.src=url;media.controls=true;media.preload="metadata";bubble.append(media);}
     else{const link=document.createElement("a");link.className="message-file";link.href=url;link.target="_blank";link.rel="noopener";link.download=row.attachment_name||"";link.textContent="📄 "+(row.attachment_name||"Открыть файл");bubble.append(link);}
