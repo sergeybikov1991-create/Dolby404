@@ -28,7 +28,7 @@ body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 18% 0%,#281
 .composer textarea:focus{border-color:#a66bff;box-shadow:0 0 0 2px #a66bff22}
 .send{width:46px;height:44px;flex:0 0 46px;border:1px solid #9a69c7;border-radius:13px;background:linear-gradient(135deg,#7139c9,#48216f);color:#fff;font-size:21px;font-weight:800;cursor:pointer}
 .send:disabled{opacity:.5;cursor:default}
-.notice{min-height:19px;padding:0 14px 8px;color:#c8a7e8;font-size:11px}
+.notice{min-height:19px;padding:0 14px 8px;color:#c8a7e8;font-size:11px}.upload-progress{display:block;width:calc(100% - 28px);height:4px;margin:0 14px 8px;accent-color:#b879e8}.upload-progress[hidden]{display:none}.message-media-loading,.message-attachment-retry{display:block;padding:10px 12px;border:1px solid #49385e;border-radius:10px;background:#171321;color:#c8a7e8;font-size:12px}.message-attachment-retry{cursor:pointer}
 .inbox-list{display:flex;flex-direction:column;gap:9px;padding:12px;overflow:auto}.inbox-item{display:flex;align-items:center;gap:12px;width:100%;min-height:72px;padding:11px;border:1px solid #392b4b;border-radius:14px;background:linear-gradient(120deg,#21182d,#14111d);color:var(--text);text-align:left;text-decoration:none;cursor:pointer}.inbox-item:active{border-color:#a66bff;background:#2a1c3a}.inbox-avatar{width:48px;height:48px;flex:0 0 48px;display:grid;place-items:center;overflow:hidden;border:1px solid #9a69c7;border-radius:50%;background:#352044;font-weight:800}.inbox-avatar img{width:100%;height:100%;object-fit:cover}.inbox-copy{display:grid;gap:5px;min-width:0;flex:1}.inbox-name{font-size:14px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.inbox-preview{font-size:12px;color:#b9adc8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.inbox-meta{display:grid;justify-items:end;gap:7px;align-self:stretch}.inbox-time{font-size:10px;color:#a99bbd;white-space:nowrap}.inbox-unread{display:grid;min-width:20px;height:20px;padding:0 5px;place-items:center;border-radius:999px;background:linear-gradient(135deg,#ff4f91,#c51e68);color:white;font-size:11px;font-weight:800}.inbox-unread[hidden]{display:none}.inbox-empty{margin:auto;padding:26px;text-align:center;color:#a99bbd;line-height:1.6}.game-toggle{border:1px solid #8b63b1;border-radius:11px;padding:9px 13px;background:linear-gradient(135deg,#3d2458,#24182f);color:#f2e5ff;font-weight:700;cursor:pointer}.game-toggle[hidden]{display:none}.game-frame{display:block;width:100%;flex:1;min-height:0;border:0;background:#090811}.game-frame[hidden]{display:none}.messages[hidden],.composer[hidden]{display:none!important}@media(max-width:600px){.wrap{height:100dvh;padding:9px}.chat{border-radius:15px}.messages{padding:14px 10px}.composer{padding:9px}}
 </style>
 </head>
@@ -44,6 +44,7 @@ body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 18% 0%,#281
  <div class="messages" id="messages"><div class="empty">Подключаем сообщения…</div></div>
  <iframe class="game-frame" id="game-frame" title="Игра в длинные нарды" hidden loading="lazy"></iframe>
  <div class="notice" id="notice" aria-live="polite"></div>
+ <progress class="upload-progress" id="upload-progress" max="100" value="0" hidden aria-label="Прогресс загрузки вложения"></progress>
  <form class="composer" id="composer">
   <input id="attachment-input" type="file" hidden accept="image/*,video/*,audio/*,.pdf,.zip,.doc,.docx,.xls,.xlsx,.txt">
   <button class="attach" id="attach" type="button" aria-label="Прикрепить фото, видео, аудио или файл">+</button>
@@ -60,7 +61,8 @@ body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 18% 0%,#281
 const SUPABASE_URL="https://qhpobdktlbhdqsnajypr.supabase.co";
 const SUPABASE_KEY="sb_publishable_tzG1qVsbjaW8YE_LBVN87Q_v0CahKN5";
 const $=id=>document.getElementById(id);
-let client,viewer,peerId,lastMessageId="",loading=false,inboxLoading=false,pendingMessageReload=false,pendingInboxReload=false;
+let client,viewer,peerId,lastMessageId="",loading=false,inboxLoading=false,pendingMessageReload=false,pendingInboxReload=false,attachmentSending=false,tusLibraryPromise=null;
+const mediaUrlCache=new Map();
 async function loadLibrary(){
  if(window.supabase?.createClient)return;
  const sources=[
@@ -82,6 +84,34 @@ async function loadLibrary(){
   }catch(error){lastError=error;console.warn("FLOUSTREAM Supabase CDN:",error);}
  }
  throw lastError||new Error("Не удалось загрузить библиотеку Supabase");
+}
+async function loadTusLibrary(){
+ if(window.tus?.Upload)return window.tus;
+ if(!tusLibraryPromise){
+  tusLibraryPromise=(async()=>{
+   const sources=["https://cdn.jsdelivr.net/npm/tus-js-client@4.3.1/dist/tus.min.js","https://unpkg.com/tus-js-client@4.3.1/dist/tus.min.js"];
+   let lastError;
+   for(const src of sources){
+    try{
+     await new Promise((resolve,reject)=>{
+      const script=document.createElement("script");let settled=false;
+      const finish=error=>{if(settled)return;settled=true;clearTimeout(timer);if(error){script.remove();reject(error);}else resolve();};
+      const timer=setTimeout(()=>finish(new Error("Тайм-аут загрузки TUS-библиотеки")),10000);
+      script.src=src;script.onload=()=>window.tus?.Upload?finish():finish(new Error("TUS-библиотека загружена без Upload"));
+      script.onerror=()=>finish(new Error("Не удалось загрузить TUS-библиотеку"));document.head.append(script);
+     });
+     return window.tus;
+    }catch(error){lastError=error;console.warn("FLOUSTREAM TUS CDN:",error);}
+   }
+   throw lastError||new Error("Не удалось загрузить resumable-загрузчик");
+  })().catch(error=>{tusLibraryPromise=null;throw error;});
+ }
+ return tusLibraryPromise;
+}
+function setUploadProgress(value){
+ const progress=$("upload-progress");if(!progress)return;
+ if(value===null){progress.hidden=true;progress.value=0;return;}
+ progress.hidden=false;progress.value=Math.max(0,Math.min(100,Number(value)||0));
 }
 function withTimeout(promise,ms,message){
  let timer;
@@ -107,31 +137,94 @@ function closePhotoViewer(){const viewer=$("photo-viewer");if(viewer.hidden)retu
 $("photo-viewer-close").addEventListener("click",closePhotoViewer);
 $("photo-viewer").addEventListener("click",event=>{if(event.target===$("photo-viewer"))closePhotoViewer();});
 document.addEventListener("keydown",event=>{if(event.key==="Escape")closePhotoViewer();});
-async function renderMessages(rows){
- const signedUrls=new Map();
- await Promise.all(rows.filter(row=>row.attachment_path).map(async row=>{
-  try{const result=await client.storage.from("message-media").createSignedUrl(row.attachment_path,3600);if(!result.error)signedUrls.set(row.id,result.data.signedUrl);}catch(_){}
- }));
- const host=$("messages");host.replaceChildren();
- if(!rows.length){const empty=document.createElement("div");empty.className="empty";empty.textContent="Это начало вашей переписки. Отправь первое сообщение!";host.append(empty);return;}
- for(const row of rows){
-  const line=document.createElement("div");line.className="bubble-row"+(row.sender_id===viewer.id?" mine":"");line.dataset.createdAt=row.created_at||"";line.dataset.messageId=String(row.id||"");
-  const bubble=document.createElement("div");bubble.className="bubble";
-  if(row.attachment_path){
-   try{
-    const url=signedUrls.get(row.id);if(!url)throw new Error("Вложение недоступно");
-    const mime=(row.attachment_mime||"").toLowerCase();
-    if(mime.startsWith("image/")){const media=document.createElement("img");media.className="message-media-image";media.src=url;media.alt=row.attachment_name||"Изображение";media.loading="lazy";media.addEventListener("load",()=>scrollToNewestMessage(host),{once:true});media.addEventListener("click",()=>openPhotoViewer(url,media.alt));media.tabIndex=0;media.setAttribute("role","button");media.setAttribute("aria-label","Открыть фотографию на весь экран");media.addEventListener("keydown",event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();openPhotoViewer(url,media.alt);}});bubble.append(media);}
-    else if(mime.startsWith("video/")){const media=document.createElement("video");media.className="message-media-video";media.src=url;media.controls=true;media.playsInline=true;media.preload="metadata";bubble.append(media);}
-    else if(mime.startsWith("audio/")){const media=document.createElement("audio");media.className="message-media-audio";media.src=url;media.controls=true;media.preload="metadata";bubble.append(media);}
-    else{const link=document.createElement("a");link.className="message-file";link.href=url;link.target="_blank";link.rel="noopener";link.download=row.attachment_name||"";link.textContent="📄 "+(row.attachment_name||"Открыть файл");bubble.append(link);}
-   }catch(_){const fallback=document.createElement("span");fallback.textContent="📎 "+(row.attachment_name||"Вложение недоступно");bubble.append(fallback);}
+async function uploadFileResumable(file,initialPath,initialMessageId){
+ const sessionResult=await withTimeout(client.auth.getSession(),10000,"Не удалось проверить сессию перед загрузкой.");
+ if(sessionResult.error)throw sessionResult.error;
+ const accessToken=sessionResult.data?.session?.access_token;
+ if(!accessToken)throw new Error("Сессия завершилась. Войди снова и повтори отправку.");
+ const tusLibrary=await loadTusLibrary();
+ let path=initialPath,messageId=initialMessageId;
+ return new Promise((resolve,reject)=>{
+  let upload=null,settled=false,totalTimer=null,stallTimer=null;
+  const finish=(error,value)=>{if(settled)return;settled=true;clearTimeout(totalTimer);clearTimeout(stallTimer);if(error)reject(error);else resolve(value);};
+  const abortAndFail=message=>{if(upload)Promise.resolve(upload.abort(false)).catch(()=>{}).finally(()=>finish(new Error(message)));else finish(new Error(message));};
+  const armStall=()=>{clearTimeout(stallTimer);stallTimer=setTimeout(()=>abortAndFail("Передача остановлена: хранилище не отвечало 90 секунд. Выбери тот же файл ещё раз — загрузка продолжится."),90000);};
+  const timeoutMs=Math.min(15*60*1000,Math.max(120000,Math.ceil(file.size/(96*1024)*1000)+60000));
+  try{
+   upload=new tusLibrary.Upload(file,{
+    endpoint:"https://qhpobdktlbhdqsnajypr.storage.supabase.co/storage/v1/upload/resumable",
+    retryDelays:[0,3000,5000,10000,20000],
+    headers:{authorization:"Bearer "+accessToken,apikey:SUPABASE_KEY,"x-upsert":"false"},
+    metadata:{bucketName:"message-media",objectName:path,contentType:file.type||"application/octet-stream",cacheControl:"3600",metadata:JSON.stringify({senderId:viewer.id,recipientId:peerId,messageId})},
+    uploadDataDuringCreation:true,removeFingerprintOnSuccess:true,chunkSize:6*1024*1024,
+    onProgress:(bytesUploaded,bytesTotal)=>{armStall();const percent=bytesTotal?Math.floor(bytesUploaded/bytesTotal*100):0;setUploadProgress(percent);showNotice("Загружаем вложение… "+percent+"%");},
+    onChunkComplete:(chunkSize,bytesAccepted,bytesTotal)=>{const percent=bytesTotal?Math.floor(bytesAccepted/bytesTotal*100):0;setUploadProgress(percent);showNotice("Передано в хранилище… "+percent+"%");},
+    onError:error=>{const message=String(error?.message||error);let status=0;try{status=error?.originalRequest?.getStatus?.()||0;}catch(_){}if(status===409||/409|already exists|asset already exists/i.test(message)){withTimeout(client.storage.from("message-media").createSignedUrl(path,60),8000,"Не удалось проверить уже загруженное вложение.").then(result=>{if(!result.error&&result.data?.signedUrl)finish(null,{path,messageId});else finish(error instanceof Error?error:new Error(message));}).catch(()=>finish(error instanceof Error?error:new Error(message)));}else finish(error instanceof Error?error:new Error(message));},
+    onSuccess:()=>finish(null,{path,messageId})
+   });
+   totalTimer=setTimeout(()=>abortAndFail("Загрузка превысила допустимое время. Попробуй ещё раз — незавершённая передача будет продолжена."),timeoutMs);
+   upload.findPreviousUploads().then(previousUploads=>{
+    if(settled)return;
+    const matching=(previousUploads||[]).filter(item=>{
+     try{const metadata=JSON.parse(item.metadata?.metadata||"{}");return item.metadata?.bucketName==="message-media"&&item.metadata?.objectName&&metadata.senderId===viewer.id&&metadata.recipientId===peerId&&metadata.messageId;}catch(_){return false;}
+    }).sort((a,b)=>(Date.parse(b.creationTime)||0)-(Date.parse(a.creationTime)||0));
+    if(matching.length){const previous=matching[0],metadata=JSON.parse(previous.metadata.metadata);path=previous.metadata.objectName;messageId=metadata.messageId;upload.resumeFromPreviousUpload(previous);}
+    armStall();upload.start();
+   }).catch(error=>finish(error));
+  }catch(error){finish(error);}
+ });
+}
+function createAttachmentElement(row,url,host){
+ const mime=(row.attachment_mime||"").toLowerCase();
+ if(mime.startsWith("image/")){
+  const media=document.createElement("img");media.className="message-media-image";media.src=url;media.alt=row.attachment_name||"Изображение";media.loading="lazy";
+  media.addEventListener("load",()=>scrollToNewestMessage(host),{once:true});
+  media.addEventListener("click",()=>openPhotoViewer(media.currentSrc||url,media.alt));
+  media.tabIndex=0;media.setAttribute("role","button");media.setAttribute("aria-label","Открыть фотографию на весь экран");
+  media.addEventListener("keydown",event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();openPhotoViewer(media.currentSrc||url,media.alt);}});
+  return media;
+ }
+ if(mime.startsWith("video/")){const media=document.createElement("video");media.className="message-media-video";media.src=url;media.controls=true;media.playsInline=true;media.preload="metadata";return media;}
+ if(mime.startsWith("audio/")){const media=document.createElement("audio");media.className="message-media-audio";media.src=url;media.controls=true;media.preload="metadata";return media;}
+ const link=document.createElement("a");link.className="message-file";link.href=url;link.target="_blank";link.rel="noopener";link.download=row.attachment_name||"";link.textContent="📄 "+(row.attachment_name||"Открыть файл");return link;
+}
+async function loadAttachmentUrls(items){
+ const paths=[...new Set(items.filter(item=>item.placeholder.isConnected).map(item=>item.row.attachment_path))];
+ const missing=paths.filter(path=>{const cached=mediaUrlCache.get(path);return !cached||cached.expiresAt<=Date.now();});
+ if(missing.length){
+  try{
+   const result=await withTimeout(client.storage.from("message-media").createSignedUrls(missing,3600),12000,"Хранилище не выдало ссылки на вложения за 12 секунд.");
+   if(result.error)throw result.error;
+   const expiresAt=Date.now()+55*60*1000;
+   for(const item of result.data||[])if(item.path&&item.signedUrl)mediaUrlCache.set(item.path,{url:item.signedUrl,expiresAt});
+  }catch(error){console.warn("FLOUSTREAM signed media URLs:",error);}
+ }
+ for(const item of items){
+  const placeholder=item.placeholder;if(!placeholder.isConnected)continue;
+  const cached=mediaUrlCache.get(item.row.attachment_path);
+  if(!cached||cached.expiresAt<=Date.now()){
+   const retry=document.createElement("button");retry.type="button";retry.className="message-attachment-retry";retry.textContent="📎 "+(item.row.attachment_name||"Вложение")+" — повторить загрузку";
+   retry.addEventListener("click",()=>loadAttachmentUrls([{row:item.row,placeholder:retry}]));placeholder.replaceWith(retry);continue;
   }
+  placeholder.replaceWith(createAttachmentElement(item.row,cached.url,item.host));
+ }
+}
+function renderMessages(rows){
+ const host=$("messages");
+ const existingIds=new Set([...host.querySelectorAll(".bubble-row")].map(node=>node.dataset.messageId));
+ if(!existingIds.size)host.replaceChildren();
+ if(!rows.length){const empty=document.createElement("div");empty.className="empty";empty.textContent="Это начало вашей переписки. Отправь первое сообщение!";host.replaceChildren(empty);lastMessageId="";return;}
+ const pendingAttachments=[];
+ for(const row of rows){
+  const id=String(row.id||"");if(existingIds.has(id))continue;existingIds.add(id);
+  const line=document.createElement("div");line.className="bubble-row"+(row.sender_id===viewer.id?" mine":"");line.dataset.createdAt=row.created_at||"";line.dataset.messageId=id;
+  const bubble=document.createElement("div");bubble.className="bubble";
+  if(row.attachment_path){const placeholder=document.createElement("div");placeholder.className="message-media-loading";placeholder.textContent="Подготавливаем вложение…";bubble.append(placeholder);pendingAttachments.push({row,placeholder,host});}
   if(row.content&&row.content!==row.attachment_name){const body=document.createElement("div");body.textContent=row.content;bubble.append(body);}
   const time=document.createElement("span");time.className="time";time.textContent=timeText(row.created_at);bubble.append(time);line.append(bubble);host.append(line);
  }
- scrollToNewestMessage(host);
- requestAnimationFrame(()=>requestAnimationFrame(()=>scrollToNewestMessage(host)));
+ if(pendingAttachments.length)loadAttachmentUrls(pendingAttachments);
+ scrollToNewestMessage(host);requestAnimationFrame(()=>requestAnimationFrame(()=>scrollToNewestMessage(host)));
  lastMessageId=rows[rows.length-1]?.id||lastMessageId;
 }
 async function loadMessages(silent=false,forceRender=false){
@@ -244,22 +337,55 @@ async function start(){
    });
    $("message-input").addEventListener("keydown",event=>{if(event.key==="Enter"&&!event.shiftKey){event.preventDefault();$("composer").requestSubmit();}});
    $("attach").addEventListener("click",()=>$("attachment-input").click());
-   $("attachment-input").addEventListener("change",async event=>{
+   async function attachmentFingerprint(file){
+ const partSize=65536;
+ try{
+  const first=await file.slice(0,Math.min(partSize,file.size)).arrayBuffer();
+  const last=file.size>partSize?await file.slice(Math.max(partSize,file.size-partSize)).arrayBuffer():new ArrayBuffer(0);
+  const bytes=new Uint8Array(first.byteLength+last.byteLength);bytes.set(new Uint8Array(first),0);bytes.set(new Uint8Array(last),first.byteLength);
+  const digest=await crypto.subtle.digest("SHA-256",bytes);
+  const hash=Array.from(new Uint8Array(digest)).map(value=>value.toString(16).padStart(2,"0")).join("");
+  return file.name+"|"+file.size+"|"+(file.type||"")+"|"+hash;
+ }catch(_){return file.name+"|"+file.size+"|"+(file.type||"")+"|"+file.lastModified;}
+}
+$("attachment-input").addEventListener("change",async event=>{
     const file=event.target.files?.[0];if(!file)return;
-    const button=$("attach");button.disabled=true;showNotice("Загружаем вложение…");let path=null;
+    if(attachmentSending){event.target.value="";return;}
+    attachmentSending=true;
+    const button=$("attach"),input=event.target;button.disabled=true;input.disabled=true;
+    let path=null,uploadCompleted=false,keepUploaded=false,pendingKey=null;
     try{
+     if(file.size<=0)throw new Error("Файл пустой.");
      if(file.size>50*1024*1024)throw new Error("Файл больше 50 МБ.");
      const safeName=file.name.replace(/[^A-Za-z0-9._-]/g,"_").slice(0,100)||"attachment";
-     path=viewer.id+"/"+crypto.randomUUID()+"_"+safeName;
-     const uploaded=await client.storage.from("message-media").upload(path,file,{upsert:false,contentType:file.type||"application/octet-stream"});
-     if(uploaded.error)throw uploaded.error;
-     const sent=await client.from("direct_messages").insert({sender_id:viewer.id,recipient_id:peerId,content:"",attachment_path:path,attachment_name:file.name,attachment_mime:file.type||"application/octet-stream"});
-     if(sent.error)throw sent.error;
+     const fingerprint=await attachmentFingerprint(file);pendingKey="floustream-pending-attachment:"+viewer.id+":"+peerId+":"+encodeURIComponent(fingerprint);
+     let pending=null;try{pending=JSON.parse(sessionStorage.getItem(pendingKey)||"null");}catch(_){pending=null;}
+     if(!pending?.path||!pending?.messageId||Date.now()-(pending.updatedAt||0)>86400000){pending={path:viewer.id+"/"+crypto.randomUUID()+"_"+safeName,messageId:crypto.randomUUID(),uploaded:false,updatedAt:Date.now()};try{sessionStorage.setItem(pendingKey,JSON.stringify(pending));}catch(_){}}
+     path=pending.path;let messageId=pending.messageId;
+     if(!pending.uploaded){
+      setUploadProgress(0);showNotice("Подготавливаем защищённую загрузку…");
+      const uploaded=await uploadFileResumable(file,path,messageId);path=uploaded.path;messageId=uploaded.messageId;uploadCompleted=true;
+      pending={path,messageId,uploaded:true,updatedAt:Date.now()};try{sessionStorage.setItem(pendingKey,JSON.stringify(pending));}catch(_){}
+     }else{uploadCompleted=true;setUploadProgress(100);showNotice("Проверяем результат предыдущей отправки…");}
+     const row={id:messageId,sender_id:viewer.id,recipient_id:peerId,content:"",attachment_path:path,attachment_name:file.name,attachment_mime:file.type||"application/octet-stream"};
+     try{
+      const sent=await withTimeout(client.from("direct_messages").insert(row),15000,"Сервер не подтвердил отправку сообщения за 15 секунд.");
+      if(sent.error)throw sent.error;
+     }catch(insertError){
+      let confirmation;
+      try{confirmation=await withTimeout(client.from("direct_messages").select("id,attachment_path").eq("id",messageId).maybeSingle(),8000,"Не удалось проверить результат отправки.");}
+      catch(checkError){keepUploaded=true;throw new Error("Файл загружен, но подтверждение сообщения не получено. Не отправляй его повторно — обнови переписку через несколько секунд.");}
+      if(confirmation.error){keepUploaded=true;throw new Error("Не удалось проверить запись сообщения. Файл оставлен в хранилище, чтобы не повредить возможную отправку. Обнови переписку через несколько секунд.");}
+      if(!confirmation.data?.id||confirmation.data.attachment_path!==path){const ambiguous=insertError.message==="Сервер не подтвердил отправку сообщения за 15 секунд."||!Number.isFinite(Number(insertError.status))||Number(insertError.status)>=500;if(ambiguous){keepUploaded=true;throw new Error("Сервер пока не подтвердил отправку. Файл оставлен в хранилище — не отправляй его повторно, обнови переписку через несколько секунд.");}throw insertError;}
+     }
+     try{sessionStorage.removeItem(pendingKey);}catch(_){ }
      showNotice("Вложение отправлено.");await loadMessages();
     }catch(error){
-     if(path)await client.storage.from("message-media").remove([path]);
-     showNotice("Не удалось отправить файл: "+error.message,true);
-    }finally{button.disabled=false;event.target.value="";}
+     if(uploadCompleted&&path&&!keepUploaded){try{await withTimeout(client.storage.from("message-media").remove([path]),10000,"Тайм-аут очистки неиспользованного файла.");}catch(cleanupError){console.warn("FLOUSTREAM orphan attachment cleanup:",cleanupError);}try{if(pendingKey)sessionStorage.removeItem(pendingKey);}catch(_){}}
+     showNotice("Не удалось отправить файл: "+(error.message||"ошибка соединения"),true);
+    }finally{
+     attachmentSending=false;button.disabled=false;input.disabled=false;input.value="";setUploadProgress(null);
+    }
    });
   }
   let wasSubscribed=false;
