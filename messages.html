@@ -360,7 +360,8 @@ async function start(){
       let confirmation;
       try{confirmation=await withTimeout(client.from("direct_messages").select("id,attachment_path").eq("id",messageId).maybeSingle(),8000,"Не удалось проверить результат отправки.");}
       catch(checkError){keepUploaded=true;throw new Error("Файл загружен, но подтверждение сообщения не получено. Не отправляй его повторно — обнови переписку через несколько секунд.");}
-      if(!confirmation.data?.id||confirmation.data.attachment_path!==path)throw insertError;
+      if(confirmation.error){keepUploaded=true;throw new Error("Не удалось проверить запись сообщения. Файл оставлен в хранилище, чтобы не повредить возможную отправку. Обнови переписку через несколько секунд.");}
+      if(!confirmation.data?.id||confirmation.data.attachment_path!==path){if(insertError.message==="Сервер не подтвердил отправку сообщения за 15 секунд."){keepUploaded=true;throw new Error("Сервер пока не подтвердил отправку. Файл оставлен в хранилище — не отправляй его повторно, обнови переписку через несколько секунд.");}throw insertError;}
      }
      showNotice("Вложение отправлено.");await loadMessages();
     }catch(error){
