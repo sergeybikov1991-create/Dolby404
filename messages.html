@@ -359,6 +359,7 @@ async function startVoiceRecording(){
   updateVoiceNotice();voiceTimer=setInterval(updateVoiceNotice,1000);
  }catch(error){
   if(attempt!==voiceAttempt||voiceCancelled||!voicePointerActive){if(voiceStream)releaseVoiceResources();return;}
+  if(voiceStream)voiceStream.getTracks().forEach(track=>track.stop());voiceStream=null;voiceRecorder=null;voiceRecording=false;voiceChunks=[];
   voiceStartError=error.message||"проверь разрешение на микрофон";showNotice("Не удалось начать запись: "+voiceStartError,true);$("send").classList.remove("arming");
  }
 }
