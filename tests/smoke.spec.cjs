@@ -105,3 +105,21 @@ test("messenger uses realtime subscriptions instead of five-second polling", () 
   expect(messages).not.toContain('setInterval(()=>{if(!document.hidden)loadInbox();},5000);');
   expect(messages).not.toContain('setInterval(()=>{if(!document.hidden)loadMessages(true);},5000);');
 });
+
+test("chat photos have no message frame and open in a closable fullscreen viewer", async ({ page }) => {
+  await mockSupabaseCdn(page);
+  await page.goto("/messages.html?with=photo-viewer-test");
+  const messages = await page.locator("body").innerHTML();
+  expect(messages).toContain(".bubble:has(.message-media-image){padding:0;border:0;background:transparent;box-shadow:none}");
+  expect(messages).toContain('media.addEventListener("click",()=>openPhotoViewer(url,media.alt))');
+
+  await page.evaluate(() => window.openPhotoViewer("data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=", "Тестовое фото"));
+  await expect(page.locator("#photo-viewer")).toBeVisible();
+  await expect(page.locator("#photo-viewer-image")).toHaveAttribute("alt", "Тестовое фото");
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#photo-viewer")).toBeHidden();
+
+  await page.evaluate(() => window.openPhotoViewer("data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=", "Тестовое фото"));
+  await page.locator("#photo-viewer").click({ position: { x: 5, y: 5 } });
+  await expect(page.locator("#photo-viewer")).toBeHidden();
+});
