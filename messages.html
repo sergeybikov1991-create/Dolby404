@@ -164,6 +164,7 @@ async function uploadFileResumable(file,initialPath,initialMessageId){
    });
    totalTimer=setTimeout(()=>abortAndFail("Загрузка превысила допустимое время. Попробуй ещё раз — незавершённая передача будет продолжена."),timeoutMs);
    upload.findPreviousUploads().then(previousUploads=>{
+    if(settled)return;
     const matching=(previousUploads||[]).filter(item=>{
      try{const metadata=JSON.parse(item.metadata?.metadata||"{}");return item.metadata?.bucketName==="message-media"&&item.metadata?.objectName&&metadata.senderId===viewer.id&&metadata.recipientId===peerId&&metadata.messageId;}catch(_){return false;}
     }).sort((a,b)=>(Date.parse(b.creationTime)||0)-(Date.parse(a.creationTime)||0));
