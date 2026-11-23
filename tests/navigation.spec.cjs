@@ -65,3 +65,18 @@ test("navigation prefetch respects data saver and constrained connections", asyn
   expect(accepted).toBe(false);
   await expect(page.locator('link[rel="prefetch"][data-floustream-prefetch="true"]')).toHaveCount(0);
 });
+
+test("supported pages load the shared navigation layer without enabling service-worker page caching", async () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  for (const page of [
+    "portal.html", "profile.html", "home.html", "messages.html",
+    "friends.html", "public-profile.html", "music.html", "backgammon.html"
+  ]) {
+    const html = fs.readFileSync(path.resolve(__dirname, "..", page), "utf8");
+    expect(html).toContain('src="./navigation.js?v=1" defer');
+  }
+  const worker = fs.readFileSync(path.resolve(__dirname, "..", "service-worker.js"), "utf8");
+  expect(worker).toContain("Intentionally no fetch handler");
+  expect(worker).not.toContain('addEventListener("fetch"');
+});
