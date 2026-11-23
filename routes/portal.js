@@ -22,6 +22,7 @@ let registrationCooldownUntil = 0;
 let registrationCooldownTimer = null;
 
 function startRegistrationCooldown(seconds, template) {
+    if (signal.aborted) return;
     if (registrationCooldownTimer) {
         clearInterval(registrationCooldownTimer);
     }
@@ -137,6 +138,7 @@ async function initializeSupabase() {
             : "Система готова. Можно продолжать.";
 
     } catch (error) {
+        if (signal.aborted) return;
         showError("Ошибка подключения: ", error);
     }
 }
@@ -576,10 +578,11 @@ root.addEventListener("pointerdown", (event) => {
 
 
 
-  return () => {
+  return async () => {
     if (registrationCooldownTimer) clearInterval(registrationCooldownTimer);
     for (const timer of glassTimers) clearTimeout(timer);
     glassTimers.clear();
+    try { await supabaseClient?.auth?.stopAutoRefresh?.(); } catch (_) {}
     style.remove();
     root.replaceChildren();
   };
