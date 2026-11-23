@@ -109,7 +109,11 @@ async function mockAuthenticatedChat(page, options = {}) {
       resumeFromPreviousUpload(previous) { this.resumed = true; state.resumedUploads += 1; this.previous = previous; }
       start() {
         state.startedUploads += 1;
-        if (config.emitDuplicateChange && state.startedUploads === 2) document.getElementById("attachment-input").dispatchEvent(new Event("change", { bubbles: true }));
+        if (config.emitDuplicateChange && state.startedUploads === 2) {
+          const host = document.querySelector("#floustream-app-shell #floustream-route-view");
+          const input = host?.shadowRoot?.querySelector("#attachment-input") || document.getElementById("attachment-input");
+          input?.dispatchEvent(new Event("change", { bubbles: true }));
+        }
         if (config.failFirstUpload && state.startedUploads === 1) {
           state.previousUploads = [{ metadata: this.options.metadata, creationTime: new Date().toISOString(), uploadUrl: "https://upload.test/resume" }];
           this.options.onError(new Error("simulated network interruption"));
@@ -280,9 +284,14 @@ test("public profile permits guests without an Auth session and prefers the publ
 test("chat photos have no message frame and open in a closable fullscreen viewer", async ({ page }) => {
   await mockSupabaseCdn(page);
   await page.goto("/messages.html?with=photo-viewer-test");
-  const source = await page.evaluate(() => ({ styles: [...document.querySelectorAll("style")].map(node => node.textContent).join("\n"), scripts: [...document.scripts].map(node => node.textContent).join("\n") }));
-  expect(source.styles).toContain(".bubble:has(.message-media-image){padding:0;border:0;background:transparent;box-shadow:none}");
-  expect(source.scripts).toContain('media.addEventListener("click",()=>openPhotoViewer(media.currentSrc||url,media.alt))');
+  const source = await page.evaluate(() => {
+    const view = document.querySelector("#floustream-app-shell #floustream-route-view")?.shadowRoot;
+    return [...(view?.querySelectorAll("style") || [])].map(node => node.textContent).join("\n");
+  });
+  expect(source).toContain(".bubble:has(.message-media-image){padding:0;border:0;background:transparent;box-shadow:none}");
+  const fs = require("node:fs"), path = require("node:path");
+  const routeCode = fs.readFileSync(path.join(__dirname, "../routes/messages.js"), "utf8");
+  expect(routeCode).toContain('media.addEventListener("click",()=>openPhotoViewer(media.currentSrc||url,media.alt))');
 
   await page.evaluate(() => window.openPhotoViewer("data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=", "Тестовое фото"));
   await expect(page.locator("#photo-viewer")).toBeVisible();
@@ -524,9 +533,10 @@ test("chat photos have zero frame and open fullscreen without changing the video
   await expect(page.locator(".message-media-image")).toBeVisible();
   await expect(page.locator(".message-media-video")).toHaveCount(1);
   const styles = await page.evaluate(() => {
-    const image = document.querySelector(".message-media-image");
+    const view = document.querySelector("#floustream-app-shell #floustream-route-view").shadowRoot;
+    const image = view.querySelector(".message-media-image");
     const photoBubble = image.closest(".bubble");
-    const video = document.querySelector(".message-media-video");
+    const video = view.querySelector(".message-media-video");
     const videoBubble = video.closest(".bubble");
     const imageStyle = getComputedStyle(image);
     const photoStyle = getComputedStyle(photoBubble);
@@ -627,7 +637,7 @@ test("all incoming and outgoing audio attachments share one frameless player, ev
   expect(frameStyles).toEqual({ playerBorder: "0px", playerOutline: "0px", playerShadow: "none", bubbleBorder: "0px", bubbleOutline: "0px", bubbleShadow: "none" });
 
   await page.evaluate(() => {
-    const audio = document.querySelector(".message-media-audio");
+    const audio = document.querySelector("#floustream-app-shell #floustream-route-view").shadowRoot.querySelector(".message-media-audio");
     let playing = false;
     Object.defineProperty(audio, "paused", { configurable: true, get: () => !playing });
     Object.defineProperty(audio, "duration", { configurable: true, get: () => 18 });
