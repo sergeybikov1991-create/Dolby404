@@ -6,8 +6,8 @@ export function mount(root, { signal }) {
   const style = document.createElement("style");
   style.dataset.floustreamRouteStyle = "portal";
   style.textContent = STYLE;
-  root.appendChild(style);
   root.innerHTML = '<section class="fs-route-portal">' + MARKUP + '</section>';
+  root.appendChild(style);
 
   
 const SUPABASE_URL =
