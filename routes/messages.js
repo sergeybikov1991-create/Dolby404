@@ -514,14 +514,19 @@ signal.addEventListener("abort",()=>{clearInterval(voiceTimer);if(voiceRecorder&
     if(selected.length>10){showNotice("Можно отправить не более 10 вложений за раз.",true);return false;}
     if(selected.some(file=>!file.size||file.size>50*1024*1024)){showNotice("Каждый файл должен быть больше 0 и не превышать 50 МБ.",true);return false;}
     attachmentSending=true;$("attach").disabled=true;$("mic").disabled=true;$("send").disabled=true;
-    const messageId=crypto.randomUUID(),uploaded=[],pendingKeys=[];let keepUploaded=false;
+    const uploaded=[],pendingKeys=[];let keepUploaded=false,messageId="";
     try{
+     const fingerprints=[];for(const file of selected)fingerprints.push(await attachmentFingerprint(file));
+     const batchKey="floustream-pending-batch:"+viewer.id+":"+peerId+":"+encodeURIComponent(fingerprints.join("||"));
+     let batch=null;try{batch=JSON.parse(sessionStorage.getItem(batchKey)||"null");}catch(_){}
+     if(!batch?.messageId||Date.now()-(batch.updatedAt||0)>86400000)batch={messageId:crypto.randomUUID(),updatedAt:Date.now()};
+     messageId=batch.messageId;try{sessionStorage.setItem(batchKey,JSON.stringify(batch));}catch(_){}
      for(let index=0;index<selected.length;index++){
       const file=selected[index],safeName=file.name.replace(/[^A-Za-z0-9._-]/g,"_").slice(0,100)||"attachment";
-      const fingerprint=await attachmentFingerprint(file),pendingKey="floustream-pending-attachment:"+viewer.id+":"+peerId+":"+encodeURIComponent(fingerprint);pendingKeys.push(pendingKey);
+      const pendingKey="floustream-pending-attachment:"+viewer.id+":"+peerId+":"+encodeURIComponent(fingerprints[index]);pendingKeys.push(pendingKey);
       let pending=null;try{pending=JSON.parse(sessionStorage.getItem(pendingKey)||"null");}catch(_){}
-      if(!pending?.path||Date.now()-(pending.updatedAt||0)>86400000)pending={path:viewer.id+"/"+messageId+"/"+crypto.randomUUID()+"_"+safeName,messageId,updatedAt:Date.now(),uploaded:false};
-      let path=pending.path;
+      if(!pending?.path||pending.messageId!==messageId||Date.now()-(pending.updatedAt||0)>86400000)pending={path:viewer.id+"/"+messageId+"/"+crypto.randomUUID()+"_"+safeName,messageId,updatedAt:Date.now(),uploaded:false};
+      let path=pending.path;try{sessionStorage.setItem(pendingKey,JSON.stringify(pending));}catch(_){}
       if(!pending.uploaded){
        setUploadProgress(Math.floor(index/selected.length*100));showNotice("Загружаем вложение "+(index+1)+" из "+selected.length+"…");
        const result=await uploadFileResumable(file,path,messageId);path=result.path;pending={path,messageId,uploaded:true,updatedAt:Date.now()};try{sessionStorage.setItem(pendingKey,JSON.stringify(pending));}catch(_){}
@@ -536,7 +541,7 @@ signal.addEventListener("abort",()=>{clearInterval(voiceTimer);if(voiceRecorder&
       const confirmed=confirmation.data?.id===messageId&&Array.isArray(confirmation.data.attachments)&&confirmation.data.attachments.length===uploaded.length;
       if(!confirmed){if(insertError.message==="Сервер не подтвердил отправку сообщения за 15 секунд."||!Number.isFinite(Number(insertError.status))||Number(insertError.status)>=500){keepUploaded=true;throw new Error("Сервер пока не подтвердил отправку. Файлы оставлены в хранилище — обнови переписку.");}throw insertError;}
      }
-     pendingKeys.forEach(key=>{try{sessionStorage.removeItem(key);}catch(_){}});
+     pendingKeys.forEach(key=>{try{sessionStorage.removeItem(key);}catch(_){}});try{sessionStorage.removeItem(batchKey);}catch(_){}
      showNotice(options.successMessage||"Сообщение отправлено.");await loadMessages();return true;
     }catch(error){
      if(!keepUploaded&&uploaded.length){try{await withTimeout(client.storage.from("message-media").remove(uploaded.map(item=>item.path)),10000,"Тайм-аут очистки файлов.");}catch(cleanupError){console.warn("FLOUSTREAM orphan attachments:",cleanupError);}}
