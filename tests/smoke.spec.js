@@ -80,6 +80,7 @@ test("video album keeps public and private players, native controls and swipe na
   const fs = require("node:fs");
   const path = require("node:path");
   const profileRoute = fs.readFileSync(path.join(__dirname, "../routes/profile.js"), "utf8");
+  const videoModule = fs.readFileSync(path.join(__dirname, "../routes/profile/video-album.mjs"), "utf8");
   const markupMatch = profileRoute.match(/^const MARKUP = (".*");$/m);
   if (!markupMatch) throw new Error("Profile route markup constant not found");
   const profile = JSON.parse(markupMatch[1]);
@@ -88,12 +89,12 @@ test("video album keeps public and private players, native controls and swipe na
   expect(profile).toContain('id="private-video-player" controls playsinline');
   expect(profile).toContain('id="video-album-viewer"');
   expect(profile).toContain('id="private-video-viewer"');
-  expect(profileRoute).toContain('bindVideoSwipe("video-album-viewer","video-album-player",false)');
-  expect(profileRoute).toContain('bindVideoSwipe("private-video-viewer","private-video-player",true)');
-  expect(profileRoute).toContain('stage.addEventListener("touchstart"');
-  expect(profileRoute).toContain('stage.addEventListener("touchend"');
-  expect(profileRoute).not.toContain("video-album-playmark");
-  expect(profileRoute).not.toContain("video-viewer-thumb-mark");
+  expect(videoModule).toContain('bindVideoSwipe("video-album-viewer","video-album-player",false)');
+  expect(videoModule).toContain('bindVideoSwipe("private-video-viewer","private-video-player",true)');
+  expect(videoModule).toContain('stage.addEventListener("touchstart"');
+  expect(videoModule).toContain('stage.addEventListener("touchend"');
+  expect(videoModule).not.toContain("video-album-playmark");
+  expect(videoModule).not.toContain("video-viewer-thumb-mark");
 });
 
 

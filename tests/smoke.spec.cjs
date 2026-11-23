@@ -257,17 +257,18 @@ test("video album keeps public and private players, native controls and swipe na
   const fs = require("node:fs");
   const path = require("node:path");
   const { route: profile, markup: profileMarkup } = readProfileSources();
+  const videoModule = fs.readFileSync(path.join(__dirname, "../routes/profile/video-album.mjs"), "utf8");
 
   expect(profileMarkup).toContain('id="video-album-player" controls playsinline');
   expect(profileMarkup).toContain('id="private-video-player" controls playsinline');
   expect(profileMarkup).toContain('id="video-album-viewer"');
   expect(profileMarkup).toContain('id="private-video-viewer"');
-  expect(profile).toContain('bindVideoSwipe("video-album-viewer","video-album-player",false)');
-  expect(profile).toContain('bindVideoSwipe("private-video-viewer","private-video-player",true)');
-  expect(profile).toContain('stage.addEventListener("touchstart"');
-  expect(profile).toContain('stage.addEventListener("touchend"');
-  expect(profile).not.toContain("video-album-playmark");
-  expect(profile).not.toContain("video-viewer-thumb-mark");
+  expect(videoModule).toContain('bindVideoSwipe("video-album-viewer","video-album-player",false)');
+  expect(videoModule).toContain('bindVideoSwipe("private-video-viewer","private-video-player",true)');
+  expect(videoModule).toContain('stage.addEventListener("touchstart"');
+  expect(videoModule).toContain('stage.addEventListener("touchend"');
+  expect(videoModule).not.toContain("video-album-playmark");
+  expect(videoModule).not.toContain("video-viewer-thumb-mark");
 });
 
 test("messenger uses realtime subscriptions instead of five-second polling", () => {
