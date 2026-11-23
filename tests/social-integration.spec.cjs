@@ -292,8 +292,8 @@ test("home fallback and SPA markup both route messages to the real chat page", (
   expect(homeHtml).toContain('<a href="messages.html">✉ Сообщения</a>');
   expect(homeHtml).toContain('<a class="tile" href="messages.html">');
   expect(homeHtml).not.toContain('href="#messages" data-soon="Сообщения"');
-  expect(homeRoute).toContain('href=\\"messages.html"\\');
-  expect(homeRoute).toContain('class=\\"tile\\" href=\\"messages.html"\\');
-  expect(homeRoute).not.toContain('href=\\"#messages"\\ data-soon=\\"Сообщения"\\');
+  expect(homeRoute).toContain('href=\\"messages.html\\");
+  expect(homeRoute).toContain('class=\\"tile\\" href=\\"messages.html\\");
+  expect(homeRoute).not.toContain('href=\\"#messages\\" data-soon=\\"Сообщения\\");
   expect(homeStyles).toContain('.tile{display:block;color:inherit;text-decoration:none;');
 });
