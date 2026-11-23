@@ -108,7 +108,13 @@
     return render(target, { ...options, navigation: !options.popstate });
   }
 
+  function canPrefetch() {
+    const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    return !(connection && (connection.saveData || connection.effectiveType === "2g" || connection.effectiveType === "slow-2g"));
+  }
+
   function prefetch(input) {
+    if (!canPrefetch()) return false;
     const target = resolve(input);
     if (!target) return false;
     loadModule(target.route).catch(error => console.warn("FLOUSTREAM route prefetch:", error));
@@ -131,15 +137,27 @@
     navigate(target.url);
   });
 
+  let intentPrefetchTimer = null;
   document.addEventListener("pointerover", event => {
-    if (event.pointerType === "touch") return;
+    if (event.pointerType === "touch" || !canPrefetch()) return;
     const anchor = findAnchor(event);
-    if (anchor && !anchor.contains(event.relatedTarget)) prefetch(anchor.href);
+    if (!anchor || anchor.contains(event.relatedTarget)) return;
+    clearTimeout(intentPrefetchTimer);
+    const href = anchor.href;
+    intentPrefetchTimer = setTimeout(() => prefetch(href), 90);
+  }, { passive: true });
+  document.addEventListener("pointerout", event => {
+    const anchor = findAnchor(event);
+    if (anchor && !anchor.contains(event.relatedTarget)) clearTimeout(intentPrefetchTimer);
   }, { passive: true });
   document.addEventListener("focusin", event => {
     const anchor = findAnchor(event);
     if (anchor) prefetch(anchor.href);
   });
+  document.addEventListener("pointerdown", event => {
+    const anchor = findAnchor(event);
+    if (anchor) prefetch(anchor.href);
+  }, { passive: true });
 
   window.addEventListener("popstate", () => {
     const target = resolve(location.href);
