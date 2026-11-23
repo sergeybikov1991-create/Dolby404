@@ -3,7 +3,7 @@ const { test, expect } = require("@playwright/test");
 test("music route mounts inside the shared SPA shell", async ({ page }) => {
   const pageErrors = [];
   page.on("pageerror", error => pageErrors.push(error.message));
-  await page.goto("/music.html");
+  await page.goto("/music.html", { waitUntil: "domcontentloaded" });
   await expect(page.locator("#floustream-app-shell")).toBeVisible();
   await expect(page.locator(".fs-music-logo")).toHaveText("FLOUSTREAM");
   await expect(page.locator("#fs-home-player")).toHaveAttribute("src", /rutube\.ru\/play\/embed/);
@@ -12,7 +12,7 @@ test("music route mounts inside the shared SPA shell", async ({ page }) => {
 });
 
 test("route module lifecycle replaces the previous view and supports browser history", async ({ page }) => {
-  await page.goto("/music.html");
+  await page.goto("/music.html", { waitUntil: "domcontentloaded" });
   await expect(page.locator("#floustream-app-shell")).toBeVisible();
 
   const prefetchResult = await page.evaluate(() => ({
@@ -34,7 +34,7 @@ test("route module lifecycle replaces the previous view and supports browser his
 });
 
 test("music controls remain functional after route mount", async ({ page }) => {
-  await page.goto("/music.html");
+  await page.goto("/music.html", { waitUntil: "domcontentloaded" });
   await page.getByRole("button", { name: "Продолжить — включить музыку" }).click();
   await expect(page.locator("#fs-music-status")).toContainText("Отправлена команда запуска");
 });
@@ -66,7 +66,7 @@ test("music and friends route modules switch in-app and clean up the previous vi
       })
     };
   });
-  await page.goto("/music.html");
+  await page.goto("/music.html", { waitUntil: "domcontentloaded" });
   await expect(page.locator(".fs-music-logo")).toBeVisible();
 
   await page.evaluate(() => window.FloustreamRouter.navigate(new URL("friends.html", location.href)));
