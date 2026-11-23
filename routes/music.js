@@ -1,5 +1,5 @@
 const STYLE = `
-.fs-route-music{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;color:#fff;font-family:Arial,sans-serif;text-align:center;background:linear-gradient(-45deg,#050817,#102b83,#5420a8,#006b9f,#10104a);background-size:500% 500%;animation:fsMusicGradient 12s ease infinite}
+.fs-route-music{width:100%;box-sizing:border-box;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;color:#fff;font-family:Arial,sans-serif;text-align:center;background:linear-gradient(-45deg,#050817,#102b83,#5420a8,#006b9f,#10104a);background-size:500% 500%;animation:fsMusicGradient 12s ease infinite}
 @keyframes fsMusicGradient{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
 .fs-music-content{width:100%;max-width:420px}.fs-music-logo{font-size:clamp(42px,11vw,72px);font-weight:900;letter-spacing:6px;text-shadow:0 0 15px #168cff,0 0 35px #5420ff,0 0 70px #006bff}
 .fs-music-subtitle{margin:14px 0 28px;color:#9299a8;font-size:13px;letter-spacing:2px}.fs-music-track{margin:0 auto 18px;color:#c8d8ee;font-size:17px}
