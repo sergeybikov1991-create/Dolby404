@@ -74,7 +74,6 @@ export async function mount(root, { signal, navigate, url }) {
 let client,user,profile={},columns=[];
 const $=id=>root.querySelector("#"+id)||root.querySelector("."+id);
 
-function firstKey(
 function firstKey(keys){return keys.find(k=>columns.includes(k));}
 function setAvatar(url){const box=$("avatar");box.innerHTML="";if(url){const img=document.createElement("img");img.src=url;img.alt="Аватар";img.onerror=()=>{box.innerHTML="";};box.appendChild(img);}}
 function render(){
@@ -1059,7 +1058,6 @@ async function ensureAvatarOriginalInAlbum(){
 async function start(){
  try{
   client=await getSupabaseClient({signal});if(signal.aborted)return;
-  const stored=await client.auth.getSession();
   const stored=await client.auth.getSession();if(signal.aborted)return;if(stored.error)throw stored.error;if(!stored.data?.session){navigate("portal.html?reauth=1");return;}const auth=await client.auth.getUser();if(signal.aborted)return;if(auth.error)throw auth.error;user=auth.data.user;
   if(!user){navigate("portal.html");return;}
   const lifecycleParams=new URLSearchParams(url.search);

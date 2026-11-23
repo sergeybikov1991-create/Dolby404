@@ -76,7 +76,6 @@ async function cacheChatMedia(path,signedUrl,mime){
 }
 
 async function loadTusLibrary(){
-async function loadTusLibrary(){
  if(window.tus?.Upload)return window.tus;
  if(!tusLibraryPromise){
   tusLibraryPromise=(async()=>{
@@ -325,7 +324,6 @@ async function start(){
  try{
   showNotice("Подключаем библиотеку чата…");
   client=await getSupabaseClient({signal});if(signal.aborted)return;
-  showNotice("Проверяем вход в аккаунт…");
   showNotice("Проверяем вход в аккаунт…");
   const stored=await withTimeout(client.auth.getSession(),12000,"Не удалось восстановить сессию браузера за 12 секунд.");if(stored.error)throw stored.error;if(!stored.data?.session)throw new Error("Сессия не найдена в хранилище браузера. Вернись на страницу входа и авторизуйся снова.");const auth=await withTimeout(client.auth.getUser(),12000,"Проверка входа в аккаунт не ответила за 12 секунд.");
   if(auth.error)throw auth.error;viewer=auth.data.user;

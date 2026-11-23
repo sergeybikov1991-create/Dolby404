@@ -71,7 +71,6 @@ function showError(prefix, error) {
 
 
 async function initializeSupabase() {
-async function initializeSupabase() {
     try {
         message.textContent = "Подключаем Supabase...";
 

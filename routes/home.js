@@ -22,8 +22,6 @@ const status = root.querySelector("#status");
 
 
 const dolbyOnlineUsers = new Set();
-
-const dolbyOnlineUsers = new Set();
 let dolbyOnlineChannel = null;
 function refreshDolbyOnlineIndicators(){
  root.querySelectorAll(".dolby-online-indicator[data-user-id]").forEach(dot=>{

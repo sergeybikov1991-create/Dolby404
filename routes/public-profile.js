@@ -48,7 +48,6 @@ export function mount(root, { signal, navigate, url }) {
 const $=id=>root.querySelector("#"+id);
 let viewer,target;
 
-function safeUrl(
 function safeUrl(value){if(!value)return "";try{const url=new URL(value,location.href);return ["http:","https:"].includes(url.protocol)?url.href:"";}catch(_){return "";}}
 function dateText(value){if(!value)return "";const d=new Date(value);return Number.isNaN(d.getTime())?"":d.toLocaleString("ru-RU",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"});}
 function showError(message){$("feed").replaceChildren();const box=document.createElement("div");box.className="status error";box.textContent=message;$("feed").append(box);}
@@ -294,7 +293,6 @@ async function loadPublicAlbums(){
 async function start(){
  try{
   client=await getSupabaseClient({signal});if(signal.aborted)return;
-  // Public profiles must remain readable when there is no signed-in user.
   // Public profiles must remain readable when there is no signed-in user.
   // getUser() without a session returns "Auth session missing!" and must never gate guest access.
   try{

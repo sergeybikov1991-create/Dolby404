@@ -25,7 +25,6 @@ export function mount(root, { signal, navigate }) {
   const $ = id => root.querySelector("#" + id);
   let client, viewer, refreshing = false;
 
-  function notice(
   function notice(message,error){$("notice").textContent=message||"";$("notice").classList.toggle("error",!!error);}
   function profileCard(profile,sub,buttons){
    const card=document.createElement("article");card.className="person";
