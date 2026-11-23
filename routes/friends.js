@@ -16,7 +16,7 @@ export function mount(root, { signal }) {
   const style = document.createElement("style");
   style.dataset.floustreamRouteStyle = "friends";
   style.textContent = STYLE;
-  document.head.appendChild(style);
+  root.appendChild(style);
   root.innerHTML = "<section class=\"fs-route-friends\">\n<header class=\"topbar\"><a class=\"back\" href=\"profile.html\" aria-label=\"Назад\">‹</a><div class=\"brand\">FLOUSTREAM</div></header>\n<main class=\"wrap\">\n<h1 class=\"page-title\">Друзья</h1><p class=\"subtitle\">Приглашения и люди, с которыми вы уже подружились.</p>\n<div class=\"notice\" id=\"notice\" aria-live=\"polite\"></div>\n<section class=\"panel\"><div class=\"panel-head\"><h2>Входящие приглашения</h2><span class=\"count\" id=\"incoming-count\">0</span></div><div class=\"list\" id=\"incoming-list\"><div class=\"empty\">Загружаем приглашения…</div></div></section>\n<section class=\"panel\"><div class=\"panel-head\"><h2>Мои друзья</h2><span class=\"count\" id=\"friends-count\">0</span></div><div class=\"list\" id=\"friends-list\"><div class=\"empty\">Загружаем друзей…</div></div></section>\n<section class=\"panel\"><div class=\"panel-head\"><h2>Отправленные приглашения</h2><span class=\"count\" id=\"outgoing-count\">0</span></div><div class=\"list\" id=\"outgoing-list\"><div class=\"empty\">Загружаем…</div></div></section>\n</main>\n</section>";
 
   let channel = null;
