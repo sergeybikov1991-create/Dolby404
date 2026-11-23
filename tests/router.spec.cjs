@@ -38,3 +38,51 @@ test("music controls remain functional after route mount", async ({ page }) => {
   await page.getByRole("button", { name: "Продолжить — включить музыку" }).click();
   await expect(page.locator("#fs-music-status")).toContainText("Отправлена команда запуска");
 });
+
+test("friends page mounts as an isolated route without duplicating legacy startup", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.supabase = {
+      createClient: () => ({
+        auth: {
+          getSession: async () => ({ data: { session: null }, error: null })
+        }
+      })
+    };
+  });
+  await page.goto("/friends.html");
+  await expect(page.locator("#floustream-app-shell")).toBeVisible();
+  await expect(page.locator(".fs-route-friends .page-title")).toHaveText("Друзья");
+  await expect(page.locator(".fs-route-friends #notice")).toContainText("Сессия не найдена");
+  await expect(page.locator('style[data-floustream-route-style="friends"]')).toHaveCount(1);
+});
+
+test("music and friends route modules switch in-app and clean up the previous view", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.supabase = {
+      createClient: () => ({
+        auth: {
+          getSession: async () => ({ data: { session: null }, error: null })
+        }
+      })
+    };
+  });
+  await page.goto("/music.html");
+  await expect(page.locator(".fs-music-logo")).toBeVisible();
+
+  await page.evaluate(() => window.FloustreamRouter.navigate(new URL("friends.html", location.href)));
+  await expect(page).toHaveURL(/friends\.html$/);
+  await expect(page.locator(".fs-route-friends .page-title")).toBeVisible();
+  await expect(page.locator('style[data-floustream-route-style="music"]')).toHaveCount(0);
+  await expect(page.locator('style[data-floustream-route-style="friends"]')).toHaveCount(1);
+
+  await page.evaluate(() => window.FloustreamRouter.navigate(new URL("music.html", location.href)));
+  await expect(page).toHaveURL(/music\.html$/);
+  await expect(page.locator(".fs-music-logo")).toBeVisible();
+  await expect(page.locator('style[data-floustream-route-style="friends"]')).toHaveCount(0);
+  await expect(page.locator('style[data-floustream-route-style="music"]')).toHaveCount(1);
+
+  await page.goBack();
+  await expect(page).toHaveURL(/friends\.html$/);
+  await expect(page.locator(".fs-route-friends .page-title")).toBeVisible();
+  await expect(page.locator('style[data-floustream-route-style="music"]')).toHaveCount(0);
+});
