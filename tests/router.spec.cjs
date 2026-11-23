@@ -86,3 +86,30 @@ test("music and friends route modules switch in-app and clean up the previous vi
   await expect(page.locator(".fs-route-friends .page-title")).toBeVisible();
   await expect(page.locator('style[data-floustream-route-style="music"]')).toHaveCount(0);
 });
+
+test("portal authentication screen is loaded as a route module from Music", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.supabase = {
+      createClient: () => ({
+        auth: {
+          getSession: async () => ({ data: { session: null }, error: null })
+        }
+      })
+    };
+  });
+  await page.goto("/music.html", { waitUntil: "domcontentloaded" });
+  await expect(page.locator(".fs-music-logo")).toBeVisible();
+
+  await page.locator(".fs-music-login").click();
+  await expect(page).toHaveURL(/portal\.html$/);
+  await expect(page.locator("#floustream-app-shell")).toBeVisible();
+  await expect(page.locator(".fs-route-portal .logo")).toHaveText("FLOUSTREAM");
+  await expect(page.locator("#register-button")).toBeEnabled();
+  await expect(page.locator("#login-button")).toBeEnabled();
+  await expect(page.locator("#auth-message")).toContainText("Система готова");
+
+  await page.goBack();
+  await expect(page).toHaveURL(/music\.html$/);
+  await expect(page.locator(".fs-music-logo")).toBeVisible();
+  await expect(page.locator('style[data-floustream-route-style="portal"]')).toHaveCount(0);
+});
