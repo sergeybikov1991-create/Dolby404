@@ -70,3 +70,7 @@
 @keyframes flou-mic-pulse{50%{box-shadow:0 0 24px #ef4e9a;transform:scale(1.06)}}
 @keyframes flou-orb-pulse{50%{transform:scale(1.07);filter:brightness(1.3);box-shadow:0 0 42px #c69aff,0 0 100px #793bca}}
 @media(max-width:600px){.composer{padding:9px 10px;border-radius:22px}.composer-controls{gap:6px}.attach,.mic,.voice-mode-launch,.send{width:40px;height:40px;flex-basis:40px}.composer textarea{font-size:15px;padding:8px 4px}.composer-preview-item{width:76px;height:76px;flex-basis:76px}}
+
+
+.voice-cancel{display:grid;place-items:center;width:34px;height:34px;flex:0 0 34px;border:1px solid #ff8eaf;border-radius:50%;background:linear-gradient(145deg,#9b315f,#4b1739);color:#fff;font-size:22px;box-shadow:0 0 12px #ed4c8a66;cursor:pointer}
+.voice-cancel[hidden]{display:none!important}
