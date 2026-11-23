@@ -596,6 +596,7 @@ void start();
 
   return async () => {
     setScrollLock(false);
+    if (window.openPhotoViewer === openPhotoViewer) delete window.openPhotoViewer;
     if (activeTusUpload) {
       try { await activeTusUpload.abort(false); } catch (_) {}
       activeTusUpload = null;
