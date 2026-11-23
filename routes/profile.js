@@ -29,6 +29,7 @@ export async function mount(root, { signal, navigate, url }) {
   style.dataset.floustreamRouteStyle = "profile";
   style.textContent = STYLES;
   root.innerHTML = MARKUP;
+  const routeRoot = root.querySelector(".fs-route-profile");
   document.head.appendChild(style);
 
   const profileTimerKinds = new Map();
@@ -53,7 +54,7 @@ export async function mount(root, { signal, navigate, url }) {
   function profileClearInterval(id) { window.clearInterval(id); profileTimerKinds.delete(id); }
 
   const restoreProfileShell = () => {
-    const ownsRoot = !!root.querySelector(".fs-route-profile");
+    const ownsRoot = routeRoot.isConnected && routeRoot.parentNode === root;
     if (ownsRoot) {
       document.body.style.cssText = originalBodyStyle || "";
       document.body.className = originalBodyClass;
