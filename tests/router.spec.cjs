@@ -423,3 +423,58 @@ test("navigation from another user's public profile back to My profile renders t
   })).toBe(true);
   expect(pageErrors).toEqual([]);
 });
+
+
+test("persistent shell background stays visible while the next route stylesheet loads", async ({ page }) => {
+  await page.goto("/music.html", { waitUntil: "domcontentloaded" });
+  await expect(page.locator(".fs-music-logo")).toBeVisible();
+
+  let releaseStyles;
+  const stylesGate = new Promise(resolve => { releaseStyles = resolve; });
+  let stylesheetRequests = 0;
+  await page.route("**/routes/styles/friends.css**", async route => {
+    stylesheetRequests += 1;
+    await stylesGate;
+    await route.continue();
+  });
+
+  const stylesheetRequested = page.waitForRequest(request =>
+    request.url().includes("/routes/styles/friends.css")
+  );
+  const navigation = page.evaluate(() =>
+    window.FloustreamRouter.navigate(new URL("friends.html", location.href))
+  );
+  await stylesheetRequested;
+
+  // The old route remains mounted while the new route's CSS is in flight.
+  await expect(page.locator(".fs-music-logo")).toBeVisible();
+  const background = await page.evaluate(() => ({
+    color: getComputedStyle(document.body).backgroundColor,
+    image: getComputedStyle(document.body).backgroundImage,
+    shellStyle: !!document.getElementById("floustream-shell-style")
+  }));
+  expect(background.color).toBe("rgb(9, 9, 16)");
+  expect(background.image).toContain("radial-gradient");
+  expect(background.shellStyle).toBe(true);
+
+  releaseStyles();
+  await navigation;
+  await expect(page.locator(".fs-route-friends .page-title")).toBeVisible();
+  expect(stylesheetRequests).toBe(1);
+  await expect(page.locator("#floustream-route-view")).toHaveCSS(
+    "animation-name",
+    "floustreamRouteEnter"
+  );
+  expect(await page.evaluate(() => window.FloustreamPerformance.getErrors())).toEqual([]);
+});
+
+test("all SPA entry documents paint the persistent background before JavaScript starts", () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const routes = ["music", "friends", "portal", "home", "messages", "profile", "public-profile"];
+  for (const route of routes) {
+    const html = fs.readFileSync(path.resolve(__dirname, "..", route + ".html"), "utf8");
+    expect(html).toContain('id="floustream-critical-shell-style"');
+    expect(html).toContain("background:#090910");
+  }
+});
