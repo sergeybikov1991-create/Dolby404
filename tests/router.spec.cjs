@@ -202,6 +202,23 @@ test("public profile mounts as an isolated route and cleans up on browser Back",
 
 
 
+
+test("all SPA routes keep their styles in separate cacheable assets", () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const routes = ["home", "portal", "friends", "messages", "profile", "public-profile", "music"];
+  for (const route of routes) {
+    const modulePath = path.resolve(__dirname, "..", "routes", route + ".js");
+    const stylePath = path.resolve(__dirname, "..", "routes", "styles", route + ".css");
+    const source = fs.readFileSync(modulePath, "utf8");
+    const stylesheet = fs.readFileSync(stylePath, "utf8");
+    expect(source).toContain(`export const stylesheet = new URL("./styles/${route}.css?v=1", import.meta.url).href;`);
+    expect(source).toContain("attachRouteStyles(");
+    expect(source).not.toMatch(/const STYLES?\\s*=/);
+    expect(stylesheet.trim().length).toBeGreaterThan(0);
+  }
+});
+
 test("browser Back restores the previous SPA route scroll position", async ({ page }) => {
   await page.addInitScript(() => {
     const client = { auth: {
