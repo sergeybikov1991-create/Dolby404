@@ -299,8 +299,11 @@ async function start(){
    client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
    viewer=null;
   }
-  await ensureNotificationScripts();if(signal.aborted)return;
-  if(viewer){window.initFloustreamMessageNotifications?.(client,viewer.id,{signal,root});window.initFloustreamFriendNotifications?.(client,viewer.id,{signal,root});}
+  if(viewer){
+   await ensureNotificationScripts();if(signal.aborted)return;
+   window.initFloustreamMessageNotifications?.(client,viewer.id,{signal,root});
+   window.initFloustreamFriendNotifications?.(client,viewer.id,{signal,root});
+  }
   const targetId=new URLSearchParams(url.search).get("id");if(!targetId){showError("Не указан профиль для просмотра.");return;}
   if(viewer&&targetId===viewer.id){navigate("profile.html");return;}
   const profileResult=await client.from("profiles").select("id,username,display_name,bio,avatar_url,avatar_photo_id,cover_url,last_activity_at,time_zone").eq("id",targetId).maybeSingle();
