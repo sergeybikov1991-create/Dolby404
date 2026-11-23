@@ -99,10 +99,12 @@ async function loadProfileVisitHistory(){
  const host=$("nav-profile-visits");if(!host||!client||!user)return;
  try{
   const visits=await client.from("profile_visits").select("visited_profile_id,last_visited_at").eq("visitor_id",user.id).order("last_visited_at",{ascending:false}).limit(5);
+  if(signal.aborted)return;
   if(visits.error)throw visits.error;
   const rows=visits.data||[];host.replaceChildren();if(!rows.length)return;
   const ids=rows.map(row=>row.visited_profile_id);
   const profiles=await client.from("profiles").select("id,username,display_name,avatar_url,last_activity_at,time_zone").in("id",ids);
+  if(signal.aborted)return;
   if(profiles.error)throw profiles.error;
   const byId=new Map((profiles.data||[]).map(profile=>[profile.id,profile]));
   rows.forEach(row=>{
@@ -1055,16 +1057,18 @@ async function ensureAvatarOriginalInAlbum(){
 
 async function start(){
  try{
-  await loadLibrary();client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storage:window.localStorage,storageKey:"sb-qhpobdktlbhdqsnajypr-auth-token"}});
-  const stored=await client.auth.getSession();if(stored.error)throw stored.error;if(!stored.data?.session){navigate("portal.html?reauth=1");return;}const auth=await client.auth.getUser();if(auth.error)throw auth.error;user=auth.data.user;
+  await loadLibrary();if(signal.aborted)return;client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storage:window.localStorage,storageKey:"sb-qhpobdktlbhdqsnajypr-auth-token"}});
+  const stored=await client.auth.getSession();if(signal.aborted)return;if(stored.error)throw stored.error;if(!stored.data?.session){navigate("portal.html?reauth=1");return;}const auth=await client.auth.getUser();if(signal.aborted)return;if(auth.error)throw auth.error;user=auth.data.user;
   if(!user){navigate("portal.html");return;}
   const lifecycleParams=new URLSearchParams(url.search);
   const lifecycleAction=lifecycleParams.has("confirm_delete")?"request_delete":(lifecycleParams.has("restore")?"restore":null);
   if(lifecycleAction){
    const lifecycle=await client.functions.invoke("account-lifecycle",{body:{action:lifecycleAction}});
+   if(signal.aborted)return;
    if(lifecycle.error)throw lifecycle.error;
    if(lifecycleAction==="request_delete"){
     await client.auth.signOut();
+    if(signal.aborted)return;
     navigate("portal.html?deletion_requested=1");
     return;
    }
@@ -1076,11 +1080,13 @@ async function start(){
   startDolbyOnlinePresence(client,user.id);
   loadProfileVisitHistory();
   const result=await client.from("profiles").select("*").eq("id",user.id).maybeSingle();
+  if(signal.aborted)return;
   if(result.error)throw result.error;
   profile=result.data||{};columns=Object.keys(profile);if(profile.last_activity_at)setDolbyLastSeen(user.id,profile.last_activity_at,profile.time_zone);
-  if(result.data&&!profile.avatar_photo_id){try{await ensureAvatarOriginalInAlbum();}catch(error){console.warn("FLOUSTREAM avatar original migration:",error);}}
+  if(result.data&&!profile.avatar_photo_id){try{await ensureAvatarOriginalInAlbum();if(signal.aborted)return;}catch(error){if(signal.aborted)return;console.warn("FLOUSTREAM avatar original migration:",error);}}
   if(!columns.length){
     const probe=await client.from("profiles").select("*").limit(1);
+    if(signal.aborted)return;
     if(probe.error)throw probe.error;
     columns=Object.keys(probe.data?.[0]||{});
   }
@@ -1088,7 +1094,7 @@ async function start(){
   recordNavigation("profile");
   initProfileFeed(client);
   if(!result.data){$("notice").hidden=false;$("notice").textContent="Профиль ещё не найден в таблице. Страница открыта, но для сохранения сначала нужно проверить структуру таблицы profiles.";}
- }catch(e){$("display-name").textContent="Не удалось загрузить профиль";$("bio").textContent=e.message;$("notice").hidden=false;$("notice").textContent="Проверь подключение и настройки доступа к таблице profiles.";}
+ }catch(e){if(signal.aborted)return;$("display-name").textContent="Не удалось загрузить профиль";$("bio").textContent=e.message;$("notice").hidden=false;$("notice").textContent="Проверь подключение и настройки доступа к таблице profiles.";}
 }
 attachEmojiPicker($("post-text"));attachEmojiPicker($("bio-input"));
 (function setupComposer(){
@@ -1632,10 +1638,11 @@ function renderPost(post,profiles,flowMeta=null){
  window.dolbyRefreshScheduledQueue=refreshScheduledQueue;
 
  async function loadBatch(){
-  if(busy||done)return;busy=true;loading.hidden=false;
+  if(signal.aborted||busy||done)return;busy=true;loading.hidden=false;
   try{
    if(!feedAuthorIds){
     const followed=await client.from("follows").select("following_id").eq("follower_id",user.id);
+    if(signal.aborted)return;
     if(followed.error)throw followed.error;
     feedAuthorIds=[...new Set([user.id,...(followed.data||[]).map(row=>row.following_id).filter(Boolean)])];
    }
@@ -1643,12 +1650,14 @@ function renderPost(post,profiles,flowMeta=null){
     postsDone?Promise.resolve({data:[],error:null}):client.from("posts").select("*").in("user_id",feedAuthorIds).order("created_at",{ascending:false}).order("id",{ascending:false}).range(offset,offset+batchSize-1),
     flowsDone?Promise.resolve({data:[],error:null}):client.from("reposts").select("id,user_id,post_id,created_at").eq("user_id",user.id).order("created_at",{ascending:false}).order("id",{ascending:false}).range(flowOffset,flowOffset+batchSize-1)
    ]);
+   if(signal.aborted)return;
    if(postResult.error)throw postResult.error;if(flowResult.error)throw flowResult.error;
    const posts=postResult.data||[],flowRows=flowResult.data||[];
    offset+=posts.length;flowOffset+=flowRows.length;
    if(posts.length<batchSize)postsDone=true;if(flowRows.length<batchSize)flowsDone=true;
    const flowIds=flowRows.map(row=>row.post_id).filter(Boolean);
    const flowPostResult=flowIds.length?await client.from("posts").select("*").in("id",flowIds):{data:[],error:null};
+   if(signal.aborted)return;
    if(flowPostResult.error)throw flowPostResult.error;
    const flowByPostId=new Map(flowRows.map(row=>[String(row.post_id),row]));
    const merged=new Map();
@@ -1661,13 +1670,13 @@ function renderPost(post,profiles,flowMeta=null){
    const entries=[...merged.values()].sort((a,b)=>new Date(b.sortAt||0)-new Date(a.sortAt||0));
    if(!entries.length&&postsDone&&flowsDone){done=true;if(!list.children.length)empty.hidden=false;loading.hidden=true;return;}
    const ids=[...new Set([...entries.map(x=>x.post.user_id),...entries.filter(x=>x.flowMeta).map(x=>x.flowMeta.user_id)].filter(Boolean))];let profiles={};
-   if(ids.length){const res=await client.from("profiles").select("*").in("id",ids);if(res.error)throw res.error;for(const p of res.data||[])profiles[p.id]=p;}
+   if(ids.length){const res=await client.from("profiles").select("*").in("id",ids);if(signal.aborted)return;if(res.error)throw res.error;for(const p of res.data||[])profiles[p.id]=p;}
    if(profile)profiles[user.id]=profile;
    let added=0;
    for(const entry of entries){const key=String(entry.post.id);if(seen.has(key))continue;seen.add(key);list.appendChild(renderPost(entry.post,profiles,entry.flowMeta));added++;}
    done=postsDone&&flowsDone;loading.hidden=done;
    if(added===0&&!done){busy=false;await loadBatch();return;}
-  }catch(e){errorBox.hidden=false;errorBox.textContent="Не удалось загрузить публикации: "+e.message;loading.hidden=true;done=true;}
+  }catch(e){if(signal.aborted)return;errorBox.hidden=false;errorBox.textContent="Не удалось загрузить публикации: "+e.message;loading.hidden=true;done=true;}
   finally{busy=false;}
  }
  if("IntersectionObserver" in window){
@@ -1676,8 +1685,8 @@ function renderPost(post,profiles,flowMeta=null){
  }else{
   window.addEventListener("scroll",()=>{if(window.innerHeight+window.scrollY>=document.body.offsetHeight-700)loadBatch();},{passive:true,signal});
  }
- await loadBatch();
- await refreshScheduledQueue();
+ await loadBatch();if(signal.aborted)return;
+ await refreshScheduledQueue();if(signal.aborted)return;
  profileInterval(refreshScheduledQueue,30000);
 }
 
