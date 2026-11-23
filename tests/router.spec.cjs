@@ -346,3 +346,80 @@ test("aborted profile route mount restores shared view visibility before the nex
   await expect(page.locator("#floustream-route-view")).toHaveCSS("visibility", "visible");
   await expect(page.locator('style[data-floustream-route-style="profile"]')).toHaveCount(0);
 });
+
+
+test("navigation from another user's public profile back to My profile renders the light-DOM route", async ({ page }) => {
+  await page.addInitScript(() => {
+    const makeChannel = () => ({
+      on() { return this; },
+      subscribe() { return this; },
+      presenceState() { return {}; },
+      track: async () => ({}),
+      untrack: async () => ({})
+    });
+    const client = {
+      auth: {
+        getSession: async () => ({ data: { session: { user: { id: "viewer" } } }, error: null }),
+        getUser: async () => ({ data: { user: { id: "viewer" } }, error: null }),
+        signOut: async () => ({ error: null }),
+        stopAutoRefresh: async () => {}
+      },
+      from(table) {
+        const filters = {};
+        const result = () => table === "profiles"
+          ? { data: { id: filters.id || "other-user", username: "viewer", display_name: "Мой профиль", avatar_photo_id: "existing-avatar" }, error: null }
+          : { data: [], error: null };
+        const query = {
+          select() { return query; },
+          eq(key, value) { filters[key] = value; return query; },
+          in() { return query; },
+          order() { return query; },
+          limit: async () => result(),
+          range: async () => result(),
+          maybeSingle: async () => result(),
+          upsert: async () => ({ data: null, error: null }),
+          insert: async () => ({ data: null, error: null }),
+          update() { return query; },
+          delete() { return query; },
+          then(resolve, reject) { return Promise.resolve(result()).then(resolve, reject); }
+        };
+        return query;
+      },
+      channel() { return makeChannel(); },
+      removeChannel: async () => ({})
+    };
+    window.supabase = { createClient: () => client };
+    window.initFloustreamMessageNotifications = () => {};
+    window.initFloustreamFriendNotifications = () => {};
+  });
+  await page.route("**/floustream-player.js**", route => route.fulfill({
+    status: 200,
+    contentType: "application/javascript",
+    body: "window.FloustreamPlayer = window.FloustreamPlayer || {};"
+  }));
+
+  const pageErrors = [];
+  page.on("pageerror", error => pageErrors.push(error.message));
+  await page.goto("/music.html", { waitUntil: "domcontentloaded" });
+  await expect(page.locator(".fs-music-logo")).toBeVisible();
+
+  await page.evaluate(() => window.FloustreamRouter.navigate(
+    new URL("public-profile.html?id=other-user", location.href)
+  ));
+  await expect(page.locator(".fs-route-public-profile")).toBeVisible();
+  expect(await page.evaluate(() =>
+    !!document.querySelector("#floustream-route-view")?.shadowRoot
+  )).toBe(true);
+
+  await page.locator("#floustream-route-view").locator("#drawer-menu-button").click();
+  await page.getByRole("link", { name: /Мой профиль/ }).click();
+
+  await expect(page).toHaveURL(/profile\.html$/);
+  await expect(page.locator(".fs-route-profile")).toBeVisible();
+  await expect(page.locator("#display-name")).toBeVisible();
+  expect(await page.evaluate(() => {
+    const host = document.querySelector("#floustream-route-view");
+    return !!host && !host.shadowRoot && !!host.querySelector(".fs-route-profile");
+  })).toBe(true);
+  expect(pageErrors).toEqual([]);
+});
