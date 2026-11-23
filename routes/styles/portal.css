@@ -1,0 +1,237 @@
+
+.fs-route-portal,.fs-route-portal *{box-sizing:border-box}
+
+.fs-route-portal{
+    margin:0;
+    min-height:100vh;width:100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-family: Arial, sans-serif;
+    color: white;
+    background: linear-gradient(-45deg,
+        #050817, #102b83, #5420a8,
+        #006b9f, #10104a, #050817);
+    background-size: 500% 500%;
+    animation: gradientMove 12s ease infinite;
+}
+
+@keyframes gradientMove {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+.fs-route-portal .portal{
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    max-width: 600px;
+    text-align: center;
+    padding: 30px 20px;
+}
+
+.fs-route-portal .logo{
+    position: relative;
+    font-size: clamp(28px, 9vw, 72px);
+    font-weight: 900;
+    letter-spacing: clamp(1px, 1.2vw, 6px);
+    line-height: 1.1;
+    white-space: nowrap;
+    max-width: 100%;
+    text-shadow: 0 0 15px #168cff,
+                 0 0 35px #5420ff,
+                 0 0 70px #006bff;
+    animation: glitch 3s infinite, digitalFlash 5s infinite;
+}
+
+@keyframes glitch {
+    0%, 88%, 100% {
+        transform: translate(0);
+        opacity: 1;
+    }
+    90% { transform: translate(-5px, 2px); }
+    92% {
+        transform: translate(5px, -2px);
+        opacity: 0.75;
+    }
+    94% {
+        transform: translate(0);
+        opacity: 1;
+    }
+}
+
+@keyframes digitalFlash {
+    0%, 87%, 100% { filter: brightness(1); }
+    89% { filter: brightness(2.5) hue-rotate(90deg); }
+    91% { filter: brightness(0.6) hue-rotate(-90deg); }
+    93% { filter: brightness(1.8); }
+}
+
+.fs-route-portal .logo::before,
+.fs-route-portal .logo::after {
+    content: "FLOUSTREAM";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.fs-route-portal .logo::before {
+    color: #00eaff;
+    animation: glitchLine 3s infinite;
+}
+
+.fs-route-portal .logo::after {
+    color: #c000ff;
+    animation: glitchLine 2.5s infinite reverse;
+}
+
+@keyframes glitchLine {
+    0%, 85%, 100% {
+        clip-path: inset(0 0 100% 0);
+        transform: translateX(0);
+    }
+    88% {
+        clip-path: inset(20% 0 65% 0);
+        transform: translateX(-7px);
+    }
+    91% {
+        clip-path: inset(60% 0 20% 0);
+        transform: translateX(7px);
+    }
+    94% {
+        clip-path: inset(40% 0 45% 0);
+        transform: translateX(-3px);
+    }
+}
+
+.fs-route-portal .subtitle{
+    color: #b9d9ff;
+    letter-spacing: 5px;
+    margin: 20px 0 35px;
+}
+
+
+
+.fs-route-portal .auth-box{
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    width: 100%;
+    max-width: 350px;
+    margin: 0 auto;
+}
+
+.fs-route-portal input{
+    width: 100%;
+    padding: 15px;
+    border: 1px solid #63baff;
+    border-radius: 30px;
+    background: rgba(5, 8, 23, 0.8);
+    color: white;
+    font-size: 16px;
+    outline: none;
+}
+
+.fs-route-portal input::placeholder {
+    color: #b9d9ff;
+}
+
+.fs-route-portal select{
+    width: 100%; padding: 15px; border: 1px solid #63baff;
+    border-radius: 30px; background: rgba(5, 8, 23, 0.9);
+    color: white; font-size: 16px; outline: none;
+}
+
+.fs-route-portal button{
+    padding: 16px 25px;
+    border: 1px solid #63baff;
+    border-radius: 40px;
+    color: white;
+    background: linear-gradient(90deg, #1749c9, #7025bd);
+    font-size: 16px;
+    cursor: pointer;
+    box-shadow: 0 0 25px #176bff;
+    transition: 0.3s;
+}
+
+.fs-route-portal button:hover{
+    transform: scale(1.04);
+    box-shadow: 0 0 40px #168cff;
+}
+
+.fs-route-portal button:disabled{
+    opacity: 0.5;
+    cursor: wait;
+}
+
+.fs-route-portal #auth-message{
+    color: #b9d9ff;
+    overflow-wrap: anywhere;
+    min-height: 22px;
+}
+
+/* ЭФФЕКТ РАЗБИТОГО СТЕКЛА */
+
+.fs-route-portal #glass-layer{
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 20;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+.fs-route-portal .glass-effect{
+    opacity: 1;
+    animation: glassFade 2.2s ease-out forwards;
+}
+
+.fs-route-portal .glass-main{
+    fill: none;
+    stroke: #dffaff;
+    stroke-width: 1.5;
+    stroke-linejoin: bevel;
+    stroke-linecap: round;
+    filter: drop-shadow(0 0 3px #00dfff)
+            drop-shadow(0 0 7px #168cff);
+}
+
+.fs-route-portal .glass-thin{
+    fill: none;
+    stroke: #a8f4ff;
+    stroke-width: 0.8;
+    stroke-linejoin: bevel;
+    stroke-linecap: round;
+    filter: drop-shadow(0 0 3px #00cfff);
+}
+
+.fs-route-portal .glass-glow{
+    fill: none;
+    stroke: white;
+    stroke-width: 3;
+    opacity: 0.35;
+    filter: blur(2px);
+}
+
+.fs-route-portal .glass-shard{
+    stroke: #b9f5ff;
+    stroke-width: 0.8;
+    fill: rgba(100, 210, 255, 0.07);
+    filter: drop-shadow(0 0 4px #168cff);
+}
+
+.fs-route-portal .glass-center{
+    fill: white;
+    filter: drop-shadow(0 0 8px #00eaff)
+            drop-shadow(0 0 18px #168cff);
+}
+
+@keyframes glassFade {
+    0% { opacity: 1; }
+    65% { opacity: 0.9; }
+    100% { opacity: 0; }
+}
