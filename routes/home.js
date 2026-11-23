@@ -104,6 +104,7 @@ async function start(){
       });
     });
   }catch(error){
+    if(signal.aborted)return;
     loading.textContent="Не удалось подключить FLOUSTREAM: "+error.message;
   }
 }
