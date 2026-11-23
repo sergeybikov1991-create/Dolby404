@@ -67,7 +67,7 @@ test("migrated SPA routes interoperate through one router, shared Supabase clien
     clientFactories: window.__architectureIntegration.clientFactories,
     activeRoute: window.FloustreamRouter.activeRoute,
     profileStyles: document.head.querySelectorAll('style[data-floustream-route-style="profile"]').length,
-    leakedRouteStyles: document.querySelectorAll('#floustream-app-shell style[data-floustream-route-style]').length
+    leakedRouteStyles: host?.shadowRoot?.querySelectorAll('style[data-floustream-route-style]').length || 0
   }));
   expect(finalState.clientFactories).toBe(1);
   expect(finalState.activeRoute).toBe("portal.html");
