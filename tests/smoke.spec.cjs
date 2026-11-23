@@ -260,7 +260,7 @@ test("video album keeps public and private players, native controls and swipe na
 test("messenger uses realtime subscriptions instead of five-second polling", () => {
   const fs = require("node:fs");
   const path = require("node:path");
-  const messages = fs.readFileSync(path.join(__dirname, "../messages.html"), "utf8");
+  const messages = fs.readFileSync(path.join(__dirname, "../routes/messages.js"), "utf8");
 
   expect(messages).toContain('floustream-inbox-');
   expect(messages).toContain('floustream-direct-');
