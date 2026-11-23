@@ -116,7 +116,7 @@ test("portal authentication screen is loaded as a route module from Music", asyn
 
 test("home feed mounts as a route module and releases presence on navigation", async ({ page }) => {
   await page.addInitScript(() => {
-    const state = window.__homeTestState = { tracked: 0, untracked: 0, removed: 0, postsQueries: 0 };
+    const state = window.__homeTestState = { tracked: 0, untracked: 0, removed: 0, postsQueries: 0, clientFactoryCalls: 0 };
     const channel = {
       on() { return channel; },
       subscribe(callback) { callback("SUBSCRIBED"); return channel; },
@@ -143,7 +143,7 @@ test("home feed mounts as a route module and releases presence on navigation", a
       channel() { return channel; },
       removeChannel: async () => { state.removed += 1; }
     };
-    window.supabase = { createClient: () => client };
+    window.supabase = { createClient: () => { state.clientFactoryCalls += 1; return client; } };
   });
 
   const pageErrors = [];
@@ -163,6 +163,7 @@ test("home feed mounts as a route module and releases presence on navigation", a
   await page.locator(".fs-route-home #logout-button").click();
   await expect(page).toHaveURL(/portal\.html$/);
   await expect(page.locator("#auth-message")).toContainText("Система готова");
+  expect(await page.evaluate(() => window.__homeTestState.clientFactoryCalls)).toBe(1);
   await expect.poll(() => page.evaluate(() => window.__homeTestState.removed)).toBe(2);
   await expect.poll(() => page.evaluate(() => window.__homeTestState.untracked)).toBe(2);
   await expect(page.locator('style[data-floustream-route-style="home"]')).toHaveCount(0);
