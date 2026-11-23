@@ -116,6 +116,7 @@ test("authenticated home feed loads the next page when its sentinel enters view"
   await expect(page.locator(".fs-route-home #app")).toBeVisible();
   const messagesHref = await page.locator(".fs-route-home .nav a").filter({ hasText: "Сообщения" }).getAttribute("href");
   expect(messagesHref).toBe("messages.html");
+  await expect(page.locator(".fs-route-home .tile[href=\"messages.html\"]")).toBeVisible();
   expect(await page.evaluate(href => window.FloustreamRouter.resolve(href)?.route, messagesHref)).toBe("messages.html");
   await expect(page.locator(".fs-route-home .post")).toHaveCount(5);
   await expect(page.locator(".fs-route-home #feed-error")).toBeHidden();
