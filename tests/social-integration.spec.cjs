@@ -158,7 +158,7 @@ test("a friend request sent from a public profile appears in the friends inbox a
         return Array.isArray(state[table]) ? state[table] : [];
       }
       function matches(row) {
-        const direct = filters.every(item => row[item.column] === item.value);
+        const direct = filters.every(item => item._in ? item.values.includes(row[item.column]) : row[item.column] === item.value);
         const alternatives = !orFilters.length || orFilters.some(group =>
           group.some(item => row[item.column] === item.value)
         );
@@ -265,7 +265,7 @@ test("a friend request sent from a public profile appears in the friends inbox a
   await expect(page.locator("#friend-cta-label")).toHaveText("В друзья");
 
   await page.locator("#friend-cta").click();
-  await expect(page.locator("#friend-cta-label")).toHaveText("Заявка отправлена.");
+  await expect(page.locator("#friend-cta-label")).toHaveText("Заявка отправлена");
   await expect.poll(() => page.evaluate(() => window.__friendFlowState.friend_requests.length)).toBe(1);
 
   await page.evaluate(() => window.FloustreamRouter.navigate("friends.html"));
