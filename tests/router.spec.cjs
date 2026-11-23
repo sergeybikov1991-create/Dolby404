@@ -202,7 +202,15 @@ test("public profile mounts as an isolated route and cleans up on browser Back",
 
 
 test("router exposes local route timing and error diagnostics without remote telemetry", async ({ page }) => {
-  await openPortal(page);
+  await page.addInitScript(() => {
+    const client = { auth: {
+      getSession: async () => ({ data: { session: null }, error: null }),
+      getUser: async () => ({ data: { user: null }, error: null })
+    } };
+    window.supabase = { createClient: () => client };
+  });
+  await page.goto("/portal.html", { waitUntil: "domcontentloaded" });
+  await expect(page.locator("#auth-message")).toContainText("Система готова");
   await page.evaluate(() => window.FloustreamPerformance.clear());
   await page.evaluate(() => window.FloustreamRouter.navigate(new URL("music.html", location.href)));
   await page.evaluate(() => window.FloustreamRouter.navigate(new URL("friends.html", location.href)));

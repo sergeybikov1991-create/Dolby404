@@ -32,6 +32,12 @@ async function mockSupabaseCdn(page) {
   );
 }
 
+
+async function waitForChatReady(page) {
+  await expect(page.locator(".fs-route-messages")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => !!window.__chatTestState?.insertHandler)).toBe(true);
+}
+
 async function mockAuthenticatedChat(page, options = {}) {
   await page.addInitScript(config => {
     const state = window.__chatTestState = {
@@ -405,6 +411,7 @@ test("holding the existing send button records and automatically sends a voice m
 test("swiping sideways cancels a voice recording and releases the microphone", async ({ page }) => {
   await mockAuthenticatedChat(page, { voiceHoldMs: 35 });
   await page.goto("/messages.html?with=peer-1");
+  await waitForChatReady(page);
   const send = page.locator("#send");
   await send.dispatchEvent("pointerdown", { pointerId: 2, pointerType: "touch", isPrimary: true, button: 0, clientX: 100, clientY: 100 });
   await expect(page.locator("#notice")).toContainText("Запись 00:00");
@@ -421,6 +428,7 @@ test("swiping sideways cancels a voice recording and releases the microphone", a
 test("microphone permission denial does not send a text or empty voice message", async ({ page }) => {
   await mockAuthenticatedChat(page, { voiceHoldMs: 35, micPermissionDenied: true });
   await page.goto("/messages.html?with=peer-1");
+  await waitForChatReady(page);
   const send = page.locator("#send");
   await send.dispatchEvent("pointerdown", { pointerId: 3, pointerType: "touch", isPrimary: true, button: 0, clientX: 100, clientY: 100 });
   await expect(page.locator("#notice")).toContainText("Permission denied by test");
