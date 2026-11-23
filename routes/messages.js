@@ -32,6 +32,7 @@ const MARKUP = `<section class="fs-route-messages">
     <button class="attach" id="attach" type="button" aria-label="Добавить вложение" aria-expanded="false">+</button>
     <textarea id="message-input" maxlength="5000" rows="1" placeholder="Написать сообщение…" aria-label="Текст сообщения"></textarea>
     <button class="mic" id="mic" type="button" aria-label="Записать голосовое сообщение">♩</button>
+    <button class="voice-cancel" id="voice-cancel" type="button" aria-label="Отменить запись" hidden>×</button>
     <button class="voice-mode-launch" id="voice-mode-launch" type="button" aria-label="Открыть голосовой режим">◖))</button>
     <button class="send" id="send" type="submit" aria-label="Отправить">↑</button>
    </div>
@@ -374,7 +375,7 @@ function renderInbox(rows,profiles){
 async function loadInbox(){
  if(signal.aborted)return;
  if(inboxLoading){pendingInboxReload=true;return;}inboxLoading=true;
- try{const result=await client.from("direct_messages").select("id,sender_id,recipient_id,content,attachment_name,created_at,read_at").or("sender_id.eq."+viewer.id+",recipient_id.eq."+viewer.id).order("created_at",{ascending:false}).limit(500);
+ try{const result=await client.from("direct_messages").select("id,sender_id,recipient_id,content,attachment_name,attachments,created_at,read_at").or("sender_id.eq."+viewer.id+",recipient_id.eq."+viewer.id).order("created_at",{ascending:false}).limit(500);
   if(signal.aborted)return;
   if(result.error)throw result.error;const rows=result.data||[];const ids=[...new Set(rows.map(row=>row.sender_id===viewer.id?row.recipient_id:row.sender_id).filter(Boolean))];let profiles=[];
   if(ids.length){const people=await client.from("profiles").select("id,username,display_name,avatar_url").in("id",ids);if(signal.aborted)return;if(people.error)throw people.error;profiles=people.data||[];}if(!signal.aborted)renderInbox(rows,profiles);
@@ -447,7 +448,7 @@ async function beginVoiceRecording(fromMode=false){
   voiceRecorder.ondataavailable=event=>{if(event.data?.size)voiceChunks.push(event.data);};
   voiceRecorder.onerror=()=>{showNotice("Ошибка записи голосового сообщения.",true);void finishVoiceRecording(true);};
   voiceRecorder.start(250);
-  $("mic").classList.add("recording");$("mic").setAttribute("aria-label","Остановить запись");
+  $("mic").classList.add("recording");$("mic").setAttribute("aria-label","Остановить запись");$("voice-cancel").hidden=false;
   if(fromMode){$("voice-mode-orb").classList.add("recording");$("voice-mode-status").textContent="Идёт запись… нажми Стоп, чтобы прикрепить голос";$("voice-mode-action").textContent="Стоп и прикрепить";}
   else showNotice("Запись голосового сообщения… нажми микрофон ещё раз, чтобы закончить.");
   clearInterval(voiceTimer);voiceTimer=setInterval(()=>{
@@ -463,7 +464,7 @@ async function finishVoiceRecording(cancelled=false){
  const blobPromise=new Promise(resolve=>{recorder.addEventListener("stop",()=>resolve(new Blob(voiceChunks,{type:recorder.mimeType||"audio/webm"})),{once:true});});
  try{if(recorder.state!=="inactive")recorder.stop();}catch(_){}
  const blob=await blobPromise;stopVoiceStream();voiceRecorder=null;voiceChunks=[];
- $("mic").classList.remove("recording");$("mic").setAttribute("aria-label","Записать голосовое сообщение");$("voice-mode-orb").classList.remove("recording");
+ $("mic").classList.remove("recording");$("mic").setAttribute("aria-label","Записать голосовое сообщение");$("voice-cancel").hidden=true;$("voice-mode-orb").classList.remove("recording");
  if(cancelled){showNotice("Запись отменена.");return;}
  if(blob.size<256){showNotice("Запись слишком короткая. Попробуй ещё раз.",true);return;}
  const seconds=Math.max(1,Math.floor((Date.now()-voiceStartedAt)/1000)),mime=(blob.type||"audio/webm").split(";")[0],ext=mime==="audio/mp4"?"m4a":mime==="audio/ogg"?"ogg":"webm";
@@ -472,6 +473,7 @@ async function finishVoiceRecording(cancelled=false){
  if(voiceModeOpen){$("voice-mode-status").textContent="Голосовое сообщение прикреплено";$("voice-mode-action").textContent="Готово";$("voice-mode-action").disabled=true;}
 }
 $("mic").addEventListener("click",()=>voiceRecording?void finishVoiceRecording(false):void beginVoiceRecording(false));
+$("voice-cancel").addEventListener("click",()=>void finishVoiceRecording(true));
 $("voice-mode-launch").addEventListener("click",()=>{$("voice-mode").hidden=false;voiceModeOpen=true;$("voice-mode-action").disabled=false;$("voice-mode-action").textContent="Начать";$("voice-mode-status").textContent="Нажми, чтобы начать запись";});
 $("voice-mode-close").addEventListener("click",()=>{if(voiceRecording)void finishVoiceRecording(true);$("voice-mode").hidden=true;voiceModeOpen=false;});
 $("voice-mode-action").addEventListener("click",()=>{if(voiceRecording)void finishVoiceRecording(false);else if(!$("voice-mode-action").disabled)void beginVoiceRecording(true);});
