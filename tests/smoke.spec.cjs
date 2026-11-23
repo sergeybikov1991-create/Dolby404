@@ -81,7 +81,9 @@ async function mockAuthenticatedChat(page, options = {}) {
       storage: { from() { return {
         createSignedUrls(paths) {
           state.signedBatches.push(paths.slice());
-          return Promise.resolve({ data: paths.map(path => ({ path, signedUrl: "https://media.test/" + encodeURIComponent(path) })), error: null });
+          return Promise.resolve({ data: paths.map(path => config.missingSignedPaths?.includes(path)
+            ? ({ path, signedUrl: null, error: "NoSuchKey" })
+            : ({ path, signedUrl: "https://media.test/" + encodeURIComponent(path) })), error: null });
         },
         remove(paths) { state.removed.push(paths.slice()); return Promise.resolve({ error: null }); }
       }; } },
@@ -375,6 +377,19 @@ test("chat attachment previews are signed in one batch and existing video nodes 
   expect(batches[0]).toHaveLength(2);
   expect(batches[1]).toEqual(["peer-1/photo-2.jpg"]);
   expect(await video.evaluate(node => node.isConnected)).toBe(true);
+});
+
+test("missing chat media is identified instead of offering an endless retry", async ({ page }) => {
+  const initialMessages = [
+    { id: "missing-photo", sender_id: "peer-1", recipient_id: "sender-1", content: "", attachment_path: "peer-1/missing.jpg", attachment_name: "missing.jpg", attachment_mime: "image/jpeg", created_at: "2026-11-22T10:00:00Z" },
+    { id: "available-photo", sender_id: "peer-1", recipient_id: "sender-1", content: "", attachment_path: "peer-1/available.jpg", attachment_name: "available.jpg", attachment_mime: "image/jpeg", created_at: "2026-11-22T10:01:00Z" }
+  ];
+  await mockAuthenticatedChat(page, { initialMessages, missingSignedPaths: ["peer-1/missing.jpg"] });
+  await page.goto("/messages.html?with=peer-1");
+  await expect(page.locator(".message-attachment-missing")).toHaveText("📎 missing.jpg — файл отсутствует в хранилище");
+  await expect(page.locator(".message-attachment-retry")).toHaveCount(0);
+  await expect(page.locator(".message-media-image")).toHaveCount(1);
+  await expect(page.locator(".message-media-loading")).toHaveCount(0);
 });
 
 test("short tap on the send button continues to send text normally", async ({ page }) => {
