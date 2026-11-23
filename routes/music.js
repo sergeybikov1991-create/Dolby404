@@ -14,8 +14,6 @@ export function mount(root, { signal }) {
   const style = document.createElement("style");
   style.dataset.floustreamRouteStyle = "music";
   style.textContent = STYLE;
-  root.appendChild(style);
-
   root.innerHTML = `
     <section class="fs-route-music">
       <div class="fs-music-content">
@@ -30,6 +28,7 @@ export function mount(root, { signal }) {
         <p class="fs-music-status" id="fs-music-status" aria-live="polite">Нажми «Продолжить», чтобы запустить песню.</p>
       </div>
     </section>`;
+  root.appendChild(style);
 
   const player = root.querySelector("#fs-home-player");
   const button = root.querySelector("#fs-continue");
