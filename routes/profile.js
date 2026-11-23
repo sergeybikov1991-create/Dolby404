@@ -52,36 +52,20 @@ export async function mount(root, { signal, navigate, url }) {
   function profileClearTimeout(id) { window.clearTimeout(id); profileTimerKinds.delete(id); }
   function profileClearInterval(id) { window.clearInterval(id); profileTimerKinds.delete(id); }
 
-  const cleanup = async () => {
-    if (typeof persistDolbyActivity === "function" && !signal.aborted) {
-      try { await persistDolbyActivity(); } catch (_) {}
+  const restoreProfileShell = () => {
+    const ownsRoot = !!root.querySelector(".fs-route-profile");
+    if (ownsRoot) {
+      document.body.style.cssText = originalBodyStyle || "";
+      document.body.className = originalBodyClass;
+      if (originalTheme === undefined) delete document.body.dataset.theme;
+      else document.body.dataset.theme = originalTheme;
+      root.replaceChildren();
     }
-    if (typeof dolbyOnlineChannel !== "undefined" && dolbyOnlineChannel && client) {
-      try { await dolbyOnlineChannel.untrack(); } catch (_) {}
-      try { await client.removeChannel(dolbyOnlineChannel); } catch (_) {}
-      dolbyOnlineChannel = null;
-    }
-    for (const [id, kind] of profileTimerKinds) {
-      if (kind === "interval") window.clearInterval(id);
-      else window.clearTimeout(id);
-    }
-    profileTimerKinds.clear();
-    profileObservers.forEach(observer => { try { observer.disconnect(); } catch (_) {} });
-    if (window.albumThumbObserver) {
-      try { window.albumThumbObserver.disconnect(); } catch (_) {}
-      delete window.albumThumbObserver;
-    }
-    try { await client?.auth?.stopAutoRefresh?.(); } catch (_) {}
-    document.body.style.cssText = originalBodyStyle || "";
-    document.body.className = originalBodyClass;
-    if (originalTheme === undefined) delete document.body.dataset.theme;
-    else document.body.dataset.theme = originalTheme;
     style.remove();
-    root.replaceChildren();
   };
 
   await ensureProfileScripts();
-  if (signal.aborted) return cleanup;
+  if (signal.aborted) return restoreProfileShell;
 
   
 const SUPABASE_URL="https://qhpobdktlbhdqsnajypr.supabase.co";
@@ -2202,6 +2186,39 @@ function closeAuthorHub(){
  document.addEventListener("keydown",event=>{if(event.key==="Escape"&&!hub.hidden)closeAuthorHub();},{signal});
 })();
 
+
+  const cleanup = async () => {
+    if (typeof persistDolbyActivity === "function") {
+      try { await persistDolbyActivity(); } catch (_) {}
+    }
+    if (typeof dolbyOnlineChannel !== "undefined" && dolbyOnlineChannel && client) {
+      try { await dolbyOnlineChannel.untrack(); } catch (_) {}
+      try { await client.removeChannel(dolbyOnlineChannel); } catch (_) {}
+      dolbyOnlineChannel = null;
+    }
+    if (typeof dolbyPresenceActive !== "undefined") dolbyPresenceActive = false;
+    if (typeof dolbyOnlineUsers !== "undefined" && typeof user !== "undefined" && user?.id) dolbyOnlineUsers.delete(user.id);
+    for (const [id, kind] of profileTimerKinds) {
+      if (kind === "interval") window.clearInterval(id);
+      else window.clearTimeout(id);
+    }
+    profileTimerKinds.clear();
+    profileObservers.forEach(observer => { try { observer.disconnect(); } catch (_) {} });
+    if (window.albumThumbObserver) {
+      try { window.albumThumbObserver.disconnect(); } catch (_) {}
+      delete window.albumThumbObserver;
+    }
+    try { await client?.auth?.stopAutoRefresh?.(); } catch (_) {}
+    const ownsRoot = !!root.querySelector(".fs-route-profile");
+    if (ownsRoot) {
+      document.body.style.cssText = originalBodyStyle || "";
+      document.body.className = originalBodyClass;
+      if (originalTheme === undefined) delete document.body.dataset.theme;
+      else document.body.dataset.theme = originalTheme;
+      root.replaceChildren();
+    }
+    style.remove();
+  };
 
   return cleanup;
 }
