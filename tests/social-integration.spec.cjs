@@ -109,7 +109,7 @@ test("authenticated home feed loads the next page when its sentinel enters view"
       },
       removeChannel: async () => ({ error: null })
     };
-    window.supabase = { createClient: () => { state.clientFactories += 1; return client; } };
+    window.supabase = { createClient: () => client };
   });
 
   await page.goto("/home.html");
@@ -261,7 +261,7 @@ test("a friend request sent from a public profile appears in the friends inbox a
       },
       removeChannel: async () => ({ error: null })
     };
-    window.supabase = { createClient: () => client };
+    window.supabase = { createClient: () => { state.clientFactories += 1; return client; } };
   });
 
   await page.goto("/public-profile.html?id=peer-1");
