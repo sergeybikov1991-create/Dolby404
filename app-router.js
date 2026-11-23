@@ -74,13 +74,13 @@
       };
       document.title = module.title || previousTitle;
       if (!rootShell.isConnected) document.body.replaceChildren(rootShell);
-      if (!options.keepScroll) window.scrollTo({ top: 0, behavior: "instant" });
+      if (!options.keepScroll) window.scrollTo({ top: 0, behavior: "auto" });
       view.focus({ preventScroll: true });
       return true;
     } catch (error) {
       routeController.abort();
       console.error("FLOUSTREAM route mount failed:", error);
-      if (options.popstate) location.reload();
+      if (options.popstate || options.navigation) location.reload();
       return false;
     }
   }
@@ -94,7 +94,7 @@
     if (target.url.href === location.href && activeRoute === target.route) return true;
     if (!options.popstate && !options.replace) history.pushState({ floustreamRoute: target.route }, "", target.url.href);
     if (options.replace) history.replaceState({ floustreamRoute: target.route }, "", target.url.href);
-    return render(target, options);
+    return render(target, { ...options, navigation: !options.popstate });
   }
 
   function prefetch(input) {
