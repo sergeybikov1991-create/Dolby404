@@ -212,7 +212,7 @@ test("all SPA routes keep their styles in separate cacheable assets", () => {
     const stylePath = path.resolve(__dirname, "..", "routes", "styles", route + ".css");
     const source = fs.readFileSync(modulePath, "utf8");
     const stylesheet = fs.readFileSync(stylePath, "utf8");
-    expect(source).toContain(`export const stylesheet = new URL("./styles/${route}.css?v=1", import.meta.url).href;`);
+    expect(source).toMatch(new RegExp(`export const stylesheet = new URL\\("\\./styles/${route}\\.css\\?v=[^"]+", import.meta\\.url\\)\\.href;`));
     expect(source).toContain("attachRouteStyles(");
     expect(source).not.toContain("const STYLE =");
     expect(source).not.toContain("const STYLES =");

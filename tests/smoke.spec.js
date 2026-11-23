@@ -132,7 +132,8 @@ test("messages page keeps the newest messages at the bottom and guards sends", a
   expect(messages).toContain("requestAnimationFrame(()=>requestAnimationFrame(()=>scrollToNewestMessage(host)));");
   expect(messages).toContain("return timeA-timeB||String(a.id||\"\").localeCompare(String(b.id||\"\")");
   expect(messages).toContain('finally{button.disabled=false;input.focus();}');
-  expect(messages).toContain("attachment_path:path");
+  expect(messages).toContain("attachment_path:item.path");
+  expect(messages).toContain("return row.attachment_path?");
 });
 
 test("read receipt failures do not block rendering the conversation", async () => {

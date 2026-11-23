@@ -699,42 +699,50 @@ test("all incoming and outgoing audio attachments share one frameless player, ev
   await play.click();
   await expect(play).toHaveText("▶");
 });
-test("gallery picker previews, allows reselect after cancel, and sends multiple media on mobile", async ({ page }) => {
+test("gallery picker stages multiple media, supports removing/reselecting, and sends one grouped message on mobile", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mockAuthenticatedChat(page);
   await page.goto("/messages.html?with=peer-1");
+  await waitForChatReady(page);
   const picker = page.locator("#attachment-input");
   await expect(picker).toHaveAttribute("multiple", "");
   const files = [
     { name: "gallery-photo.png", mimeType: "image/png", buffer: Buffer.from("photo-test") },
     { name: "gallery-video.mp4", mimeType: "video/mp4", buffer: Buffer.from("video-test") }
   ];
+
   await picker.setInputFiles(files);
   await expect(page.locator("#attachment-preview")).toBeVisible();
-  await expect(page.locator(".attachment-preview-item")).toHaveCount(2);
-  await expect(page.locator("#attachment-preview-count")).toHaveText("Выбрано файлов: 2");
+  await expect(page.locator(".composer-preview-item")).toHaveCount(2);
+  await expect(page.locator("#attachment-preview-count")).toContainText("2 вложений");
   await expect.poll(() => page.evaluate(() => window.__chatTestState.inserts.length)).toBe(0);
-  await page.locator("#attachment-cancel").click();
+
+  await page.getByRole("button", { name: "Убрать gallery-photo.png" }).click();
+  await expect(page.locator(".composer-preview-item")).toHaveCount(1);
+  await page.getByRole("button", { name: "Убрать gallery-video.mp4" }).click();
   await expect(page.locator("#attachment-preview")).toBeHidden();
 
   await picker.setInputFiles(files);
   await expect(page.locator("#attachment-preview")).toBeVisible();
-  await expect(page.locator(".attachment-preview-item")).toHaveCount(2);
-  const dimensions = await page.evaluate(() => ({ viewport: document.documentElement.clientWidth, content: document.documentElement.scrollWidth }));
+  await expect(page.locator(".composer-preview-item")).toHaveCount(2);
+  const dimensions = await page.evaluate(() => ({
+    viewport: document.documentElement.clientWidth,
+    content: document.documentElement.scrollWidth
+  }));
   expect(dimensions.content).toBeLessThanOrEqual(dimensions.viewport);
 
-  await page.locator("#attachment-send").click();
-  await expect.poll(() => page.evaluate(() => window.__chatTestState.inserts.length)).toBe(2);
+  await page.locator("#message-input").fill("Подпись к фото и видео");
+  await page.locator("#send").click();
+  await expect.poll(() => page.evaluate(() => window.__chatTestState.inserts.length)).toBe(1);
   await expect(page.locator("#attachment-preview")).toBeHidden();
   const state = await page.evaluate(() => ({
-    inserts: window.__chatTestState.inserts.map(row => ({ name: row.attachment_name, mime: row.attachment_mime })),
+    row: window.__chatTestState.inserts[0],
     messages: window.__chatTestState.messages.length,
     uploads: window.__chatTestState.uploads.length
   }));
-  expect(state.inserts).toEqual([
-    { name: "gallery-photo.png", mime: "image/png" },
-    { name: "gallery-video.mp4", mime: "video/mp4" }
-  ]);
-  expect(state.messages).toBe(2);
+  expect(state.row.content).toBe("Подпись к фото и видео");
+  expect(state.row.attachments).toHaveLength(2);
+  expect(state.row.attachments.map(item => item.name)).toEqual(["gallery-photo.png", "gallery-video.mp4"]);
+  expect(state.messages).toBe(1);
   expect(state.uploads).toBe(2);
 });
