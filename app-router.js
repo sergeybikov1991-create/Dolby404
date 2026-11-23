@@ -170,15 +170,24 @@
     if (id !== navigationId) return false;
 
     const rootShell = ensureShell();
-    const viewHost = rootShell.querySelector("#floustream-route-view");
+    let viewHost = rootShell.querySelector("#floustream-route-view");
     const useShadow = module.shadow !== false;
-    const view = useShadow ? (viewHost.shadowRoot || viewHost.attachShadow({ mode: "open" })) : viewHost;
     const previousDispose = activeDispose;
     activeDispose = null;
     if (previousDispose) {
       try { await previousDispose(); } catch (error) { console.warn("FLOUSTREAM route dispose:", error); }
     }
     if (id !== navigationId) return false;
+
+    // A host with an attached ShadowRoot cannot display its light-DOM children.
+    // The legacy profile route intentionally mounts in light DOM for page-level
+    // styling, so give it a fresh host when arriving from a shadow-rendered route.
+    if (!useShadow && viewHost.shadowRoot) {
+      const replacement = viewHost.cloneNode(false);
+      viewHost.replaceWith(replacement);
+      viewHost = replacement;
+    }
+    const view = useShadow ? (viewHost.shadowRoot || viewHost.attachShadow({ mode: "open" })) : viewHost;
 
     const routeController = new AbortController();
     pendingController = routeController;
