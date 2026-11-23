@@ -391,7 +391,7 @@ test("short tap on the send button continues to send text normally", async ({ pa
 test("holding the existing send button records and automatically sends a voice message", async ({ page }) => {
   await mockAuthenticatedChat(page, { voiceHoldMs: 35, uploadDelay: 30 });
   await page.goto("/messages.html?with=peer-1");
-  await expect(page.locator(".fs-route-messages")).toBeVisible();
+  await waitForChatReady(page);
   const send = page.locator("#send");
   await send.dispatchEvent("pointerdown", { pointerId: 1, pointerType: "touch", isPrimary: true, button: 0, clientX: 100, clientY: 100 });
   await expect(page.locator("#notice")).toContainText("Запись 00:00");
