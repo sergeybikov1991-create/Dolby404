@@ -161,3 +161,33 @@ test("home feed mounts as a route module and releases presence on navigation", a
   await expect(page.locator('style[data-floustream-route-style="home"]')).toHaveCount(0);
   expect(pageErrors).toEqual([]);
 });
+
+test("public profile mounts as an isolated route and cleans up on browser Back", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.supabase = {
+      createClient: () => ({
+        auth: {
+          getSession: async () => ({ data: { session: null }, error: null }),
+          stopAutoRefresh: async () => {}
+        }
+      })
+    };
+  });
+  const pageErrors = [];
+  page.on("pageerror", error => pageErrors.push(error.message));
+
+  await page.goto("/music.html", { waitUntil: "domcontentloaded" });
+  await expect(page.locator(".fs-music-logo")).toBeVisible();
+
+  await page.evaluate(() => window.FloustreamRouter.navigate("public-profile.html"));
+  await expect(page).toHaveURL(/public-profile\.html$/);
+  await expect(page.locator("#floustream-app-shell")).toBeVisible();
+  await expect(page.locator(".fs-route-public-profile #feed .status.error")).toContainText("Не указан профиль для просмотра");
+  await expect(page.locator('style[data-floustream-route-style="public-profile"]')).toHaveCount(1);
+
+  await page.goBack();
+  await expect(page).toHaveURL(/music\.html$/);
+  await expect(page.locator(".fs-music-logo")).toBeVisible();
+  await expect(page.locator('style[data-floustream-route-style="public-profile"]')).toHaveCount(0);
+  expect(pageErrors).toEqual([]);
+});
