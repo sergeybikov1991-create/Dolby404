@@ -34,6 +34,12 @@
 
   function ensureShell() {
     if (shell) return shell;
+    if (!document.getElementById("floustream-shell-style")) {
+      const style = document.createElement("style");
+      style.id = "floustream-shell-style";
+      style.textContent = "body{margin:0}#floustream-app-shell{width:100%;min-height:100vh}#floustream-route-view{width:100%;min-height:100vh;outline:none}";
+      document.head.appendChild(style);
+    }
     shell = document.createElement("div");
     shell.id = "floustream-app-shell";
     shell.innerHTML = '<main id="floustream-route-view" tabindex="-1" aria-live="polite"></main>';
