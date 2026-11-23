@@ -26,3 +26,15 @@ test("profile video album is a lazy feature module", () => {
   expect(videoModule).toContain("dispose()");
 });
 
+
+test("profile photo albums are a lazy feature module", () => {
+  const profile = fs.readFileSync(path.resolve(__dirname, "..", "routes", "profile.js"), "utf8");
+  const photoModulePath = path.resolve(__dirname, "..", "routes", "profile", "photo-album.mjs");
+  expect(profile).toContain('import("./profile/photo-album.mjs")');
+  expect(profile).not.toContain("async function loadPhotoAlbum(");
+  expect(fs.existsSync(photoModulePath)).toBe(true);
+  const photoModule = fs.readFileSync(photoModulePath, "utf8");
+  expect(photoModule).toContain("export function initProfilePhotoAlbum");
+  expect(photoModule).toContain("dispose()");
+});
+
