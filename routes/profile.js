@@ -72,7 +72,7 @@ export async function mount(root, { signal, navigate, url }) {
 const SUPABASE_URL="https://qhpobdktlbhdqsnajypr.supabase.co";
 const SUPABASE_KEY="sb_publishable_tzG1qVsbjaW8YE_LBVN87Q_v0CahKN5";
 let client,user,profile={},columns=[];
-const $=id=>root.querySelector("#"+id);
+const $=id=>root.querySelector("#"+id)||root.querySelector("."+id);
 function loadLibrary(){return new Promise((resolve,reject)=>{if(window.supabase?.createClient){resolve();return;}const s=document.createElement("script");s.src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";s.onload=()=>window.supabase?.createClient?resolve():reject(new Error("Supabase не загрузился"));s.onerror=()=>reject(new Error("Нет подключения к библиотеке Supabase"));document.head.appendChild(s);});}
 function firstKey(keys){return keys.find(k=>columns.includes(k));}
 function setAvatar(url){const box=$("avatar");box.innerHTML="";if(url){const img=document.createElement("img");img.src=url;img.alt="Аватар";img.onerror=()=>{box.innerHTML="";};box.appendChild(img);}}
@@ -2042,7 +2042,7 @@ profileTimeout(()=>void start(),0);
 
 
 (()=> {
- const $id=id=>root.querySelector("#"+id);
+ const $id=id=>root.querySelector("#"+id)||root.querySelector("."+id);
  const backdrop=$id("discovery-backdrop"),title=$id("discovery-title");
  const searchView=$id("discovery-search-view"),recommendView=$id("discovery-recommendations-view");
  const queryInput=$id("discovery-query"),results=$id("discovery-results");
