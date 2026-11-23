@@ -6,7 +6,8 @@
     "friends.html": () => import("./routes/friends.js"),
     "portal.html": () => import("./routes/portal.js"),
     "home.html": () => import("./routes/home.js"),
-    "public-profile.html": () => import("./routes/public-profile.js")
+    "public-profile.html": () => import("./routes/public-profile.js"),
+    "messages.html": () => import("./routes/messages.js")
   });
   const modulePromises = new Map();
   const baseUrl = new URL("./", document.baseURI);
