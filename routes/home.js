@@ -6,8 +6,8 @@ export function mount(root, { signal, navigate }) {
   const style = document.createElement("style");
   style.dataset.floustreamRouteStyle = "home";
   style.textContent = STYLE;
+  root.innerHTML = MARKUP;
   root.appendChild(style);
-  root.innerHTML += MARKUP;
   const homeRoot = root.querySelector(".fs-route-home");
   let client = null;
   let feedObserver = null;
