@@ -299,7 +299,7 @@ async function openProfilePhotoAlbum() {
   if (controller) return controller.openPhotoAlbum();
 }
 
-function openMessagesSection(){
+async function openMessagesSection(){
  $("messages-backdrop").hidden=false;$("messages-list").hidden=false;$("messages-thread").hidden=true;$("messages-back").hidden=true;$("messages-title").textContent="Сообщения";
  await loadMessageConversations();
 }
