@@ -228,11 +228,11 @@ async function loadAttachmentUrls(items){
   }
  }
  const missing=paths.filter(path=>{const cached=mediaUrlCache.get(path);return !cached||cached.expiresAt<=Date.now();});
+ const missingObjectPaths=new Set();
  if(missing.length){
   try{
    const result=await withTimeout(client.storage.from("message-media").createSignedUrls(missing,3600),12000,"Хранилище не выдало ссылки на вложения за 12 секунд.");
    if(result.error)throw result.error;
-   const missingObjectPaths=new Set();
    const rowByPath=new Map(connected.map(item=>[item.row.attachment_path,item.row]));
    for(const item of result.data||[]){
     if(!item.path)continue;
