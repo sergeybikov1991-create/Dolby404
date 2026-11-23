@@ -67,7 +67,7 @@
 .voice-mode-orb.recording{animation:flou-orb-pulse 1.2s infinite}
 .voice-mode-status{max-width:320px;color:#e7d8f7;text-align:center;line-height:1.5}
 .voice-mode-action{min-width:150px;min-height:48px;padding:0 22px;border:1px solid #c29aff;border-radius:999px;background:linear-gradient(135deg,#9a5de0,#4b267d);color:#fff;font-weight:700;box-shadow:0 0 18px #a66bff66}
-@keyframes flou-mic-pulse{50%{box-shadow:0 0 24px #ef4e9a;transform:scale(1.06)}}
+@keyframes flou-mic-pulse{50%{box-shadow:0 0 24px #ef4e9a}}
 @keyframes flou-orb-pulse{50%{transform:scale(1.07);filter:brightness(1.3);box-shadow:0 0 42px #c69aff,0 0 100px #793bca}}
 @media(max-width:600px){.composer{padding:9px 10px;border-radius:22px}.composer-controls{gap:6px}.attach,.mic,.voice-mode-launch,.send{width:40px;height:40px;flex-basis:40px}.composer textarea{font-size:15px;padding:8px 4px}.composer-preview-item{width:76px;height:76px;flex-basis:76px}}
 
