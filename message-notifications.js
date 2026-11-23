@@ -50,7 +50,6 @@ window.initFloustreamMessageNotifications=function(client,userId,options){
  window.__floustreamMessageNotificationsUser=userId;
  installStyles(root);
  const nav=root.querySelector("#messages-nav-link");
- let badge=null;
  if(nav){
   badge=document.createElement("span");badge.className="message-unread-badge";badge.id="message-unread-count";badge.hidden=true;badge.setAttribute("aria-label","Непрочитанные сообщения");nav.append(badge);
   nav.addEventListener("click",function(){
