@@ -53,7 +53,8 @@
     if (id !== navigationId) return false;
 
     const rootShell = ensureShell();
-    const view = rootShell.querySelector("#floustream-route-view");
+    const viewHost = rootShell.querySelector("#floustream-route-view");
+    const view = viewHost.shadowRoot || viewHost.attachShadow({ mode: "open" });
     const previousDispose = activeDispose;
     activeDispose = null;
     if (previousDispose) {
@@ -83,7 +84,7 @@
       document.title = module.title || previousTitle;
       if (!rootShell.isConnected) document.body.replaceChildren(rootShell);
       if (!options.keepScroll) window.scrollTo({ top: 0, behavior: "auto" });
-      view.focus({ preventScroll: true });
+      viewHost.focus({ preventScroll: true });
       return true;
     } catch (error) {
       routeController.abort();
@@ -112,9 +113,15 @@
     return true;
   }
 
+  function findAnchor(event) {
+    const path = typeof event.composedPath === "function" ? event.composedPath() : [];
+    return path.find(node => node instanceof HTMLAnchorElement) ||
+      (event.target && event.target.closest ? event.target.closest("a[href]") : null);
+  }
+
   document.addEventListener("click", event => {
     if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-    const anchor = event.target && event.target.closest ? event.target.closest("a[href]") : null;
+    const anchor = findAnchor(event);
     if (!anchor || anchor.hasAttribute("download") || (anchor.target && anchor.target !== "_self")) return;
     const target = resolve(anchor.href);
     if (!target) return;
@@ -124,11 +131,11 @@
 
   document.addEventListener("pointerover", event => {
     if (event.pointerType === "touch") return;
-    const anchor = event.target && event.target.closest ? event.target.closest("a[href]") : null;
+    const anchor = findAnchor(event);
     if (anchor && !anchor.contains(event.relatedTarget)) prefetch(anchor.href);
   }, { passive: true });
   document.addEventListener("focusin", event => {
-    const anchor = event.target && event.target.closest ? event.target.closest("a[href]") : null;
+    const anchor = findAnchor(event);
     if (anchor) prefetch(anchor.href);
   });
 
