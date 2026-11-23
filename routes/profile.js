@@ -73,7 +73,6 @@ export async function mount(root, { signal, navigate, url }) {
     style?.remove();
   };
 
-  await ensureProfileScripts();
   if (signal.aborted) return restoreProfileShell;
 
   
@@ -540,6 +539,7 @@ async function start(){
   client=await getSupabaseClient({signal});if(signal.aborted)return;
   const stored=await client.auth.getSession();if(signal.aborted)return;if(stored.error)throw stored.error;if(!stored.data?.session){navigate("portal.html?reauth=1");return;}const auth=await client.auth.getUser();if(signal.aborted)return;if(auth.error)throw auth.error;user=auth.data.user;
   if(!user){navigate("portal.html");return;}
+  await ensureProfileScripts();if(signal.aborted)return;
   const lifecycleParams=new URLSearchParams(url.search);
   const lifecycleAction=lifecycleParams.has("confirm_delete")?"request_delete":(lifecycleParams.has("restore")?"restore":null);
   if(lifecycleAction){
