@@ -4,7 +4,8 @@
   const MODULES = Object.freeze({
     "music.html": () => import("./routes/music.js"),
     "friends.html": () => import("./routes/friends.js"),
-    "portal.html": () => import("./routes/portal.js")
+    "portal.html": () => import("./routes/portal.js"),
+    "home.html": () => import("./routes/home.js")
   });
   const modulePromises = new Map();
   const baseUrl = new URL("./", document.baseURI);
