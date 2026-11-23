@@ -329,16 +329,18 @@ test("aborted profile route mount restores shared view visibility before the nex
   });
 
   const profileStylesRequested = page.waitForRequest(request => request.url().includes("/routes/styles/profile.css"));
-  const profileNavigation = page.evaluate(() =>
-    window.FloustreamRouter.navigate(new URL("profile.html", location.href))
-  );
+  await page.evaluate(() => {
+    window.__profileNavigationPromise = window.FloustreamRouter.navigate(
+      new URL("profile.html", location.href)
+    );
+  });
   await profileStylesRequested;
 
   await page.evaluate(() =>
     window.FloustreamRouter.navigate(new URL("music.html", location.href))
   );
   releaseStyles();
-  await profileNavigation;
+  await page.evaluate(() => window.__profileNavigationPromise);
 
   await expect(page.locator(".fs-music-logo")).toBeVisible();
   await expect(page.locator("#floustream-route-view")).toHaveCSS("visibility", "visible");
