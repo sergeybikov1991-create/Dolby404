@@ -201,6 +201,28 @@ test("public profile mounts as an isolated route and cleans up on browser Back",
 });
 
 
+
+test("browser Back restores the previous SPA route scroll position", async ({ page }) => {
+  await page.addInitScript(() => {
+    const client = { auth: {
+      getSession: async () => ({ data: { session: null }, error: null }),
+      getUser: async () => ({ data: { user: null }, error: null })
+    } };
+    window.supabase = { createClient: () => client };
+  });
+  await page.goto("/portal.html");
+  await expect(page.locator("#auth-message")).toContainText("Система готова");
+  await page.evaluate(() => { document.body.style.minHeight = "2200px"; });
+  await page.evaluate(() => window.FloustreamRouter.navigate(new URL("music.html", location.href)));
+  await page.evaluate(() => window.scrollTo(0, 480));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(480);
+  await page.evaluate(() => window.FloustreamRouter.navigate(new URL("friends.html", location.href)));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  await page.evaluate(() => history.back());
+  await expect(page).toHaveURL(/music\.html$/);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(480);
+});
+
 test("router exposes local route timing and error diagnostics without remote telemetry", async ({ page }) => {
   await page.addInitScript(() => {
     const client = { auth: {

@@ -16,6 +16,83 @@
   let shell = null;
   let activeRoute = null;
   let activeDispose = null;
+  let scrollSaveTimer = null;
+  let pendingScrollRestore = null;
+  try { history.scrollRestoration = "manual"; } catch (_) {}
+
+  function saveScrollPosition() {
+    if (scrollSaveTimer !== null) {
+      clearTimeout(scrollSaveTimer);
+      scrollSaveTimer = null;
+    }
+    if (!activeRoute) return;
+    const state = history.state && typeof history.state === "object" ? history.state : {};
+    history.replaceState({
+      ...state,
+      floustreamRoute: activeRoute,
+      floustreamScrollY: window.scrollY
+    }, "", location.href);
+  }
+
+  function cancelPendingScrollRestore() {
+    if (pendingScrollRestore) pendingScrollRestore();
+  }
+
+  function restoreScrollPosition(value, renderId) {
+    const targetY = Math.max(0, Math.round(Number(value) || 0));
+    if (!targetY) {
+      window.scrollTo({ top: 0, behavior: "auto" });
+      return;
+    }
+    cancelPendingScrollRestore();
+    let observer = null;
+    let timer = null;
+    let finished = false;
+    const cleanup = () => {
+      if (finished) return;
+      finished = true;
+      observer?.disconnect();
+      if (timer !== null) clearTimeout(timer);
+      window.removeEventListener("wheel", cancel);
+      window.removeEventListener("touchstart", cancel);
+      window.removeEventListener("keydown", cancel);
+      if (pendingScrollRestore === cleanup) pendingScrollRestore = null;
+    };
+    const cancel = () => cleanup();
+    const attempt = () => {
+      if (renderId !== navigationId) {
+        cleanup();
+        return;
+      }
+      const maxY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+      if (maxY >= targetY) {
+        window.scrollTo({ top: targetY, behavior: "auto" });
+        cleanup();
+      }
+    };
+    if (typeof ResizeObserver === "function") {
+      observer = new ResizeObserver(attempt);
+      observer.observe(document.documentElement);
+    }
+    pendingScrollRestore = cleanup;
+    window.addEventListener("wheel", cancel, { once: true, passive: true });
+    window.addEventListener("touchstart", cancel, { once: true, passive: true });
+    window.addEventListener("keydown", cancel, { once: true });
+    timer = setTimeout(() => {
+      if (renderId === navigationId) window.scrollTo({ top: targetY, behavior: "auto" });
+      cleanup();
+    }, 1200);
+    requestAnimationFrame(() => requestAnimationFrame(attempt));
+  }
+
+  window.addEventListener("scroll", () => {
+    if (!activeRoute || scrollSaveTimer !== null) return;
+    scrollSaveTimer = setTimeout(() => {
+      scrollSaveTimer = null;
+      saveScrollPosition();
+    }, 120);
+  }, { passive: true });
+  window.addEventListener("pagehide", saveScrollPosition);
   let pendingController = null;
   let navigationId = 0;
   const routeMetrics = [];
@@ -80,6 +157,7 @@
     const moduleWasCached = modulePromises.has(target.route);
     const moduleStartedAt = performance.now();
     const id = ++navigationId;
+    cancelPendingScrollRestore();
     if (pendingController) pendingController.abort();
     let module;
     try {
@@ -128,7 +206,10 @@
       };
       document.title = module.title || previousTitle;
       if (!rootShell.isConnected) document.body.replaceChildren(rootShell);
-      if (!options.keepScroll) window.scrollTo({ top: 0, behavior: "auto" });
+      if (!options.keepScroll) {
+        if (options.popstate) restoreScrollPosition(options.restoreScrollY, id);
+        else window.scrollTo({ top: 0, behavior: "auto" });
+      }
       viewHost.focus({ preventScroll: true });
       const mountedAt = performance.now();
       recordRouteMetric({
@@ -158,8 +239,13 @@
       return false;
     }
     if (target.url.href === location.href && activeRoute === target.route) return true;
-    if (!options.popstate && !options.replace) history.pushState({ floustreamRoute: target.route }, "", target.url.href);
-    if (options.replace) history.replaceState({ floustreamRoute: target.route }, "", target.url.href);
+    if (!options.popstate && !options.replace) {
+      saveScrollPosition();
+      history.pushState({ floustreamRoute: target.route, floustreamScrollY: 0 }, "", target.url.href);
+    }
+    if (options.replace) {
+      history.replaceState({ floustreamRoute: target.route, floustreamScrollY: 0 }, "", target.url.href);
+    }
     return render(target, { ...options, navigation: !options.popstate });
   }
 
@@ -203,7 +289,12 @@
 
   window.addEventListener("popstate", () => {
     const target = resolve(location.href);
-    if (target) render(target, { popstate: true, keepScroll: false });
+    const state = history.state && typeof history.state === "object" ? history.state : {};
+    if (target) render(target, {
+      popstate: true,
+      keepScroll: false,
+      restoreScrollY: state.floustreamScrollY
+    });
   });
 
   window.FloustreamRouter = Object.freeze({
@@ -214,5 +305,13 @@
   });
 
   const initial = resolve(location.href);
-  if (initial) render(initial, { replace: true }).catch(error => console.error("FLOUSTREAM router startup:", error));
+  if (initial) {
+    const state = history.state && typeof history.state === "object" ? history.state : {};
+    history.replaceState({
+      ...state,
+      floustreamRoute: initial.route,
+      floustreamScrollY: window.scrollY
+    }, "", location.href);
+    render(initial, { replace: true }).catch(error => console.error("FLOUSTREAM router startup:", error));
+  }
 })();
