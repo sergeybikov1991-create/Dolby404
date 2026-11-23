@@ -2018,7 +2018,7 @@ root.querySelectorAll("[data-soon]").forEach(button=>button.addEventListener("cl
  toggle(false);
 })();
 
-start();
+profileTimeout(()=>void start(),0);
 
 
 (()=>{
