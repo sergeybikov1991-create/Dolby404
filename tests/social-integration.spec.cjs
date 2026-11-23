@@ -116,6 +116,7 @@ test("authenticated home feed loads the next page when its sentinel enters view"
   await expect(page.locator(".fs-route-home #app")).toBeVisible();
   const messagesHref = await page.locator(".fs-route-home .nav a").filter({ hasText: "Сообщения" }).getAttribute("href");
   expect(messagesHref).toBe("messages.html");
+  await expect(page.locator(".fs-route-home .tile[href=\"messages.html\"]")).toBeVisible();
   expect(await page.evaluate(href => window.FloustreamRouter.resolve(href)?.route, messagesHref)).toBe("messages.html");
   await expect(page.locator(".fs-route-home .post")).toHaveCount(5);
   await expect(page.locator(".fs-route-home #feed-error")).toBeHidden();
@@ -279,4 +280,20 @@ test("a friend request sent from a public profile appears in the friends inbox a
   await expect(page.locator(".fs-route-friends #outgoing-list .name")).toHaveText("Peer User");
   await expect(page.locator(".fs-route-friends #outgoing-count")).toHaveText("1");
   expect(await page.evaluate(() => window.__friendFlowState.clientFactories)).toBe(1);
+});
+
+test("home fallback and SPA markup both route messages to the real chat page", () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const homeHtml = fs.readFileSync(path.resolve(__dirname, "..", "home.html"), "utf8");
+  const homeRoute = fs.readFileSync(path.resolve(__dirname, "..", "routes", "home.js"), "utf8");
+  const homeStyles = fs.readFileSync(path.resolve(__dirname, "..", "routes", "styles", "home.css"), "utf8");
+
+  expect(homeHtml).toContain('<a href="messages.html">✉ Сообщения</a>');
+  expect(homeHtml).toContain('<a class="tile" href="messages.html">');
+  expect(homeHtml).not.toContain('href="#messages" data-soon="Сообщения"');
+  expect(homeRoute).toContain('href=\\"messages.html\\"');
+  expect(homeRoute).toContain('class=\\"tile\\" href=\\"messages.html\\"');
+  expect(homeRoute).not.toContain('href=\\"#messages\\" data-soon=\\"Сообщения\\"');
+  expect(homeStyles).toContain('.tile{display:block;color:inherit;text-decoration:none;');
 });
