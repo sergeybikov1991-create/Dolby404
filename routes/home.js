@@ -73,8 +73,10 @@ function startDolbyOnlinePresence(client,userId){
 async function start(){
   try{
     await loadSupabase();
+    if(signal.aborted)return;
     client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storage:window.localStorage,storageKey:"sb-qhpobdktlbhdqsnajypr-auth-token"}});
     const {data,error}=await client.auth.getSession();
+    if(signal.aborted)return;
     if(error) throw error;
     if(!data.session){
       navigate("portal.html");
@@ -93,7 +95,7 @@ async function start(){
       button.disabled=true;
       const {error}=await client.auth.signOut();
       if(error){status.textContent="Не удалось выйти: "+error.message;button.disabled=false;return;}
-      window.location.replace("portal.html");
+      navigate("portal.html");
     });
     root.querySelectorAll("[data-soon]").forEach(link=>{
       link.addEventListener("click",event=>{
@@ -114,6 +116,7 @@ async function initFeed(client){
   const more=root.querySelector("#feed-more");
   const sentinel=root.querySelector("#feed-sentinel");
   const auth=await client.auth.getUser();
+  if(signal.aborted)return;
   const userId=auth.data.user?.id;
   const seen=new Set();
   let offset=0, pendingBatch=null, loadingMore=false, finished=false;
@@ -257,7 +260,7 @@ async function initFeed(client){
   }
   more.addEventListener("click",loadMore);
   try{
-    const first=await fetchBatch(0);offset=first.posts.length;appendBatch(first);
+    const first=await fetchBatch(0);if(signal.aborted)return;offset=first.posts.length;appendBatch(first);
     if(first.posts.length===0){finished=true;empty.hidden=false;loading.hidden=true;return;}
     if(first.posts.length<batchSize){finished=true;loading.hidden=true;return;}
     loading.hidden=true;prefetch();
@@ -330,15 +333,15 @@ function initMobileDrawer(){
     setOpen(shouldOpen);
     dragging=false;
   }
-  document.addEventListener("pointerdown",event=>{
+  root.addEventListener("pointerdown",event=>{
     if(!mobile()||event.button!==0)return;
     const x=event.clientX;
     if(!opened&&x<=24)begin(x,event.pointerId);
     else if(opened&&sidebar.contains(event.target))begin(x,event.pointerId);
   },{passive:true,signal});
-  document.addEventListener("pointermove",event=>move(event.clientX,event.pointerId,event),{passive:false});
-  document.addEventListener("pointerup",event=>finish(event.pointerId),{passive:true});
-  document.addEventListener("pointercancel",event=>finish(event.pointerId),{passive:true});
+  document.addEventListener("pointermove",event=>move(event.clientX,event.pointerId,event),{passive:false,signal});
+  document.addEventListener("pointerup",event=>finish(event.pointerId),{passive:true,signal});
+  document.addEventListener("pointercancel",event=>finish(event.pointerId),{passive:true,signal});
   toggle.addEventListener("click",()=>setOpen(!opened));
   backdrop.addEventListener("click",()=>setOpen(false));
   sidebar.querySelectorAll("a").forEach(link=>link.addEventListener("click",()=>{if(mobile())setOpen(false);}));
