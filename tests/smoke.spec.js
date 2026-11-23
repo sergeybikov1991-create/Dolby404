@@ -79,7 +79,10 @@ test("profile redirects signed-out visitors to the portal", async ({ page }) => 
 test("video album keeps public and private players, native controls and swipe navigation", async () => {
   const fs = require("node:fs");
   const path = require("node:path");
-  const profile = fs.readFileSync(path.join(__dirname, "../profile.html"), "utf8");
+  const profileRoute = fs.readFileSync(path.join(__dirname, "../routes/profile.js"), "utf8");
+  const markupMatch = profileRoute.match(/^const MARKUP = (".*");$/m);
+  if (!markupMatch) throw new Error("Profile route markup constant not found");
+  const profile = JSON.parse(markupMatch[1]);
 
   expect(profile).toContain('id="video-album-player" controls playsinline');
   expect(profile).toContain('id="private-video-player" controls playsinline');
