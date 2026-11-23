@@ -7,13 +7,15 @@
     "portal.html": () => import("./routes/portal.js"),
     "home.html": () => import("./routes/home.js"),
     "public-profile.html": () => import("./routes/public-profile.js"),
-    "messages.html": () => import("./routes/messages.js")
+    "messages.html": () => import("./routes/messages.js"),
+    "profile.html": () => import("./routes/profile.js")
   });
   const modulePromises = new Map();
   const baseUrl = new URL("./", document.baseURI);
   let shell = null;
   let activeRoute = null;
   let activeDispose = null;
+  let pendingController = null;
   let navigationId = 0;
 
   function resolve(input) {
@@ -52,12 +54,14 @@
 
   async function render(target, options = {}) {
     const id = ++navigationId;
+    if (pendingController) pendingController.abort();
     const module = await loadModule(target.route);
     if (id !== navigationId) return false;
 
     const rootShell = ensureShell();
     const viewHost = rootShell.querySelector("#floustream-route-view");
-    const view = viewHost.shadowRoot || viewHost.attachShadow({ mode: "open" });
+    const useShadow = module.shadow !== false;
+    const view = useShadow ? (viewHost.shadowRoot || viewHost.attachShadow({ mode: "open" })) : viewHost;
     const previousDispose = activeDispose;
     activeDispose = null;
     if (previousDispose) {
@@ -66,6 +70,8 @@
     if (id !== navigationId) return false;
 
     const routeController = new AbortController();
+    pendingController = routeController;
+    if (!useShadow && !rootShell.isConnected) document.body.replaceChildren(rootShell);
     const previousTitle = document.title;
     try {
       const dispose = await module.mount(view, {
@@ -77,8 +83,10 @@
       if (id !== navigationId) {
         routeController.abort();
         if (typeof dispose === "function") await dispose();
+        if (pendingController === routeController) pendingController = null;
         return false;
       }
+      if (pendingController === routeController) pendingController = null;
       activeRoute = target.route;
       activeDispose = async () => {
         routeController.abort();
@@ -91,6 +99,7 @@
       return true;
     } catch (error) {
       routeController.abort();
+      if (pendingController === routeController) pendingController = null;
       console.error("FLOUSTREAM route mount failed:", error);
       if (options.popstate || options.navigation) location.reload();
       return false;
