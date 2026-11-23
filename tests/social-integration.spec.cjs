@@ -126,3 +126,151 @@ test("authenticated home feed loads the next page when its sentinel enters view"
   await expect(page.locator(".fs-route-home #feed-error")).toBeHidden();
   await expect(page.locator(".fs-route-home #feed-loading")).toBeHidden();
 });
+
+
+test("a friend request sent from a public profile appears in the friends inbox across SPA routes", async ({ page }) => {
+  await page.addInitScript(() => {
+    const viewer = { id: "viewer-1", email: "viewer@floustream.test" };
+    const peer = { id: "peer-1", username: "peer", display_name: "Peer User", avatar_url: null, bio: "Test profile", last_activity_at: null, time_zone: "UTC" };
+    const state = window.__friendFlowState = {
+      profiles: [viewer, peer],
+      friend_requests: [],
+      posts: [],
+      reposts: [],
+      video_album_videos: [],
+      profile_visits: []
+    };
+
+    window.initFloustreamMessageNotifications = () => {};
+    window.initFloustreamFriendNotifications = () => {};
+
+    function makeQuery(table) {
+      let filters = [];
+      let orFilters = [];
+      let orders = [];
+      let action = "select";
+      let payload = null;
+      let selected = "";
+      let limit = null;
+      let conflict = null;
+
+      function sourceRows() {
+        return Array.isArray(state[table]) ? state[table] : [];
+      }
+      function matches(row) {
+        const direct = filters.every(item => row[item.column] === item.value);
+        const alternatives = !orFilters.length || orFilters.some(group =>
+          group.some(item => row[item.column] === item.value)
+        );
+        return direct && alternatives;
+      }
+      function hydrate(row) {
+        const copy = { ...row };
+        if (table === "friend_requests" && selected.includes("requester:profiles")) {
+          copy.requester = state.profiles.find(profile => profile.id === row.requester_id) || null;
+        }
+        if (table === "friend_requests" && selected.includes("recipient:profiles")) {
+          copy.recipient = state.profiles.find(profile => profile.id === row.recipient_id) || null;
+        }
+        return copy;
+      }
+      function execute(single) {
+        let result = sourceRows().filter(matches);
+        for (const order of orders.slice().reverse()) {
+          result = result.slice().sort((a, b) => {
+            const av = a[order.column], bv = b[order.column];
+            const compared = av === bv ? 0 : av > bv ? 1 : -1;
+            return order.ascending ? compared : -compared;
+          });
+        }
+        if (action === "insert") {
+          const values = Array.isArray(payload) ? payload : [payload];
+          result = values.map((row, index) => ({
+            id: row.id || table + "-" + (sourceRows().length + index + 1),
+            created_at: new Date().toISOString(),
+            status: table === "friend_requests" ? "pending" : undefined,
+            ...row
+          }));
+          sourceRows().push(...result);
+        } else if (action === "upsert") {
+          const values = Array.isArray(payload) ? payload : [payload];
+          result = values.map(row => {
+            const keys = String(conflict || "").split(",").filter(Boolean);
+            const existing = sourceRows().find(item => keys.length && keys.every(key => item[key] === row[key]));
+            if (existing) return Object.assign(existing, row);
+            const inserted = { id: table + "-" + (sourceRows().length + 1), ...row };
+            sourceRows().push(inserted);
+            return inserted;
+          });
+        } else if (action === "update") {
+          result = result.map(row => Object.assign(row, payload));
+        } else if (action === "delete") {
+          const removed = new Set(result);
+          state[table] = sourceRows().filter(row => !removed.has(row));
+          result = [...removed];
+        }
+        if (limit !== null) result = result.slice(0, limit);
+        result = result.map(hydrate);
+        return { data: single ? result[0] || null : result, error: null, count: result.length };
+      }
+
+      const query = {
+        select(columns) { selected = columns || ""; return query; },
+        eq(column, value) { filters.push({ column, value }); return query; },
+        in(column, values) { filters.push({ column, values, _in: true }); return query; },
+        or(expression) {
+          orFilters.push(String(expression).split(",").map(part => {
+            const [column, , value] = part.split(".");
+            return { column, value };
+          }));
+          return query;
+        },
+        order(column, config = {}) { orders.push({ column, ascending: config.ascending !== false }); return query; },
+        limit(value) { limit = value; return query; },
+        maybeSingle() { return Promise.resolve(execute(true)); },
+        single() { return Promise.resolve(execute(true)); },
+        insert(value) { action = "insert"; payload = value; return query; },
+        update(value) { action = "update"; payload = value; return query; },
+        delete() { action = "delete"; return query; },
+        upsert(value, config = {}) { action = "upsert"; payload = value; conflict = config.onConflict; return query; },
+        then(resolve, reject) { return Promise.resolve(execute(false)).then(resolve, reject); }
+      };
+      return query;
+    }
+
+    const client = {
+      auth: {
+        getSession: async () => ({ data: { session: { user: viewer, access_token: "test-token" } }, error: null }),
+        getUser: async () => ({ data: { user: viewer }, error: null }),
+        signOut: async () => ({ error: null })
+      },
+      from: makeQuery,
+      channel() {
+        const channel = {
+          on() { return channel; },
+          subscribe(callback) { callback?.("SUBSCRIBED"); return channel; },
+          track: async () => ({ error: null }),
+          untrack: async () => ({ error: null }),
+          presenceState: () => ({})
+        };
+        return channel;
+      },
+      removeChannel: async () => ({ error: null })
+    };
+    window.supabase = { createClient: () => client };
+  });
+
+  await page.goto("/public-profile.html?id=peer-1");
+  await expect(page.locator("#display-name")).toHaveText("Peer User");
+  await expect(page.locator("#friend-cta-label")).toHaveText("В друзья");
+
+  await page.locator("#friend-cta").click();
+  await expect(page.locator("#friend-cta-label")).toHaveText("Заявка отправлена.");
+  await expect.poll(() => page.evaluate(() => window.__friendFlowState.friend_requests.length)).toBe(1);
+
+  await page.evaluate(() => window.FloustreamRouter.navigate("friends.html"));
+  await expect(page.locator(".fs-route-friends")).toBeVisible();
+  await expect(page.locator(".fs-route-friends #outgoing-list .person")).toHaveCount(1);
+  await expect(page.locator(".fs-route-friends #outgoing-list .name")).toHaveText("Peer User");
+  await expect(page.locator(".fs-route-friends #outgoing-count")).toHaveText("1");
+});
