@@ -106,7 +106,8 @@ async function mockAuthenticatedChat(page, options = {}) {
     } });
     window.MediaRecorder = class {
       static isTypeSupported(type) { return type.startsWith("audio/webm") || type === "audio/mp4"; }
-      constructor(stream, recorderOptions) { this.stream = stream; this.mimeType = recorderOptions?.mimeType || "audio/webm"; this.state = "inactive"; this.ondataavailable = null; this.onstop = null; this.onerror = null; }
+      constructor(stream, recorderOptions) { this.stream = stream; this.mimeType = recorderOptions?.mimeType || "audio/webm"; this.state = "inactive"; this.ondataavailable = null; this.onstop = null; this.onerror = null; this.listeners = {}; }
+      addEventListener(name, callback) { (this.listeners[name] ||= []).push(callback); }
       start() {
         this.state = "recording"; state.recorderStarts += 1;
         setTimeout(() => { if (this.state === "recording") this.ondataavailable?.({ data: new Blob([new Uint8Array(512)], { type: this.mimeType }) }); }, 10);
@@ -114,7 +115,7 @@ async function mockAuthenticatedChat(page, options = {}) {
       stop() {
         if (this.state === "inactive") return;
         this.state = "inactive"; this.ondataavailable?.({ data: new Blob([new Uint8Array(512)], { type: this.mimeType }) });
-        setTimeout(() => this.onstop?.(), 0);
+        setTimeout(() => { this.onstop?.(); (this.listeners.stop || []).forEach(callback => callback()); }, 0);
       }
     };
     window.tus = { Upload: class {
@@ -320,34 +321,34 @@ test("chat photos have no message frame and open in a closable fullscreen viewer
   await expect(page.locator("#photo-viewer")).toBeHidden();
 });
 
-test("chat media upload resumes after interruption and prevents duplicate message rows", async ({ page }) => {
-  await mockAuthenticatedChat(page, { failFirstUpload: true, ambiguousInsert: true, failConfirmationFirst: true, emitDuplicateChange: true, uploadDelay: 800 });
+test("grouped chat attachments resume uploads and create one message row", async ({ page }) => {
+  await mockAuthenticatedChat(page, { failFirstUpload: true, ambiguousInsert: true, failConfirmationFirst: true, emitDuplicateChange: true, uploadDelay: 50 });
   await page.goto("/messages.html?with=peer-1");
   const file = { name: "clip.mp4", mimeType: "video/mp4", lastModified: 1700000000000, buffer: Buffer.alloc(7 * 1024 * 1024) };
   await page.locator("#attachment-input").setInputFiles(file);
   await expect(page.locator("#attachment-preview")).toBeVisible();
-  await page.locator("#attachment-send").click();
+  await page.locator("#send").click();
   await expect(page.locator("#notice")).toContainText("simulated network interruption");
-  await page.locator("#attachment-send").click();
+  await page.locator("#send").click();
   await expect(page.locator("#notice")).toContainText("Не удалось проверить запись сообщения");
-  await page.locator("#attachment-send").click();
-  await expect(page.locator("#notice")).toHaveText("Вложение отправлено.");
+  await page.locator("#send").click();
+  await expect(page.locator("#notice")).toHaveText("Сообщение отправлено.");
   const state = await page.evaluate(() => ({
     uploads: window.__chatTestState.uploads.length, started: window.__chatTestState.startedUploads, resumed: window.__chatTestState.resumedUploads,
     inserts: window.__chatTestState.inserts, messages: window.__chatTestState.messages, removed: window.__chatTestState.removed,
-    pendingKeys: Object.keys(sessionStorage), pendingValues: Object.keys(sessionStorage).map(key => sessionStorage.getItem(key)),
-    endpoint: window.__chatTestState.lastTusOptions.endpoint, chunkSize: window.__chatTestState.lastTusOptions.chunkSize,
-    retryDelays: window.__chatTestState.lastTusOptions.retryDelays, hasAuth: !!window.__chatTestState.lastTusOptions.headers.authorization,
-    hasApiKey: !!window.__chatTestState.lastTusOptions.headers.apikey
+    pendingKeys: Object.keys(sessionStorage), endpoint: window.__chatTestState.lastTusOptions.endpoint,
+    chunkSize: window.__chatTestState.lastTusOptions.chunkSize, retryDelays: window.__chatTestState.lastTusOptions.retryDelays,
+    hasAuth: !!window.__chatTestState.lastTusOptions.headers.authorization, hasApiKey: !!window.__chatTestState.lastTusOptions.headers.apikey
   }));
-  expect(state.uploads, JSON.stringify({ started: state.started, resumed: state.resumed, inserts: state.inserts, pendingKeys: state.pendingKeys, pendingValues: state.pendingValues })).toBe(2);
+  expect(state.uploads).toBe(2);
   expect(state.resumed).toBe(1);
   expect(state.inserts).toHaveLength(2);
   expect(state.messages).toHaveLength(1);
   expect(state.pendingKeys).toHaveLength(0);
   expect(state.messages[0].id).toBe(state.inserts[0].id);
   expect(state.inserts[1].id).toBe(state.inserts[0].id);
-  expect(state.messages[0].attachment_path).toContain("sender-1/");
+  expect(state.messages[0].attachments).toHaveLength(1);
+  expect(state.messages[0].attachments[0].path).toContain("sender-1/");
   expect(state.removed).toHaveLength(0);
   expect(state.endpoint).toContain(".storage.supabase.co/storage/v1/upload/resumable");
   expect(state.chunkSize).toBe(6 * 1024 * 1024);
@@ -357,19 +358,44 @@ test("chat media upload resumes after interruption and prevents duplicate messag
   await expect(page.locator("#upload-progress")).toBeHidden();
 });
 
-test("chat attachment previews are signed in one batch and existing video nodes survive realtime inserts", async ({ page }) => {
+test("gallery selection stays attached, supports caption and multiple media in one message", async ({ page }) => {
+  await mockAuthenticatedChat(page);
+  await page.goto("/messages.html?with=peer-1");
+  await page.locator("#attach").click();
+  await expect(page.locator("#attachment-menu")).toBeVisible();
+  await page.locator('[data-attachment-source="gallery"]').click();
+  await page.locator("#attachment-input").setInputFiles([
+    { name: "photo.jpg", mimeType: "image/jpeg", buffer: Buffer.from("photo") },
+    { name: "clip.mp4", mimeType: "video/mp4", buffer: Buffer.from("video") }
+  ]);
+  await expect(page.locator("#attachment-preview")).toBeVisible();
+  await expect(page.locator(".composer-preview-item")).toHaveCount(2);
+  await page.locator("#message-input").fill("Подпись к фото и видео");
+  await expect(page.locator(".bubble-row")).toHaveCount(0);
+  await page.locator("#send").click();
+  await expect(page.locator(".bubble-row")).toHaveCount(1);
+  const state = await page.evaluate(() => window.__chatTestState.messages[0]);
+  expect(state.content).toBe("Подпись к фото и видео");
+  expect(state.attachments).toHaveLength(2);
+  expect(state.attachment_path).toBeUndefined();
+});
+
+test("chat media previews load in one signed batch and preserve existing video nodes", async ({ page }) => {
   const initialMessages = [
-    { id: "photo-1", sender_id: "peer-1", recipient_id: "sender-1", content: "", attachment_path: "peer-1/photo.jpg", attachment_name: "photo.jpg", attachment_mime: "image/jpeg", created_at: "2026-11-22T10:00:00Z" },
-    { id: "video-1", sender_id: "peer-1", recipient_id: "sender-1", content: "", attachment_path: "peer-1/video.mp4", attachment_name: "video.mp4", attachment_mime: "video/mp4", created_at: "2026-11-22T10:01:00Z" }
+    { id: "group-1", sender_id: "peer-1", recipient_id: "sender-1", content: "Смотри", attachments: [
+      { path: "peer-1/photo.jpg", name: "photo.jpg", mime: "image/jpeg" },
+      { path: "peer-1/video.mp4", name: "video.mp4", mime: "video/mp4" }
+    ], created_at: "2026-11-22T10:00:00Z" }
   ];
   await mockAuthenticatedChat(page, { initialMessages });
   await page.goto("/messages.html?with=peer-1");
   await expect(page.locator(".message-media-image")).toHaveCount(1);
   await expect(page.locator(".message-media-video")).toHaveCount(1);
+  await expect(page.locator(".message-caption")).toHaveText("Смотри");
   await expect.poll(() => page.evaluate(() => window.__chatTestState.signedBatches.length)).toBe(1);
   const video = await page.locator(".message-media-video").elementHandle();
   await page.evaluate(() => window.__chatTestState.emitInsert({ id: "photo-2", sender_id: "peer-1", recipient_id: "sender-1", content: "", attachment_path: "peer-1/photo-2.jpg", attachment_name: "photo-2.jpg", attachment_mime: "image/jpeg", created_at: "2026-11-22T10:02:00Z" }));
-  await expect(page.locator(".bubble-row")).toHaveCount(3);
+  await expect(page.locator(".bubble-row")).toHaveCount(2);
   await expect.poll(() => page.evaluate(() => window.__chatTestState.signedBatches.length)).toBe(2);
   const batches = await page.evaluate(() => window.__chatTestState.signedBatches);
   expect(batches[0]).toHaveLength(2);
@@ -377,64 +403,63 @@ test("chat attachment previews are signed in one batch and existing video nodes 
   expect(await video.evaluate(node => node.isConnected)).toBe(true);
 });
 
-test("short tap on the send button continues to send text normally", async ({ page }) => {
+test("send button sends text normally without requesting microphone access", async ({ page }) => {
   await mockAuthenticatedChat(page);
   await page.goto("/messages.html?with=peer-1");
   await page.locator("#message-input").fill("Привет");
   await page.locator("#send").click();
   await expect(page.locator(".bubble-row")).toHaveCount(1);
-  const state = await page.evaluate(() => ({ message: window.__chatTestState.messages[0], micRequests: window.__chatTestState.micRequests, recorderStarts: window.__chatTestState.recorderStarts, uploads: window.__chatTestState.uploads.length }));
+  const state = await page.evaluate(() => ({ message: window.__chatTestState.messages[0], micRequests: window.__chatTestState.micRequests, recorderStarts: window.__chatTestState.recorderStarts }));
   expect(state.message.content).toBe("Привет");
   expect(state.micRequests).toBe(0);
   expect(state.recorderStarts).toBe(0);
-  expect(state.uploads).toBe(0);
 });
 
-test("holding the existing send button records and automatically sends a voice message", async ({ page }) => {
-  await mockAuthenticatedChat(page, { voiceHoldMs: 35, uploadDelay: 30 });
+test("microphone recording is attached for preview and only sent after pressing the arrow", async ({ page }) => {
+  await mockAuthenticatedChat(page, { uploadDelay: 30 });
   await page.goto("/messages.html?with=peer-1");
   await waitForChatReady(page);
-  const send = page.locator("#send");
-  await send.dispatchEvent("pointerdown", { pointerId: 1, pointerType: "touch", isPrimary: true, button: 0, clientX: 100, clientY: 100 });
-  await expect(page.locator("#notice")).toContainText("Запись 00:00");
-  await send.dispatchEvent("pointerup", { pointerId: 1, pointerType: "touch", isPrimary: true, button: 0, clientX: 100, clientY: 100 });
-  await expect(page.locator("#notice")).toHaveText("Голосовое сообщение отправлено.");
-  await expect(page.locator(".message-media-audio")).toHaveCount(1);
-  const state = await page.evaluate(() => ({ message: window.__chatTestState.messages[0], micRequests: window.__chatTestState.micRequests, micStopped: window.__chatTestState.micStopped, recorderStarts: window.__chatTestState.recorderStarts, uploads: window.__chatTestState.uploads.length }));
-  expect(state.micRequests).toBe(1);
-  expect(state.micStopped).toBe(1);
-  expect(state.recorderStarts).toBe(1);
-  expect(state.uploads).toBe(1);
-  expect(state.message.attachment_mime).toBe("audio/webm");
-  expect(state.message.attachment_name).toMatch(/^voice-message-/);
-  expect(state.message.content).toMatch(/^00:0[1-9]$/);
+  await page.locator("#mic").click();
+  await expect(page.locator("#notice")).toContainText("Запись");
+  await page.locator("#mic").click();
+  await expect(page.locator("#attachment-preview")).toBeVisible();
+  await expect(page.locator(".composer-preview-audio")).toBeVisible();
+  await expect(page.locator(".bubble-row")).toHaveCount(0);
+  const beforeSend = await page.evaluate(() => ({ micRequests: window.__chatTestState.micRequests, recorderStarts: window.__chatTestState.recorderStarts, uploads: window.__chatTestState.uploads.length }));
+  expect(beforeSend.micRequests).toBe(1);
+  expect(beforeSend.recorderStarts).toBe(1);
+  expect(beforeSend.uploads).toBe(0);
+  await page.locator("#send").click();
+  await expect(page.locator(".bubble-row")).toHaveCount(1);
+  const state = await page.evaluate(() => window.__chatTestState.messages[0]);
+  expect(state.attachments).toHaveLength(1);
+  expect(state.attachments[0].mime).toBe("audio/webm");
+  expect(state.attachments[0].name).toMatch(/^voice-message-/);
 });
 
-test("swiping sideways cancels a voice recording and releases the microphone", async ({ page }) => {
-  await mockAuthenticatedChat(page, { voiceHoldMs: 35 });
+test("voice mode records and attaches audio without sending it automatically", async ({ page }) => {
+  await mockAuthenticatedChat(page);
   await page.goto("/messages.html?with=peer-1");
   await waitForChatReady(page);
-  const send = page.locator("#send");
-  await send.dispatchEvent("pointerdown", { pointerId: 2, pointerType: "touch", isPrimary: true, button: 0, clientX: 100, clientY: 100 });
-  await expect(page.locator("#notice")).toContainText("Запись 00:00");
-  await send.dispatchEvent("pointermove", { pointerId: 2, pointerType: "touch", isPrimary: true, button: 0, clientX: 220, clientY: 100 });
-  await expect(page.locator("#notice")).toHaveText("Запись отменена.");
-  await send.dispatchEvent("pointerup", { pointerId: 2, pointerType: "touch", isPrimary: true, button: 0, clientX: 220, clientY: 100 });
-  const state = await page.evaluate(() => ({ micStopped: window.__chatTestState.micStopped, uploads: window.__chatTestState.uploads.length, inserts: window.__chatTestState.inserts.length, messages: window.__chatTestState.messages.length }));
-  expect(state.micStopped).toBe(1);
+  await page.locator("#voice-mode-launch").click();
+  await expect(page.locator("#voice-mode")).toBeVisible();
+  await page.locator("#voice-mode-action").click();
+  await expect(page.locator("#voice-mode-status")).toContainText("Запись");
+  await page.locator("#voice-mode-action").click();
+  await expect(page.locator("#attachment-preview")).toBeVisible();
+  await expect(page.locator(".bubble-row")).toHaveCount(0);
+  await expect(page.locator("#voice-mode-status")).toContainText("прикреплено");
+  const state = await page.evaluate(() => ({ uploads: window.__chatTestState.uploads.length, messages: window.__chatTestState.messages.length }));
   expect(state.uploads).toBe(0);
-  expect(state.inserts).toBe(0);
   expect(state.messages).toBe(0);
 });
 
-test("microphone permission denial does not send a text or empty voice message", async ({ page }) => {
-  await mockAuthenticatedChat(page, { voiceHoldMs: 35, micPermissionDenied: true });
+test("microphone permission denial does not send an empty voice message", async ({ page }) => {
+  await mockAuthenticatedChat(page, { micPermissionDenied: true });
   await page.goto("/messages.html?with=peer-1");
   await waitForChatReady(page);
-  const send = page.locator("#send");
-  await send.dispatchEvent("pointerdown", { pointerId: 3, pointerType: "touch", isPrimary: true, button: 0, clientX: 100, clientY: 100 });
+  await page.locator("#mic").click();
   await expect(page.locator("#notice")).toContainText("Permission denied by test");
-  await send.dispatchEvent("pointerup", { pointerId: 3, pointerType: "touch", isPrimary: true, button: 0, clientX: 100, clientY: 100 });
   const state = await page.evaluate(() => ({ micRequests: window.__chatTestState.micRequests, uploads: window.__chatTestState.uploads.length, messages: window.__chatTestState.messages.length }));
   expect(state.micRequests).toBe(1);
   expect(state.uploads).toBe(0);
