@@ -2,6 +2,13 @@ const { test, expect } = require("@playwright/test");
 const fs = require("node:fs");
 const path = require("node:path");
 
+function readProfileSources() {
+  const route = fs.readFileSync(path.join(__dirname, "../routes/profile.js"), "utf8");
+  const match = route.match(/^const MARKUP = (".*");$/m);
+  if (!match) throw new Error("Profile route markup constant not found");
+  return { route, markup: JSON.parse(match[1]) };
+}
+
 const supabaseBrowserStub = `
   window.supabase = {
     createClient: () => ({
@@ -243,12 +250,12 @@ test("profile redirects signed-out visitors to the portal", async ({ page }) => 
 test("video album keeps public and private players, native controls and swipe navigation", async () => {
   const fs = require("node:fs");
   const path = require("node:path");
-  const profile = fs.readFileSync(path.join(__dirname, "../profile.html"), "utf8");
+  const { route: profile, markup: profileMarkup } = readProfileSources();
 
-  expect(profile).toContain('id="video-album-player" controls playsinline');
-  expect(profile).toContain('id="private-video-player" controls playsinline');
-  expect(profile).toContain('id="video-album-viewer"');
-  expect(profile).toContain('id="private-video-viewer"');
+  expect(profileMarkup).toContain('id="video-album-player" controls playsinline');
+  expect(profileMarkup).toContain('id="private-video-player" controls playsinline');
+  expect(profileMarkup).toContain('id="video-album-viewer"');
+  expect(profileMarkup).toContain('id="private-video-viewer"');
   expect(profile).toContain('bindVideoSwipe("video-album-viewer","video-album-player",false)');
   expect(profile).toContain('bindVideoSwipe("private-video-viewer","private-video-player",true)');
   expect(profile).toContain('stage.addEventListener("touchstart"');
@@ -469,7 +476,7 @@ test("guest can open another users avatar but cannot like it", async ({ page }) 
 });
 
 test("photo albums are private by default and are not displayed on public profiles", () => {
-  const profile = fs.readFileSync(path.join(__dirname, "..", "profile.html"), "utf8");
+  const { route: profile, markup: profileMarkup } = readProfileSources();
   const publicProfile = fs.readFileSync(path.join(__dirname, "..", "public-profile.html"), "utf8");
   const publicProfileRoute = fs.readFileSync(path.join(__dirname, "..", "routes", "public-profile.js"), "utf8");
   const migration = fs.readFileSync(path.join(__dirname, "..", "supabase", "migrations", "20261122170000_private_photo_album.sql"), "utf8");
@@ -479,8 +486,8 @@ test("photo albums are private by default and are not displayed on public profil
   const publicLoadStart = publicProfileRoute.indexOf("async function loadPublicAlbums(){");
   const publicLoadEnd = publicProfileRoute.indexOf("\n\nasync function start(){", publicLoadStart);
   const publicLoad = publicProfileRoute.slice(publicLoadStart, publicLoadEnd);
-  expect(profile).not.toContain('id="album-private"');
-  expect(profile).toContain('id="album-privacy-note">Все фотографии сохраняются в личный альбом');
+  expect(profileMarkup).not.toContain('id="album-private"');
+  expect(profileMarkup).toContain('id="album-privacy-note">Все фотографии сохраняются в личный альбом');
   expect(uploadHandler).toContain('const bucket="photo-albums"');
   expect(uploadHandler).toContain('const table="photo_album_photos"');
   expect(uploadHandler).not.toContain('from("posts")');
@@ -497,7 +504,7 @@ test("photo albums are private by default and are not displayed on public profil
 
 test("photos from both owner-only albums are shared to direct chats, never to the feed", () => {
   const profile = fs.readFileSync(path.join(__dirname, "..", "profile.html"), "utf8");
-  expect(profile).toContain('id="private-album-share"');
+  expect(profileMarkup).toContain('id="private-album-share"');
   expect(profile).toContain('openAlbumShare({item:albumViewerItems[albumViewerIndex],bucket:"photo-albums"})');
   expect(profile).toContain('openAlbumShare({item:privateAlbumItems[privateAlbumIndex],bucket:"private-albums"})');
   const shareStart = profile.indexOf('$("album-share-send").addEventListener("click"');
@@ -511,11 +518,11 @@ test("photos from both owner-only albums are shared to direct chats, never to th
 
 test("privacy settings no longer expose photo visibility and keep other controls intact", () => {
   const profile = fs.readFileSync(path.join(__dirname, "..", "profile.html"), "utf8");
-  expect(profile).not.toContain('id="privacy-public-album"');
+  expect(profileMarkup).not.toContain('id="privacy-public-album"');
   expect(profile).not.toContain("public_album_visible");
-  expect(profile).toContain('id="privacy-video-visible"');
-  expect(profile).toContain('id="privacy-comments-visible"');
-  expect(profile).toContain('id="privacy-feed-visible"');
+  expect(profileMarkup).toContain('id="privacy-video-visible"');
+  expect(profileMarkup).toContain('id="privacy-comments-visible"');
+  expect(profileMarkup).toContain('id="privacy-feed-visible"');
   expect(profile).toContain("video_album_visible:");
   expect(profile).toContain("comments_visible:");
   expect(profile).toContain("feed_posts_visible:");
