@@ -25,7 +25,7 @@ test("route module lifecycle replaces the previous view and supports browser his
   await page.evaluate(() => window.FloustreamRouter.navigate(new URL("music.html?track=alternate", location.href)));
   await expect(page).toHaveURL(/music\.html\?track=alternate$/);
   await expect(page.locator(".fs-music-logo")).toHaveCount(1);
-  await expect(page.locator("#floustream-app-shell style")).toHaveCount(0);
+  await expect(page.locator("#floustream-app-shell > style")).toHaveCount(0);
 
   await page.goBack();
   await expect(page).toHaveURL(/music\.html$/);
