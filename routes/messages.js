@@ -501,7 +501,7 @@ signal.addEventListener("abort",()=>{clearInterval(voiceTimer);if(voiceRecorder&
      }else{const icon=document.createElement("span");icon.className="composer-preview-file";icon.textContent="▤";item.append(icon);}
      const remove=document.createElement("button");remove.type="button";remove.className="composer-preview-remove";remove.textContent="×";remove.setAttribute("aria-label","Убрать "+file.name);remove.addEventListener("click",()=>{pendingGalleryFiles.splice(index,1);renderGalleryPreview();});item.append(remove);host.append(item);
     });
-    $("attachment-preview-count").textContent=pendingGalleryFiles.length?pendingGalleryFiles.length+" влож. · "+pendingGalleryFiles.reduce((sum,file)=>sum+file.size,0)/1024/1024>0?"":"":"";
+    $("attachment-preview-count").textContent=pendingGalleryFiles.length?pendingGalleryFiles.length+" вложений · "+formatFileSize(pendingGalleryFiles.reduce((sum,file)=>sum+file.size,0)):"";
     $("attachment-preview").hidden=pendingGalleryFiles.length===0;
     $("send").disabled=attachmentSending;
    }
