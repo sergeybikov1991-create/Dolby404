@@ -200,6 +200,26 @@ test("public profile mounts as an isolated route and cleans up on browser Back",
   expect(pageErrors).toEqual([]);
 });
 
+
+test("router exposes local route timing and error diagnostics without remote telemetry", async ({ page }) => {
+  await openPortal(page);
+  await page.evaluate(() => window.FloustreamPerformance.clear());
+  await page.evaluate(() => window.FloustreamRouter.navigate(new URL("music.html", location.href)));
+  await page.evaluate(() => window.FloustreamRouter.navigate(new URL("friends.html", location.href)));
+  const result = await page.evaluate(() => ({
+    metrics: window.FloustreamPerformance.getMetrics(),
+    errors: window.FloustreamPerformance.getErrors()
+  }));
+  expect(result.metrics.slice(-2).map(item => item.route)).toEqual(["music.html", "friends.html"]);
+  for (const metric of result.metrics.slice(-2)) {
+    expect(metric.moduleLoadMs).toBeGreaterThanOrEqual(0);
+    expect(metric.mountMs).toBeGreaterThanOrEqual(0);
+    expect(metric.totalMs).toBeGreaterThanOrEqual(0);
+    expect(metric.navigationType).toBe("navigate");
+  }
+  expect(result.errors).toEqual([]);
+});
+
 test("SPA route modules are prefetched on hover intent", async ({ page }) => {
   await page.goto("/music.html", { waitUntil: "domcontentloaded" });
   const request = page.waitForRequest(request => request.url().includes("/routes/public-profile.js"));

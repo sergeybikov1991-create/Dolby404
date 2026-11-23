@@ -17,6 +17,28 @@
   let activeDispose = null;
   let pendingController = null;
   let navigationId = 0;
+  const routeMetrics = [];
+  const runtimeErrors = [];
+  const diagnostics = Object.freeze({
+    getMetrics: () => routeMetrics.slice(),
+    getErrors: () => runtimeErrors.slice(),
+    clear: () => { routeMetrics.length = 0; runtimeErrors.length = 0; }
+  });
+  window.FloustreamPerformance = diagnostics;
+
+  function recordRuntimeError(type, route) {
+    runtimeErrors.push({ type, route: route || activeRoute || "unknown", at: Date.now() });
+    if (runtimeErrors.length > 50) runtimeErrors.shift();
+  }
+
+  function recordRouteMetric(metric) {
+    routeMetrics.push(metric);
+    if (routeMetrics.length > 50) routeMetrics.shift();
+    window.dispatchEvent(new CustomEvent("floustream:route-metric", { detail: metric }));
+  }
+
+  window.addEventListener("error", () => recordRuntimeError("window-error", activeRoute));
+  window.addEventListener("unhandledrejection", () => recordRuntimeError("unhandled-rejection", activeRoute));
 
   function resolve(input) {
     let url;
@@ -53,9 +75,19 @@
   }
 
   async function render(target, options = {}) {
+    const navigationStartedAt = performance.now();
+    const moduleWasCached = modulePromises.has(target.route);
+    const moduleStartedAt = performance.now();
     const id = ++navigationId;
     if (pendingController) pendingController.abort();
-    const module = await loadModule(target.route);
+    let module;
+    try {
+      module = await loadModule(target.route);
+    } catch (error) {
+      recordRuntimeError("module-load", target.route);
+      throw error;
+    }
+    const moduleLoadMs = performance.now() - moduleStartedAt;
     if (id !== navigationId) return false;
 
     const rootShell = ensureShell();
@@ -73,6 +105,7 @@
     pendingController = routeController;
     if (!useShadow && !rootShell.isConnected) document.body.replaceChildren(rootShell);
     const previousTitle = document.title;
+    const mountStartedAt = performance.now();
     try {
       const dispose = await module.mount(view, {
         url: target.url,
@@ -96,8 +129,19 @@
       if (!rootShell.isConnected) document.body.replaceChildren(rootShell);
       if (!options.keepScroll) window.scrollTo({ top: 0, behavior: "auto" });
       viewHost.focus({ preventScroll: true });
+      const mountedAt = performance.now();
+      recordRouteMetric({
+        route: target.route,
+        moduleLoadMs: Math.round(moduleLoadMs * 100) / 100,
+        mountMs: Math.round((mountedAt - mountStartedAt) * 100) / 100,
+        totalMs: Math.round((mountedAt - navigationStartedAt) * 100) / 100,
+        moduleWasCached,
+        navigationType: options.popstate ? "popstate" : (options.navigation ? "navigate" : "initial"),
+        at: Date.now()
+      });
       return true;
     } catch (error) {
+      recordRuntimeError("route-mount", target.route);
       routeController.abort();
       if (pendingController === routeController) pendingController = null;
       console.error("FLOUSTREAM route mount failed:", error);
