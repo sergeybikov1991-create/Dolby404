@@ -1,11 +1,12 @@
 (function(){
 "use strict";
 const STYLE_ID="floustream-friend-notification-style";
-function installStyles(){
- if(document.getElementById(STYLE_ID))return;
+function installStyles(root){
+ root=root||document;
+ if(root.querySelector("#"+STYLE_ID))return;
  const style=document.createElement("style");style.id=STYLE_ID;
  style.textContent=".side-drawer-link#friends-nav-link{position:relative}.friend-request-badge{display:inline-flex;align-items:center;justify-content:center;min-width:21px;height:21px;margin-left:auto;padding:0 6px;border:1px solid #ff9abf;border-radius:999px;background:linear-gradient(135deg,#ff4f91,#c51e68);box-shadow:0 0 12px #ff4f9166;color:#fff;font-size:11px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}.friend-request-badge[hidden]{display:none}";
- document.head.append(style);
+ (root===document?document.head:root).append(style);
 }
 window.initFloustreamFriendNotifications=function(client,userId,options){
  options=options||{};
@@ -13,8 +14,9 @@ window.initFloustreamFriendNotifications=function(client,userId,options){
  const previous=window.__floustreamFriendNotificationsState;
  if(previous&&previous.userId===userId&&!previous.disposed)return previous.dispose;
  if(previous&&typeof previous.dispose==="function")previous.dispose();
- window.__floustreamFriendNotificationsUser=userId;installStyles();
- const nav=document.getElementById("friends-nav-link");let badge=null,disposed=false;
+ const root=options.root||document;
+ window.__floustreamFriendNotificationsUser=userId;installStyles(root);
+ const nav=root.querySelector("#friends-nav-link");let badge=null,disposed=false;
  if(nav){badge=document.createElement("span");badge.className="friend-request-badge";badge.id="friend-request-count";badge.hidden=true;badge.setAttribute("aria-label","Новые заявки в друзья");nav.append(badge);}
  async function refreshCount(){
   if(disposed)return;
