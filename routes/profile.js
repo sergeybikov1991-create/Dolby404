@@ -1710,7 +1710,7 @@ const ownsRoot = !!root.querySelector(".fs-route-profile");
       else document.body.dataset.theme = originalTheme;
       root.replaceChildren();
     }
-    style.remove();
+    style?.remove();
   };
 
   await stylePromise;
