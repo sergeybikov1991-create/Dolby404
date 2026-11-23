@@ -30,6 +30,13 @@ export async function mount(root, { signal, navigate, url }) {
   const originalBodyClass = document.body.className;
   const originalTheme = document.body.dataset.theme;
   const originalRootVisibility = root.style.visibility;
+  const visibilityOwner = {};
+  root.__floustreamProfileVisibilityOwner = visibilityOwner;
+  const restoreRootVisibility = () => {
+    if (root.__floustreamProfileVisibilityOwner !== visibilityOwner) return;
+    root.style.visibility = originalRootVisibility;
+    delete root.__floustreamProfileVisibilityOwner;
+  };
   root.style.visibility = "hidden";
   let style = null;
   const stylePromise = attachRouteStyles(document.head, stylesheet, "profile", signal).then(value => {
@@ -61,9 +68,9 @@ export async function mount(root, { signal, navigate, url }) {
   function profileClearInterval(id) { window.clearInterval(id); profileTimerKinds.delete(id); }
 
   const restoreProfileShell = () => {
+    restoreRootVisibility();
     const ownsRoot = routeRoot.isConnected && routeRoot.parentNode === root;
     if (ownsRoot) {
-      root.style.visibility = originalRootVisibility;
       document.body.style.cssText = originalBodyStyle || "";
       document.body.className = originalBodyClass;
       if (originalTheme === undefined) delete document.body.dataset.theme;
@@ -1702,7 +1709,8 @@ function closeAuthorHub(){
       try { window.albumThumbObserver.disconnect(); } catch (_) {}
       delete window.albumThumbObserver;
     }
-const ownsRoot = !!root.querySelector(".fs-route-profile");
+restoreRootVisibility();
+    const ownsRoot = !!root.querySelector(".fs-route-profile");
     if (ownsRoot) {
       document.body.style.cssText = originalBodyStyle || "";
       document.body.className = originalBodyClass;
@@ -1714,6 +1722,6 @@ const ownsRoot = !!root.querySelector(".fs-route-profile");
   };
 
   await stylePromise;
-  if (!signal.aborted) root.style.visibility = originalRootVisibility;
+  if (!signal.aborted) restoreRootVisibility();
   return cleanup;
 }
