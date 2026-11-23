@@ -44,7 +44,7 @@
     }
     shell = document.createElement("div");
     shell.id = "floustream-app-shell";
-    shell.innerHTML = '<main id="floustream-route-view" tabindex="-1" aria-live="polite"></main>';
+    shell.innerHTML = '<div id="floustream-route-view" role="main" tabindex="-1" aria-live="polite"></div>';
     return shell;
   }
 
