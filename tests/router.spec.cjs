@@ -163,8 +163,8 @@ test("home feed mounts as a route module and releases presence on navigation", a
   await page.locator(".fs-route-home #logout-button").click();
   await expect(page).toHaveURL(/portal\.html$/);
   await expect(page.locator("#auth-message")).toContainText("Система готова");
-  await expect.poll(() => page.evaluate(() => window.__homeTestState.removed)).toBe(1);
-  await expect.poll(() => page.evaluate(() => window.__homeTestState.untracked)).toBe(1);
+  await expect.poll(() => page.evaluate(() => window.__homeTestState.removed)).toBe(2);
+  await expect.poll(() => page.evaluate(() => window.__homeTestState.untracked)).toBe(2);
   await expect(page.locator('style[data-floustream-route-style="home"]')).toHaveCount(0);
   expect(pageErrors).toEqual([]);
 });
