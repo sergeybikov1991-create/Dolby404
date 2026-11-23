@@ -88,12 +88,12 @@ test("video album keeps public and private players, native controls and swipe na
   expect(profile).toContain('id="private-video-player" controls playsinline');
   expect(profile).toContain('id="video-album-viewer"');
   expect(profile).toContain('id="private-video-viewer"');
-  expect(profile).toContain('bindVideoSwipe("video-album-viewer","video-album-player",false)');
-  expect(profile).toContain('bindVideoSwipe("private-video-viewer","private-video-player",true)');
-  expect(profile).toContain('stage.addEventListener("touchstart"');
-  expect(profile).toContain('stage.addEventListener("touchend"');
-  expect(profile).not.toContain("video-album-playmark");
-  expect(profile).not.toContain("video-viewer-thumb-mark");
+  expect(profileRoute).toContain('bindVideoSwipe("video-album-viewer","video-album-player",false)');
+  expect(profileRoute).toContain('bindVideoSwipe("private-video-viewer","private-video-player",true)');
+  expect(profileRoute).toContain('stage.addEventListener("touchstart"');
+  expect(profileRoute).toContain('stage.addEventListener("touchend"');
+  expect(profileRoute).not.toContain("video-album-playmark");
+  expect(profileRoute).not.toContain("video-viewer-thumb-mark");
 });
 
 
