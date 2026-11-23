@@ -14,7 +14,7 @@ export function mount(root, { signal }) {
   const style = document.createElement("style");
   style.dataset.floustreamRouteStyle = "music";
   style.textContent = STYLE;
-  document.head.appendChild(style);
+  root.appendChild(style);
 
   root.innerHTML = `
     <section class="fs-route-music">
