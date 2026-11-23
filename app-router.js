@@ -172,12 +172,9 @@
     const href = module && module.stylesheet;
     if (typeof href !== "string" || stylesheetPrefetches.has(href)) return;
     stylesheetPrefetches.add(href);
-    const link = document.createElement("link");
-    link.rel = "prefetch";
-    link.as = "style";
-    link.href = href;
-    link.dataset.floustreamPrefetchStyle = "true";
-    document.head.appendChild(link);
+    fetch(href, { cache: "force-cache" }).catch(error => {
+      console.warn("FLOUSTREAM stylesheet prefetch:", error);
+    });
   }
 
   function prefetch(input) {

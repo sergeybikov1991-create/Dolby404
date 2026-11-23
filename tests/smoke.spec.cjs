@@ -298,10 +298,9 @@ test("chat photos have no message frame and open in a closable fullscreen viewer
   await mockSupabaseCdn(page);
   await page.goto("/messages.html?with=photo-viewer-test");
   await expect(page.locator(".fs-route-messages")).toBeVisible();
-  const source = await page.evaluate(async () => {
+  const source = await page.evaluate(() => {
     const view = document.querySelector("#floustream-app-shell #floustream-route-view")?.shadowRoot;
-    const link = view?.querySelector('link[data-floustream-route-style="messages"]');
-    return link ? await (await fetch(link.href)).text() : "";
+    return view?.querySelector('style[data-floustream-route-style="messages"]')?.textContent || "";
   });
   expect(source).toContain(".bubble:has(.message-media-image){padding:0;border:0;background:transparent;box-shadow:none}");
   const fs = require("node:fs"), path = require("node:path");
