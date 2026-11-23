@@ -232,9 +232,13 @@ async function loadAttachmentUrls(items){
   try{
    const result=await withTimeout(client.storage.from("message-media").createSignedUrls(missing,3600),12000,"Хранилище не выдало ссылки на вложения за 12 секунд.");
    if(result.error)throw result.error;
+   const missingObjectPaths=new Set();
    const rowByPath=new Map(connected.map(item=>[item.row.attachment_path,item.row]));
    for(const item of result.data||[]){
-    if(!item.path||!item.signedUrl)continue;
+    if(!item.path)continue;
+    const itemError=typeof item.error==="string"?item.error:(item.error?.message||item.error?.error||"");
+    if(itemError&&/NoSuchKey|not found|does not exist/i.test(String(itemError))){missingObjectPaths.add(item.path);continue;}
+    if(!item.signedUrl)continue;
     const row=rowByPath.get(item.path),mime=(row?.attachment_mime||"").toLowerCase();
     const cacheable=row&&/^(image|video|audio)\//.test(mime);
     const url=cacheable?await cacheChatMedia(item.path,item.signedUrl,mime):item.signedUrl;
@@ -244,6 +248,12 @@ async function loadAttachmentUrls(items){
  }
  for(const item of connected){
   const placeholder=item.placeholder;if(!placeholder.isConnected)continue;
+  if(missingObjectPaths.has(item.row.attachment_path)){
+   const unavailable=document.createElement("div");
+   unavailable.className="message-attachment-missing";
+   unavailable.textContent="📎 "+(item.row.attachment_name||"Вложение")+" — файл отсутствует в хранилище";
+   placeholder.replaceWith(unavailable);continue;
+  }
   const cached=mediaUrlCache.get(item.row.attachment_path);
   if(!cached||cached.expiresAt<=Date.now()){
    const retry=document.createElement("button");retry.type="button";retry.className="message-attachment-retry";retry.textContent="📎 "+(item.row.attachment_name||"Вложение")+" — повторить загрузку";
