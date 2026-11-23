@@ -306,3 +306,41 @@ test("SPA route module prefetch respects Save-Data", async ({ page }) => {
   await page.waitForTimeout(180);
   expect(requested).toBe(false);
 });
+
+
+test("aborted profile route mount restores shared view visibility before the next route", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.supabase = {
+      createClient: () => ({
+        auth: {
+          getSession: async () => ({ data: { session: null }, error: null })
+        }
+      })
+    };
+  });
+  await page.goto("/music.html", { waitUntil: "domcontentloaded" });
+  await expect(page.locator(".fs-music-logo")).toBeVisible();
+
+  let releaseStyles;
+  const stylesGate = new Promise(resolve => { releaseStyles = resolve; });
+  await page.route("**/routes/styles/profile.css**", async route => {
+    await stylesGate;
+    await route.continue();
+  });
+
+  const profileStylesRequested = page.waitForRequest(request => request.url().includes("/routes/styles/profile.css"));
+  const profileNavigation = page.evaluate(() =>
+    window.FloustreamRouter.navigate(new URL("profile.html", location.href))
+  );
+  await profileStylesRequested;
+
+  await page.evaluate(() =>
+    window.FloustreamRouter.navigate(new URL("music.html", location.href))
+  );
+  releaseStyles();
+  await profileNavigation;
+
+  await expect(page.locator(".fs-music-logo")).toBeVisible();
+  await expect(page.locator("#floustream-route-view")).toHaveCSS("visibility", "visible");
+  await expect(page.locator('style[data-floustream-route-style="profile"]')).toHaveCount(0);
+});
