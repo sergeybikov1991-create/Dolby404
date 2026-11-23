@@ -1,3 +1,5 @@
+import { getSupabaseClient } from "../shared/supabase-client.mjs";
+
 const STYLE = "\n.fs-route-friends{--bg:#090910;--panel:#15121f;--line:#382b4b;--purple:#a66bff;--muted:#aaa0ba;--text:#f5f0ff;width:100%;min-height:100vh;background:radial-gradient(ellipse at 18% 0%,#281342 0,transparent 38%),#090910;color:#f5f0ff;font-family:Arial,sans-serif}\n.fs-route-friends,.fs-route-friends *{box-sizing:border-box}\n.fs-route-friends .topbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;padding:12px max(calc((100% - 760px)/2),16px);border-bottom:1px solid var(--line);background:#0b0a12ed;backdrop-filter:blur(12px)}\n.fs-route-friends .back{width:40px;height:40px;display:grid;place-items:center;border:1px solid #65458a;border-radius:12px;background:#21172f;color:#eee2ff;text-decoration:none;font-size:22px}\n.fs-route-friends .brand{font-size:18px;font-weight:900;letter-spacing:3px;color:#e9d8ff;text-shadow:0 0 18px #7b4bff}\n.fs-route-friends .wrap{width:min(760px,100%);margin:0 auto;padding:18px 16px 40px}.fs-route-friends .page-title{margin:4px 0 6px;font-size:25px}.fs-route-friends .subtitle{margin:0 0 18px;color:var(--muted);font-size:13px}\n.fs-route-friends .panel{margin:0 0 14px;padding:15px;border:1px solid #49345f;border-radius:18px;background:linear-gradient(145deg,#171321,#0e0d16);box-shadow:0 12px 45px #0005}\n.fs-route-friends .panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 12px}.fs-route-friends .panel h2{margin:0;font-size:16px}.fs-route-friends .count{min-width:22px;height:22px;display:grid;place-items:center;padding:0 6px;border-radius:99px;background:#342044;color:#e7caff;font-size:11px;font-weight:800}\n.fs-route-friends .list{display:grid;gap:10px}.fs-route-friends .empty{padding:20px 8px;text-align:center;color:#a99bbd;font-size:13px;line-height:1.6}\n.fs-route-friends .person{display:flex;align-items:center;gap:12px;padding:11px;border:1px solid #392b4b;border-radius:14px;background:linear-gradient(120deg,#21182d,#14111d)}\n.fs-route-friends .avatar{width:52px;height:52px;flex:0 0 52px;display:grid;place-items:center;overflow:hidden;border:1px solid #9a69c7;border-radius:50%;background:#352044;font-weight:800;color:white}.fs-route-friends .avatar img{width:100%;height:100%;object-fit:cover}\n.fs-route-friends .copy{display:grid;gap:5px;min-width:0;flex:1}.fs-route-friends .name{font-size:14px;font-weight:800;overflow-wrap:anywhere}.fs-route-friends .handle{font-size:11px;color:#c59aff}.fs-route-friends .meta{font-size:11px;color:#a99bbd}\n.fs-route-friends .actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}.fs-route-friends .person-main{flex:1;min-width:0}\n.fs-route-friends button,.fs-route-friends .profile-link{min-height:37px;padding:8px 12px;border:1px solid #76519a;border-radius:11px;background:#281b38;color:#f3eaff;font-size:12px;font-weight:750;cursor:pointer;text-decoration:none}\n.fs-route-friends button.primary{border-color:#a879df;background:linear-gradient(135deg,#7139c9,#48216f);color:#fff}\n.fs-route-friends button.danger{border-color:#75405a;background:#301a2a;color:#ffdce9}\n.fs-route-friends button:disabled{opacity:.55;cursor:default}\n.fs-route-friends .notice{min-height:20px;margin:0 0 10px;color:#c8a7e8;font-size:12px}.fs-route-friends .error{color:#ff9db8}\n@media(max-width:560px){.fs-route-friends .person{align-items:flex-start;flex-wrap:wrap}.fs-route-friends .person-main{min-width:calc(100% - 70px)}.fs-route-friends .actions{width:100%;padding-left:64px}.fs-route-friends .topbar{padding:10px 12px}.fs-route-friends .wrap{padding:14px 10px 32px}}\n";
 export const title = "Друзья · FLOUSTREAM";
 
@@ -20,12 +22,10 @@ export function mount(root, { signal, navigate }) {
   root.appendChild(style);
 
   let channel = null;
-  const SUPABASE_URL = "https://qhpobdktlbhdqsnajypr.supabase.co";
-  const SUPABASE_KEY = "sb_publishable_tzG1qVsbjaW8YE_LBVN87Q_v0CahKN5";
   const $ = id => root.querySelector("#" + id);
   let client, viewer, refreshing = false;
 
-  function loadLibrary(){return new Promise((resolve,reject)=>{if(window.supabase?.createClient)return resolve();const s=document.createElement("script");s.src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";s.onload=()=>window.supabase?.createClient?resolve():reject(new Error("Supabase не загрузился"));s.onerror=()=>reject(new Error("Нет подключения к Supabase"));document.head.append(s);});}
+  function notice(
   function notice(message,error){$("notice").textContent=message||"";$("notice").classList.toggle("error",!!error);}
   function profileCard(profile,sub,buttons){
    const card=document.createElement("article");card.className="person";
@@ -78,8 +78,7 @@ export function mount(root, { signal, navigate }) {
   }
   async function start(){
    try{
-    await loadLibrary();if(signal.aborted)return;
-    client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storage:window.localStorage,storageKey:"sb-qhpobdktlbhdqsnajypr-auth-token"}});
+    client=await getSupabaseClient({signal});if(signal.aborted)return;
     const stored=await client.auth.getSession();if(signal.aborted)return;if(stored.error)throw stored.error;
     if(!stored.data?.session)throw new Error("Сессия не найдена в хранилище браузера. Вернись на страницу входа и авторизуйся снова.");
     const auth=await client.auth.getUser();if(signal.aborted)return;if(auth.error)throw auth.error;viewer=auth.data.user;
@@ -94,8 +93,7 @@ export function mount(root, { signal, navigate }) {
 
   return async () => {
     if(channel&&client) await client.removeChannel(channel);
-    try { await client?.auth?.stopAutoRefresh?.(); } catch (_) {}
-    style.remove();
+style.remove();
     root.replaceChildren();
   };
 }
