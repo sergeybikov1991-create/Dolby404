@@ -117,11 +117,12 @@ test("messages page uses Supabase Realtime instead of five-second polling", asyn
 test("messages page keeps the newest messages at the bottom and guards sends", async () => {
   const fs = require("node:fs");
   const path = require("node:path");
-  const messages = fs.readFileSync(path.join(__dirname, "../routes/styles/messages.css"), "utf8");
+  const messages = fs.readFileSync(path.join(__dirname, "../routes/messages.js"), "utf8");
+  const styles = fs.readFileSync(path.join(__dirname, "../routes/styles/messages.css"), "utf8");
 
-  expect(messages).toContain(".bubble-row{display:flex;flex:0 0 auto}");
-  expect(messages).toContain(".messages{display:flex;flex:1;min-height:0;flex-direction:column;");
-  expect(messages).toContain("overflow-anchor:none");
+  expect(styles).toContain(".bubble-row{display:flex;flex:0 0 auto}");
+  expect(styles).toContain(".messages{display:flex;flex:1;min-height:0;flex-direction:column;");
+  expect(styles).toContain("overflow-anchor:none");
   expect(messages).toContain('.order("created_at",{ascending:false}).order("id",{ascending:false}).limit(200)');
   expect(messages).toContain("function scrollToNewestMessage(host)");
   expect(messages).toContain("Date.parse(item.dataset.createdAt)");
