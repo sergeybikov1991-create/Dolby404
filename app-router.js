@@ -2,7 +2,8 @@
   "use strict";
 
   const MODULES = Object.freeze({
-    "music.html": () => import("./routes/music.js")
+    "music.html": () => import("./routes/music.js"),
+    "friends.html": () => import("./routes/friends.js")
   });
   const modulePromises = new Map();
   const baseUrl = new URL("./", document.baseURI);
