@@ -191,3 +191,40 @@ test("public profile mounts as an isolated route and cleans up on browser Back",
   await expect(page.locator('style[data-floustream-route-style="public-profile"]')).toHaveCount(0);
   expect(pageErrors).toEqual([]);
 });
+
+test("SPA route modules are prefetched on hover intent", async ({ page }) => {
+  await page.goto("/music.html", { waitUntil: "domcontentloaded" });
+  const request = page.waitForRequest(request => request.url().includes("/routes/public-profile.js"));
+  await page.evaluate(() => {
+    const root = document.querySelector("#floustream-app-shell #floustream-route-view").shadowRoot;
+    const link = document.createElement("a");
+    link.href = new URL("public-profile.html", location.href).href;
+    link.textContent = "Public profile prefetch probe";
+    root.append(link);
+    link.dispatchEvent(new PointerEvent("pointerover", { bubbles: true, composed: true, pointerType: "mouse" }));
+  });
+  await request;
+});
+
+test("SPA route module prefetch respects Save-Data", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "connection", {
+      configurable: true,
+      value: { saveData: true, effectiveType: "4g" }
+    });
+  });
+  await page.goto("/music.html", { waitUntil: "domcontentloaded" });
+  let requested = false;
+  page.on("request", request => {
+    if (request.url().includes("/routes/public-profile.js")) requested = true;
+  });
+  await page.evaluate(() => {
+    const root = document.querySelector("#floustream-app-shell #floustream-route-view").shadowRoot;
+    const link = document.createElement("a");
+    link.href = new URL("public-profile.html", location.href).href;
+    root.append(link);
+    link.dispatchEvent(new PointerEvent("pointerover", { bubbles: true, composed: true, pointerType: "mouse" }));
+  });
+  await page.waitForTimeout(180);
+  expect(requested).toBe(false);
+});
