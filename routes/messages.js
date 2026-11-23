@@ -7,9 +7,9 @@ export const stylesheet = new URL("./styles/messages.css?v=1", import.meta.url).
 export const title = "Сообщения · FLOUSTREAM";
 
 export async function mount(root, { signal, navigate, url }) {
+  root.innerHTML = MARKUP;
   const style = await attachRouteStyles(root, stylesheet, "messages", signal);
   if (!style) return;
-  root.innerHTML = MARKUP;
   let realtimeChannels = [];
   let activeTusUpload = null;
   let scrollLocked = false;
