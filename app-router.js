@@ -11,6 +11,7 @@
     "profile.html": () => import("./routes/profile.js")
   });
   const modulePromises = new Map();
+  const stylesheetPrefetches = new Set();
   const baseUrl = new URL("./", document.baseURI);
   let shell = null;
   let activeRoute = null;
@@ -167,11 +168,23 @@
     return !(connection && (connection.saveData || connection.effectiveType === "2g" || connection.effectiveType === "slow-2g"));
   }
 
+  function prefetchStylesheet(module) {
+    const href = module && module.stylesheet;
+    if (typeof href !== "string" || stylesheetPrefetches.has(href)) return;
+    stylesheetPrefetches.add(href);
+    const link = document.createElement("link");
+    link.rel = "prefetch";
+    link.as = "style";
+    link.href = href;
+    link.dataset.floustreamPrefetchStyle = "true";
+    document.head.appendChild(link);
+  }
+
   function prefetch(input) {
     if (!canPrefetch()) return false;
     const target = resolve(input);
     if (!target) return false;
-    loadModule(target.route).catch(error => console.warn("FLOUSTREAM route prefetch:", error));
+    loadModule(target.route).then(prefetchStylesheet).catch(error => console.warn("FLOUSTREAM route prefetch:", error));
     return true;
   }
 

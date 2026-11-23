@@ -191,7 +191,7 @@ test("public profile mounts as an isolated route and cleans up on browser Back",
   await expect(page).toHaveURL(/public-profile\.html$/);
   await expect(page.locator("#floustream-app-shell")).toBeVisible();
   await expect(page.locator(".fs-route-public-profile #feed .status.error")).toContainText("Не указан профиль для просмотра");
-  await expect(page.locator('style[data-floustream-route-style="public-profile"]')).toHaveCount(1);
+  await expect(page.locator('link[data-floustream-route-style="public-profile"]')).toHaveCount(1);
 
   await page.goBack();
   await expect(page).toHaveURL(/music\.html$/);
