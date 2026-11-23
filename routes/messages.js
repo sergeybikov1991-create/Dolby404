@@ -145,6 +145,7 @@ function scrollToNewestMessage(host){
 function showNotice(message,error=false){$("notice").textContent=message||"";$("notice").style.color=error?"#ffb4c0":"#c8a7e8";}
 function openPhotoViewer(url,alt){const viewer=$("photo-viewer"),image=$("photo-viewer-image");image.src=url;image.alt=alt||"Фотография";viewer.hidden=false;setScrollLock(true);$("photo-viewer-close").focus();}
 function closePhotoViewer(){const viewer=$("photo-viewer");if(viewer.hidden)return;viewer.hidden=true;$("photo-viewer-image").removeAttribute("src");setScrollLock(false);}
+window.openPhotoViewer=openPhotoViewer;
 $("photo-viewer-close").addEventListener("click",closePhotoViewer);
 $("photo-viewer").addEventListener("click",event=>{if(event.target===$("photo-viewer"))closePhotoViewer();});
 document.addEventListener("keydown",event=>{if(event.key==="Escape")closePhotoViewer();},{signal});
@@ -296,6 +297,7 @@ async function loadMessages(silent=false,forceRender=false){
  try{
   const filter="and(sender_id.eq."+viewer.id+",recipient_id.eq."+peerId+"),and(sender_id.eq."+peerId+",recipient_id.eq."+viewer.id+")";
   const result=await withTimeout(client.from("direct_messages").select("id,sender_id,recipient_id,content,attachment_path,attachment_name,attachment_mime,created_at").or(filter).order("created_at",{ascending:false}).order("id",{ascending:false}).limit(200),15000,"Запрос переписки к Supabase не ответил за 15 секунд.");
+  if(signal.aborted)return;
   if(result.error)throw result.error;
   const rows=(result.data||[]).sort((a,b)=>{
    const timeA=Date.parse(a.created_at)||0,timeB=Date.parse(b.created_at)||0;
@@ -304,14 +306,15 @@ async function loadMessages(silent=false,forceRender=false){
   const newest=rows[rows.length-1]?.id||"";
   // Render the conversation independently from read-receipt permissions/network state.
   if(!silent||forceRender||newest!==lastMessageId)await renderMessages(rows);
+  if(signal.aborted)return;
   if(rows.length){
    try{
     const marked=await client.from("direct_messages").update({read_at:new Date().toISOString()}).eq("recipient_id",viewer.id).eq("sender_id",peerId).is("read_at",null);
     if(marked.error)console.warn("FLOUSTREAM read receipt update:",marked.error);
    }catch(markError){console.warn("FLOUSTREAM read receipt update:",markError);}
   }
- }catch(error){if(!silent){showNotice("Не удалось загрузить сообщения: "+(error.message||String(error)),true);const host=$("messages");host.replaceChildren();const failed=document.createElement("div");failed.className="empty";failed.textContent="Не удалось загрузить переписку. "+(error.message||String(error));host.append(failed);}}
- finally{loading=false;if(pendingMessageReload){pendingMessageReload=false;loadMessages(true,true);}}
+ }catch(error){if(!signal.aborted&&!silent){showNotice("Не удалось загрузить сообщения: "+(error.message||String(error)),true);const host=$("messages");host.replaceChildren();const failed=document.createElement("div");failed.className="empty";failed.textContent="Не удалось загрузить переписку. "+(error.message||String(error));host.append(failed);}}
+ finally{loading=false;if(!signal.aborted&&pendingMessageReload){pendingMessageReload=false;loadMessages(true,true);}}
 }
 function renderInbox(rows,profiles){
  const host=$("messages");host.replaceChildren();host.classList.add("inbox-list");
@@ -330,11 +333,13 @@ function renderInbox(rows,profiles){
  }
 }
 async function loadInbox(){
+ if(signal.aborted)return;
  if(inboxLoading){pendingInboxReload=true;return;}inboxLoading=true;
  try{const result=await client.from("direct_messages").select("id,sender_id,recipient_id,content,attachment_name,created_at,read_at").or("sender_id.eq."+viewer.id+",recipient_id.eq."+viewer.id).order("created_at",{ascending:false}).limit(500);
+  if(signal.aborted)return;
   if(result.error)throw result.error;const rows=result.data||[];const ids=[...new Set(rows.map(row=>row.sender_id===viewer.id?row.recipient_id:row.sender_id).filter(Boolean))];let profiles=[];
-  if(ids.length){const people=await client.from("profiles").select("id,username,display_name,avatar_url").in("id",ids);if(people.error)throw people.error;profiles=people.data||[];}renderInbox(rows,profiles);
- }catch(error){showNotice("Не удалось загрузить список сообщений: "+error.message,true);}finally{inboxLoading=false;if(pendingInboxReload){pendingInboxReload=false;queueMicrotask(()=>loadInbox());}}
+  if(ids.length){const people=await client.from("profiles").select("id,username,display_name,avatar_url").in("id",ids);if(signal.aborted)return;if(people.error)throw people.error;profiles=people.data||[];}if(!signal.aborted)renderInbox(rows,profiles);
+ }catch(error){if(!signal.aborted)showNotice("Не удалось загрузить список сообщений: "+error.message,true);}finally{inboxLoading=false;if(!signal.aborted&&pendingInboxReload){pendingInboxReload=false;queueMicrotask(()=>loadInbox());}}
 }
 async function start(){
  try{
@@ -364,6 +369,7 @@ async function start(){
   if(peerId===viewer.id){showNotice("Открой профиль другого пользователя, чтобы начать переписку.",true);$("composer").hidden=true;return;}
   showNotice("Загружаем профиль собеседника…");
   const profile=await withTimeout(client.from("profiles").select("id,username,display_name,avatar_url").eq("id",peerId).maybeSingle(),12000,"Профиль собеседника не ответил за 12 секунд. Проверь подключение и повтори.");
+  if(signal.aborted)return;
   if(profile.error)throw profile.error;
   const deletedAccount=!profile.data;
   $("back").href=deletedAccount?"messages.html":"public-profile.html?id="+encodeURIComponent(peerId);
@@ -486,11 +492,11 @@ async function sendAttachmentFile(file,options={}){
   if(file.size<=0)throw new Error("Файл пустой.");
   if(file.size>50*1024*1024)throw new Error("Файл больше 50 МБ.");
   const safeName=file.name.replace(/[^A-Za-z0-9._-]/g,"_").slice(0,100)||"attachment";
-  const fingerprint=await attachmentFingerprint(file);pendingKey="floustream-pending-attachment:"+viewer.id+":"+peerId+":"+encodeURIComponent(fingerprint);
+  const fingerprint=await attachmentFingerprint(file);if(signal.aborted)throw new Error("Отправка отменена.");pendingKey="floustream-pending-attachment:"+viewer.id+":"+peerId+":"+encodeURIComponent(fingerprint);
   let pending=null;try{pending=JSON.parse(sessionStorage.getItem(pendingKey)||"null");}catch(_){pending=null;}
   if(!pending?.path||!pending?.messageId||Date.now()-(pending.updatedAt||0)>86400000){pending={path:viewer.id+"/"+crypto.randomUUID()+"_"+safeName,messageId:crypto.randomUUID(),uploaded:false,updatedAt:Date.now()};try{sessionStorage.setItem(pendingKey,JSON.stringify(pending));}catch(_){}}
   path=pending.path;let messageId=pending.messageId;
-  if(!pending.uploaded){setUploadProgress(0);showNotice("Подготавливаем защищённую загрузку…");const uploaded=await uploadFileResumable(file,path,messageId);path=uploaded.path;messageId=uploaded.messageId;uploadCompleted=true;pending={path,messageId,uploaded:true,updatedAt:Date.now()};try{sessionStorage.setItem(pendingKey,JSON.stringify(pending));}catch(_){}}
+  if(!pending.uploaded){setUploadProgress(0);showNotice("Подготавливаем защищённую загрузку…");const uploaded=await uploadFileResumable(file,path,messageId);if(signal.aborted)throw new Error("Отправка отменена.");path=uploaded.path;messageId=uploaded.messageId;uploadCompleted=true;pending={path,messageId,uploaded:true,updatedAt:Date.now()};try{sessionStorage.setItem(pendingKey,JSON.stringify(pending));}catch(_){}}
   else{uploadCompleted=true;setUploadProgress(100);showNotice("Проверяем результат предыдущей отправки…");}
   const row={id:messageId,sender_id:viewer.id,recipient_id:peerId,content:options.content||"",attachment_path:path,attachment_name:file.name,attachment_mime:file.type||"application/octet-stream"};
   try{const sent=await withTimeout(client.from("direct_messages").insert(row),15000,"Сервер не подтвердил отправку сообщения за 15 секунд.");if(sent.error)throw sent.error;}
