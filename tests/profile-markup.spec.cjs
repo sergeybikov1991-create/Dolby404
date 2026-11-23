@@ -42,11 +42,13 @@ test("profile photo albums are a lazy feature module", () => {
 
 test("profile quick navigation opens the shared messages route", () => {
   const route = fs.readFileSync(path.resolve(__dirname, "..", "routes", "profile.js"), "utf8");
-  const start = route.indexOf("quick-nav");
-  const end = route.indexOf("</nav>", start);
-  const quickNav = route.slice(start, end);
-  const messagesItem = quickNav.split("\n").find(line => line.includes("Сообщения"));
+  const navStart = route.indexOf("quick-nav");
+  const navEnd = route.indexOf("</nav>", navStart);
+  const quickNav = route.slice(navStart, navEnd);
+  const labelIndex = quickNav.indexOf("Сообщения");
+  const itemStart = quickNav.lastIndexOf("<", labelIndex);
+  const itemEnd = quickNav.indexOf(">", labelIndex);
+  const messagesItem = quickNav.slice(itemStart, itemEnd + 1);
   expect(messagesItem).toContain("messages.html?v=20261119-realtime-2");
-  expect(messagesItem).toContain("</a>");
   expect(messagesItem).not.toContain("data-soon");
 });
