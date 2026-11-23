@@ -263,7 +263,7 @@ async function initFeed(client){
     loading.hidden=true;prefetch();
     if("IntersectionObserver" in window){
       feedObserver=new IntersectionObserver(entries=>{if(entries.some(entry=>entry.isIntersecting))loadMore();},{rootMargin:"500px 0px"});
-      observer.observe(sentinel);
+      feedObserver.observe(sentinel);
     }else more.hidden=false;
   }catch(e){showError(e.message);}
 }
