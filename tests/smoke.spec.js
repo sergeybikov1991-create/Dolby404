@@ -97,7 +97,7 @@ test("video album keeps public and private players, native controls and swipe na
 test("messages page uses Supabase Realtime instead of five-second polling", async () => {
   const fs = require("node:fs");
   const path = require("node:path");
-  const messages = fs.readFileSync(path.join(__dirname, "../messages.html"), "utf8");
+  const messages = fs.readFileSync(path.join(__dirname, "../routes/messages.js"), "utf8");
 
   expect(messages).toContain('event:"INSERT"');
   expect(messages).toContain('event:"UPDATE"');
