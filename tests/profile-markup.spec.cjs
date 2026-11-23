@@ -38,3 +38,11 @@ test("profile photo albums are a lazy feature module", () => {
   expect(photoModule).toContain("dispose()");
 });
 
+
+
+test("profile quick navigation opens the shared messages route", () => {
+  const route = fs.readFileSync(path.resolve(__dirname, "..", "routes", "profile.js"), "utf8");
+  expect(route).toContain("messages.html?v=20261119-realtime-2");
+  expect(route).toMatch(/<a href=\\?"messages\.html\?v=20261119-realtime-2\\?">✉ Сообщения<\\/a>/);
+  expect(route).not.toMatch(/data-soon=\\?"Сообщения/);
+});
