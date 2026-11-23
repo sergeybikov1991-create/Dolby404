@@ -22,6 +22,12 @@
     return Boolean(connection && (connection.saveData || /^(slow-)?2g$/.test(connection.effectiveType || "")));
   }
 
+  function findAnchor(event) {
+    const path = typeof event.composedPath === "function" ? event.composedPath() : [];
+    return path.find(node => node instanceof HTMLAnchorElement) ||
+      (event.target && event.target.closest ? event.target.closest("a[href]") : null);
+  }
+
   function resolveRoute(anchor) {
     if (!(anchor instanceof HTMLAnchorElement)) return null;
     if (anchor.hasAttribute("download") || anchor.target && anchor.target !== "_self") return null;
@@ -78,7 +84,7 @@
 
   document.addEventListener("pointerover", event => {
     if (event.pointerType === "touch") return;
-    const anchor = event.target && event.target.closest ? event.target.closest("a[href]") : null;
+    const anchor = findAnchor(event);
     if (anchor && !anchor.contains(event.relatedTarget)) schedule(anchor, false);
   }, { passive: true });
 
