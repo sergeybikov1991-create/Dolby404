@@ -32,7 +32,35 @@ test("navigation prefetch preserves route query parameters", async ({ page }) =>
     };
   });
   expect(result.accepted).toBe(true);
-  expect(result.href).toContain("messages.html?with=peer-123");
+  expect(result.href).toBeUndefined();
+  expect(await page.evaluate(() => typeof window.FloustreamRouter?.prefetch)).toBe("function");
+});
+
+
+test("native backgammon page keeps document prefetch outside the SPA router", async ({ page }) => {
+  await openPortal(page);
+  const result = await page.evaluate(() => {
+    const anchor = document.createElement("a");
+    anchor.href = new URL("backgammon.html?embed=1", document.baseURI).href;
+    document.body.appendChild(anchor);
+    const accepted = window.FloustreamNavigation.prefetch(anchor);
+    return {
+      accepted,
+      href: document.querySelector('link[rel="prefetch"][data-floustream-prefetch="true"]')?.href
+    };
+  });
+  expect(result.accepted).toBe(true);
+  expect(result.href).toContain("backgammon.html?embed=1");
+});
+
+test("SPA prefetch is coordinated by one intent listener", async () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const router = fs.readFileSync(path.resolve(__dirname, "..", "app-router.js"), "utf8");
+  const navigation = fs.readFileSync(path.resolve(__dirname, "..", "navigation.js"), "utf8");
+  expect(router).not.toContain('document.addEventListener("pointerover"');
+  expect(router).not.toContain('document.addEventListener("focusin"');
+  expect(navigation).toContain("window.FloustreamRouter.prefetch(resolved.url)");
 });
 
 test("navigation prefetch rejects external and unknown routes", async ({ page }) => {

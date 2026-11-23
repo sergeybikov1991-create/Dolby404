@@ -147,28 +147,6 @@
     navigate(target.url);
   });
 
-  let intentPrefetchTimer = null;
-  document.addEventListener("pointerover", event => {
-    if (event.pointerType === "touch" || !canPrefetch()) return;
-    const anchor = findAnchor(event);
-    if (!anchor || anchor.contains(event.relatedTarget)) return;
-    clearTimeout(intentPrefetchTimer);
-    const href = anchor.href;
-    intentPrefetchTimer = setTimeout(() => prefetch(href), 90);
-  }, { passive: true });
-  document.addEventListener("pointerout", event => {
-    const anchor = findAnchor(event);
-    if (anchor && !anchor.contains(event.relatedTarget)) clearTimeout(intentPrefetchTimer);
-  }, { passive: true });
-  document.addEventListener("focusin", event => {
-    const anchor = findAnchor(event);
-    if (anchor) prefetch(anchor.href);
-  });
-  document.addEventListener("pointerdown", event => {
-    const anchor = findAnchor(event);
-    if (anchor) prefetch(anchor.href);
-  }, { passive: true });
-
   window.addEventListener("popstate", () => {
     const target = resolve(location.href);
     if (target) render(target, { popstate: true, keepScroll: false });

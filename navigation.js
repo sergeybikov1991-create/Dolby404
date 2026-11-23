@@ -53,9 +53,18 @@
     const resolved = resolveRoute(anchor);
     if (!resolved) return false;
 
-    const key = resolved.url.href;
+    const isSpaRoute = resolved.route !== "backgammon.html" &&
+      window.FloustreamRouter &&
+      typeof window.FloustreamRouter.prefetch === "function";
+    const key = isSpaRoute ? `spa:${resolved.route}` : resolved.url.href;
     if (prefetched.has(key)) return true;
     prefetched.add(key);
+
+    if (isSpaRoute) {
+      const accepted = window.FloustreamRouter.prefetch(resolved.url);
+      if (!accepted) prefetched.delete(key);
+      return accepted;
+    }
 
     const link = document.createElement("link");
     link.rel = "prefetch";
@@ -89,17 +98,17 @@
   }, { passive: true });
 
   document.addEventListener("focusin", event => {
-    const anchor = event.target && event.target.closest ? event.target.closest("a[href]") : null;
+    const anchor = findAnchor(event);
     if (anchor) schedule(anchor, true);
   });
 
   document.addEventListener("pointerdown", event => {
-    const anchor = event.target && event.target.closest ? event.target.closest("a[href]") : null;
+    const anchor = findAnchor(event);
     if (anchor) schedule(anchor, true);
   }, { passive: true });
 
   document.addEventListener("touchstart", event => {
-    const anchor = event.target && event.target.closest ? event.target.closest("a[href]") : null;
+    const anchor = findAnchor(event);
     if (anchor) schedule(anchor, true);
   }, { passive: true });
 
