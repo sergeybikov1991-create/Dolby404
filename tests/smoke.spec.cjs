@@ -269,7 +269,7 @@ test("messenger uses realtime subscriptions instead of five-second polling", () 
 test("public profile permits guests without an Auth session and prefers the public avatar copy", () => {
   const fs = require("node:fs");
   const path = require("node:path");
-  const profile = fs.readFileSync(path.join(__dirname, "../public-profile.html"), "utf8");
+  const profile = fs.readFileSync(path.join(__dirname, "../routes/public-profile.js"), "utf8");
   expect(profile).toContain('if(stored.data?.session)');
   expect(profile).toContain('else viewer=null;');
   expect(profile).toContain('client.auth.getUser()');
@@ -462,13 +462,14 @@ test("guest can open another users avatar but cannot like it", async ({ page }) 
 test("photo albums are private by default and are not displayed on public profiles", () => {
   const profile = fs.readFileSync(path.join(__dirname, "..", "profile.html"), "utf8");
   const publicProfile = fs.readFileSync(path.join(__dirname, "..", "public-profile.html"), "utf8");
+  const publicProfileRoute = fs.readFileSync(path.join(__dirname, "..", "routes", "public-profile.js"), "utf8");
   const migration = fs.readFileSync(path.join(__dirname, "..", "supabase", "migrations", "20261122170000_private_photo_album.sql"), "utf8");
   const uploadStart = profile.indexOf('$("album-upload-button").addEventListener("click"');
   const uploadEnd = profile.indexOf("\n});", uploadStart);
   const uploadHandler = profile.slice(uploadStart, uploadEnd);
-  const publicLoadStart = publicProfile.indexOf("async function loadPublicAlbums(){");
-  const publicLoadEnd = publicProfile.indexOf("\n\nasync function start(){", publicLoadStart);
-  const publicLoad = publicProfile.slice(publicLoadStart, publicLoadEnd);
+  const publicLoadStart = publicProfileRoute.indexOf("async function loadPublicAlbums(){");
+  const publicLoadEnd = publicProfileRoute.indexOf("\n\nasync function start(){", publicLoadStart);
+  const publicLoad = publicProfileRoute.slice(publicLoadStart, publicLoadEnd);
   expect(profile).not.toContain('id="album-private"');
   expect(profile).toContain('id="album-privacy-note">Все фотографии сохраняются в личный альбом');
   expect(uploadHandler).toContain('const bucket="photo-albums"');
