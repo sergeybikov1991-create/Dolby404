@@ -544,6 +544,7 @@ signal.addEventListener("abort",()=>{clearInterval(voiceTimer);if(voiceRecorder&
      pendingKeys.forEach(key=>{try{sessionStorage.removeItem(key);}catch(_){}});try{sessionStorage.removeItem(batchKey);}catch(_){}
      showNotice(options.successMessage||"Сообщение отправлено.");await loadMessages();return true;
     }catch(error){
+     if(uploaded.length)keepUploaded=true;
      if(!keepUploaded&&uploaded.length){try{await withTimeout(client.storage.from("message-media").remove(uploaded.map(item=>item.path)),10000,"Тайм-аут очистки файлов.");}catch(cleanupError){console.warn("FLOUSTREAM orphan attachments:",cleanupError);}}
      showNotice("Не удалось отправить: "+(error.message||"ошибка соединения"),true);return false;
     }finally{attachmentSending=false;$("attach").disabled=false;$("mic").disabled=false;$("send").disabled=false;setUploadProgress(null);}
