@@ -272,6 +272,7 @@ test("SPA route module prefetch respects Save-Data", async ({ page }) => {
     });
   });
   await page.goto("/music.html", { waitUntil: "domcontentloaded" });
+  await expect(page.locator(".fs-music-logo")).toBeVisible();
   let requested = false;
   page.on("request", request => {
     if (request.url().includes("/routes/public-profile.js")) requested = true;
