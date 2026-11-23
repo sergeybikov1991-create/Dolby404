@@ -9,7 +9,6 @@ export function mount(root, { signal }) {
   document.head.appendChild(style);
   root.innerHTML = '<section class="fs-route-portal">' + MARKUP + '</section>';
 
-  let registrationCooldownTimer = null;
   
 const SUPABASE_URL =
     "https://qhpobdktlbhdqsnajypr.supabase.co";
