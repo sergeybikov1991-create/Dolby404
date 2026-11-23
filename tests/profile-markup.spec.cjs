@@ -45,7 +45,8 @@ test("profile quick navigation opens the shared messages route", () => {
   const start = route.indexOf("quick-nav");
   const end = route.indexOf("</nav>", start);
   const quickNav = route.slice(start, end);
-  expect(quickNav).toContain("messages.html?v=20261119-realtime-2");
-  expect(quickNav).toContain("Сообщения</a>");
-  expect(quickNav).not.toContain("data-soon");
+  const messagesItem = quickNav.split("\\n").find(line => line.includes("Сообщения"));
+  expect(messagesItem).toContain("messages.html?v=20261119-realtime-2");
+  expect(messagesItem).toContain("</a>");
+  expect(messagesItem).not.toContain("data-soon");
 });
