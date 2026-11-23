@@ -63,12 +63,15 @@ test("migrated SPA routes interoperate through one router, shared Supabase clien
   await expect(page).toHaveURL(/portal\.html\?reauth=1$/);
   await expect(page.locator("#auth-message")).toContainText("Система готова");
 
-  const finalState = await page.evaluate(() => ({
+  const finalState = await page.evaluate(() => {
+    const host = document.querySelector("#floustream-app-shell #floustream-route-view");
+    return {
     clientFactories: window.__architectureIntegration.clientFactories,
     activeRoute: window.FloustreamRouter.activeRoute,
     profileStyles: document.head.querySelectorAll('style[data-floustream-route-style="profile"]').length,
     leakedRouteStyles: host?.shadowRoot?.querySelectorAll('style[data-floustream-route-style]').length || 0
-  }));
+    };
+  });
   expect(finalState.clientFactories).toBe(1);
   expect(finalState.activeRoute).toBe("portal.html");
   expect(finalState.profileStyles).toBe(0);
