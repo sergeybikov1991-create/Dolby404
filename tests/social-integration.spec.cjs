@@ -109,7 +109,7 @@ test("authenticated home feed loads the next page when its sentinel enters view"
       },
       removeChannel: async () => ({ error: null })
     };
-    window.supabase = { createClient: () => client };
+    window.supabase = { createClient: () => { state.clientFactories += 1; return client; } };
   });
 
   await page.goto("/home.html");
@@ -141,7 +141,8 @@ test("a friend request sent from a public profile appears in the friends inbox a
       posts: [],
       reposts: [],
       video_album_videos: [],
-      profile_visits: []
+      profile_visits: [],
+      clientFactories: 0
     };
 
     window.initFloustreamMessageNotifications = () => {};
@@ -266,6 +267,7 @@ test("a friend request sent from a public profile appears in the friends inbox a
   await page.goto("/public-profile.html?id=peer-1");
   await expect(page.locator("#display-name")).toHaveText("Peer User");
   await expect(page.locator("#friend-cta-label")).toHaveText("В друзья");
+  await expect(page.locator("#contact-cta")).toHaveAttribute("href", "messages.html?with=peer-1");
 
   await page.locator("#friend-cta").click();
   await expect(page.locator("#friend-cta-label")).toHaveText("Заявка отправлена");
@@ -276,4 +278,5 @@ test("a friend request sent from a public profile appears in the friends inbox a
   await expect(page.locator(".fs-route-friends #outgoing-list .person")).toHaveCount(1);
   await expect(page.locator(".fs-route-friends #outgoing-list .name")).toHaveText("Peer User");
   await expect(page.locator(".fs-route-friends #outgoing-count")).toHaveText("1");
+  expect(await page.evaluate(() => window.__friendFlowState.clientFactories)).toBe(1);
 });
