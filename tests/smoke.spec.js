@@ -79,25 +79,28 @@ test("profile redirects signed-out visitors to the portal", async ({ page }) => 
 test("video album keeps public and private players, native controls and swipe navigation", async () => {
   const fs = require("node:fs");
   const path = require("node:path");
-  const profile = fs.readFileSync(path.join(__dirname, "../profile.html"), "utf8");
+  const profileRoute = fs.readFileSync(path.join(__dirname, "../routes/profile.js"), "utf8");
+  const markupMatch = profileRoute.match(/^const MARKUP = (".*");$/m);
+  if (!markupMatch) throw new Error("Profile route markup constant not found");
+  const profile = JSON.parse(markupMatch[1]);
 
   expect(profile).toContain('id="video-album-player" controls playsinline');
   expect(profile).toContain('id="private-video-player" controls playsinline');
   expect(profile).toContain('id="video-album-viewer"');
   expect(profile).toContain('id="private-video-viewer"');
-  expect(profile).toContain('bindVideoSwipe("video-album-viewer","video-album-player",false)');
-  expect(profile).toContain('bindVideoSwipe("private-video-viewer","private-video-player",true)');
-  expect(profile).toContain('stage.addEventListener("touchstart"');
-  expect(profile).toContain('stage.addEventListener("touchend"');
-  expect(profile).not.toContain("video-album-playmark");
-  expect(profile).not.toContain("video-viewer-thumb-mark");
+  expect(profileRoute).toContain('bindVideoSwipe("video-album-viewer","video-album-player",false)');
+  expect(profileRoute).toContain('bindVideoSwipe("private-video-viewer","private-video-player",true)');
+  expect(profileRoute).toContain('stage.addEventListener("touchstart"');
+  expect(profileRoute).toContain('stage.addEventListener("touchend"');
+  expect(profileRoute).not.toContain("video-album-playmark");
+  expect(profileRoute).not.toContain("video-viewer-thumb-mark");
 });
 
 
 test("messages page uses Supabase Realtime instead of five-second polling", async () => {
   const fs = require("node:fs");
   const path = require("node:path");
-  const messages = fs.readFileSync(path.join(__dirname, "../messages.html"), "utf8");
+  const messages = fs.readFileSync(path.join(__dirname, "../routes/messages.js"), "utf8");
 
   expect(messages).toContain('event:"INSERT"');
   expect(messages).toContain('event:"UPDATE"');
@@ -114,7 +117,7 @@ test("messages page uses Supabase Realtime instead of five-second polling", asyn
 test("messages page keeps the newest messages at the bottom and guards sends", async () => {
   const fs = require("node:fs");
   const path = require("node:path");
-  const messages = fs.readFileSync(path.join(__dirname, "../messages.html"), "utf8");
+  const messages = fs.readFileSync(path.join(__dirname, "../routes/messages.js"), "utf8");
 
   expect(messages).toContain(".bubble-row{display:flex;flex:0 0 auto}");
   expect(messages).toContain(".messages{display:flex;flex:1;min-height:0;flex-direction:column;");
@@ -133,7 +136,7 @@ test("messages page keeps the newest messages at the bottom and guards sends", a
 test("read receipt failures do not block rendering the conversation", async () => {
   const fs = require("node:fs");
   const path = require("node:path");
-  const messages = fs.readFileSync(path.join(__dirname, "../messages.html"), "utf8");
+  const messages = fs.readFileSync(path.join(__dirname, "../routes/messages.js"), "utf8");
   const renderAt = messages.indexOf('await renderMessages(rows)');
   const receiptAt = messages.indexOf('client.from("direct_messages").update({read_at:new Date().toISOString()})');
   expect(renderAt).toBeGreaterThan(-1);

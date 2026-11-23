@@ -292,12 +292,13 @@ test("both players reveal the same server-confirmed opening dice from Realtime",
 
 test("a direct conversation can switch into an embedded game and return without losing chat", () => {
   const messages = fs.readFileSync(path.join(root, "messages.html"), "utf8");
+  const messagesRoute = fs.readFileSync(path.join(root, "routes/messages.js"), "utf8");
   const gamePage = fs.readFileSync(path.join(root, "backgammon.html"), "utf8");
   const gameScript = fs.readFileSync(path.join(root, "backgammon.js"), "utf8");
   expect(messages).toContain('id="game-toggle"');
   expect(messages).toContain('id="game-frame"');
-  expect(messages).toContain('backgammon.html?embed=1&opponent=');
-  expect(messages).toContain('gameToggle.textContent=opening?"Вернуться в чат":"Играть"');
+  expect(messagesRoute).toContain('backgammon.html?embed=1&opponent=');
+  expect(messagesRoute).toContain('gameToggle.textContent=opening?"Вернуться в чат":"Играть"');
   expect(gamePage).toContain("body.embed .shell>aside{display:none}");
   expect(gamePage).toContain("body.embed .game-panel{display:flex");
   expect(gamePage).toContain("body.embed .board-wrap{display:flex;flex:1");

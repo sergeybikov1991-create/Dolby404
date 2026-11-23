@@ -2,6 +2,13 @@ const { test, expect } = require("@playwright/test");
 const fs = require("node:fs");
 const path = require("node:path");
 
+function readProfileSources() {
+  const route = fs.readFileSync(path.join(__dirname, "../routes/profile.js"), "utf8");
+  const match = route.match(/^const MARKUP = (".*");$/m);
+  if (!match) throw new Error("Profile route markup constant not found");
+  return { route, markup: JSON.parse(match[1]) };
+}
+
 const supabaseBrowserStub = `
   window.supabase = {
     createClient: () => ({
@@ -109,7 +116,11 @@ async function mockAuthenticatedChat(page, options = {}) {
       resumeFromPreviousUpload(previous) { this.resumed = true; state.resumedUploads += 1; this.previous = previous; }
       start() {
         state.startedUploads += 1;
-        if (config.emitDuplicateChange && state.startedUploads === 2) document.getElementById("attachment-input").dispatchEvent(new Event("change", { bubbles: true }));
+        if (config.emitDuplicateChange && state.startedUploads === 2) {
+          const host = document.querySelector("#floustream-app-shell #floustream-route-view");
+          const input = host?.shadowRoot?.querySelector("#attachment-input") || document.getElementById("attachment-input");
+          input?.dispatchEvent(new Event("change", { bubbles: true }));
+        }
         if (config.failFirstUpload && state.startedUploads === 1) {
           state.previousUploads = [{ metadata: this.options.metadata, creationTime: new Date().toISOString(), uploadUrl: "https://upload.test/resume" }];
           this.options.onError(new Error("simulated network interruption"));
@@ -239,12 +250,12 @@ test("profile redirects signed-out visitors to the portal", async ({ page }) => 
 test("video album keeps public and private players, native controls and swipe navigation", async () => {
   const fs = require("node:fs");
   const path = require("node:path");
-  const profile = fs.readFileSync(path.join(__dirname, "../profile.html"), "utf8");
+  const { route: profile, markup: profileMarkup } = readProfileSources();
 
-  expect(profile).toContain('id="video-album-player" controls playsinline');
-  expect(profile).toContain('id="private-video-player" controls playsinline');
-  expect(profile).toContain('id="video-album-viewer"');
-  expect(profile).toContain('id="private-video-viewer"');
+  expect(profileMarkup).toContain('id="video-album-player" controls playsinline');
+  expect(profileMarkup).toContain('id="private-video-player" controls playsinline');
+  expect(profileMarkup).toContain('id="video-album-viewer"');
+  expect(profileMarkup).toContain('id="private-video-viewer"');
   expect(profile).toContain('bindVideoSwipe("video-album-viewer","video-album-player",false)');
   expect(profile).toContain('bindVideoSwipe("private-video-viewer","private-video-player",true)');
   expect(profile).toContain('stage.addEventListener("touchstart"');
@@ -256,7 +267,7 @@ test("video album keeps public and private players, native controls and swipe na
 test("messenger uses realtime subscriptions instead of five-second polling", () => {
   const fs = require("node:fs");
   const path = require("node:path");
-  const messages = fs.readFileSync(path.join(__dirname, "../messages.html"), "utf8");
+  const messages = fs.readFileSync(path.join(__dirname, "../routes/messages.js"), "utf8");
 
   expect(messages).toContain('floustream-inbox-');
   expect(messages).toContain('floustream-direct-');
@@ -269,7 +280,7 @@ test("messenger uses realtime subscriptions instead of five-second polling", () 
 test("public profile permits guests without an Auth session and prefers the public avatar copy", () => {
   const fs = require("node:fs");
   const path = require("node:path");
-  const profile = fs.readFileSync(path.join(__dirname, "../public-profile.html"), "utf8");
+  const profile = fs.readFileSync(path.join(__dirname, "../routes/public-profile.js"), "utf8");
   expect(profile).toContain('if(stored.data?.session)');
   expect(profile).toContain('else viewer=null;');
   expect(profile).toContain('client.auth.getUser()');
@@ -280,9 +291,14 @@ test("public profile permits guests without an Auth session and prefers the publ
 test("chat photos have no message frame and open in a closable fullscreen viewer", async ({ page }) => {
   await mockSupabaseCdn(page);
   await page.goto("/messages.html?with=photo-viewer-test");
-  const source = await page.evaluate(() => ({ styles: [...document.querySelectorAll("style")].map(node => node.textContent).join("\n"), scripts: [...document.scripts].map(node => node.textContent).join("\n") }));
-  expect(source.styles).toContain(".bubble:has(.message-media-image){padding:0;border:0;background:transparent;box-shadow:none}");
-  expect(source.scripts).toContain('media.addEventListener("click",()=>openPhotoViewer(media.currentSrc||url,media.alt))');
+  const source = await page.evaluate(() => {
+    const view = document.querySelector("#floustream-app-shell #floustream-route-view")?.shadowRoot;
+    return [...(view?.querySelectorAll("style") || [])].map(node => node.textContent).join("\n");
+  });
+  expect(source).toContain(".bubble:has(.message-media-image){padding:0;border:0;background:transparent;box-shadow:none}");
+  const fs = require("node:fs"), path = require("node:path");
+  const routeCode = fs.readFileSync(path.join(__dirname, "../routes/messages.js"), "utf8");
+  expect(routeCode).toContain('media.addEventListener("click",()=>openPhotoViewer(media.currentSrc||url,media.alt))');
 
   await page.evaluate(() => window.openPhotoViewer("data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=", "Тестовое фото"));
   await expect(page.locator("#photo-viewer")).toBeVisible();
@@ -460,17 +476,18 @@ test("guest can open another users avatar but cannot like it", async ({ page }) 
 });
 
 test("photo albums are private by default and are not displayed on public profiles", () => {
-  const profile = fs.readFileSync(path.join(__dirname, "..", "profile.html"), "utf8");
+  const { route: profile, markup: profileMarkup } = readProfileSources();
   const publicProfile = fs.readFileSync(path.join(__dirname, "..", "public-profile.html"), "utf8");
+  const publicProfileRoute = fs.readFileSync(path.join(__dirname, "..", "routes", "public-profile.js"), "utf8");
   const migration = fs.readFileSync(path.join(__dirname, "..", "supabase", "migrations", "20261122170000_private_photo_album.sql"), "utf8");
   const uploadStart = profile.indexOf('$("album-upload-button").addEventListener("click"');
   const uploadEnd = profile.indexOf("\n});", uploadStart);
   const uploadHandler = profile.slice(uploadStart, uploadEnd);
-  const publicLoadStart = publicProfile.indexOf("async function loadPublicAlbums(){");
-  const publicLoadEnd = publicProfile.indexOf("\n\nasync function start(){", publicLoadStart);
-  const publicLoad = publicProfile.slice(publicLoadStart, publicLoadEnd);
-  expect(profile).not.toContain('id="album-private"');
-  expect(profile).toContain('id="album-privacy-note">Все фотографии сохраняются в личный альбом');
+  const publicLoadStart = publicProfileRoute.indexOf("async function loadPublicAlbums(){");
+  const publicLoadEnd = publicProfileRoute.indexOf("\n\nasync function start(){", publicLoadStart);
+  const publicLoad = publicProfileRoute.slice(publicLoadStart, publicLoadEnd);
+  expect(profileMarkup).not.toContain('id="album-private"');
+  expect(profileMarkup).toContain('id="album-privacy-note">Все фотографии сохраняются в личный альбом');
   expect(uploadHandler).toContain('const bucket="photo-albums"');
   expect(uploadHandler).toContain('const table="photo_album_photos"');
   expect(uploadHandler).not.toContain('from("posts")');
@@ -486,8 +503,8 @@ test("photo albums are private by default and are not displayed on public profil
 });
 
 test("photos from both owner-only albums are shared to direct chats, never to the feed", () => {
-  const profile = fs.readFileSync(path.join(__dirname, "..", "profile.html"), "utf8");
-  expect(profile).toContain('id="private-album-share"');
+  const { route: profile, markup: profileMarkup } = readProfileSources();
+  expect(profileMarkup).toContain('id="private-album-share"');
   expect(profile).toContain('openAlbumShare({item:albumViewerItems[albumViewerIndex],bucket:"photo-albums"})');
   expect(profile).toContain('openAlbumShare({item:privateAlbumItems[privateAlbumIndex],bucket:"private-albums"})');
   const shareStart = profile.indexOf('$("album-share-send").addEventListener("click"');
@@ -500,12 +517,12 @@ test("photos from both owner-only albums are shared to direct chats, never to th
 });
 
 test("privacy settings no longer expose photo visibility and keep other controls intact", () => {
-  const profile = fs.readFileSync(path.join(__dirname, "..", "profile.html"), "utf8");
-  expect(profile).not.toContain('id="privacy-public-album"');
+  const { route: profile, markup: profileMarkup } = readProfileSources();
+  expect(profileMarkup).not.toContain('id="privacy-public-album"');
   expect(profile).not.toContain("public_album_visible");
-  expect(profile).toContain('id="privacy-video-visible"');
-  expect(profile).toContain('id="privacy-comments-visible"');
-  expect(profile).toContain('id="privacy-feed-visible"');
+  expect(profileMarkup).toContain('id="privacy-video-visible"');
+  expect(profileMarkup).toContain('id="privacy-comments-visible"');
+  expect(profileMarkup).toContain('id="privacy-feed-visible"');
   expect(profile).toContain("video_album_visible:");
   expect(profile).toContain("comments_visible:");
   expect(profile).toContain("feed_posts_visible:");
@@ -523,9 +540,10 @@ test("chat photos have zero frame and open fullscreen without changing the video
   await expect(page.locator(".message-media-image")).toBeVisible();
   await expect(page.locator(".message-media-video")).toHaveCount(1);
   const styles = await page.evaluate(() => {
-    const image = document.querySelector(".message-media-image");
+    const view = document.querySelector("#floustream-app-shell #floustream-route-view").shadowRoot;
+    const image = view.querySelector(".message-media-image");
     const photoBubble = image.closest(".bubble");
-    const video = document.querySelector(".message-media-video");
+    const video = view.querySelector(".message-media-video");
     const videoBubble = video.closest(".bubble");
     const imageStyle = getComputedStyle(image);
     const photoStyle = getComputedStyle(photoBubble);
@@ -626,7 +644,7 @@ test("all incoming and outgoing audio attachments share one frameless player, ev
   expect(frameStyles).toEqual({ playerBorder: "0px", playerOutline: "0px", playerShadow: "none", bubbleBorder: "0px", bubbleOutline: "0px", bubbleShadow: "none" });
 
   await page.evaluate(() => {
-    const audio = document.querySelector(".message-media-audio");
+    const audio = document.querySelector("#floustream-app-shell #floustream-route-view").shadowRoot.querySelector(".message-media-audio");
     let playing = false;
     Object.defineProperty(audio, "paused", { configurable: true, get: () => !playing });
     Object.defineProperty(audio, "duration", { configurable: true, get: () => 18 });
