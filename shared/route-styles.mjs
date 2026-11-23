@@ -10,10 +10,12 @@ export async function attachRouteStyles(root, href, name, signal) {
       if (settled) return;
       settled = true;
       signal?.removeEventListener("abort", onAbort);
+      clearTimeout(fallbackTimer);
       if (signal?.aborted) { link.remove(); resolve(null); }
       else resolve(link);
     };
     const onAbort = () => finish();
+    const fallbackTimer = setTimeout(finish, 1200);
     link.addEventListener("load", finish, { once: true });
     link.addEventListener("error", () => {
       console.error("FLOUSTREAM stylesheet failed:", name);
