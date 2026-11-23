@@ -12,7 +12,7 @@ function ensureFriendNotifications() {
   });
 }
 
-export function mount(root, { signal }) {
+export function mount(root, { signal, navigate }) {
   const style = document.createElement("style");
   style.dataset.floustreamRouteStyle = "friends";
   style.textContent = STYLE;
@@ -83,18 +83,18 @@ export function mount(root, { signal }) {
     const stored=await client.auth.getSession();if(signal.aborted)return;if(stored.error)throw stored.error;
     if(!stored.data?.session)throw new Error("Сессия не найдена в хранилище браузера. Вернись на страницу входа и авторизуйся снова.");
     const auth=await client.auth.getUser();if(signal.aborted)return;if(auth.error)throw auth.error;viewer=auth.data.user;
-    if(!viewer){location.replace("portal.html");return;}
+    if(!viewer){navigate("portal.html");return;}
     await ensureFriendNotifications();if(signal.aborted)return;
     window.initFloustreamFriendNotifications?.(client,viewer.id,{signal});
     await loadAll();if(signal.aborted)return;
     channel=client.channel("floustream-friends-page-"+viewer.id).on("postgres_changes",{event:"*",schema:"public",table:"friend_requests"},()=>loadAll()).subscribe();
-    signal.addEventListener("abort",()=>{if(channel)client.removeChannel(channel);},{once:true});
    }catch(error){if(!signal.aborted)notice("Не удалось открыть раздел друзей: "+error.message,true);}
   }
   start();
 
   return async () => {
     if(channel&&client) await client.removeChannel(channel);
+    try { await client?.auth?.stopAutoRefresh?.(); } catch (_) {}
     style.remove();
     root.replaceChildren();
   };
