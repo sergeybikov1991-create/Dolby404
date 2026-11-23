@@ -53,7 +53,6 @@
 
     const link = document.createElement("link");
     link.rel = "prefetch";
-    link.as = "document";
     link.href = key;
     link.dataset.floustreamPrefetch = "true";
     link.addEventListener("error", () => {
