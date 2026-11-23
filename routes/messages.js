@@ -478,7 +478,10 @@ $("voice-mode-launch").addEventListener("click",()=>{$("voice-mode").hidden=fals
 $("voice-mode-close").addEventListener("click",()=>{if(voiceRecording)void finishVoiceRecording(true);$("voice-mode").hidden=true;voiceModeOpen=false;});
 $("voice-mode-action").addEventListener("click",()=>{if(voiceRecording)void finishVoiceRecording(false);else if(!$("voice-mode-action").disabled)void beginVoiceRecording(true);});
 signal.addEventListener("abort",()=>{clearInterval(voiceTimer);if(voiceRecorder&&voiceRecorder.state!=="inactive")try{voiceRecorder.stop();}catch(_){}stopVoiceStream();},{once:true});
-   $("message-input").addEventListener("keydown",event=>{if(event.key==="Enter"&&!event.shiftKey){event.preventDefault();$("composer").requestSubmit();}});
+   const messageInput=$("message-input");
+   function resizeMessageInput(){messageInput.style.height="auto";messageInput.style.height=Math.min(132,Math.max(44,messageInput.scrollHeight))+"px";messageInput.style.overflowY=messageInput.scrollHeight>132?"auto":"hidden";}
+   messageInput.addEventListener("input",resizeMessageInput);
+   messageInput.addEventListener("keydown",event=>{if(event.key==="Enter"&&!event.shiftKey){event.preventDefault();$("composer").requestSubmit();}});
    function openAttachmentMenu(open){const menu=$("attachment-menu"),button=$("attach");menu.hidden=!(open??menu.hidden);button.setAttribute("aria-expanded",String(!menu.hidden));}
    $("attach").addEventListener("click",()=>openAttachmentMenu($("attachment-menu").hidden));
    $("attachment-menu").addEventListener("click",event=>{
