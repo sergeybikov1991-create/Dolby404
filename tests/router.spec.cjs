@@ -116,7 +116,7 @@ test("portal authentication screen is loaded as a route module from Music", asyn
 
 test("home feed mounts as a route module and releases presence on navigation", async ({ page }) => {
   await page.addInitScript(() => {
-    const state = window.__homeTestState = { tracked: 0, untracked: 0, removed: 0 };
+    const state = window.__homeTestState = { tracked: 0, untracked: 0, removed: 0, postsQueries: 0 };
     const channel = {
       on() { return channel; },
       subscribe(callback) { callback("SUBSCRIBED"); return channel; },
@@ -131,7 +131,8 @@ test("home feed mounts as a route module and releases presence on navigation", a
         signOut: async () => ({ error: null }),
         stopAutoRefresh: async () => {}
       },
-      from() {
+      from(table) {
+        if (table === "posts") state.postsQueries += 1;
         const query = {
           select() { return query; },
           order() { return query; },
@@ -152,6 +153,12 @@ test("home feed mounts as a route module and releases presence on navigation", a
   await expect(page.locator(".fs-route-home #status")).toContainText("Аккаунт подключён");
   await expect(page.locator(".fs-route-home #feed-empty")).toBeVisible();
   await expect(page.locator('style[data-floustream-route-style="home"]')).toHaveCount(1);
+
+  await page.evaluate(() => window.FloustreamRouter.navigate(new URL("music.html", location.href)));
+  await expect(page.locator(".fs-music-logo")).toBeVisible();
+  await page.evaluate(() => window.FloustreamRouter.navigate(new URL("home.html", location.href)));
+  await expect(page.locator(".fs-route-home #feed-empty")).toBeVisible();
+  expect(await page.evaluate(() => window.__homeTestState.postsQueries)).toBe(1);
 
   await page.locator(".fs-route-home #logout-button").click();
   await expect(page).toHaveURL(/portal\.html$/);
