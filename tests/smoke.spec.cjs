@@ -503,7 +503,7 @@ test("photo albums are private by default and are not displayed on public profil
 });
 
 test("photos from both owner-only albums are shared to direct chats, never to the feed", () => {
-  const profile = fs.readFileSync(path.join(__dirname, "..", "profile.html"), "utf8");
+  const { route: profile, markup: profileMarkup } = readProfileSources();
   expect(profileMarkup).toContain('id="private-album-share"');
   expect(profile).toContain('openAlbumShare({item:albumViewerItems[albumViewerIndex],bucket:"photo-albums"})');
   expect(profile).toContain('openAlbumShare({item:privateAlbumItems[privateAlbumIndex],bucket:"private-albums"})');
@@ -517,7 +517,7 @@ test("photos from both owner-only albums are shared to direct chats, never to th
 });
 
 test("privacy settings no longer expose photo visibility and keep other controls intact", () => {
-  const profile = fs.readFileSync(path.join(__dirname, "..", "profile.html"), "utf8");
+  const { route: profile, markup: profileMarkup } = readProfileSources();
   expect(profileMarkup).not.toContain('id="privacy-public-album"');
   expect(profile).not.toContain("public_album_visible");
   expect(profileMarkup).toContain('id="privacy-video-visible"');
