@@ -29,8 +29,13 @@ export async function mount(root, { signal, navigate, url }) {
   const originalBodyStyle = document.body.getAttribute("style");
   const originalBodyClass = document.body.className;
   const originalTheme = document.body.dataset.theme;
-  const style = await attachRouteStyles(document.head, stylesheet, "profile", signal);
-  if (!style) return;
+  const originalRootVisibility = root.style.visibility;
+  root.style.visibility = "hidden";
+  let style = null;
+  const stylePromise = attachRouteStyles(document.head, stylesheet, "profile", signal).then(value => {
+    style = value;
+    return value;
+  });
   root.innerHTML = MARKUP;
   const routeRoot = root.querySelector(".fs-route-profile");
 
@@ -58,13 +63,14 @@ export async function mount(root, { signal, navigate, url }) {
   const restoreProfileShell = () => {
     const ownsRoot = routeRoot.isConnected && routeRoot.parentNode === root;
     if (ownsRoot) {
+      root.style.visibility = originalRootVisibility;
       document.body.style.cssText = originalBodyStyle || "";
       document.body.className = originalBodyClass;
       if (originalTheme === undefined) delete document.body.dataset.theme;
       else document.body.dataset.theme = originalTheme;
       root.replaceChildren();
     }
-    style.remove();
+    style?.remove();
   };
 
   await ensureProfileScripts();
@@ -1707,5 +1713,7 @@ const ownsRoot = !!root.querySelector(".fs-route-profile");
     style.remove();
   };
 
+  await stylePromise;
+  if (!signal.aborted) root.style.visibility = originalRootVisibility;
   return cleanup;
 }

@@ -270,6 +270,7 @@ test("router exposes local route timing and error diagnostics without remote tel
 
 test("SPA route modules are prefetched on hover intent", async ({ page }) => {
   await page.goto("/music.html", { waitUntil: "domcontentloaded" });
+  await expect(page.locator(".fs-music-logo")).toBeVisible();
   const request = page.waitForRequest(request => request.url().includes("/routes/public-profile.js"));
   await page.evaluate(() => {
     const root = document.querySelector("#floustream-app-shell #floustream-route-view").shadowRoot;

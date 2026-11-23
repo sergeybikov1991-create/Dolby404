@@ -6,7 +6,8 @@ function readProfileSources() {
   const route = fs.readFileSync(path.join(__dirname, "../routes/profile.js"), "utf8");
   const match = route.match(/^const MARKUP = (".*");$/m);
   if (!match) throw new Error("Profile route markup constant not found");
-  return { route, markup: JSON.parse(match[1]) };
+  const photoAlbum = fs.readFileSync(path.join(__dirname, "../routes/profile/photo-album.mjs"), "utf8");
+  return { route, markup: JSON.parse(match[1]), photoAlbum };
 }
 
 const supabaseBrowserStub = `
@@ -487,13 +488,13 @@ test("guest can open another users avatar but cannot like it", async ({ page }) 
 });
 
 test("photo albums are private by default and are not displayed on public profiles", () => {
-  const { route: profile, markup: profileMarkup } = readProfileSources();
+  const { route: profile, markup: profileMarkup, photoAlbum } = readProfileSources();
   const publicProfile = fs.readFileSync(path.join(__dirname, "..", "public-profile.html"), "utf8");
   const publicProfileRoute = fs.readFileSync(path.join(__dirname, "..", "routes", "public-profile.js"), "utf8");
   const migration = fs.readFileSync(path.join(__dirname, "..", "supabase", "migrations", "20261122170000_private_photo_album.sql"), "utf8");
-  const uploadStart = profile.indexOf('$("album-upload-button").addEventListener("click"');
-  const uploadEnd = profile.indexOf("\n});", uploadStart);
-  const uploadHandler = profile.slice(uploadStart, uploadEnd);
+  const uploadStart = photoAlbum.indexOf('$("album-upload-button").addEventListener("click"');
+  const uploadEnd = photoAlbum.indexOf("\n});", uploadStart);
+  const uploadHandler = photoAlbum.slice(uploadStart, uploadEnd);
   const publicLoadStart = publicProfileRoute.indexOf("async function loadPublicAlbums(){");
   const publicLoadEnd = publicProfileRoute.indexOf("\n\nasync function start(){", publicLoadStart);
   const publicLoad = publicProfileRoute.slice(publicLoadStart, publicLoadEnd);
@@ -514,13 +515,13 @@ test("photo albums are private by default and are not displayed on public profil
 });
 
 test("photos from both owner-only albums are shared to direct chats, never to the feed", () => {
-  const { route: profile, markup: profileMarkup } = readProfileSources();
+  const { markup: profileMarkup, photoAlbum } = readProfileSources();
   expect(profileMarkup).toContain('id="private-album-share"');
-  expect(profile).toContain('openAlbumShare({item:albumViewerItems[albumViewerIndex],bucket:"photo-albums"})');
-  expect(profile).toContain('openAlbumShare({item:privateAlbumItems[privateAlbumIndex],bucket:"private-albums"})');
-  const shareStart = profile.indexOf('$("album-share-send").addEventListener("click"');
-  const shareEnd = profile.indexOf("\n});", shareStart);
-  const shareHandler = profile.slice(shareStart, shareEnd);
+  expect(photoAlbum).toContain('openAlbumShare({item:albumViewerItems[albumViewerIndex],bucket:"photo-albums"})');
+  expect(photoAlbum).toContain('openAlbumShare({item:privateAlbumItems[privateAlbumIndex],bucket:"private-albums"})');
+  const shareStart = photoAlbum.indexOf('$("album-share-send").addEventListener("click"');
+  const shareEnd = photoAlbum.indexOf("\n});", shareStart);
+  const shareHandler = photoAlbum.slice(shareStart, shareEnd);
   expect(shareHandler).toContain("client.storage.from(share.bucket).download(item.object_path)");
   expect(shareHandler).toContain('client.storage.from("message-media").upload');
   expect(shareHandler).toContain('client.from("direct_messages").insert');
