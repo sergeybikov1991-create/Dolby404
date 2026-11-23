@@ -1,3 +1,5 @@
+import { prefetchRouteStylesheet } from "./shared/route-styles.mjs";
+
 (() => {
   "use strict";
 
@@ -143,7 +145,7 @@
     if (!document.getElementById("floustream-shell-style")) {
       const style = document.createElement("style");
       style.id = "floustream-shell-style";
-      style.textContent = "body{margin:0}#floustream-app-shell{width:100%;min-height:100vh}#floustream-route-view{width:100%;min-height:100vh;outline:none}";
+      style.textContent = "html,body{min-height:100%;background:#090910}body{margin:0;background:radial-gradient(ellipse at 18% 0%,#20102f 0,transparent 42%),#090910;color:#f5f0ff}#floustream-app-shell{position:relative;width:100%;min-height:100vh;background:transparent}#floustream-route-view{width:100%;min-height:100vh;outline:none}#floustream-route-view.floustream-route-enter{animation:floustreamRouteEnter 220ms cubic-bezier(.2,.7,.25,1) both}@keyframes floustreamRouteEnter{from{opacity:.72;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}@media(prefers-reduced-motion:reduce){#floustream-route-view.floustream-route-enter{animation:none}}";
       document.head.appendChild(style);
     }
     shell = document.createElement("div");
@@ -167,6 +169,17 @@
       throw error;
     }
     const moduleLoadMs = performance.now() - moduleStartedAt;
+    if (id !== navigationId) return false;
+
+    // Keep the current route visible while the next route's CSS is fetched.
+    // The same resolved stylesheet text is then reused by attachRouteStyles().
+    const stylesheetStartedAt = performance.now();
+    try {
+      await prefetchRouteStylesheet(module.stylesheet);
+    } catch (error) {
+      console.warn("FLOUSTREAM route stylesheet preload:", target.route, error);
+    }
+    const stylesheetLoadMs = performance.now() - stylesheetStartedAt;
     if (id !== navigationId) return false;
 
     const rootShell = ensureShell();
@@ -219,11 +232,17 @@
         if (options.popstate) restoreScrollPosition(options.restoreScrollY, id);
         else window.scrollTo({ top: 0, behavior: "auto" });
       }
+      if (options.navigation || options.popstate) {
+        viewHost.classList.remove("floustream-route-enter");
+        void viewHost.offsetWidth;
+        viewHost.classList.add("floustream-route-enter");
+      }
       viewHost.focus({ preventScroll: true });
       const mountedAt = performance.now();
       recordRouteMetric({
         route: target.route,
         moduleLoadMs: Math.round(moduleLoadMs * 100) / 100,
+        stylesheetLoadMs: Math.round(stylesheetLoadMs * 100) / 100,
         mountMs: Math.round((mountedAt - mountStartedAt) * 100) / 100,
         totalMs: Math.round((mountedAt - navigationStartedAt) * 100) / 100,
         moduleWasCached,
@@ -267,7 +286,8 @@
     const href = module && module.stylesheet;
     if (typeof href !== "string" || stylesheetPrefetches.has(href)) return;
     stylesheetPrefetches.add(href);
-    fetch(href, { cache: "force-cache" }).catch(error => {
+    prefetchRouteStylesheet(href).catch(error => {
+      stylesheetPrefetches.delete(href);
       console.warn("FLOUSTREAM stylesheet prefetch:", error);
     });
   }

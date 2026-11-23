@@ -7,7 +7,8 @@ test("profile entry uses the shared SPA router and keeps application code in a r
   const route = fs.readFileSync(path.resolve(__dirname, "..", "routes", "profile.js"), "utf8");
   expect(html).toContain('src="./app-router.js?v=1"');
   expect(html).not.toContain("const SUPABASE_URL");
-  expect(html).not.toMatch(/<style\b/);
+  expect(html.match(/id="floustream-critical-shell-style"/g)).toHaveLength(1);
+  expect(html.replace(/<style id="floustream-critical-shell-style">[\s\S]*?<\/style>/, "")).not.toMatch(/<style\b/);
   expect(route).toContain("export const shadow = false;");
   expect(route).toContain("export async function mount(");
   expect(route).toContain("profileObservers.forEach");
