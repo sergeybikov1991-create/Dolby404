@@ -16,8 +16,8 @@ android {
         applicationId = "com.floustream.android"
         minSdk = 26
         targetSdk = 35
-        versionCode = 110
-        versionName = "2.0"
+        versionCode = 111
+        versionName = "2.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "UPDATE_REPOSITORY", "\"sergeybikov1991-create/Dolby404\"")
         buildConfigField("String", "SUPABASE_URL", "\"https://qhpobdktlbhdqsnajypr.supabase.co\"")
