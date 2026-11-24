@@ -105,6 +105,16 @@ class MainActivity : ComponentActivity() {
                 mainHandler.post {
                     if (!isFinishing && !isDestroyed && ::webView.isInitialized) {
                         applyAndroidVoiceMessageRecorder(webView)
+                        mainHandler.postDelayed({
+                            if (!isFinishing && !isDestroyed && ::webView.isInitialized) {
+                                applyAndroidVoiceMessageRecorder(webView)
+                            }
+                        }, 350L)
+                        mainHandler.postDelayed({
+                            if (!isFinishing && !isDestroyed && ::webView.isInitialized) {
+                                applyAndroidVoiceMessageRecorder(webView)
+                            }
+                        }, 900L)
                     }
                 }
             }
