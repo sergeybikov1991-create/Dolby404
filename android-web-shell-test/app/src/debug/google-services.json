@@ -1,0 +1,28 @@
+{
+  "project_info": {
+    "project_number": "502480965357",
+    "project_id": "floustream-1909a",
+    "storage_bucket": "floustream-1909a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:502480965357:android:c56949dcaff438f7ee86e4",
+        "android_client_info": {
+          "package_name": "com.floustream.android.debug"
+        }
+      },
+      "api_key": [
+        {
+          "current_key": "AIzaSyAIJ7LTQ2g5DLeCs0jKLUTk3BbOkCNlafo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

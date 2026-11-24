@@ -1,17 +1,17 @@
-# FLOUSTREAM Android 1.0
+# FLOUSTREAM Android 1.7
 
 This Android application is the WebView-based FLOUSTREAM client. It opens the live FLOUSTREAM website inside a native Android Activity and uses the website's existing Supabase authentication/session.
 
 ## Production identity
 
 - Application ID: `com.floustream.android`
-- Version name: `1.0`
-- Version code: `100`
+- Version name: `1.7`
+- Version code: `107`
 - Minimum Android: 8.0 (API 26)
 - Target Android: API 35
 - Release signing: one persistent upload keystore; never regenerate it after the first public release.
 
-The Debug variant deliberately uses a separate ID (`com.floustream.android.debug`) and cannot be upgraded in place to the Release variant. The Release APK must always be signed with the same keystore and certificate fingerprint recorded in the signing passport.
+The Debug variant deliberately uses a separate ID (`com.floustream.android.debug`) and can be installed alongside the production Release app. It uses a variant-specific Firebase configuration under `app/src/debug/google-services.json`; the production `app/google-services.json` remains unchanged. The Release APK must always be signed with the same keystore and certificate fingerprint recorded in the signing passport.
 
 ## In-app updates
 
@@ -50,4 +50,4 @@ GitHub Actions workflow: `.github/workflows/android-release-1.0.yml`.
 
 ## Release gates
 
-A CI artifact is a release candidate, not a public release. Validate installation, existing-session routing, registration/login, WebView navigation, updater download/checksum/install, and all relevant protected features on a physical device before publishing. Confirm the launcher icon is present and matches the owner-supplied FLOUSTREAM artwork. Keep the immutable APK 2.0 baseline unchanged.
+A push to the Android 1.7 development branch runs unit tests and builds Debug only. A signed Release candidate and public v1.7 publication are manual, gated actions and must not run before the owner approves Debug. After publication, verify that the installed production app discovers 1.7 and completes the download, SHA-256 check, and Android installer handoff through the in-app updater. Confirm the launcher icon is present and matches the owner-supplied FLOUSTREAM artwork. Keep the immutable APK 2.0 baseline unchanged.

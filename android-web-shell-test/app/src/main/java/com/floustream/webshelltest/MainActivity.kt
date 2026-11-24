@@ -47,7 +47,8 @@ class MainActivity : ComponentActivity() {
     private var pendingCaptureUri: Uri? = null
     private var pendingCaptureFile: File? = null
     private var pendingFileChooserDialog: AlertDialog? = null
-    private var pendingWebAudioPermissionRequest: PermissionRequest? = null
+    private var pendingWebMediaPermissionRequest: PermissionRequest? = null
+    private var pendingWebMediaResources: Array<String> = emptyArray()
     private val voiceAudioCoordinator = VoiceAudioSessionCoordinator()
     private val voiceMessageAudioBridge = VoiceMessageAudioBridge(this, voiceAudioCoordinator)
     private lateinit var singleVisualPickerLauncher: ActivityResultLauncher<PickVisualMediaRequest>
@@ -70,9 +71,9 @@ class MainActivity : ComponentActivity() {
         const val WELCOME_ASSET_URL = "file:///android_asset/index.html"
         const val AUTH_URL = SITE_BASE_URL + "portal.html"
         const val PROFILE_URL = SITE_BASE_URL + "profile.html"
-        const val HOME_URL = PROFILE_URL
+        const val HOME_URL = SITE_BASE_URL + "home.html"
         const val FILE_CHOOSER_REQUEST_CODE = 4102
-        const val AUDIO_PERMISSION_REQUEST_CODE = 4103
+        const val WEB_MEDIA_PERMISSION_REQUEST_CODE = 4103
         const val MAX_AUTH_CHECK_ATTEMPTS = 50
         const val AUTH_CHECK_INTERVAL_MS = 400L
     }
@@ -90,6 +91,16 @@ class MainActivity : ComponentActivity() {
             ActivityResultContracts.PickMultipleVisualMedia(20)
         ) { uris ->
             completeFileChooser(uris.takeIf { it.isNotEmpty() }?.toTypedArray())
+        }
+
+        voiceMessageAudioBridge.routeChangeListener = { route ->
+            if (SiteRoutePolicy.isMessagesRouteName(route)) {
+                mainHandler.post {
+                    if (!isFinishing && !isDestroyed && ::webView.isInitialized) {
+                        applyAndroidVoiceMessageRecorder(webView)
+                    }
+                }
+            }
         }
 
         webView = WebView(this).apply {
@@ -132,9 +143,7 @@ class MainActivity : ComponentActivity() {
                 ) {
                     super.onPageStarted(view, url, favicon)
                     val target = url.orEmpty()
-                    val targetUri = Uri.parse(target)
-                    val trustedSiteOrigin = targetUri.scheme == "https" &&
-                        targetUri.host == "sergeybikov1991-create.github.io"
+                    val trustedSiteOrigin = SiteRoutePolicy.isTrustedSiteUrl(target)
                     if (trustedSiteOrigin) {
                         view?.addJavascriptInterface(voiceMessageAudioBridge, "FloustreamVoiceAudio")
                     } else {
@@ -226,14 +235,16 @@ class MainActivity : ComponentActivity() {
                     applyAndroidOfflineDataCache(view)
 
                     val currentUrl = url.orEmpty()
-                    if (currentUrl.contains("/messages.html")) applyAndroidVoiceMessageRecorder(view)
+                    installAndroidRouteLifecycleHooks(view)
+                    val currentRoute = SiteRoutePolicy.routeName(currentUrl)
+                    if (SiteRoutePolicy.isMessagesRouteName(currentRoute)) {
+                        applyAndroidVoiceMessageRecorder(view)
+                    }
                     if (startupAuthCheckPending &&
                         (currentUrl.startsWith(AUTH_URL) ||
                          currentUrl.startsWith(PROFILE_URL))
                     ) {
-                        val clientExpression =
-                            if (currentUrl.startsWith(PROFILE_URL)) "client" else "supabaseClient"
-                        checkSupabaseSession(view, clientExpression)
+                        checkSupabaseSession(view)
                         return
                     }
 
@@ -246,21 +257,48 @@ class MainActivity : ComponentActivity() {
             webChromeClient = object : WebChromeClient() {
                 override fun onPermissionRequest(request: PermissionRequest?) {
                     if (request == null) return
-                    val origin = request.origin
-                    val audioOnly = request.resources.isNotEmpty() &&
-                        request.resources.all { it == PermissionRequest.RESOURCE_AUDIO_CAPTURE }
-                    val trustedOrigin = origin.scheme == "https" &&
-                        origin.host == "sergeybikov1991-create.github.io"
-                    if (!trustedOrigin || !audioOnly) {
+                    val requestedResources = request.resources.distinct()
+                    val supportedResources = setOf(
+                        PermissionRequest.RESOURCE_AUDIO_CAPTURE,
+                        PermissionRequest.RESOURCE_VIDEO_CAPTURE
+                    )
+                    val trustedOrigin = SiteRoutePolicy.isTrustedOrigin(request.origin.toString()) &&
+                        SiteRoutePolicy.isTrustedSiteUrl(webView.url)
+                    if (!trustedOrigin || requestedResources.isEmpty() ||
+                        requestedResources.any { it !in supportedResources }
+                    ) {
                         request.deny()
                         return
                     }
-                    if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-                        request.grant(arrayOf(PermissionRequest.RESOURCE_AUDIO_CAPTURE))
+
+                    val requiredPermissions = buildList {
+                        if (PermissionRequest.RESOURCE_AUDIO_CAPTURE in requestedResources) {
+                            add(Manifest.permission.RECORD_AUDIO)
+                        }
+                        if (PermissionRequest.RESOURCE_VIDEO_CAPTURE in requestedResources) {
+                            add(Manifest.permission.CAMERA)
+                        }
+                    }
+                    val missingPermissions = requiredPermissions.filter {
+                        checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED
+                    }
+                    if (missingPermissions.isEmpty()) {
+                        request.grant(requestedResources.toTypedArray())
                     } else {
-                        pendingWebAudioPermissionRequest?.deny()
-                        pendingWebAudioPermissionRequest = request
-                        requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), AUDIO_PERMISSION_REQUEST_CODE)
+                        pendingWebMediaPermissionRequest?.deny()
+                        pendingWebMediaPermissionRequest = request
+                        pendingWebMediaResources = requestedResources.toTypedArray()
+                        requestPermissions(
+                            missingPermissions.toTypedArray(),
+                            WEB_MEDIA_PERMISSION_REQUEST_CODE
+                        )
+                    }
+                }
+
+                override fun onPermissionRequestCanceled(request: PermissionRequest?) {
+                    if (pendingWebMediaPermissionRequest === request) {
+                        pendingWebMediaPermissionRequest = null
+                        pendingWebMediaResources = emptyArray()
                     }
                 }
 
@@ -1165,23 +1203,57 @@ class MainActivity : ComponentActivity() {
             })();
         """.trimIndent()
         view.evaluateJavascript(script, null)
-    }    private fun checkForUpdatesOnce() {
+    }
+
+    private fun installAndroidRouteLifecycleHooks(view: WebView?) {
+        if (view == null || isFinishing || isDestroyed) return
+        val bridgeToken = voiceMessageAudioBridge.javascriptToken
+        val script = """
+            (function() {
+                try {
+                    if (window.__floustreamAndroidRouteLifecycleInstalled) return;
+                    window.__floustreamAndroidRouteLifecycleInstalled = true;
+                    const notifyNative = function(route) {
+                        const normalized = String(route || '').trim().split('?')[0];
+                        if (!normalized || !window.FloustreamVoiceAudio) return;
+                        try {
+                            window.FloustreamVoiceAudio.onSiteRouteChanged('$bridgeToken', normalized);
+                        } catch (_) {}
+                    };
+                    window.addEventListener('floustream:route-metric', function(event) {
+                        notifyNative(event && event.detail ? event.detail.route : '');
+                    });
+                    const activeRoute = window.FloustreamRouter && window.FloustreamRouter.activeRoute;
+                    if (activeRoute) notifyNative(activeRoute);
+                    else {
+                        const path = location.pathname.split('/').pop();
+                        if (path) notifyNative(path);
+                    }
+                } catch (_) {}
+            })();
+        """.trimIndent()
+        view.evaluateJavascript(script, null)
+    }
+
+    private fun checkForUpdatesOnce() {
         if (!updateCheckStarted && ::inAppUpdater.isInitialized) {
             updateCheckStarted = true
             inAppUpdater.checkForUpdate()
         }
     }
 
-    private fun checkSupabaseSession(view: WebView?, clientExpression: String) {
+    /**
+     * Verifies the WebView's persisted Supabase session without reaching into
+     * JavaScript-module-local variables. The website's SPA keeps its client
+     * inside ES modules, so names such as "client" and "supabaseClient" are
+     * intentionally not available on the global window object.
+     */
+    private fun checkSupabaseSession(view: WebView?) {
         if (view == null || isFinishing || isDestroyed) return
 
         val script = """
             (function() {
                 try {
-                    if (typeof $clientExpression === 'undefined' || !$clientExpression) {
-                        return { state: 'pending' };
-                    }
-
                     if (!window.__floustreamAuthCheckRunning &&
                         !window.__floustreamAuthCheckState) {
                         window.__floustreamAuthCheckRunning = true;
@@ -1189,40 +1261,53 @@ class MainActivity : ComponentActivity() {
 
                         (async function() {
                             try {
-                                const authClient = $clientExpression;
-                                const stored = await authClient.auth.getSession();
-                                if (stored.error) {
-                                    const storedStatus = Number(stored.error.status || 0);
-                                    if (storedStatus === 400 || storedStatus === 401 || storedStatus === 403) {
-                                        return 'unauthenticated';
+                                const storageKey = 'sb-qhpobdktlbhdqsnajypr-auth-token';
+                                const rawSession = window.localStorage.getItem(storageKey);
+                                if (!rawSession) return 'unauthenticated';
+
+                                let storedSession;
+                                try {
+                                    storedSession = JSON.parse(rawSession);
+                                } catch (_) {
+                                    return 'unauthenticated';
+                                }
+
+                                const accessToken = storedSession &&
+                                    typeof storedSession.access_token === 'string'
+                                    ? storedSession.access_token
+                                    : '';
+                                if (!accessToken) return 'unauthenticated';
+
+                                // Ask Supabase Auth directly. This does not depend
+                                // on an ES-module-scoped JavaScript client instance.
+                                const response = await window.fetch(
+                                    '${BuildConfig.SUPABASE_URL}/auth/v1/user',
+                                    {
+                                        method: 'GET',
+                                        cache: 'no-store',
+                                        headers: {
+                                            'apikey': '${BuildConfig.SUPABASE_PUBLISHABLE_KEY}',
+                                            'Authorization': 'Bearer ' + accessToken,
+                                            'Accept': 'application/json'
+                                        }
                                     }
-                                    return 'offline';
-                                }
-                                if (!stored.data || !stored.data.session) {
+                                );
+
+                                if (response.status === 400 || response.status === 401 ||
+                                    response.status === 403) {
                                     return 'unauthenticated';
                                 }
+                                if (!response.ok) return 'offline';
 
-                                // getUser() contacts Supabase Auth; getSession() alone
-                                // only reads the local token cache.
-                                const confirmed = await authClient.auth.getUser();
-                                if (!confirmed.error && confirmed.data && confirmed.data.user) {
-                                    window.__floustreamPushSession = {
-                                        userId: confirmed.data.user.id,
-                                        accessToken: stored.data.session.access_token,
-                                        isAnonymous: confirmed.data.user.is_anonymous === true
-                                    };
-                                    return 'verified';
-                                }
+                                const user = await response.json();
+                                if (!user || !user.id) return 'unauthenticated';
 
-                                const error = confirmed.error || {};
-                                const status = Number(error.status || 0);
-                                const code = String(error.code || '').toLowerCase();
-                                if (status === 400 || status === 401 || status === 403 ||
-                                    code.includes('invalid') || code.includes('expired') ||
-                                    code.includes('not_found')) {
-                                    return 'unauthenticated';
-                                }
-                                return 'offline';
+                                window.__floustreamPushSession = {
+                                    userId: user.id,
+                                    accessToken: accessToken,
+                                    isAnonymous: user.is_anonymous === true
+                                };
+                                return 'verified';
                             } catch (error) {
                                 return 'offline';
                             }
@@ -1287,15 +1372,14 @@ class MainActivity : ComponentActivity() {
                     val currentUrl = view?.url.orEmpty()
 
                     if (currentUrl.startsWith(AUTH_URL)) {
-                        // An unauthenticated visitor must stay on the login page.
-                        // Replacing portal.html with the bundled welcome page here
-                        // prevented users from ever completing their first login.
+                        // Keep the actual website login route visible. Its SPA
+                        // module owns login and registration initialization.
                         entryResolved = true
                         authFlowActive = true
                         view?.visibility = View.VISIBLE
                     } else {
-                        // A stale/expired session on a protected profile page
-                        // should return to the sign-in screen, not the welcome loop.
+                        // An expired or invalid session on a protected page
+                        // must return to the sign-in route.
                         entryResolved = false
                         authFlowActive = false
                         view?.stopLoading()
@@ -1315,7 +1399,7 @@ class MainActivity : ComponentActivity() {
                         showOfflineScreen(view)
                     } else {
                         authCheckRunnable = Runnable {
-                            checkSupabaseSession(view, clientExpression)
+                            checkSupabaseSession(view)
                         }
                         mainHandler.postDelayed(authCheckRunnable!!, AUTH_CHECK_INTERVAL_MS)
                     }
@@ -1460,12 +1544,15 @@ class MainActivity : ComponentActivity() {
         val script = """
             (function() {
                 try {
-                    const form = document.getElementById('composer');
-                    const input = document.getElementById('attachment-input');
-                    const text = document.getElementById('message-input');
-                    const button = document.getElementById('send');
-                    if (!form || !input || !text || !button || window.__floustreamAndroidVoiceRecorderInstalled) return;
-                    window.__floustreamAndroidVoiceRecorderInstalled = true;
+                    const routeHost = document.querySelector('#floustream-app-shell #floustream-route-view');
+                    const routeRoot = routeHost && routeHost.shadowRoot ? routeHost.shadowRoot : document;
+                    const form = routeRoot.querySelector('#composer');
+                    const input = routeRoot.querySelector('#attachment-input');
+                    const text = routeRoot.querySelector('#message-input');
+                    const button = routeRoot.querySelector('#send');
+                    if (!form || !input || !text || !button ||
+                        form.dataset.floustreamAndroidVoiceRecorderInstalled === '1') return;
+                    form.dataset.floustreamAndroidVoiceRecorderInstalled = '1';
 
                     // Voice recording is a press-and-hold action on the existing send control.
                     // No second microphone button is added to the composer.
@@ -1475,6 +1562,7 @@ class MainActivity : ComponentActivity() {
                     button.style.touchAction = 'none';
 
                     const bridgeToken = '$bridgeToken';
+                    const recorderHref = location.href;
                     let recording = false;
                     let startPending = false;
                     let startedAt = 0;
@@ -1488,7 +1576,7 @@ class MainActivity : ComponentActivity() {
 
                     function notice(message, error) {
                         if (typeof showNotice === 'function') showNotice(message, !!error);
-                        else if (document.getElementById('notice')) document.getElementById('notice').textContent = message;
+                        else if (routeRoot.querySelector('#notice')) routeRoot.querySelector('#notice').textContent = message;
                     }
                     function releaseLease() {
                         if (!leaseHeld) return;
@@ -1525,7 +1613,7 @@ class MainActivity : ComponentActivity() {
 
                     async function startRecording() {
                         if (disposed || recording || startPending || !pointerHeld && !keyboardHeld) return;
-                        if (document.getElementById('attach')?.disabled) return;
+                        if (routeRoot.querySelector('#attach')?.disabled) return;
                         startPending = true;
                         if (!window.FloustreamVoiceAudio) {
                             startPending = false;
@@ -1620,6 +1708,16 @@ class MainActivity : ComponentActivity() {
                             resetButton();
                         }
                     }
+
+                    window.addEventListener('floustream:route-metric', function(event) {
+                        const nextRoute = String(event && event.detail ? event.detail.route : '').trim();
+                        if (nextRoute && (nextRoute !== 'messages.html' || location.href !== recorderHref)) {
+                            disposed = true;
+                            cancelRecording();
+                            try { window.FloustreamVoiceAudio.cancelNativeRecording(bridgeToken); } catch (_) {}
+                            releaseLease();
+                        }
+                    });
 
                     button.addEventListener('pointerdown', event => {
                         if (event.button !== 0 || text.value.trim() || disposed) return;
@@ -1866,12 +1964,21 @@ class MainActivity : ComponentActivity() {
             )
             return
         }
-        if (requestCode == AUDIO_PERMISSION_REQUEST_CODE) {
-            val pending = pendingWebAudioPermissionRequest
-            pendingWebAudioPermissionRequest = null
-            if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
-                pending?.grant(arrayOf(PermissionRequest.RESOURCE_AUDIO_CAPTURE))
-            } else pending?.deny()
+        if (requestCode == WEB_MEDIA_PERMISSION_REQUEST_CODE) {
+            val pending = pendingWebMediaPermissionRequest
+            val resources = pendingWebMediaResources
+            pendingWebMediaPermissionRequest = null
+            pendingWebMediaResources = emptyArray()
+            val allGranted = resources.isNotEmpty() && resources.all { resource ->
+                when (resource) {
+                    PermissionRequest.RESOURCE_AUDIO_CAPTURE ->
+                        checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+                    PermissionRequest.RESOURCE_VIDEO_CAPTURE ->
+                        checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+                    else -> false
+                }
+            }
+            if (allGranted) pending?.grant(resources) else pending?.deny()
         }
     }
 
@@ -1880,8 +1987,10 @@ class MainActivity : ComponentActivity() {
         fileChooserCallback = null
         pendingFileChooserDialog?.dismiss()
         pendingFileChooserDialog = null
-        pendingWebAudioPermissionRequest?.deny()
-        pendingWebAudioPermissionRequest = null
+        pendingWebMediaPermissionRequest?.deny()
+        pendingWebMediaPermissionRequest = null
+        pendingWebMediaResources = emptyArray()
+        voiceMessageAudioBridge.routeChangeListener = null
         voiceMessageAudioBridge.close()
         cancelAuthCheck()
         if (::inAppUpdater.isInitialized) inAppUpdater.close()

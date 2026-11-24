@@ -1,35 +1,48 @@
-name: FLOUSTREAM Android 1.6 Release Candidate
+name: FLOUSTREAM Android 1.7
 
 on:
   workflow_dispatch:
     inputs:
-      publish_release:
-        description: "Опубликовать публичный GitHub Release v1.6 (только после проверки APK)"
+      build_release_candidate:
+        description: "Собрать подписанный Release-кандидат после утверждения Debug"
         required: false
         type: boolean
         default: false
+      publish_release:
+        description: "Опубликовать ранее собранный и отдельно утверждённый Release-кандидат"
+        required: false
+        type: boolean
+        default: false
+      release_candidate_run_id:
+        description: "ID успешного Actions-запуска с утверждённым Release-кандидатом"
+        required: false
+        type: string
+        default: ""
+  pull_request:
+    branches:
+      - feature/android-1.6-compact-audio-launcher
+    paths:
+      - "android-web-shell-test/**"
+      - ".github/workflows/android-release-1.0.yml"
   push:
     branches:
-      - release/android-1.0
-      - feature/apk-2.0-release-fcm
-      - feature/android-1.4-step1-fullscreen-video
-      - feature/android-1.5-repair-from-1.4
-      - feature/android-1.6-compact-audio-launcher
+      - feature/apk-1.7-full-site-vk-integration
     paths:
       - "android-web-shell-test/**"
       - ".github/workflows/android-release-1.0.yml"
 
 permissions:
   contents: write
+  actions: read
 
 concurrency:
-  group: floustream-android-release-1-6
+  group: floustream-android-1-7
   cancel-in-progress: false
 
 jobs:
-  release-build:
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -50,8 +63,15 @@ jobs:
         with:
           gradle-version: "8.13"
 
+      - name: Validate release controls
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_release && (inputs.build_release_candidate || inputs.release_candidate_run_id == '')
+        run: |
+          echo "::error::Build and publication must be separate runs. Supply the run ID of the previously built and approved Release candidate."
+          exit 1
+
       - name: Check release signing secrets
         id: signing
+        if: github.event_name == 'workflow_dispatch' && inputs.build_release_candidate
         env:
           KEYSTORE_B64: ${{ secrets.DOLBY404_KEYSTORE_BASE64 }}
           STORE_PASSWORD: ${{ secrets.DOLBY404_KEYSTORE_PASSWORD }}
@@ -59,8 +79,7 @@ jobs:
           KEY_PASSWORD: ${{ secrets.DOLBY404_KEY_PASSWORD }}
         run: |
           if [ -z "$KEYSTORE_B64" ] || [ -z "$STORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::error::Release signing secrets are missing or empty. Configure all four repository Actions secrets before building FLOUSTREAM 1.6."
+            echo "::error::Release signing secrets are missing or empty."
             exit 1
           fi
           echo "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/floustream-release.jks"
@@ -81,7 +100,13 @@ jobs:
         working-directory: android-web-shell-test
         run: gradle --no-daemon clean :app:assembleDebug
 
-      - name: Build signed Release APK
+      - name: Verify Debug APK identity
+        run: |
+          APK=android-web-shell-test/app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android.debug' versionCode='107' versionName='1.7-debug'"
+
+      - name: Build signed Release APK candidate
         if: steps.signing.outputs.ready == 'true'
         working-directory: android-web-shell-test
         env:
@@ -90,7 +115,7 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.DOLBY404_KEY_PASSWORD }}
         run: gradle --no-daemon :app:assembleRelease
 
-      - name: Verify APK identity, signature and signing certificate
+      - name: Verify Release APK identity and signing certificate
         if: steps.signing.outputs.ready == 'true'
         run: |
           APK=android-web-shell-test/app/build/outputs/apk/release/app-release.apk
@@ -104,8 +129,7 @@ jobs:
             echo "Actual certificate SHA-256: ${CERT_SHA:-not-found}"
             exit 1
           fi
-          echo "APK signing certificate matches the FLOUSTREAM release passport."
-          $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android' versionCode='106' versionName='1.6'"
+          $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android' versionCode='107' versionName='1.7'"
 
       - name: Generate checksum and updater manifest
         if: steps.signing.outputs.ready == 'true'
@@ -113,42 +137,72 @@ jobs:
           APK=android-web-shell-test/app/build/outputs/apk/release/app-release.apk
           SHA=$(sha256sum "$APK" | cut -d' ' -f1)
           printf '%s  %s\n' "$SHA" "app-release.apk" > "$APK.sha256"
-          printf '{"versionCode":106,"versionName":"1.6","apkUrl":"https://github.com/sergeybikov1991-create/Dolby404/releases/download/v1.6/app-release.apk","sha256":"%s"}\n' "$SHA" > android-web-shell-test/app/build/outputs/apk/release/update.json
+          printf '{"versionCode":107,"versionName":"1.7","apkUrl":"https://github.com/sergeybikov1991-create/Dolby404/releases/download/v1.7/app-release.apk","sha256":"%s"}\n' "$SHA" > android-web-shell-test/app/build/outputs/apk/release/update.json
 
-      - name: Upload CI artifacts
+      - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: FLOUSTREAM-Android-1.6-RC
+          name: FLOUSTREAM-Android-1.7-Debug
+          path: android-web-shell-test/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload signed Release candidate
+        if: steps.signing.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: FLOUSTREAM-Android-1.7-RC
           path: |
-            android-web-shell-test/app/build/outputs/apk/debug/app-debug.apk
             android-web-shell-test/app/build/outputs/apk/release/app-release.apk
             android-web-shell-test/app/build/outputs/apk/release/app-release.apk.sha256
             android-web-shell-test/app/build/outputs/apk/release/update.json
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 30
 
+      - name: Download approved signed Release candidate
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_release
+        uses: actions/download-artifact@v4
+        with:
+          name: FLOUSTREAM-Android-1.7-RC
+          path: release-candidate
+          run-id: ${{ inputs.release_candidate_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify approved Release candidate before publication
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_release
+        run: |
+          cd release-candidate
+          APK=app-release.apk
+          test -s "$APK"
+          sha256sum -c app-release.apk.sha256
+          python -m json.tool update.json >/dev/null
+          $ANDROID_HOME/build-tools/36.0.0/apksigner verify --verbose "$APK"
+          CERT_SHA=$($ANDROID_HOME/build-tools/36.0.0/apksigner verify --print-certs "$APK" | grep 'Signer #1 certificate SHA-256 digest:' | cut -d: -f2- | tr -d '[:space:]' | tr '[:lower:]' '[:upper:]')
+          EXPECTED_CERT_SHA="757681105E9DFA43B84036C637815FBA0A98FB6169DADF75E7AE136504A9EED9"
+          if [ "$CERT_SHA" != "$EXPECTED_CERT_SHA" ]; then
+            echo "::error::APK signing certificate does not match RELEASE-SIGNING-PASSPORT.md"
+            exit 1
+          fi
+          $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android' versionCode='107' versionName='1.7'"
+
       - name: Publish public GitHub Release
-        if: steps.signing.outputs.ready == 'true' && github.event_name == 'workflow_dispatch' && inputs.publish_release
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.6
-          name: FLOUSTREAM Android 1.6
+          tag_name: v1.7
+          name: FLOUSTREAM Android 1.7
           body: |
-            FLOUSTREAM Android 1.6:
-            - запись голосовых сообщений удержанием кнопки отправки без второго микрофонного потока;
-            - компактный плеер голосовых сообщений с Play/Stop и автоматической остановкой;
-            - исправленная иконка приложения на рабочем столе Android;
-            - фото и видео в чате без рамок (0 px);
-            - автоматические превью видео;
-            - сохранение проверенного кэша медиа.
+            FLOUSTREAM Android 1.7:
+            - интеграция SPA-маршрутизации сайта с Android-оболочкой;
+            - поддержка Shadow DOM для голосовых сообщений;
+            - разрешения камеры и микрофона для доверенного сайта;
+            - открытие главной ленты после подтверждения авторизации.
             Подписанный APK, SHA-256 и манифест встроенного обновления.
           draft: false
           prerelease: false
           make_latest: true
           files: |
-            android-web-shell-test/app/build/outputs/apk/release/app-release.apk
-            android-web-shell-test/app/build/outputs/apk/release/app-release.apk.sha256
-            android-web-shell-test/app/build/outputs/apk/release/update.json
+            release-candidate/app-release.apk
+            release-candidate/app-release.apk.sha256
+            release-candidate/update.json
           fail_on_unmatched_files: true
-
-# Signed Release candidate trigger after repository signing secrets setup.

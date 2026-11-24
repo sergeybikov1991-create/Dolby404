@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.media.MediaRecorder
 import android.os.Build
 import android.webkit.JavascriptInterface
+import com.floustream.webshelltest.SiteRoutePolicy
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -29,6 +30,7 @@ class VoiceMessageAudioBridge(
     val javascriptToken: String = UUID.randomUUID().toString()
 
     @Volatile var activeUserId: String? = null
+    @Volatile var routeChangeListener: ((String) -> Unit)? = null
     @Volatile private var permissionRequestPending = false
     @Volatile private var permissionWasRequested = false
     @Volatile private var lastStartError = ""
@@ -41,6 +43,14 @@ class VoiceMessageAudioBridge(
     }
 
     private fun isValidToken(token: String): Boolean = token == javascriptToken
+
+    @JavascriptInterface
+    fun onSiteRouteChanged(token: String, route: String) {
+        if (!isValidToken(token) || !SiteRoutePolicy.isKnownRouteName(route)) return
+        val normalized = route.trim().substringAfterLast('/').substringBefore('?')
+        val activity = context as? Activity ?: return
+        activity.runOnUiThread { routeChangeListener?.invoke(normalized) }
+    }
 
     @JavascriptInterface
     fun requestVoicePermission(token: String): String {
