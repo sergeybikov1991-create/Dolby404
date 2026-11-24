@@ -557,6 +557,8 @@ class MainActivity : ComponentActivity() {
                     const MAX_MEDIA_BYTES = 200 * 1024 * 1024;
                     const MAX_MEDIA_ITEM_BYTES = 25 * 1024 * 1024;
                     const MEDIA_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+                    let mediaCacheWriteCount = 0;
+                    let mediaPruneScheduled = false;
 
                     if (navigator.storage && navigator.storage.persist) {
                         navigator.storage.persist().catch(function() {});
@@ -611,6 +613,20 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
+                    function scheduleMediaPrune(cache) {
+                        mediaCacheWriteCount++;
+                        if (mediaPruneScheduled) return;
+                        mediaPruneScheduled = true;
+                        const run = function() {
+                            mediaPruneScheduled = false;
+                            if (!mediaCacheWriteCount) return;
+                            mediaCacheWriteCount = 0;
+                            pruneMediaCache(cache).catch(function() {});
+                        };
+                        if (window.requestIdleCallback) window.requestIdleCallback(run, {timeout: 3000});
+                        else setTimeout(run, 1200);
+                    }
+
                     async function putMediaCache(cache, key, response) {
                         const blob = await response.clone().blob();
                         if (!blob.size || blob.size > MAX_MEDIA_ITEM_BYTES) return false;
@@ -618,7 +634,7 @@ class MainActivity : ComponentActivity() {
                         headers.set('Content-Length', String(blob.size));
                         headers.set('X-FLOUSTREAM-Cached-At', String(Date.now()));
                         await cache.put(key, new Response(blob, { status: 200, headers: headers }));
-                        await pruneMediaCache(cache);
+                        scheduleMediaPrune(cache);
                         return true;
                     }
 
@@ -663,13 +679,23 @@ class MainActivity : ComponentActivity() {
                         } catch (_) {}
                     }
 
+                    function scheduleImageRefresh(source, key, element, attribute, userId) {
+                        const run = function() {
+                            if (element && element.isConnected && currentUserKey() === userId) {
+                                refreshCachedImage(source, key, element, attribute, userId);
+                            }
+                        };
+                        if (window.requestIdleCallback) window.requestIdleCallback(run, {timeout: 5000});
+                        else setTimeout(run, 1500);
+                    }
+
                     async function loadCachedImage(element, attribute, source, key, userId) {
                         const cache = await caches.open(cacheNameFor(userId));
                         const cached = await cache.match(key);
                         if (cached) {
                             const blob = await cached.blob();
                             if (!blob || !blob.size) return;
-                            touchMediaCache(cache, key, cached);
+                            // Cached media is immutable at its unique storage path; avoid rewriting the full Blob on every view.
                             const objectUrl = URL.createObjectURL(blob);
                             if (element.isConnected && element.getAttribute(attribute) === source &&
                                 currentUserKey() === userId) {
@@ -679,7 +705,6 @@ class MainActivity : ComponentActivity() {
                             } else {
                                 URL.revokeObjectURL(objectUrl);
                             }
-                            refreshCachedImage(source, key, element, attribute, userId);
                             return;
                         }
 
@@ -687,13 +712,13 @@ class MainActivity : ComponentActivity() {
                         element.dataset.floustreamCachedUser = userId;
                         const saveAfterLoad = function() {
                             if (element.isConnected && element.getAttribute(attribute) === source) {
-                                refreshCachedImage(source, key, element, attribute, userId);
+                                scheduleImageRefresh(source, key, element, attribute, userId);
                             }
                         };
                         if (attribute === 'src' && element.complete && element.naturalWidth > 0) {
                             saveAfterLoad();
                         } else if (attribute === 'poster') {
-                            refreshCachedImage(source, key, element, attribute, userId);
+                            scheduleImageRefresh(source, key, element, attribute, userId);
                         } else {
                             element.addEventListener('load', saveAfterLoad, { once: true });
                             element.addEventListener('error', async function() {
