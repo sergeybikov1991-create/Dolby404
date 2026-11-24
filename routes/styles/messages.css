@@ -105,3 +105,6 @@
 .bubble:has(.message-media-video),.mine .bubble:has(.message-media-video),.bubble:has(.message-media-grid .message-media-video),.mine .bubble:has(.message-media-grid .message-media-video){padding:0!important;margin:0!important;border:0!important;outline:0!important;background:transparent!important;box-shadow:none!important;}
 .message-media-stack:has(.message-media-video){padding:0!important;margin:0!important;border:0!important;outline:0!important;background:transparent!important;box-shadow:none!important;border-radius:0!important;}
 .message-media-video{display:block;margin:0!important;padding:0!important;border:0!important;outline:0!important;box-shadow:none!important;background:#050509!important;}
+
+/* Main 0.9: reveal the shared page-level violet/turquoise atmosphere behind the SPA route. */
+.fs-route-messages{background:transparent!important;background-image:none!important}

@@ -125,3 +125,19 @@ test("Main 0.9 atmospheric stylesheet is loaded by every first-party page", asyn
   expect(css).toContain(".fs-route-profile");
   expect(css).toContain("prefers-reduced-motion");
 });
+
+
+test("Main 0.9 atmospheric background is visible through every dark SPA route surface", () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const routeRoots = {
+    "home.css": ".fs-route-home{background:transparent!important;background-image:none!important}",
+    "public-profile.css": ".fs-route-public-profile{background:transparent!important;background-image:none!important}",
+    "friends.css": ".fs-route-friends{background:transparent!important;background-image:none!important}",
+    "messages.css": ".fs-route-messages{background:transparent!important;background-image:none!important}"
+  };
+  for (const [file, rule] of Object.entries(routeRoots)) {
+    const css = fs.readFileSync(path.resolve(__dirname, "..", "routes", "styles", file), "utf8");
+    expect(css, file).toContain(rule);
+  }
+});

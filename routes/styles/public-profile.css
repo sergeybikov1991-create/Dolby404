@@ -223,3 +223,6 @@
 .public-album-video video{display:block;width:100%;aspect-ratio:4/5;object-fit:contain;background:#050509}
 .public-album-video-name{padding:7px 9px;color:#cfc2e4;font-size:11px;overflow-wrap:anywhere}
 @media(max-width:480px){.public-albums{padding:13px}.public-album-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}}
+
+/* Main 0.9: reveal the shared page-level violet/turquoise atmosphere behind the SPA route. */
+.fs-route-public-profile{background:transparent!important;background-image:none!important}
