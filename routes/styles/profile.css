@@ -805,3 +805,21 @@ button:not(.composer-color):not(.message-conversation):not(.album-share-friend){
 .loops-page-content p{margin:0;color:#b9a9cb;font-size:14px;line-height:1.6}
 @media(prefers-reduced-motion:reduce){.loops-eye:before,.loops-eye:after{animation:none}}
 
+
+
+.account-email-code-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.account-email-code-panel[hidden] {
+  display: none !important;
+}
+
+#account-email-code {
+  text-align: center;
+  letter-spacing: 0.28em;
+  font-variant-numeric: tabular-nums;
+}
