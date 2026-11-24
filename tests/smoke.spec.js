@@ -94,7 +94,7 @@ test("video album keeps public and private players, native controls and swipe na
 });
 
 
-test("APK authenticated home always opens the live website profile and navigation", async () => {
+test("Android 1.8 opens the real website without an Android-only home screen", async () => {
   const fs = require("node:fs");
   const path = require("node:path");
   const mainActivity = fs.readFileSync(
@@ -104,9 +104,14 @@ test("APK authenticated home always opens the live website profile and navigatio
   const profile = fs.readFileSync(path.join(__dirname, "../profile.html"), "utf8");
 
   expect(mainActivity).toContain('const val HOME_URL = PROFILE_URL');
-  expect(mainActivity).toContain("window.location.href = '$HOME_URL'");
-  expect(mainActivity).not.toContain("shouldInterceptRequest");
-  expect(mainActivity).not.toContain("installApkMessagesNavigation");
+  expect(mainActivity).toContain("?: PROFILE_URL");
+  expect(mainActivity).toContain("view.loadUrl(destination)");
+  expect(mainActivity).not.toContain("loadDataWithBaseURL(SITE_BASE_URL, html");
+  expect(mainActivity).not.toContain("applyAndroidMessageMediaStyle(view)");
+  expect(mainActivity).toContain("syncAndroidSessionContext(view)");
+  expect(mainActivity).toContain("setDownloadListener");
+  expect(mainActivity).toContain("override fun onNewIntent(intent: Intent)");
+  expect(mainActivity).not.toContain("floustream-android-guest");
   expect(profile).toContain('id="drawer-menu-button"');
   expect(profile).toContain('id="side-drawer"');
   expect(profile).toContain('id="display-name"');
