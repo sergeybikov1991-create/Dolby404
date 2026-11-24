@@ -257,7 +257,7 @@ class MainActivity : ComponentActivity() {
                         (currentUrl.startsWith(AUTH_URL) ||
                          currentUrl.startsWith(PROFILE_URL))
                     ) {
-                        checkSupabaseSession(view)
+                        checkClerkSession(view)
                         return
                     }
 
@@ -469,13 +469,13 @@ class MainActivity : ComponentActivity() {
             WebView.setWebContentsDebuggingEnabled(true)
         }
 
-        // Keep the same HTTPS origin and Supabase localStorage used by the website.
+        // Keep the same HTTPS origin and Clerk session cookies used by the website.
         webView.loadUrl(SITE_BASE_URL)
     }
 
     /**
      * Keep Android-only caches and the voice recorder scoped to the current
-     * Supabase account without changing the website's visible UI or blocking
+     * Clerk account without changing the website's visible UI or blocking
      * public media. The website remains responsible for its own album privacy
      * and authorization rules.
      */
@@ -487,24 +487,23 @@ class MainActivity : ComponentActivity() {
                 try {
                     if (window.__floustreamAndroidSessionContextInstalled) return;
                     window.__floustreamAndroidSessionContextInstalled = true;
-                    const storageKey = 'sb-qhpobdktlbhdqsnajypr-auth-token';
 
-                    function applyStoredSession() {
-                        let session = null;
-                        try {
-                            const raw = localStorage.getItem(storageKey);
-                            session = raw ? JSON.parse(raw) : null;
-                        } catch (_) {}
-                        const user = session && session.user;
-                        const userId = user && user.is_anonymous !== true && user.id
-                            ? String(user.id) : '';
-                        window.__floustreamAndroidUserId = userId || 'guest';
+                    const supabaseUrl = '\${BuildConfig.SUPABASE_URL}';
+                    const publishableKey = '\${BuildConfig.SUPABASE_PUBLISHABLE_KEY}';
+                    const bridgeToken = '$bridgeToken';
+                    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                    let sessionGeneration = 0;
+
+                    function setGuestSession() {
+                        window.__floustreamAndroidUserId = 'guest';
+                        window.__floustreamPushSession = {
+                            userId: '',
+                            accessToken: '',
+                            isAnonymous: true
+                        };
                         try {
                             if (window.FloustreamVoiceAudio) {
-                                window.FloustreamVoiceAudio.updateSessionUserId(
-                                    '$bridgeToken',
-                                    userId
-                                );
+                                window.FloustreamVoiceAudio.updateSessionUserId(bridgeToken, '');
                             }
                         } catch (_) {}
                         if (window.__floustreamAndroidMediaUserChanged) {
@@ -515,32 +514,109 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    applyStoredSession();
-                    const originalSetItem = Storage.prototype.setItem;
-                    Storage.prototype.setItem = function(key, value) {
-                        const result = originalSetItem.apply(this, arguments);
-                        if (this === localStorage && key === storageKey) {
-                            queueMicrotask(applyStoredSession);
+                    async function resolveClerkSession() {
+                        const clerk = window.Clerk;
+                        if (!clerk || !clerk.loaded || clerk.session === undefined) {
+                            return { state: 'pending' };
                         }
-                        return result;
-                    };
-                    const originalRemoveItem = Storage.prototype.removeItem;
-                    Storage.prototype.removeItem = function(key) {
-                        const result = originalRemoveItem.apply(this, arguments);
-                        if (this === localStorage && key === storageKey) {
-                            queueMicrotask(applyStoredSession);
+                        if (!clerk.session) return { state: 'unauthenticated' };
+
+                        const token = await clerk.session.getToken();
+                        if (!token) return { state: 'unauthenticated' };
+
+                        const response = await window.fetch(
+                            supabaseUrl + '/rest/v1/rpc/floustream_user_id',
+                            {
+                                method: 'POST',
+                                cache: 'no-store',
+                                headers: {
+                                    'apikey': publishableKey,
+                                    'Authorization': 'Bearer ' + token,
+                                    'Content-Type': 'application/json',
+                                    'Accept': 'application/json'
+                                },
+                                body: '{}'
+                            }
+                        );
+
+                        if (response.status === 401 || response.status === 403) {
+                            return { state: 'unauthenticated' };
                         }
-                        return result;
-                    };
-                    const originalClear = Storage.prototype.clear;
-                    Storage.prototype.clear = function() {
-                        const result = originalClear.apply(this, arguments);
-                        if (this === localStorage) queueMicrotask(applyStoredSession);
-                        return result;
-                    };
-                    window.addEventListener('storage', function(event) {
-                        if (event.key === storageKey || event.key === null) applyStoredSession();
-                    });
+                        if (!response.ok) return { state: 'offline' };
+
+                        const userId = await response.json();
+                        if (typeof userId !== 'string' || !uuidPattern.test(userId)) {
+                            return { state: 'unauthenticated' };
+                        }
+
+                        return {
+                            state: 'verified',
+                            userId: userId,
+                            accessToken: token
+                        };
+                    }
+
+                    window.__floustreamResolveClerkSession = resolveClerkSession;
+
+                    async function applyStoredSession() {
+                        const generation = ++sessionGeneration;
+                        try {
+                            const result = await resolveClerkSession();
+                            if (generation !== sessionGeneration || result.state === 'pending' ||
+                                result.state === 'offline') return;
+
+                            if (result.state === 'verified') {
+                                window.__floustreamAndroidUserId = result.userId;
+                                window.__floustreamPushSession = {
+                                    userId: result.userId,
+                                    accessToken: result.accessToken,
+                                    isAnonymous: false
+                                };
+                                try {
+                                    if (window.FloustreamVoiceAudio) {
+                                        window.FloustreamVoiceAudio.updateSessionUserId(
+                                            bridgeToken,
+                                            result.userId
+                                        );
+                                    }
+                                } catch (_) {}
+                            } else {
+                                setGuestSession();
+                            }
+
+                            window.__floustreamAuthCheckState = result.state;
+                            window.__floustreamAuthCheckRunning = false;
+                            if (window.__floustreamAndroidMediaUserChanged) {
+                                window.__floustreamAndroidMediaUserChanged();
+                            }
+                            if (window.__floustreamAndroidDataUserChanged) {
+                                window.__floustreamAndroidDataUserChanged();
+                            }
+                        } catch (_) {
+                            // Keep the last known user context during transient network errors.
+                        }
+                    }
+
+                    function attachClerkListener(attempt) {
+                        const clerk = window.Clerk;
+                        if (clerk && typeof clerk.addListener === 'function') {
+                            if (!window.__floustreamClerkListenerInstalled) {
+                                window.__floustreamClerkListenerInstalled = true;
+                                clerk.addListener(function() {
+                                    queueMicrotask(applyStoredSession);
+                                });
+                            }
+                            applyStoredSession();
+                            return;
+                        }
+                        if (attempt < 40) {
+                            window.setTimeout(function() {
+                                attachClerkListener(attempt + 1);
+                            }, 250);
+                        }
+                    }
+
+                    attachClerkListener(0);
                 } catch (_) {}
             })();
         """.trimIndent()
@@ -1268,113 +1344,37 @@ class MainActivity : ComponentActivity() {
      * inside ES modules, so names such as "client" and "supabaseClient" are
      * intentionally not available on the global window object.
      */
-    private fun checkSupabaseSession(view: WebView?) {
+    /**
+     * Verifies the active Clerk session through the Supabase Third-Party Auth
+     * bridge. Supabase returns the stable FLOUSTREAM UUID only when the Clerk
+     * subject and server-managed app_user_id mapping match.
+     */
+    private fun checkClerkSession(view: WebView?) {
         if (view == null || isFinishing || isDestroyed) return
 
         val script = """
             (function() {
                 try {
+                    const clerk = window.Clerk;
+                    if (!clerk || !clerk.loaded || clerk.session === undefined ||
+                        typeof window.__floustreamResolveClerkSession !== 'function') {
+                        return { state: 'pending' };
+                    }
+
                     if (!window.__floustreamAuthCheckRunning &&
                         !window.__floustreamAuthCheckState) {
                         window.__floustreamAuthCheckRunning = true;
                         window.__floustreamAuthCheckState = 'pending';
 
-                        (async function() {
-                            try {
-                                const storageKey = 'sb-qhpobdktlbhdqsnajypr-auth-token';
-                                const rawSession = window.localStorage.getItem(storageKey);
-                                if (!rawSession) return 'unauthenticated';
-
-                                let storedSession;
-                                try {
-                                    storedSession = JSON.parse(rawSession);
-                                } catch (_) {
-                                    return 'unauthenticated';
-                                }
-
-                                let accessToken = storedSession &&
-                                    typeof storedSession.access_token === 'string'
-                                    ? storedSession.access_token
-                                    : '';
-                                const refreshToken = storedSession &&
-                                    typeof storedSession.refresh_token === 'string'
-                                    ? storedSession.refresh_token
-                                    : '';
-                                if (!accessToken) return 'unauthenticated';
-
-                                // Ask Supabase Auth directly. This does not depend
-                                // on an ES-module-scoped JavaScript client instance.
-                                let response = await window.fetch(
-                                    '${BuildConfig.SUPABASE_URL}/auth/v1/user',
-                                    {
-                                        method: 'GET',
-                                        cache: 'no-store',
-                                        headers: {
-                                            'apikey': '${BuildConfig.SUPABASE_PUBLISHABLE_KEY}',
-                                            'Authorization': 'Bearer ' + accessToken,
-                                            'Accept': 'application/json'
-                                        }
-                                    }
-                                );
-
-                                let user = null;
-                                if (response.ok) {
-                                    user = await response.json();
-                                } else if ((response.status === 400 || response.status === 401 ||
-                                            response.status === 403) && refreshToken) {
-                                    // Match supabase-js session recovery: an expired
-                                    // access token is not a signed-out user while its
-                                    // refresh token can still renew the same session.
-                                    response = await window.fetch(
-                                        '${BuildConfig.SUPABASE_URL}/auth/v1/token?grant_type=refresh_token',
-                                        {
-                                            method: 'POST',
-                                            cache: 'no-store',
-                                            headers: {
-                                                'apikey': '${BuildConfig.SUPABASE_PUBLISHABLE_KEY}',
-                                                'Content-Type': 'application/json',
-                                                'Accept': 'application/json'
-                                            },
-                                            body: JSON.stringify({ refresh_token: refreshToken })
-                                        }
-                                    );
-                                    if (response.status === 400 || response.status === 401 ||
-                                        response.status === 403) {
-                                        return 'unauthenticated';
-                                    }
-                                    if (!response.ok) return 'offline';
-
-                                    const refreshed = await response.json();
-                                    if (!refreshed || !refreshed.access_token ||
-                                        !refreshed.user || !refreshed.user.id) {
-                                        return 'unauthenticated';
-                                    }
-                                    accessToken = refreshed.access_token;
-                                    user = refreshed.user;
-                                    const expiresAt = Number(refreshed.expires_at) ||
-                                        Math.floor(Date.now() / 1000) +
-                                        Number(refreshed.expires_in || 3600);
-                                    const nextSession = Object.assign({}, storedSession, refreshed, {
-                                        expires_at: expiresAt
-                                    });
-                                    window.localStorage.setItem(storageKey, JSON.stringify(nextSession));
-                                } else {
-                                    return 'offline';
-                                }
-
-                                if (!user || !user.id) return 'unauthenticated';
-
+                        window.__floustreamResolveClerkSession().then(function(result) {
+                            window.__floustreamAuthCheckState = result.state;
+                            if (result.state === 'verified') {
                                 window.__floustreamPushSession = {
-                                    userId: user.id,
-                                    accessToken: accessToken,
-                                    isAnonymous: user.is_anonymous === true
+                                    userId: result.userId,
+                                    accessToken: result.accessToken,
+                                    isAnonymous: false
                                 };
-                                return 'verified';
-                            } catch (error) {
-                                return 'offline';
                             }
-                        })().then(function(state) {
-                            window.__floustreamAuthCheckState = state;
                             window.__floustreamAuthCheckRunning = false;
                         }).catch(function() {
                             window.__floustreamAuthCheckState = 'offline';
@@ -1383,7 +1383,7 @@ class MainActivity : ComponentActivity() {
                     }
 
                     return { state: window.__floustreamAuthCheckState || 'pending' };
-                } catch (error) {
+                } catch (_) {
                     return { state: 'offline' };
                 }
             })();
@@ -1434,14 +1434,10 @@ class MainActivity : ComponentActivity() {
                     val currentUrl = view?.url.orEmpty()
 
                     if (currentUrl.startsWith(AUTH_URL)) {
-                        // Keep the actual website login route visible. Its SPA
-                        // module owns login and registration initialization.
                         entryResolved = true
                         authFlowActive = true
                         view?.visibility = View.VISIBLE
                     } else {
-                        // An expired or invalid session on a protected page
-                        // must return to the sign-in route.
                         entryResolved = false
                         authFlowActive = false
                         view?.stopLoading()
@@ -1461,7 +1457,7 @@ class MainActivity : ComponentActivity() {
                         showOfflineScreen(view)
                     } else {
                         authCheckRunnable = Runnable {
-                            checkSupabaseSession(view)
+                            checkClerkSession(view)
                         }
                         mainHandler.postDelayed(authCheckRunnable!!, AUTH_CHECK_INTERVAL_MS)
                     }
