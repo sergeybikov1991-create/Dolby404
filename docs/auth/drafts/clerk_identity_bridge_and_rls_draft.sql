@@ -921,9 +921,6 @@ CREATE POLICY "Video album files are readable by permanent users" ON "storage"."
   TO "authenticated"
   USING (((bucket_id = 'video-albums'::text) AND (((storage.foldername(name))[1] = (( SELECT (SELECT public.floustream_user_id()) AS uid))::text) OR (private.is_profile_section_public(((storage.foldername(name))[1])::uuid, 'videos'::text) AND (COALESCE(( SELECT ((auth.jwt() ->> 'is_anonymous'::text))::boolean AS bool), false) = false)))));
 
-COMMIT;
-
-
 -- Adapt the two catalog-confirmed SQL functions that previously called auth.uid().
 -- The helper supports both legacy Supabase UUID subjects and Clerk's trusted app_user_id claim.
 CREATE OR REPLACE FUNCTION public.guard_scheduled_post_changes()
