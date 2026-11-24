@@ -437,11 +437,29 @@ test("microphone recording is attached for preview and only sent after pressing 
   expect(state.attachments[0].name).toMatch(/^voice-message-/);
 });
 
+test("composer keeps one microphone and the plus menu exposes all four attachment sources", async ({ page }) => {
+  await mockAuthenticatedChat(page);
+  await page.goto("/messages.html?with=peer-1");
+  await waitForChatReady(page);
+  await expect(page.locator("#mic")).toHaveCount(1);
+  await expect(page.locator("#voice-mode-launch")).toHaveCount(0);
+  await page.locator("#attach").click();
+  await expect(page.locator("#attachment-menu [data-attachment-source]")).toHaveCount(4);
+  await expect(page.locator('[data-attachment-source="gallery"]')).toContainText("Галерея");
+  await expect(page.locator('[data-attachment-source="camera"]')).toContainText("Камера");
+  await expect(page.locator('[data-attachment-source="files"]')).toContainText("Файлы");
+  await page.locator('[data-attachment-source="video"]').click();
+  await expect(page.locator("#video-input")).toHaveAttribute("accept", "video/*");
+  await page.locator("#video-input").setInputFiles({ name: "selected-video.mp4", mimeType: "video/mp4", buffer: Buffer.from("video-test") });
+  await expect(page.locator("#attachment-preview")).toBeVisible();
+  await expect(page.locator(".composer-preview-item")).toHaveCount(1);
+});
+
 test("voice mode records and attaches audio without sending it automatically", async ({ page }) => {
   await mockAuthenticatedChat(page);
   await page.goto("/messages.html?with=peer-1");
   await waitForChatReady(page);
-  await page.locator("#voice-mode-launch").click();
+  await page.locator("#mic").dispatchEvent("contextmenu");
   await expect(page.locator("#voice-mode")).toBeVisible();
   await page.locator("#voice-mode-action").click();
   await expect(page.locator("#voice-mode-status")).toContainText("Запись");
