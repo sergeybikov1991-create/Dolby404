@@ -1,12 +1,12 @@
-# FLOUSTREAM Android 1.8
+# FLOUSTREAM Android 1.9
 
 This Android application is the WebView-based FLOUSTREAM client. It opens the live FLOUSTREAM website inside a native Android Activity and uses the website's existing Supabase authentication/session.
 
 ## Production identity
 
 - Application ID: `com.floustream.android`
-- Version name: `1.8`
-- Version code: `108`
+- Version name: `1.9`
+- Version code: `109`
 - Minimum Android: 8.0 (API 26)
 - Target Android: API 35
 - Release signing: one persistent upload keystore; never regenerate it after the first public release.
