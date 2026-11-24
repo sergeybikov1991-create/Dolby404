@@ -151,13 +151,6 @@ Deno.serve(async (req) => {
         });
         if (emailSyncError) throw emailSyncError;
       }
-      if (clerkUser.external_id !== userId) {
-        await clerkRequest(
-          "/users/" + encodeURIComponent(clerkIdentity.clerkUserId),
-          "PATCH",
-          { external_id: userId },
-        );
-      }
     } else {
       const existingAuthUser = await findAuthUserByEmail(admin, email);
       if (existingAuthUser) {
@@ -190,6 +183,17 @@ Deno.serve(async (req) => {
         userId = created.user.id;
       }
 
+      await clerkRequest(
+        "/users/" + encodeURIComponent(clerkIdentity.clerkUserId),
+        "PATCH",
+        { external_id: userId },
+      );
+    }
+
+    if (!userId || !UUID_PATTERN.test(userId)) {
+      throw new Error("stable_flo ustream_user_id_missing".replace("flo ustream", "floustream"));
+    }
+    if (clerkUser.external_id !== userId) {
       await clerkRequest(
         "/users/" + encodeURIComponent(clerkIdentity.clerkUserId),
         "PATCH",
