@@ -1,4 +1,4 @@
-name: FLOUSTREAM Android 1.7
+name: FLOUSTREAM Android 1.8
 
 on:
   workflow_dispatch:
@@ -26,7 +26,7 @@ on:
       - ".github/workflows/android-release-1.0.yml"
   push:
     branches:
-      - feature/apk-1.7-full-site-vk-integration
+      - feature/apk-1.8-full-site-vk-integration
     paths:
       - "android-web-shell-test/**"
       - ".github/workflows/android-release-1.0.yml"
@@ -36,7 +36,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: floustream-android-1-7
+  group: floustream-android-1-8
   cancel-in-progress: false
 
 jobs:
@@ -104,7 +104,7 @@ jobs:
         run: |
           APK=android-web-shell-test/app/build/outputs/apk/debug/app-debug.apk
           test -s "$APK"
-          $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android.debug' versionCode='107' versionName='1.7-debug'"
+          $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android.debug' versionCode='108' versionName='1.8-debug'"
 
       - name: Build signed Release APK candidate
         if: steps.signing.outputs.ready == 'true'
@@ -129,7 +129,7 @@ jobs:
             echo "Actual certificate SHA-256: ${CERT_SHA:-not-found}"
             exit 1
           fi
-          $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android' versionCode='107' versionName='1.7'"
+          $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android' versionCode='108' versionName='1.8'"
 
       - name: Generate checksum and updater manifest
         if: steps.signing.outputs.ready == 'true'
@@ -137,12 +137,12 @@ jobs:
           APK=android-web-shell-test/app/build/outputs/apk/release/app-release.apk
           SHA=$(sha256sum "$APK" | cut -d' ' -f1)
           printf '%s  %s\n' "$SHA" "app-release.apk" > "$APK.sha256"
-          printf '{"versionCode":107,"versionName":"1.7","apkUrl":"https://github.com/sergeybikov1991-create/Dolby404/releases/download/v1.7/app-release.apk","sha256":"%s"}\n' "$SHA" > android-web-shell-test/app/build/outputs/apk/release/update.json
+          printf '{"versionCode":108,"versionName":"1.8","apkUrl":"https://github.com/sergeybikov1991-create/Dolby404/releases/download/v1.8/app-release.apk","sha256":"%s"}\n' "$SHA" > android-web-shell-test/app/build/outputs/apk/release/update.json
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: FLOUSTREAM-Android-1.7-Debug
+          name: FLOUSTREAM-Android-1.8-Debug
           path: android-web-shell-test/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
@@ -151,7 +151,7 @@ jobs:
         if: steps.signing.outputs.ready == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: FLOUSTREAM-Android-1.7-RC
+          name: FLOUSTREAM-Android-1.8-RC
           path: |
             android-web-shell-test/app/build/outputs/apk/release/app-release.apk
             android-web-shell-test/app/build/outputs/apk/release/app-release.apk.sha256
@@ -163,7 +163,7 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && inputs.publish_release
         uses: actions/download-artifact@v4
         with:
-          name: FLOUSTREAM-Android-1.7-RC
+          name: FLOUSTREAM-Android-1.8-RC
           path: release-candidate
           run-id: ${{ inputs.release_candidate_run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -183,16 +183,16 @@ jobs:
             echo "::error::APK signing certificate does not match RELEASE-SIGNING-PASSPORT.md"
             exit 1
           fi
-          $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android' versionCode='107' versionName='1.7'"
+          $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android' versionCode='108' versionName='1.8'"
 
       - name: Publish public GitHub Release
         if: github.event_name == 'workflow_dispatch' && inputs.publish_release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.7
-          name: FLOUSTREAM Android 1.7
+          tag_name: v1.8
+          name: FLOUSTREAM Android 1.8
           body: |
-            FLOUSTREAM Android 1.7:
+            FLOUSTREAM Android 1.8:
             - интеграция SPA-маршрутизации сайта с Android-оболочкой;
             - поддержка Shadow DOM для голосовых сообщений;
             - разрешения камеры и микрофона для доверенного сайта;
