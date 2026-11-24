@@ -1,6 +1,16 @@
 export const SUPABASE_URL = "https://qhpobdktlbhdqsnajypr.supabase.co";
 export const SUPABASE_KEY = "sb_publishable_tzG1qVsbjaW8YE_LBVN87Q_v0CahKN5";
 
+// Switch this single public configuration value only after the Clerk instance,
+// DNS, server secrets and migration rehearsal are ready for the cutover.
+export const AUTH_PROVIDER = "supabase";
+export const CLERK_PUBLISHABLE_KEY = "";
+
+if (typeof window !== "undefined") {
+  window.FLOUSTREAM_AUTH_PROVIDER = AUTH_PROVIDER;
+  window.FLOUSTREAM_CLERK_PUBLISHABLE_KEY = CLERK_PUBLISHABLE_KEY;
+}
+
 if (typeof window !== "undefined" && !window.FLOUSTREAM_AUTH_PROVIDER) {
   window.FLOUSTREAM_AUTH_PROVIDER = "supabase";
 }
