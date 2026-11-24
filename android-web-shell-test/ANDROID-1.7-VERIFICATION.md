@@ -45,12 +45,14 @@ Release status: Debug candidate only. No public Release until Debug is approved.
 - [ ] Android unit tests pass, including trusted-origin and SPA route policy tests.
 - [ ] Debug APK builds as `com.floustream.android.debug`, versionName `1.7-debug`, versionCode `107`.
 - [ ] Debug can be installed alongside the current Release app without replacing it.
+- [ ] Debug Firebase configuration resolves the `.debug` application ID; FCM token registration and notification delivery are checked without changing the production Firebase configuration.
 - [ ] Signed Release later builds as `com.floustream.android`, versionName `1.7`, versionCode `107`.
 - [ ] Release signer matches the existing signing passport fingerprint.
 - [ ] App opens the Main 0.9 website without browser chrome.
 - [ ] Saved session opens the FLOUSTREAM home feed; sign-out and re-login remain correct.
 - [ ] Navigate Home → Friends → Public profile → Messages → Music → Backgammon and back; route content remains visible and responsive.
 - [ ] Native voice recording works after navigating to Messages through SPA navigation, not only after a cold page load.
+- [ ] Switching chat targets while staying in Messages disposes the previous recorder and attaches the new composer safely.
 - [ ] Leaving Messages during recording cancels capture and releases the microphone lease.
 - [ ] Website camera opens in Android; photo capture and video capture work after runtime permission is granted.
 - [ ] Microphone and camera requests from untrusted origins are denied.
