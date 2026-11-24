@@ -107,6 +107,11 @@ class MainActivity : ComponentActivity() {
                     applyAndroidWebViewCompatibility(webView)
                     if (SiteRoutePolicy.isMessagesRouteName(route)) {
                         applyAndroidVoiceMessageRecorder(webView)
+                        mainHandler.postDelayed({
+                            if (!isFinishing && !isDestroyed && ::webView.isInitialized) {
+                                applyAndroidVoiceMessageRecorder(webView)
+                            }
+                        }, 300L)
                     }
                 }
             }
@@ -1717,6 +1722,10 @@ class MainActivity : ComponentActivity() {
                     if (!form || !input || !text || !button ||
                         form.dataset.floustreamAndroidVoiceRecorderInstalled === '1') return;
                     form.dataset.floustreamAndroidVoiceRecorderInstalled = '1';
+                    // Android uses the existing send arrow for press-and-hold voice recording.
+                    // The website's browser-only microphone control is hidden only in this app.
+                    const legacyMicButton = routeRoot.querySelector('#mic');
+                    if (legacyMicButton) legacyMicButton.hidden = true;
 
                     // Voice recording is a press-and-hold action on the existing send control.
                     // No second microphone button is added to the composer.
@@ -1741,6 +1750,10 @@ class MainActivity : ComponentActivity() {
                     function notice(message, error) {
                         if (typeof showNotice === 'function') showNotice(message, !!error);
                         else if (routeRoot.querySelector('#notice')) routeRoot.querySelector('#notice').textContent = message;
+                    }
+                    function hasPendingAttachments() {
+                        const preview = routeRoot.querySelector('#attachment-preview');
+                        return !!preview && !preview.hidden;
                     }
                     function releaseLease() {
                         if (!leaseHeld) return;
@@ -1884,14 +1897,17 @@ class MainActivity : ComponentActivity() {
                     });
 
                     button.addEventListener('pointerdown', event => {
-                        if (event.button !== 0 || text.value.trim() || disposed) return;
+                        if (event.button !== 0 || text.value.trim() || hasPendingAttachments() || disposed) return;
                         event.preventDefault();
-                        ignoreClickUntil = Date.now() + 900;
                         pointerHeld = true;
                         try { button.setPointerCapture(event.pointerId); } catch (_) {}
                         holdTimer = setTimeout(() => {
                             holdTimer = null;
-                            if (pointerHeld && !recording) startAttempt = startRecording();
+                            if (pointerHeld && !recording) {
+                                // Suppress the synthetic click only after a real long press began.
+                                ignoreClickUntil = Date.now() + 900;
+                                startAttempt = startRecording();
+                            }
                         }, 420);
                     });
                     button.addEventListener('pointerup', async event => {
@@ -1913,7 +1929,7 @@ class MainActivity : ComponentActivity() {
                             event.preventDefault();
                             return;
                         }
-                        if (text.value.trim()) form.requestSubmit();
+                        if (text.value.trim() || hasPendingAttachments()) form.requestSubmit();
                     });
                     button.addEventListener('keydown', event => {
                         if ((event.key === ' ' || event.key === 'Enter') && !event.repeat && !text.value.trim()) {
