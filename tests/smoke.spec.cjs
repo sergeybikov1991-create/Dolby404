@@ -636,14 +636,19 @@ test("chat photos have zero frame and open fullscreen without changing the video
     const photoBubble = image.closest(".bubble");
     const video = view.querySelector(".message-media-video");
     const videoBubble = video.closest(".bubble");
+    const mic = view.querySelector("#mic");
     const imageStyle = getComputedStyle(image);
     const photoStyle = getComputedStyle(photoBubble);
     const videoStyle = getComputedStyle(video);
+    const videoBubbleStyle = getComputedStyle(videoBubble);
+    const micStyle = getComputedStyle(mic);
     return {
       photoClass: photoBubble.classList.contains("photo-message"),
       photoBorder: photoStyle.borderTopWidth, photoPadding: photoStyle.paddingTop, photoBackground: photoStyle.backgroundColor, photoShadow: photoStyle.boxShadow,
       imageBorder: imageStyle.borderTopWidth, imageOutline: imageStyle.outlineWidth, imagePadding: imageStyle.paddingTop, imageBackground: imageStyle.backgroundColor, imageShadow: imageStyle.boxShadow, imageRadius: imageStyle.borderRadius, imageMaxWidth: imageStyle.maxWidth, imageMaxHeight: imageStyle.maxHeight, imageFit: imageStyle.objectFit,
-      videoHasPhotoClass: videoBubble.classList.contains("photo-message"), videoRadius: videoStyle.borderRadius, videoBackground: videoStyle.backgroundColor, videoMaxWidth: videoStyle.maxWidth, videoMaxHeight: videoStyle.maxHeight
+      videoHasPhotoClass: videoBubble.classList.contains("photo-message"), videoRadius: videoStyle.borderRadius, videoBackground: videoStyle.backgroundColor, videoMaxWidth: videoStyle.maxWidth, videoMaxHeight: videoStyle.maxHeight,
+      videoBorder: videoStyle.borderTopWidth, videoOutline: videoStyle.outlineWidth, videoShadow: videoStyle.boxShadow, videoBubbleBorder: videoBubbleStyle.borderTopWidth, videoBubbleOutline: videoBubbleStyle.outlineWidth, videoBubbleShadow: videoBubbleStyle.boxShadow,
+      micGlyph: mic.textContent.trim(), micTextShadow: micStyle.textShadow
     };
   });
   expect(styles.photoClass).toBe(true);
@@ -665,6 +670,14 @@ test("chat photos have zero frame and open fullscreen without changing the video
   expect(styles.videoBackground).toBe("rgb(5, 5, 9)");
   expect(styles.videoMaxWidth).toBe("420px");
   expect(styles.videoMaxHeight).toBe("360px");
+  expect(styles.videoBorder).toBe("0px");
+  expect(styles.videoOutline).toBe("0px");
+  expect(styles.videoShadow).toBe("none");
+  expect(styles.videoBubbleBorder).toBe("0px");
+  expect(styles.videoBubbleOutline).toBe("0px");
+  expect(styles.videoBubbleShadow).toBe("none");
+  expect(styles.micGlyph).toBe("♩");
+  expect(styles.micTextShadow).toContain("rgb(228, 202, 255)");
   await page.locator(".message-media-image").click();
   await expect(page.locator("#photo-viewer")).toBeVisible();
   await expect(page.locator("#photo-viewer-image")).toHaveAttribute("src", /^(blob:|https:\/\/media\.test\/)/);
