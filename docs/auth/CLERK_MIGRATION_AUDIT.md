@@ -64,13 +64,14 @@ A final read-only production check after the preparation work confirmed:
 
 ## CI verification
 
-On the current Main 0.9 preparation branch, the pre-authorized-party implementation run passed:
+The latest current-head GitHub Actions runs both passed:
+- Run #835 (push) and run #836 (pull request).
 - Chromium smoke/browser tests.
 - Deno type-checking of the shared identity verifier and all Clerk-aware Edge Function drafts.
-- Clerk JWT verification tests.
-- Disposable PostgreSQL migration rehearsal, stable identity mapping, RLS isolation, and guarded rollback.
+- Clerk JWT verification tests, including exact `azp` allowlist validation, missing-origin rejection, and unapproved-origin rejection.
+- Disposable PostgreSQL forward migration rehearsal, stable identity mapping, RLS isolation, and guarded rollback rehearsal.
 
-The authorized-party implementation also passed GitHub Actions run #811: exact `azp` allowlist validation, missing-origin rejection, unapproved-origin rejection, Deno type checks, browser tests, and PostgreSQL migration/rollback rehearsal. Subsequent commits on this branch only refreshed documentation.
+The test-only Deno permission for reading `CLERK_ALLOWED_PARTIES` is scoped to the JWT test command; no production allowlist value is set in CI.
 
 ## Clerk configuration and cost
 
