@@ -1,0 +1,46 @@
+/*
+ * FLOUSTREAM Main 0.9 — violet / turquoise atmospheric background.
+ * Decorative smoke stays behind page content; interactive surfaces and media retain their own styling.
+ */
+:root{color-scheme:dark;background:#090b18}
+html{min-height:100%;background:#090b18}
+body{position:relative;isolation:isolate;min-height:100vh;background:transparent!important}
+body::before,body::after{content:"";position:fixed;inset:-18%;z-index:-1;pointer-events:none;transform:translate3d(0,0,0)}
+body::before{
+ background:
+  radial-gradient(ellipse 42% 34% at 14% 20%,rgba(113,49,184,.48),transparent 76%),
+  radial-gradient(ellipse 38% 32% at 84% 18%,rgba(18,153,153,.38),transparent 78%),
+  radial-gradient(ellipse 46% 38% at 56% 78%,rgba(83,47,156,.42),transparent 78%),
+  radial-gradient(ellipse 32% 28% at 8% 88%,rgba(20,116,132,.28),transparent 80%);
+ filter:blur(48px) saturate(120%);opacity:.96;
+ animation:floustreamAtmosphereDrift 34s ease-in-out infinite alternate
+}
+body::after{
+ inset:-10%;
+ background:
+  radial-gradient(ellipse 54% 22% at 32% 42%,rgba(137,76,197,.16),transparent 76%),
+  radial-gradient(ellipse 48% 24% at 78% 62%,rgba(48,194,177,.14),transparent 78%),
+  linear-gradient(132deg,rgba(15,10,36,.18),rgba(7,30,39,.12) 48%,rgba(23,10,43,.18));
+ filter:blur(34px);opacity:.92;
+ animation:floustreamAtmosphereBreathe 26s ease-in-out infinite alternate
+}
+@keyframes floustreamAtmosphereDrift{
+ 0%{transform:translate3d(-1.5%,-1%,0) scale(1)}
+ 50%{transform:translate3d(1.5%,1.2%,0) scale(1.045)}
+ 100%{transform:translate3d(-.5%,1.8%,0) scale(1.02)}
+}
+@keyframes floustreamAtmosphereBreathe{
+ 0%{opacity:.72;transform:translate3d(1%,-1%,0) scale(1)}
+ 100%{opacity:1;transform:translate3d(-1%,1%,0) scale(1.035)}
+}
+/* Page canvases reveal the common atmosphere; cards, menus and dialogs remain intact. */
+.fs-route-home,.fs-route-portal,.fs-route-public-profile,.fs-route-friends,
+.fs-route-messages,.fs-route-music,.fs-route-profile{background:transparent!important}
+.fs-route-music{animation:none!important}
+#floustream-entry-loading{
+ background:rgba(11,10,24,.58);border:1px solid rgba(151,112,198,.24);
+ border-radius:16px;color:#f4edff;padding:18px 22px;margin:18vh auto;
+ width:fit-content;max-width:calc(100% - 32px);
+ backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)
+}
+@media(prefers-reduced-motion:reduce){body::before,body::after{animation:none!important}}

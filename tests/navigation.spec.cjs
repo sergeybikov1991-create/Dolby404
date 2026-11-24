@@ -108,3 +108,20 @@ test("supported pages load the shared navigation layer without enabling service-
   expect(worker).toContain("Intentionally no fetch handler");
   expect(worker).not.toContain('addEventListener("fetch"');
 });
+
+
+test("Main 0.9 atmospheric stylesheet is loaded by every first-party page", async () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const pages = ["index.html", "home.html", "portal.html", "profile.html", "public-profile.html", "friends.html", "messages.html", "music.html", "backgammon.html"];
+  for (const page of pages) {
+    const html = fs.readFileSync(path.resolve(__dirname, "..", page), "utf8");
+    expect(html, page).toContain('atmosphere.css?v=20261124-09');
+  }
+  const css = fs.readFileSync(path.resolve(__dirname, "..", "shared", "atmosphere.css"), "utf8");
+  expect(css).toContain("body::before");
+  expect(css).toContain("body::after");
+  expect(css).toContain(".fs-route-messages");
+  expect(css).toContain(".fs-route-profile");
+  expect(css).toContain("prefers-reduced-motion");
+});
