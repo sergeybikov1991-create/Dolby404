@@ -73,7 +73,7 @@ jobs:
         run: |
           APK=android-web-shell-test/app/build/outputs/apk/debug/app-debug.apk
           test -s "$APK"
-          $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android.debug' versionCode='110' versionName='2.0-debug'"
+          $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android.debug' versionCode='111' versionName='2.0-debug'"
       - name: Upload test APK
         uses: actions/upload-artifact@v4
         with:
