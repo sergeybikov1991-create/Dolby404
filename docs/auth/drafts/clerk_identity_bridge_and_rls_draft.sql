@@ -94,9 +94,12 @@ REVOKE ALL ON FUNCTION public.floustream_user_id() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.floustream_user_id() TO anon, authenticated;
 
 -- Trusted, idempotent provisioning entry point. The Edge Function must first
--- verify the Clerk JWT, fetch the Clerk user from the Backend API, confirm the
--- primary email is verified, and set Clerk external_id to p_user_id. Only the
--- service_role may call this function.
+-- verify the Clerk JWT and primary email, then create a matching Supabase Auth
+-- shadow user through auth.admin.createUser (with an inaccessible random password
+-- and verified email) so every app_users identity remains recoverable on rollback.
+-- It then sets Clerk external_id to that returned UUID and calls this RPC. Only
+-- service_role may call this function. Existing imported users keep their current
+-- auth.users rows and password hashes; they are not recreated.
 CREATE OR REPLACE FUNCTION public.provision_clerk_user(
   p_user_id uuid,
   p_clerk_user_id text,
@@ -123,6 +126,13 @@ DECLARE
   final_username text;
   registered_id uuid;
 BEGIN
+  IF NOT EXISTS (
+      SELECT 1 FROM auth.users u
+      WHERE u.id = p_user_id AND lower(u.email) = lower(p_email)
+    ) THEN
+    RAISE EXCEPTION 'A matching Supabase Auth shadow identity is required for rollback safety';
+  END IF;
+
   IF p_user_id IS NULL
     OR p_clerk_user_id IS NULL
     OR p_clerk_user_id !~ '^user_[A-Za-z0-9]+$'
