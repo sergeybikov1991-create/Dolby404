@@ -235,3 +235,21 @@
     65% { opacity: 0.9; }
     100% { opacity: 0; }
 }
+
+
+.email-code-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 14px;
+}
+
+.email-code-panel[hidden] {
+    display: none !important;
+}
+
+#email-verification-code {
+    text-align: center;
+    letter-spacing: 0.28em;
+    font-variant-numeric: tabular-nums;
+}
