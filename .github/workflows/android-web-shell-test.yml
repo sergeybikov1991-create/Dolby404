@@ -51,14 +51,19 @@ jobs:
           source = Path("android-web-shell-test/app/src/main/java/com/floustream/webshelltest/MainActivity.kt").read_text()
           required = {
               "Android photo viewer viewport correction": "floustream-android-photo-viewer-fit-v1",
-              "Short tap remains the send action": "val wasShortTap = !!holdTimer && !recording && !startPending",
+              "Short tap remains the send action": "const wasShortTap = !!holdTimer && !recording && !startPending",
               "Pending attachment can be sent without text": "const hasPendingAttachments = !!preview && !preview.hidden",
               "Voice recorder retry after SPA route mount": "}, 900L)",
           }
           for label, marker in required.items():
               if marker not in source:
                   raise SystemExit(f"Missing required fix: {label}")
-          print("Android 2.0 chat fix markers verified.")
+          auth_start = source.index("private fun checkSupabaseSession")
+          auth_end = source.index("private fun cancelAuthCheck", auth_start)
+          auth = source[auth_start:auth_end]
+          if "const rawSession" not in auth or "auth/v1/token?grant_type=refresh_token" not in auth or "import(moduleUrl)" in auth:
+              raise SystemExit("Android 1.8 auth/session refresh implementation was changed")
+          print("Android 2.0 chat fixes verified; Android 1.8 auth preserved.")
           PY
       - name: Verify Debug APK identity
         run: |
