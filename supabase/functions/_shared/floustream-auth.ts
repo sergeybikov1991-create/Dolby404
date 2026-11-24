@@ -132,3 +132,27 @@ export async function requireFloustreamUser(
     provider: "clerk",
   };
 }
+
+export function requireRecentEmailReverification(
+  claims: Record<string, unknown>,
+  maxAgeMinutes = 10,
+): string {
+  const reverificationId = typeof claims.reverification_id === "string"
+    ? claims.reverification_id
+    : "";
+  const factorAge = Array.isArray(claims.fva) ? Number(claims.fva[0]) : Number.NaN;
+
+  if (
+    !reverificationId ||
+    !Number.isFinite(factorAge) ||
+    factorAge < 0 ||
+    factorAge > maxAgeMinutes
+  ) {
+    throw new FloustreamAuthError(
+      "A recent email verification is required for this sensitive action",
+      403,
+    );
+  }
+
+  return reverificationId;
+}
