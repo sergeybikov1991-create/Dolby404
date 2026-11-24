@@ -36,8 +36,8 @@ BEGIN
   SELECT count(*) INTO auth_user_fks FROM pg_constraint
   WHERE contype='f' AND confrelid='auth.users'::regclass
     AND connamespace IN ('public'::regnamespace, 'private'::regnamespace);
-  IF app_user_fks <> 22 OR auth_user_fks <> 0 THEN
-    RAISE EXCEPTION 'FK migration mismatch: app_users %, auth.users %', app_user_fks, auth_user_fks;
+  IF app_user_fks <> 23 OR auth_user_fks <> 0 THEN
+    RAISE EXCEPTION 'FK migration mismatch: expected 23 app_users FKs (22 migrated + ledger), got app_users %, auth.users %', app_user_fks, auth_user_fks;
   END IF;
 END;
 $$;
