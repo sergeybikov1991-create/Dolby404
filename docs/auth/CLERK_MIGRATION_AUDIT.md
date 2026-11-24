@@ -51,6 +51,13 @@ A final read-only production check after the preparation work confirmed:
 - Added forward SQL and guarded rollback drafts for the provider-independent `public.app_users` identity registry, 22 existing application FK relationships, the one-time reverification ledger, the 104 audited RLS policies, and the two scheduled-post functions.
 - Added a synthetic PostgreSQL fixture and forward/rollback rehearsal tests. No production SQL has been applied.
 
+## Edge Function inventory and remaining webhook work
+
+- `registration-risk` remains a pre-registration screening endpoint; it does not authenticate a user.
+- `account-lifecycle`, `backgammon-action`, and `dolby404-assistant` have Clerk-aware drafts on the isolated branch. The production functions remain unchanged.
+- `send-chat-push` remains a separate database-webhook endpoint and must not be changed to require an end-user Clerk token.
+- A database trigger currently embeds a static Bearer credential for the `send-chat-push` webhook. Rotate it and move it into protected Vault/secret storage before production cutover. Its value is intentionally not recorded here.
+
 ## CI verification
 
 On the current Main 0.9 preparation branch, the pre-authorized-party implementation run passed:
