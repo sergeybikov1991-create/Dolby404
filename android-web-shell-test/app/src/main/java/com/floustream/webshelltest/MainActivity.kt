@@ -92,6 +92,28 @@ class MainActivity : ComponentActivity() {
             completeFileChooser(uris.takeIf { it.isNotEmpty() }?.toTypedArray())
         }
 
+        voiceMessageAudioBridge.routeChangeListener = { route ->
+            if (SiteRoutePolicy.isMessagesRouteName(route)) {
+                mainHandler.post {
+                    if (!isFinishing && !isDestroyed && ::webView.isInitialized) {
+                        applyAndroidPhotoViewerFix(webView)
+                        applyAndroidVoiceMessageRecorder(webView)
+                        mainHandler.postDelayed({
+                            if (!isFinishing && !isDestroyed && ::webView.isInitialized) {
+                                applyAndroidPhotoViewerFix(webView)
+                                applyAndroidVoiceMessageRecorder(webView)
+                            }
+                        }, 350L)
+                        mainHandler.postDelayed({
+                            if (!isFinishing && !isDestroyed && ::webView.isInitialized) {
+                                applyAndroidVoiceMessageRecorder(webView)
+                            }
+                        }, 900L)
+                    }
+                }
+            }
+        }
+
         webView = WebView(this).apply {
             visibility = View.INVISIBLE
             setBackgroundColor(android.graphics.Color.rgb(12, 14, 30))
@@ -134,9 +156,7 @@ class MainActivity : ComponentActivity() {
                     pendingWebMediaPermissionRequest?.deny()
                     pendingWebMediaPermissionRequest = null
                     val target = url.orEmpty()
-                    val targetUri = Uri.parse(target)
-                    val trustedSiteOrigin = targetUri.scheme == "https" &&
-                        targetUri.host == "sergeybikov1991-create.github.io"
+                    val trustedSiteOrigin = SiteRoutePolicy.isTrustedSiteUrl(target)
                     if (trustedSiteOrigin) {
                         view?.addJavascriptInterface(voiceMessageAudioBridge, "FloustreamVoiceAudio")
                     } else {
@@ -226,9 +246,20 @@ class MainActivity : ComponentActivity() {
                     syncAndroidAlbumAccess(view)
                     applyAndroidPersistentMediaCache(view)
                     applyAndroidOfflineDataCache(view)
+                    installAndroidRouteLifecycleHooks(view)
 
                     val currentUrl = url.orEmpty()
-                    if (currentUrl.contains("/messages.html")) applyAndroidVoiceMessageRecorder(view)
+                    val currentRoute = SiteRoutePolicy.routeName(currentUrl)
+                    if (SiteRoutePolicy.isMessagesRouteName(currentRoute)) {
+                        applyAndroidPhotoViewerFix(view)
+                        applyAndroidVoiceMessageRecorder(view)
+                        mainHandler.postDelayed({
+                            if (!isFinishing && !isDestroyed) {
+                                applyAndroidPhotoViewerFix(view)
+                                applyAndroidVoiceMessageRecorder(view)
+                            }
+                        }, 350L)
+                    }
                     if (startupAuthCheckPending &&
                         (currentUrl.startsWith(AUTH_URL) ||
                          currentUrl.startsWith(PROFILE_URL))
@@ -250,7 +281,8 @@ class MainActivity : ComponentActivity() {
                     if (request == null) return
                     val origin = request.origin
                     val requestedResources = request.resources.toList()
-                    if (!WebMediaPermissionPolicy.isTrustedOrigin(origin.scheme, origin.host) ||
+                    if (!WebMediaPermissionPolicy.isTrustedOrigin(origin.scheme, origin.host, origin.port) ||
+                        !SiteRoutePolicy.isTrustedSiteUrl(webView.url) ||
                         !WebMediaPermissionPolicy.isSupportedRequest(requestedResources)
                     ) {
                         request.deny()
@@ -1177,7 +1209,37 @@ class MainActivity : ComponentActivity() {
             })();
         """.trimIndent()
         view.evaluateJavascript(script, null)
-    }    private fun checkForUpdatesOnce() {
+    }    private fun installAndroidRouteLifecycleHooks(view: WebView?) {
+        if (view == null || isFinishing || isDestroyed) return
+        val bridgeToken = voiceMessageAudioBridge.javascriptToken
+        val script = """
+            (function() {
+                try {
+                    if (window.__floustreamAndroidRouteLifecycleInstalled) return;
+                    window.__floustreamAndroidRouteLifecycleInstalled = true;
+                    const notifyNative = function(route) {
+                        const normalized = String(route || '').trim().split('?')[0];
+                        if (!normalized || !window.FloustreamVoiceAudio) return;
+                        try {
+                            window.FloustreamVoiceAudio.onSiteRouteChanged('$bridgeToken', normalized);
+                        } catch (_) {}
+                    };
+                    window.addEventListener('floustream:route-metric', function(event) {
+                        notifyNative(event && event.detail ? event.detail.route : '');
+                    });
+                    const activeRoute = window.FloustreamRouter && window.FloustreamRouter.activeRoute;
+                    if (activeRoute) notifyNative(activeRoute);
+                    else {
+                        const path = location.pathname.split('/').pop();
+                        if (path) notifyNative(path);
+                    }
+                } catch (_) {}
+            })();
+        """.trimIndent()
+        view.evaluateJavascript(script, null)
+    }
+
+    private fun checkForUpdatesOnce() {
         if (!updateCheckStarted && ::inAppUpdater.isInitialized) {
             updateCheckStarted = true
             inAppUpdater.checkForUpdate()
@@ -1466,18 +1528,83 @@ class MainActivity : ComponentActivity() {
      * Android-only voice control for messages.html. The existing attachment
      * input uploads the recorded audio through the normal message-media flow.
      */
+    private fun applyAndroidPhotoViewerFix(view: WebView?) {
+        if (view == null || isFinishing || isDestroyed) return
+        val script = """
+            (function() {
+                try {
+                    const host = document.querySelector('#floustream-app-shell #floustream-route-view');
+                    const root = host && host.shadowRoot ? host.shadowRoot : document;
+                    const styleId = 'floustream-android-photo-viewer-fit-v1';
+                    if (!root.getElementById(styleId)) {
+                        const style = document.createElement('style');
+                        style.id = styleId;
+                        style.textContent = [
+                            '#photo-viewer {',
+                            '  position: fixed !important;',
+                            '  inset: 0 !important;',
+                            '  width: 100vw !important;',
+                            '  height: 100vh !important;',
+                            '  height: 100dvh !important;',
+                            '  box-sizing: border-box !important;',
+                            '  padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)) !important;',
+                            '  display: grid !important;',
+                            '  place-items: center !important;',
+                            '  overflow: hidden !important;',
+                            '}',
+                            '#photo-viewer[hidden] { display: none !important; }',
+                            '#photo-viewer-image {',
+                            '  display: block !important;',
+                            '  width: auto !important;',
+                            '  height: auto !important;',
+                            '  max-width: 100% !important;',
+                            '  max-height: 100% !important;',
+                            '  min-width: 0 !important;',
+                            '  min-height: 0 !important;',
+                            '  object-fit: contain !important;',
+                            '  object-position: center center !important;',
+                            '  image-orientation: from-image !important;',
+                            '  transform: none !important;',
+                            '}'
+                        ].join('\\n');
+                        (root.head || root).appendChild(style);
+                    }
+                    const image = root.querySelector('#photo-viewer-image');
+                    if (image && image.dataset.floustreamAndroidFit !== '1') {
+                        image.dataset.floustreamAndroidFit = '1';
+                        image.addEventListener('load', function() {
+                            image.style.setProperty('max-width', '100%', 'important');
+                            image.style.setProperty('max-height', '100%', 'important');
+                            image.style.setProperty('object-fit', 'contain', 'important');
+                            image.style.setProperty('object-position', 'center center', 'important');
+                        });
+                    }
+                } catch (_) {}
+            })();
+        """.trimIndent()
+        view.evaluateJavascript(script, null)
+    }
+
+    /**
+     * Android-only voice control for messages.html. The existing attachment
+     * input uploads the recorded audio through the normal message-media flow.
+     */
+
     private fun applyAndroidVoiceMessageRecorder(view: WebView?) {
         if (view == null || isFinishing || isDestroyed) return
         val bridgeToken = voiceMessageAudioBridge.javascriptToken
         val script = """
             (function() {
                 try {
-                    const form = document.getElementById('composer');
-                    const input = document.getElementById('attachment-input');
-                    const text = document.getElementById('message-input');
-                    const button = document.getElementById('send');
-                    if (!form || !input || !text || !button || window.__floustreamAndroidVoiceRecorderInstalled) return;
-                    window.__floustreamAndroidVoiceRecorderInstalled = true;
+                    const routeHost = document.querySelector('#floustream-app-shell #floustream-route-view');
+                    const routeRoot = routeHost && routeHost.shadowRoot ? routeHost.shadowRoot : document;
+                    const form = routeRoot.querySelector('#composer');
+                    const input = routeRoot.querySelector('#attachment-input');
+                    const text = routeRoot.querySelector('#message-input');
+                    const button = routeRoot.querySelector('#send');
+                    if (!form || !input || !text || !button ||
+                        form.dataset.floustreamAndroidVoiceRecorderInstalled === '1') return;
+                    form.dataset.floustreamAndroidVoiceRecorderInstalled = '1';
 
                     // Voice recording is a press-and-hold action on the existing send control.
                     // No second microphone button is added to the composer.
@@ -1487,6 +1614,7 @@ class MainActivity : ComponentActivity() {
                     button.style.touchAction = 'none';
 
                     const bridgeToken = '$bridgeToken';
+                    const recorderHref = location.href;
                     let recording = false;
                     let startPending = false;
                     let startedAt = 0;
@@ -1500,7 +1628,7 @@ class MainActivity : ComponentActivity() {
 
                     function notice(message, error) {
                         if (typeof showNotice === 'function') showNotice(message, !!error);
-                        else if (document.getElementById('notice')) document.getElementById('notice').textContent = message;
+                        else if (routeRoot.querySelector('#notice')) routeRoot.querySelector('#notice').textContent = message;
                     }
                     function releaseLease() {
                         if (!leaseHeld) return;
@@ -1537,7 +1665,7 @@ class MainActivity : ComponentActivity() {
 
                     async function startRecording() {
                         if (disposed || recording || startPending || !pointerHeld && !keyboardHeld) return;
-                        if (document.getElementById('attach')?.disabled) return;
+                        if (routeRoot.querySelector('#attach')?.disabled) return;
                         startPending = true;
                         if (!window.FloustreamVoiceAudio) {
                             startPending = false;
@@ -1633,8 +1761,23 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
+                    window.addEventListener('floustream:route-metric', function(event) {
+                        const nextRoute = String(event && event.detail ? event.detail.route : '').trim();
+                        if (nextRoute && (nextRoute !== 'messages.html' || location.href !== recorderHref)) {
+                            disposed = true;
+                            cancelRecording();
+                            try { window.FloustreamVoiceAudio.cancelNativeRecording(bridgeToken); } catch (_) {}
+                            releaseLease();
+                        }
+                    });
+
                     button.addEventListener('pointerdown', event => {
-                        if (event.button !== 0 || text.value.trim() || disposed) return;
+                        if (event.button !== 0 || disposed) return;
+                        if (text.value.trim()) {
+                            // A normal text send must never inherit the voice-hold click guard.
+                            ignoreClickUntil = 0;
+                            return;
+                        }
                         event.preventDefault();
                         ignoreClickUntil = Date.now() + 900;
                         pointerHeld = true;
@@ -1648,10 +1791,13 @@ class MainActivity : ComponentActivity() {
                         if (!pointerHeld) return;
                         event.preventDefault();
                         pointerHeld = false;
+                        const wasShortTap = !!holdTimer && !recording && !startPending;
                         if (holdTimer) {
                             clearTimeout(holdTimer);
                             holdTimer = null;
                         }
+                        // A short tap is the existing send action; a long hold records voice.
+                        if (wasShortTap) ignoreClickUntil = 0;
                         if (recording) await stopRecording();
                     });
                     button.addEventListener('pointercancel', cancelRecording);
@@ -1663,7 +1809,12 @@ class MainActivity : ComponentActivity() {
                             event.preventDefault();
                             return;
                         }
-                        if (text.value.trim()) form.requestSubmit();
+                        const preview = routeRoot.querySelector('#attachment-preview');
+                        const hasPendingAttachments = !!preview && !preview.hidden;
+                        if (text.value.trim() || hasPendingAttachments) {
+                            event.preventDefault();
+                            form.requestSubmit();
+                        }
                     });
                     button.addEventListener('keydown', event => {
                         if ((event.key === ' ' || event.key === 'Enter') && !event.repeat && !text.value.trim()) {
@@ -1690,7 +1841,9 @@ class MainActivity : ComponentActivity() {
             })();
         """.trimIndent()
         view.evaluateJavascript(script, null)
-    }    private fun interceptNativeVoiceRecording(request: WebResourceRequest?): WebResourceResponse? {
+    }
+
+    private fun interceptNativeVoiceRecording(request: WebResourceRequest?): WebResourceResponse? {
         val uri = request?.url ?: return null
         if (uri.scheme != "https" || uri.host != "sergeybikov1991-create.github.io") return null
         val prefix = "/__floustream_voice__/"
@@ -1894,7 +2047,8 @@ class MainActivity : ComponentActivity() {
 
             val origin = pending.origin
             val requestedResources = pending.resources.toList()
-            if (!WebMediaPermissionPolicy.isTrustedOrigin(origin.scheme, origin.host) ||
+            if (!WebMediaPermissionPolicy.isTrustedOrigin(origin.scheme, origin.host, origin.port) ||
+                !SiteRoutePolicy.isTrustedSiteUrl(webView.url) ||
                 !WebMediaPermissionPolicy.isSupportedRequest(requestedResources)
             ) {
                 pending.deny()

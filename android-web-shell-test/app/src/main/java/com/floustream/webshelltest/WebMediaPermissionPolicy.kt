@@ -15,8 +15,10 @@ internal object WebMediaPermissionPolicy {
 
     private val supportedResources = setOf(AUDIO_CAPTURE, VIDEO_CAPTURE)
 
-    fun isTrustedOrigin(scheme: String?, host: String?): Boolean =
-        scheme == "https" && host == "sergeybikov1991-create.github.io"
+    fun isTrustedOrigin(scheme: String?, host: String?, port: Int = -1): Boolean =
+        scheme == "https" &&
+            host == "sergeybikov1991-create.github.io" &&
+            (port == -1 || port == 443)
 
     fun isSupportedRequest(resources: Collection<String>): Boolean =
         resources.isNotEmpty() && resources.all { it in supportedResources }

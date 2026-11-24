@@ -3,6 +3,8 @@ name: Build FLOUSTREAM WebShell Test APK
 on:
   workflow_dispatch:
   push:
+    branches-ignore:
+      - feature/android-2.0-from-1.6
     paths:
       - "android-web-shell-test/**"
       - ".github/workflows/android-web-shell-test.yml"

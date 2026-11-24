@@ -15,7 +15,7 @@ permissions:
 
 concurrency:
   group: floustream-android-2-0-rc
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   signed-release-candidate:

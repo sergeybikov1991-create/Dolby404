@@ -15,11 +15,13 @@ Status: implementation baseline and CI pipeline setup in progress. No 2.0 APK is
 ## Protected behavior inherited from 1.6
 
 - [ ] Existing website WebView and Supabase authentication/session.
-- [ ] Press-and-hold voice recording on the existing send control.
+- [ ] Short tap on the existing send control sends text or queued attachments; press-and-hold records voice.
 - [ ] Compact voice playback with Play/Stop and automatic reset.
 - [ ] Borderless photo/video presentation and video preview.
 - [ ] Gallery attachments and persistent per-account media cache.
 - [ ] Existing camera/file chooser behavior.
+- [ ] Chat photo viewer remains inside the Android viewport in portrait and landscape.
+- [ ] SPA route changes reinstall the Android voice recorder/photo viewer integration only on known FLOUSTREAM routes.
 - [ ] WebView microphone/camera capture requests are limited to the trusted HTTPS FLOUSTREAM origin and the exact Android runtime permissions requested.
 - [ ] Existing launcher identity.
 - [ ] In-app updater and Android install handoff.

@@ -29,6 +29,20 @@ class WebMediaPermissionPolicyTest {
         assertFalse(
             WebMediaPermissionPolicy.isTrustedOrigin(
                 "https",
+                "sergeybikov1991-create.github.io",
+                8443
+            )
+        )
+        assertTrue(
+            WebMediaPermissionPolicy.isTrustedOrigin(
+                "https",
+                "sergeybikov1991-create.github.io",
+                443
+            )
+        )
+        assertFalse(
+            WebMediaPermissionPolicy.isTrustedOrigin(
+                "https",
                 "github.io"
             )
         )
