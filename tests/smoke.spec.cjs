@@ -474,9 +474,13 @@ test("camera captures a photo and records a video into the attachment preview", 
     canvas.toBlob = callback => callback(new Blob([new Uint8Array(512)], { type: "image/jpeg" }));
   });
   await page.locator("#camera-shutter").click();
+  await expect(page.locator("#camera-capture")).toBeHidden();
   await expect(page.locator(".composer-preview-thumb")).toHaveCount(1);
   await expect(page.locator(".composer-preview-thumb").first()).toHaveJSProperty("tagName", "IMG");
   await page.locator(".composer-preview-remove").click();
+  await page.locator("#attach").click();
+  await page.locator('[data-attachment-source="camera"]').click();
+  await expect(page.locator("#camera-capture")).toBeVisible();
   await page.locator('[data-camera-mode="video"]').click();
   await page.locator("#camera-shutter").click();
   await expect(page.locator("#camera-status")).toContainText("Идёт запись видео");
