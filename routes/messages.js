@@ -17,12 +17,14 @@ const MARKUP = `<section class="fs-route-messages">
   <progress class="upload-progress" id="upload-progress" max="100" value="0" hidden aria-label="Прогресс загрузки вложения"></progress>
   <form class="composer" id="composer">
    <input id="attachment-input" type="file" hidden multiple accept="image/*,video/*">
-   <input id="camera-input" type="file" hidden accept="image/*" capture="environment">
+   <input id="camera-input" type="file" hidden accept="image/*,video/*" capture="environment">
+   <input id="video-input" type="file" hidden multiple accept="video/*">
    <input id="file-input" type="file" hidden multiple>
    <div class="attachment-menu" id="attachment-menu" hidden role="menu" aria-label="Добавить вложение">
     <button type="button" data-attachment-source="gallery" role="menuitem">▧ <span>Галерея</span></button>
     <button type="button" data-attachment-source="camera" role="menuitem">◎ <span>Камера</span></button>
     <button type="button" data-attachment-source="files" role="menuitem">▤ <span>Файлы</span></button>
+    <button type="button" data-attachment-source="video" role="menuitem">▣ <span>Видео</span></button>
    </div>
    <div class="composer-preview" id="attachment-preview" hidden aria-label="Выбранные вложения">
     <div class="composer-preview-list" id="attachment-preview-list"></div>
@@ -33,7 +35,6 @@ const MARKUP = `<section class="fs-route-messages">
     <textarea id="message-input" maxlength="5000" rows="1" placeholder="Написать сообщение…" aria-label="Текст сообщения"></textarea>
     <button class="mic" id="mic" type="button" aria-label="Записать голосовое сообщение">♩</button>
     <button class="voice-cancel" id="voice-cancel" type="button" aria-label="Отменить запись" hidden>×</button>
-    <button class="voice-mode-launch" id="voice-mode-launch" type="button" aria-label="Открыть голосовой режим">◖))</button>
     <button class="send" id="send" type="submit" aria-label="Отправить">↑</button>
    </div>
   </form>
@@ -46,12 +47,17 @@ const MARKUP = `<section class="fs-route-messages">
  <div class="voice-mode-status" id="voice-mode-status">Нажми, чтобы начать запись</div>
  <button class="voice-mode-action" id="voice-mode-action" type="button">Начать</button>
 </div>
+<div class="camera-capture" id="camera-capture" role="dialog" aria-modal="true" aria-label="Камера FLOUSTREAM" hidden>
+ <video id="camera-preview" autoplay playsinline muted></video><canvas id="camera-canvas" hidden></canvas>
+ <div class="camera-capture-top"><span id="camera-status">Камера готова</span><button class="camera-close" id="camera-close" type="button" aria-label="Закрыть камеру">×</button></div>
+ <div class="camera-capture-bottom"><div class="camera-mode-switch" role="group" aria-label="Режим камеры"><button class="camera-mode active" type="button" data-camera-mode="photo">Фото</button><button class="camera-mode" type="button" data-camera-mode="video">Видео</button></div><button class="camera-shutter" id="camera-shutter" type="button" aria-label="Сделать снимок"></button></div>
+</div>
 <div class="photo-viewer" id="photo-viewer" role="dialog" aria-modal="true" aria-label="Просмотр фотографии" hidden>
  <button class="photo-viewer-close" id="photo-viewer-close" type="button" aria-label="Закрыть фотографию">×</button>
  <img id="photo-viewer-image" alt="">
 </div>
 </section>`;
-export const stylesheet = new URL("./styles/messages.css?v=20261123-08", import.meta.url).href;
+export const stylesheet = new URL("./styles/messages.css?v=20261124-10", import.meta.url).href;
 export const title = "Сообщения · FLOUSTREAM";
 
 export async function mount(root, { signal, navigate, url }) {
@@ -473,8 +479,8 @@ async function finishVoiceRecording(cancelled=false){
  if(voiceModeOpen){$("voice-mode-status").textContent="Голосовое сообщение прикреплено";$("voice-mode-action").textContent="Готово";$("voice-mode-action").disabled=true;}
 }
 $("mic").addEventListener("click",()=>voiceRecording?void finishVoiceRecording(false):void beginVoiceRecording(false));
+$("mic").addEventListener("contextmenu",event=>{event.preventDefault();if(voiceRecording)return;$("voice-mode").hidden=false;voiceModeOpen=true;$("voice-mode-action").disabled=false;$("voice-mode-action").textContent="Начать";$("voice-mode-status").textContent="Нажми, чтобы начать запись";});
 $("voice-cancel").addEventListener("click",()=>void finishVoiceRecording(true));
-$("voice-mode-launch").addEventListener("click",()=>{$("voice-mode").hidden=false;voiceModeOpen=true;$("voice-mode-action").disabled=false;$("voice-mode-action").textContent="Начать";$("voice-mode-status").textContent="Нажми, чтобы начать запись";});
 $("voice-mode-close").addEventListener("click",()=>{if(voiceRecording)void finishVoiceRecording(true);$("voice-mode").hidden=true;voiceModeOpen=false;});
 $("voice-mode-action").addEventListener("click",()=>{if(voiceRecording)void finishVoiceRecording(false);else if(!$("voice-mode-action").disabled)void beginVoiceRecording(true);});
 signal.addEventListener("abort",()=>{clearInterval(voiceTimer);if(voiceRecorder&&voiceRecorder.state!=="inactive")try{voiceRecorder.stop();}catch(_){}stopVoiceStream();},{once:true});
@@ -487,7 +493,7 @@ signal.addEventListener("abort",()=>{clearInterval(voiceTimer);if(voiceRecorder&
    $("attachment-menu").addEventListener("click",event=>{
     const button=event.target.closest("[data-attachment-source]");if(!button)return;
     const source=button.dataset.attachmentSource;openAttachmentMenu(false);
-    if(source==="gallery")$("attachment-input").click();else if(source==="camera")$("camera-input").click();else $("file-input").click();
+    if(source==="gallery")$("attachment-input").click();else if(source==="camera")void openCameraCapture();else if(source==="video")$("video-input").click();else $("file-input").click();
    });
    document.addEventListener("click",event=>{if(!event.composedPath().includes($("composer")))openAttachmentMenu(false);},{signal});
    function revokeGalleryPreviewUrls(){for(const url of galleryPreviewUrls)URL.revokeObjectURL(url);galleryPreviewUrls=[];}
@@ -555,7 +561,15 @@ signal.addEventListener("abort",()=>{clearInterval(voiceTimer);if(voiceRecorder&
     }finally{attachmentSending=false;$("attach").disabled=false;$("mic").disabled=false;$("send").disabled=false;setUploadProgress(null);}
    }
    async function sendAttachmentFile(file,options={}){return sendAttachmentFiles([file],options);}
-   for(const inputId of ["attachment-input","camera-input","file-input"]){
+   let cameraStream=null,cameraRecorder=null,cameraChunks=[],cameraMode="photo",cameraIsRecording=false;
+   function stopCameraStream(){if(cameraStream){cameraStream.getTracks().forEach(track=>track.stop());cameraStream=null;}$("camera-preview").srcObject=null;}
+   function closeCameraCapture(){if(cameraRecorder&&cameraRecorder.state!=="inactive")cameraRecorder.stop();stopCameraStream();$("camera-capture").hidden=true;document.body.classList.remove("flou-camera-open");}
+   function addCameraFile(blob,kind){if(!blob||blob.size<256){showNotice("Не удалось получить файл с камеры.",true);return;}const mime=blob.type||(kind==="video"?"video/webm":"image/jpeg"),ext=mime.includes("mp4")?"mp4":mime.includes("webm")?"webm":mime.includes("png")?"png":kind==="video"?"webm":"jpg";const file=new File([blob],"floustream-"+kind+"-"+Date.now()+"."+ext,{type:mime,lastModified:Date.now()});pendingGalleryFiles.push(file);renderGalleryPreview();showNotice(kind==="video"?"Видео добавлено. Нажми стрелку, чтобы отправить.":"Фото добавлено. Нажми стрелку, чтобы отправить.");closeCameraCapture();}
+   async function openCameraCapture(){if(!navigator.mediaDevices?.getUserMedia){$("camera-input").click();return;}try{cameraStream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:"environment"},width:{ideal:1920},height:{ideal:1080}}});$("camera-preview").srcObject=cameraStream;$("camera-capture").hidden=false;document.body.classList.add("flou-camera-open");cameraMode="photo";cameraIsRecording=false;cameraRecorder=null;cameraChunks=[];$("camera-status").textContent="Фото";$("camera-shutter").classList.remove("recording");$("camera-shutter").setAttribute("aria-label","Сделать снимок");root.querySelectorAll("[data-camera-mode]").forEach(button=>button.classList.toggle("active",button.dataset.cameraMode==="photo"));}catch(error){stopCameraStream();showNotice("Не удалось открыть камеру: "+(error.message||"проверь разрешение"),true);}}
+   root.querySelectorAll("[data-camera-mode]").forEach(button=>button.addEventListener("click",()=>{if(cameraIsRecording)return;cameraMode=button.dataset.cameraMode;root.querySelectorAll("[data-camera-mode]").forEach(item=>item.classList.toggle("active",item===button));$("camera-status").textContent=cameraMode==="photo"?"Фото":(window.MediaRecorder?"Видео":"Видео недоступно в этом браузере");$("camera-shutter").setAttribute("aria-label",cameraMode==="photo"?"Сделать снимок":"Начать видеозапись");}));
+   $("camera-shutter").addEventListener("click",()=>{if(!cameraStream)return;if(cameraMode==="photo"){const video=$("camera-preview"),canvas=$("camera-canvas");if(!video.videoWidth||!video.videoHeight||video.readyState<HTMLMediaElement.HAVE_CURRENT_DATA){showNotice("Камера ещё запускается. Подожди секунду.",true);return;}canvas.width=video.videoWidth;canvas.height=video.videoHeight;canvas.getContext("2d").drawImage(video,0,0,canvas.width,canvas.height);canvas.toBlob(blob=>addCameraFile(blob,"photo"),"image/jpeg",.92);return;}if(!window.MediaRecorder){showNotice("Этот браузер не поддерживает видеозапись.",true);return;}if(cameraIsRecording){cameraRecorder.stop();cameraIsRecording=false;$("camera-shutter").classList.remove("recording");$("camera-shutter").setAttribute("aria-label","Начать видеозапись");$("camera-status").textContent="Обрабатываем видео…";return;}try{const mime=["video/webm;codecs=vp9,opus","video/webm;codecs=vp8,opus","video/mp4","video/webm"].find(type=>MediaRecorder.isTypeSupported?.(type));cameraChunks=[];cameraRecorder=mime?new MediaRecorder(cameraStream,{mimeType:mime}):new MediaRecorder(cameraStream);cameraRecorder.ondataavailable=event=>{if(event.data?.size)cameraChunks.push(event.data);};cameraRecorder.onerror=()=>{cameraIsRecording=false;$("camera-status").textContent="Ошибка видеозаписи";showNotice("Не удалось записать видео.",true);};cameraRecorder.onstop=()=>{const blob=new Blob(cameraChunks,{type:cameraRecorder?.mimeType||"video/webm"});cameraChunks=[];cameraRecorder=null;addCameraFile(blob,"video");if(!$("camera-capture").hidden)$("camera-status").textContent="Видео добавлено";};cameraRecorder.start(250);cameraIsRecording=true;$("camera-shutter").classList.add("recording");$("camera-shutter").setAttribute("aria-label","Остановить видеозапись");$("camera-status").textContent="Идёт запись видео · нажми круг, чтобы остановить";}catch(error){showNotice("Не удалось начать видеозапись: "+(error.message||"ошибка камеры"),true);}});
+   $("camera-close").addEventListener("click",closeCameraCapture);$("camera-capture").addEventListener("click",event=>{if(event.target===$("camera-capture"))closeCameraCapture();});signal.addEventListener("abort",()=>{if(cameraRecorder&&cameraRecorder.state!=="inactive")try{cameraRecorder.stop();}catch(_){}stopCameraStream();},{once:true});
+      for(const inputId of ["attachment-input","camera-input","video-input","file-input"]){
     $(inputId).addEventListener("change",event=>{
      const files=Array.from(event.target.files||[]);event.target.value="";
      if(!files.length)return;

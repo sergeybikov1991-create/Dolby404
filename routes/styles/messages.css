@@ -31,12 +31,11 @@
 .composer-controls{display:flex;align-items:flex-end;gap:9px;min-width:0}
 .composer textarea{min-width:0;min-height:44px;max-height:132px;resize:none;padding:11px 7px;border:0;border-radius:0;background:transparent;color:#fff;font:inherit;font-size:15px;line-height:1.45;outline:none;box-shadow:none}
 .composer textarea:focus{border:0;box-shadow:none}
-.attach,.mic,.voice-mode-launch,.send{display:grid;place-items:center;width:44px;height:44px;flex:0 0 44px;border-radius:50%;cursor:pointer;transition:transform .18s ease,box-shadow .18s ease,filter .18s ease}
+.attach,.mic,.send{display:grid;place-items:center;width:44px;height:44px;flex:0 0 44px;border-radius:50%;cursor:pointer;transition:transform .18s ease,box-shadow .18s ease,filter .18s ease}
 .attach{border:1px solid #a66bff88;background:radial-gradient(circle at 30% 20%,#7046a4,#24152f 70%);color:#f5e9ff;font-size:30px;font-weight:300;box-shadow:0 0 13px #9b5be955,inset 0 1px #ffffff35}
-.attach:active,.mic:active,.voice-mode-launch:active,.send:active{transform:scale(.94)}
+.attach:active,.mic:active,.send:active{transform:scale(.94)}
 .mic{border:1px solid #9e72c8;background:linear-gradient(145deg,#38254b,#21152f);color:#f5e9ff;font-size:23px;box-shadow:0 0 12px #a66bff30}
 .mic.recording{background:linear-gradient(145deg,#d44f83,#70234e);border-color:#ff91c1;box-shadow:0 0 18px #ef4e9a88;animation:flou-mic-pulse 1.15s infinite}
-.voice-mode-launch{border:1px solid #28d8e8;background:linear-gradient(145deg,#287f9a,#25325f 75%);color:#e8fcff;font-size:17px;letter-spacing:-3px;box-shadow:0 0 14px #25cce855}
 .send{border:1px solid #d1a0ff;background:linear-gradient(145deg,#c18aff,#7137bd 55%,#3b1c66);color:#fff;font-size:25px;font-weight:700;box-shadow:0 0 17px #a66bff88,inset 0 1px #ffffff70}
 .send:disabled,.attach:disabled,.mic:disabled{opacity:.45;cursor:default}
 .attachment-menu{position:absolute;z-index:30;left:12px;bottom:calc(100% + 10px);display:grid;gap:5px;min-width:180px;padding:9px;border:1px solid #8057ad;border-radius:17px;background:linear-gradient(145deg,#251733,#100d19);box-shadow:0 12px 36px #000b,0 0 18px #9b5be944}
@@ -69,8 +68,32 @@
 .voice-mode-action{min-width:150px;min-height:48px;padding:0 22px;border:1px solid #c29aff;border-radius:999px;background:linear-gradient(135deg,#9a5de0,#4b267d);color:#fff;font-weight:700;box-shadow:0 0 18px #a66bff66}
 @keyframes flou-mic-pulse{50%{box-shadow:0 0 24px #ef4e9a}}
 @keyframes flou-orb-pulse{50%{transform:scale(1.07);filter:brightness(1.3);box-shadow:0 0 42px #c69aff,0 0 100px #793bca}}
-@media(max-width:600px){.composer{padding:9px 10px;border-radius:22px}.composer-controls{gap:6px}.attach,.mic,.voice-mode-launch,.send{width:40px;height:40px;flex-basis:40px}.composer textarea{font-size:15px;padding:8px 4px}.composer-preview-item{width:76px;height:76px;flex-basis:76px}}
+@media(max-width:600px){.composer{padding:9px 10px;border-radius:22px}.composer-controls{gap:6px}.attach,.mic,.send{width:40px;height:40px;flex-basis:40px}.composer textarea{font-size:15px;padding:8px 4px}.composer-preview-item{width:76px;height:76px;flex-basis:76px}}
 
 
 .voice-cancel{display:grid;place-items:center;width:34px;height:34px;flex:0 0 34px;border:1px solid #ff8eaf;border-radius:50%;background:linear-gradient(145deg,#9b315f,#4b1739);color:#fff;font-size:22px;box-shadow:0 0 12px #ed4c8a66;cursor:pointer}
 .voice-cancel[hidden]{display:none!important}
+
+/* Main 0.8 — consistent volumetric composer controls and camera */
+.composer-controls{align-items:center;gap:8px}
+.composer textarea{position:relative;top:-1px;align-self:center;min-height:44px;line-height:1.45}
+.attach,.mic,.send,.voice-cancel{display:grid;place-items:center;flex:0 0 44px;width:44px;height:44px;border:1px solid #b98be8;border-radius:50%;background:radial-gradient(circle at 30% 20%,#7750a0 0,#342247 52%,#171020 100%);color:#fff;font-weight:800;box-shadow:0 5px 12px #0008,0 0 13px #a66bff55,inset 0 2px 3px #ffffff55,inset 0 -3px 5px #08050d;text-shadow:0 1px 3px #0009;cursor:pointer;transition:transform .16s ease,filter .16s ease,box-shadow .16s ease}
+.attach{font-size:28px;font-weight:400}.mic{font-size:23px}.send{font-size:25px;background:radial-gradient(circle at 28% 18%,#d4a9ff 0,#8b51c9 42%,#422064 100%);border-color:#e0c2ff}.voice-cancel{font-size:23px;border-color:#ff9fc2;background:radial-gradient(circle at 28% 18%,#e77ca7,#8e315c 55%,#40152e)}
+.attach:active,.mic:active,.send:active,.voice-cancel:active{transform:translateY(1px) scale(.94);filter:brightness(1.18)}
+.mic.recording{border-color:#ffb0cf;background:radial-gradient(circle at 28% 18%,#ff9abd,#c23d79 50%,#5a1839);box-shadow:0 5px 12px #0008,0 0 20px #ef4e9a99,inset 0 2px 3px #ffffff66;animation:flou-mic-pulse 1.15s infinite}
+.send:disabled,.attach:disabled,.mic:disabled,.voice-cancel:disabled{opacity:.45;cursor:default}
+.attachment-menu button{min-height:43px;padding:8px 12px;border:1px solid #8057ad;border-radius:12px;background:linear-gradient(145deg,#49315f,#20152e 70%);color:#f7edff;box-shadow:0 3px 7px #0008,inset 0 1px 2px #ffffff35,inset 0 -2px 4px #090610;font-weight:700;text-shadow:0 1px 2px #0008}
+.attachment-menu button:active,.attachment-menu button:hover{background:linear-gradient(145deg,#70499a,#302043);box-shadow:0 0 12px #a66bff66,inset 0 1px 2px #ffffff55}
+.voice-mode-close,.voice-mode-action,.camera-close,.camera-mode,.camera-shutter{border:1px solid #c5a0ee;background:linear-gradient(145deg,#7650a0,#2b1a40);color:#fff;box-shadow:0 4px 10px #0009,0 0 14px #a66bff55,inset 0 1px 2px #ffffff55;cursor:pointer}
+.voice-mode-close{display:grid;place-items:center;border-radius:50%}.voice-mode-action{border-radius:999px;font-weight:800}
+.camera-capture{position:fixed;inset:0;z-index:10002;display:flex;flex-direction:column;justify-content:space-between;padding:max(16px,env(safe-area-inset-top)) 16px max(20px,env(safe-area-inset-bottom));background:#050409;color:#fff}
+.camera-capture[hidden]{display:none!important}.camera-capture video{position:absolute;inset:0;z-index:0;width:100%;height:100%;object-fit:cover;background:#050409;pointer-events:none}
+.camera-capture-top,.camera-capture-bottom{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.camera-capture-top{padding:8px 10px;border-radius:16px;background:#09061099;backdrop-filter:blur(10px)}
+.camera-close{width:44px;height:44px;border-radius:50%;font-size:27px}
+.camera-capture-bottom{flex-direction:column;padding:14px;border-radius:22px;background:linear-gradient(180deg,#100b1688,#090610dd);backdrop-filter:blur(12px)}
+.camera-mode-switch{display:flex;gap:8px}.camera-mode{min-width:90px;min-height:38px;border-radius:999px;font-weight:700}
+.camera-mode.active{background:linear-gradient(145deg,#c18aff,#7137bd);box-shadow:0 0 18px #a66bff99,inset 0 1px 2px #ffffff77}
+.camera-shutter{width:76px;height:76px;border:5px solid #fff;border-radius:50%;background:radial-gradient(circle at 30% 20%,#fff,#c8a4f0 40%,#7544aa 100%);box-shadow:0 0 0 5px #ffffff55,0 0 24px #b77cffaa,inset 0 2px 5px #ffffffaa}
+.camera-shutter.recording{background:radial-gradient(circle,#f55c89,#8c1d4c);box-shadow:0 0 0 5px #ff9bb955,0 0 25px #f34e8b}
+@media(max-width:600px){.composer-controls{gap:6px}.attach,.mic,.send,.voice-cancel{width:40px;height:40px;flex-basis:40px}.camera-capture{padding-left:10px;padding-right:10px}}

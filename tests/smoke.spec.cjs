@@ -97,15 +97,20 @@ async function mockAuthenticatedChat(page, options = {}) {
     window.supabase = { createClient: () => client };
     window.__FLOUSTREAM_TEST_HOLD_MS = config.voiceHoldMs || 3000;
     Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: {
-      getUserMedia: async () => {
+      getUserMedia: async constraints => {
         state.micRequests += 1;
+        if (constraints?.video) {
+          const preview = document.querySelector("#camera-preview");
+          if (preview) { Object.defineProperty(preview, "videoWidth", { configurable: true, value: 640 }); Object.defineProperty(preview, "videoHeight", { configurable: true, value: 480 }); }
+        }
         if (config.micPermissionDenied) throw new Error("Permission denied by test");
         const track = { stop: () => { state.micStopped += 1; } };
+        if (constraints?.video) { const stream = new MediaStream(); stream.getTracks = () => [track]; return stream; }
         return { getTracks: () => [track] };
       }
     } });
     window.MediaRecorder = class {
-      static isTypeSupported(type) { return type.startsWith("audio/webm") || type === "audio/mp4"; }
+      static isTypeSupported(type) { return type.startsWith("audio/webm") || type === "audio/mp4" || type.startsWith("video/webm") || type === "video/mp4"; }
       constructor(stream, recorderOptions) { this.stream = stream; this.mimeType = recorderOptions?.mimeType || "audio/webm"; this.state = "inactive"; this.ondataavailable = null; this.onstop = null; this.onerror = null; this.listeners = {}; }
       addEventListener(name, callback) { (this.listeners[name] ||= []).push(callback); }
       start() {
@@ -437,11 +442,60 @@ test("microphone recording is attached for preview and only sent after pressing 
   expect(state.attachments[0].name).toMatch(/^voice-message-/);
 });
 
+test("composer keeps one microphone and the plus menu exposes all four attachment sources", async ({ page }) => {
+  await mockAuthenticatedChat(page);
+  await page.goto("/messages.html?with=peer-1");
+  await waitForChatReady(page);
+  await expect(page.locator("#mic")).toHaveCount(1);
+  await expect(page.locator("#voice-mode-launch")).toHaveCount(0);
+  await page.locator("#attach").click();
+  await expect(page.locator("#attachment-menu [data-attachment-source]")).toHaveCount(4);
+  await expect(page.locator('[data-attachment-source="gallery"]')).toContainText("Галерея");
+  await expect(page.locator('[data-attachment-source="camera"]')).toContainText("Камера");
+  await expect(page.locator('[data-attachment-source="files"]')).toContainText("Файлы");
+  await page.locator('[data-attachment-source="video"]').click();
+  await expect(page.locator("#video-input")).toHaveAttribute("accept", "video/*");
+  await page.locator("#video-input").setInputFiles({ name: "selected-video.mp4", mimeType: "video/mp4", buffer: Buffer.from("video-test") });
+  await expect(page.locator("#attachment-preview")).toBeVisible();
+  await expect(page.locator(".composer-preview-item")).toHaveCount(1);
+});
+
+test("camera captures a photo and records a video into the attachment preview", async ({ page }) => {
+  await mockAuthenticatedChat(page);
+  await page.goto("/messages.html?with=peer-1");
+  await waitForChatReady(page);
+  await page.locator("#attach").click();
+  await page.locator('[data-attachment-source="camera"]').click();
+  await expect(page.locator("#camera-capture")).toBeVisible();
+  await page.locator("#camera-preview").evaluate(video => {
+    Object.defineProperties(video, { videoWidth: { configurable: true, value: 640 }, videoHeight: { configurable: true, value: 480 }, readyState: { configurable: true, value: 4 } });
+    const canvas = video.getRootNode().querySelector("#camera-canvas");
+    canvas.getContext = () => ({ drawImage() {} });
+    canvas.toBlob = callback => callback(new Blob([new Uint8Array(512)], { type: "image/jpeg" }));
+  });
+  await page.locator("#camera-shutter").click();
+  await expect(page.locator("#camera-capture")).toBeHidden();
+  await expect(page.locator(".composer-preview-thumb")).toHaveCount(1);
+  await expect(page.locator(".composer-preview-thumb").first()).toHaveJSProperty("tagName", "IMG");
+  await page.locator(".composer-preview-remove").click();
+  await page.locator("#attach").click();
+  await page.locator('[data-attachment-source="camera"]').click();
+  await expect(page.locator("#camera-capture")).toBeVisible();
+  await page.locator('[data-camera-mode="video"]').click();
+  await page.locator("#camera-shutter").click();
+  await expect(page.locator("#camera-status")).toContainText("Идёт запись видео");
+  await page.locator("#camera-shutter").click();
+  await expect(page.locator(".composer-preview-thumb")).toHaveCount(1);
+  await expect(page.locator(".composer-preview-thumb").first()).toHaveJSProperty("tagName", "VIDEO");
+  await expect(page.locator("#camera-capture")).toBeHidden();
+  await expect(page.locator("#notice")).toContainText("Видео добавлено");
+});
+
 test("voice mode records and attaches audio without sending it automatically", async ({ page }) => {
   await mockAuthenticatedChat(page);
   await page.goto("/messages.html?with=peer-1");
   await waitForChatReady(page);
-  await page.locator("#voice-mode-launch").click();
+  await page.locator("#mic").dispatchEvent("contextmenu");
   await expect(page.locator("#voice-mode")).toBeVisible();
   await page.locator("#voice-mode-action").click();
   await expect(page.locator("#voice-mode-status")).toContainText("Запись");
