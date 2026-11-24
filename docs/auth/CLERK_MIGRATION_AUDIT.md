@@ -81,7 +81,7 @@ Do not deploy changes to any production function during preparation.
 
 - Added an additive `createThirdPartySupabaseClient()` / `createClerkSupabaseClient()` bridge in `shared/supabase-client.mjs`. Existing `getSupabaseClient()` remains unchanged and all existing routes still use the current Supabase Auth path.
 - Added unit tests for fresh Clerk token retrieval and null/no-session behavior.
-- Added a generated forward SQL draft that creates `public.app_users`, preserves the 22 audited FK relationships by redirecting them to the stable registry, replaces the 104 audited `auth.uid()` policies with a verified stable-UUID resolver, and adapts the two scheduled-post SQL functions.
+- Added a generated forward SQL draft that creates `public.app_users`, preserves the 22 existing application FK relationships by redirecting them to the stable registry, adds one additional cascade FK for the one-time reverification ledger, replaces the 104 audited `auth.uid()` policies with a verified stable-UUID resolver, and adapts the two scheduled-post SQL functions.
 - Added a guarded rollback SQL draft that restores the original 22 FK targets and all 104 original policies. It refuses to run if any app_users identity has no matching `auth.users` shadow row.
 - Added a synthetic schema-only PostgreSQL fixture (195 catalog-derived columns across 29 tables; no production row data) and forward/rollback rehearsal tests.
 - Added a GitHub Actions rehearsal sequence using a disposable PostgreSQL service database. This does not create a paid Supabase branch and does not touch the production project.
@@ -123,7 +123,7 @@ The backend helper now rejects Clerk sessions unless the email is verified, the 
 
 The website has an additive email-code reverification helper based on Clerk's JavaScript Session methods. It requests a first-factor email code, verifies it, clears the token cache, and requests a fresh session token. The backend requires a recent first-factor age (`fva[0]` no more than 10 minutes) and a non-empty `reverification_id` for sensitive account-lifecycle actions.
 
-A one-time `account_lifecycle_reverifications` ledger and service-role-only RPC consume each reverification ID for one action only. The synthetic PostgreSQL rehearsal checks duplicate-proof rejection and rollback removes this ledger. The actual development Clerk instance must still be used to verify the exact emitted `fva` and `reverification_id` claims before enabling account deletion/restore in production.
+A one-time `account_lifecycle_reverifications` ledger and service-role-only RPC consume each reverification ID for one action only. The synthetic PostgreSQL rehearsal checks duplicate-proof rejection, counts 23 total references to the registry (22 migrated application FKs plus the new ledger FK), and verifies rollback removes this ledger and restores the original 22 FK targets. The actual development Clerk instance must still be used to verify the exact emitted `fva` and `reverification_id` claims before enabling account deletion/restore in production.
 
 Official implementation references:
 - Clerk session token custom claims and `user.external_id`: https://clerk.com/docs/guides/sessions/customize-session-tokens and https://clerk.com/docs/guides/sessions/jwt-templates
