@@ -62,7 +62,7 @@ Set the public Clerk publishable key in the website's public configuration only 
 The audited Supabase project contains 3 existing users; all 3 currently have confirmed email addresses and bcrypt password hashes. The migration must preserve their Supabase UUIDs as Clerk `external_id`.
 
 Use Clerk's official Supabase migration CLI:
-1. Obtain a restorable database and Storage backup first.
+1. Follow [the no-cost full backup runbook](PRODUCTION_BACKUP_RUNBOOK.md) and obtain a restorable database and Storage backup first.
 2. Use the Supabase Session Pooler connection string as `SUPABASE_DB_URL`; keep its password in a masked environment variable or secret store.
 3. Run `clerk migrate export supabase`.
 4. Run `clerk migrate import <export-run-id> --dry-run`; inspect every warning and confirm all 3 users retain a supported password digest and verified email.
