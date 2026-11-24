@@ -127,12 +127,20 @@ jobs:
           printf '%s  %s\\n' "$SHA" "app-release.apk" > "$APK.sha256"
           printf '{"versionCode":107,"versionName":"1.7","apkUrl":"https://github.com/sergeybikov1991-create/Dolby404/releases/download/v1.7/app-release.apk","sha256":"%s"}\\n' "$SHA" > android-web-shell-test/app/build/outputs/apk/release/update.json
 
-      - name: Upload CI artifacts
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: FLOUSTREAM-Android-1.7-Debug
+          path: android-web-shell-test/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload signed Release candidate
+        if: steps.signing.outputs.ready == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: FLOUSTREAM-Android-1.7-RC
           path: |
-            android-web-shell-test/app/build/outputs/apk/debug/app-debug.apk
             android-web-shell-test/app/build/outputs/apk/release/app-release.apk
             android-web-shell-test/app/build/outputs/apk/release/app-release.apk.sha256
             android-web-shell-test/app/build/outputs/apk/release/update.json
