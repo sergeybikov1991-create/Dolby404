@@ -55,6 +55,12 @@ internal object SiteRoutePolicy {
     fun isKnownRouteName(route: String?): Boolean =
         normalizeRoute(route)?.let { it in knownRoutes } == true
 
+    fun isPortalRouteName(route: String?): Boolean =
+        normalizeRoute(route) == "portal.html"
+
+    fun isProfileRouteName(route: String?): Boolean =
+        normalizeRoute(route) == "profile.html"
+
     fun isMessagesRouteName(route: String?): Boolean =
         normalizeRoute(route) == "messages.html"
 

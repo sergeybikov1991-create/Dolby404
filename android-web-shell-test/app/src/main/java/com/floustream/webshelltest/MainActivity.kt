@@ -97,22 +97,48 @@ class MainActivity : ComponentActivity() {
         }
 
         voiceMessageAudioBridge.routeChangeListener = { route ->
-            if (SiteRoutePolicy.isMessagesRouteName(route)) {
-                mainHandler.post {
-                    if (!isFinishing && !isDestroyed && ::webView.isInitialized) {
-                        applyAndroidPhotoViewerFix(webView)
-                        applyAndroidVoiceMessageRecorder(webView)
-                        mainHandler.postDelayed({
-                            if (!isFinishing && !isDestroyed && ::webView.isInitialized) {
-                                applyAndroidPhotoViewerFix(webView)
-                                applyAndroidVoiceMessageRecorder(webView)
-                            }
-                        }, 350L)
-                        mainHandler.postDelayed({
-                            if (!isFinishing && !isDestroyed && ::webView.isInitialized) {
-                                applyAndroidVoiceMessageRecorder(webView)
-                            }
-                        }, 900L)
+            when {
+                SiteRoutePolicy.isPortalRouteName(route) -> {
+                    mainHandler.post {
+                        if (!isFinishing && !isDestroyed && ::webView.isInitialized) {
+                            authenticatedUserId = null
+                            voiceMessageAudioBridge.activeUserId = null
+                            entryResolved = true
+                            startupAuthCheckPending = false
+                            authFlowActive = true
+                            webView.visibility = View.VISIBLE
+                            checkForUpdatesOnce()
+                        }
+                    }
+                }
+                SiteRoutePolicy.isProfileRouteName(route) -> {
+                    mainHandler.post {
+                        if (!isFinishing && !isDestroyed && ::webView.isInitialized &&
+                            (authFlowActive || !entryResolved) && !startupAuthCheckPending
+                        ) {
+                            startupAuthCheckPending = true
+                            webView.visibility = View.INVISIBLE
+                            checkSupabaseSession(webView)
+                        }
+                    }
+                }
+                SiteRoutePolicy.isMessagesRouteName(route) -> {
+                    mainHandler.post {
+                        if (!isFinishing && !isDestroyed && ::webView.isInitialized) {
+                            applyAndroidPhotoViewerFix(webView)
+                            applyAndroidVoiceMessageRecorder(webView)
+                            mainHandler.postDelayed({
+                                if (!isFinishing && !isDestroyed && ::webView.isInitialized) {
+                                    applyAndroidPhotoViewerFix(webView)
+                                    applyAndroidVoiceMessageRecorder(webView)
+                                }
+                            }, 350L)
+                            mainHandler.postDelayed({
+                                if (!isFinishing && !isDestroyed && ::webView.isInitialized) {
+                                    applyAndroidVoiceMessageRecorder(webView)
+                                }
+                            }, 900L)
+                        }
                     }
                 }
             }

@@ -78,6 +78,8 @@ jobs:
               "Voice recorder retries after SPA route mount": "}, 900L)",
               "SPA route lifecycle hook": "floustream:route-metric",
               "Push notification chat routing": "pendingNotificationPeerId",
+              "Portal route visibility": "SiteRoutePolicy.isPortalRouteName(route)",
+              "Profile route auth gate": "SiteRoutePolicy.isProfileRouteName(route)",
           }
           for label, marker in required.items():
               if marker not in source:

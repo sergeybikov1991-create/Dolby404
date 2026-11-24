@@ -57,8 +57,12 @@ class SiteRoutePolicyTest {
     @Test
     fun recognizesOnlyKnownRoutesForNativeBridgeCallbacks() {
         assertTrue(SiteRoutePolicy.isKnownRouteName("messages.html"))
+        assertTrue(SiteRoutePolicy.isPortalRouteName("portal.html"))
+        assertTrue(SiteRoutePolicy.isProfileRouteName("profile.html"))
         assertTrue(SiteRoutePolicy.isMessagesRouteName("messages.html?peer=abc"))
         assertFalse(SiteRoutePolicy.isMessagesRouteName("home.html"))
+        assertFalse(SiteRoutePolicy.isPortalRouteName("messages.html"))
+        assertFalse(SiteRoutePolicy.isProfileRouteName("../profile.html"))
         assertFalse(SiteRoutePolicy.isKnownRouteName("https://evil.example/messages.html"))
         assertFalse(SiteRoutePolicy.isKnownRouteName("../messages.html"))
     }
