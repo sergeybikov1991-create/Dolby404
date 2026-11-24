@@ -1,8 +1,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { requireFloustreamUser, FloustreamAuthError } from "../../../_shared/floustream-auth.ts";
-import * as engine from "../_shared/engine.mjs";
-import { LONG_BACKGAMMON_RULES as rules } from "../_shared/rules.mjs";
-import { rollDice, rollOpeningDice } from "../_shared/dice.mjs";
+import * as engine from "../../../_shared/engine.mjs";
+import { LONG_BACKGAMMON_RULES as rules } from "../../../_shared/rules.mjs";
+import { rollDice, rollOpeningDice } from "../../../_shared/dice.mjs";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
