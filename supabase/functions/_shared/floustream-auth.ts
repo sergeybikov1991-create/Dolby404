@@ -56,6 +56,7 @@ export async function verifyClerkJwt(
 
   if (
     payload.role !== "authenticated" ||
+    payload.email_verified !== true ||
     !clerkUserId.startsWith("user_") ||
     !UUID_PATTERN.test(userId)
   ) {
