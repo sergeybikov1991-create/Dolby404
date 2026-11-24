@@ -107,48 +107,55 @@ class VoiceMessageAudioBridge(
             return false
         }
 
-        var createdRecorder: MediaRecorder? = null
-        var createdFile: File? = null
-        var stage = "create recorder"
-        return try {
-            val file = File(context.cacheDir, "voice_${UUID.randomUUID()}.m4a")
-            createdFile = file
-            val activeRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                MediaRecorder(context)
-            } else {
-                @Suppress("DEPRECATION")
-                MediaRecorder()
-            }
-            createdRecorder = activeRecorder
-            stage = "select microphone source"
-            activeRecorder.setAudioSource(MediaRecorder.AudioSource.MIC)
-            stage = "configure MP4 container"
-            activeRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-            stage = "configure AAC encoder"
-            activeRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-            // Let Android choose device-supported bitrate and sample rate.
-            // Hard-coding 44.1 kHz can fail on devices whose input path exposes
-            // a different native capture rate.
-            stage = "set output file"
-            activeRecorder.setOutputFile(file.absolutePath)
-            stage = "prepare audio recorder"
-            activeRecorder.prepare()
-            stage = "start audio capture"
-            activeRecorder.start()
-            recordingFile = file
-            recorder = activeRecorder
-            recordingStartedAtMillis = System.currentTimeMillis()
-            lastStartError = ""
-            true
-        } catch (error: Exception) {
-            lastStartError = "$stage — ${error.javaClass.simpleName}: ${error.message ?: "no detail"}"
-            try { createdRecorder?.reset() } catch (_: Exception) { }
-            try { createdRecorder?.release() } catch (_: Exception) { }
-            createdFile?.delete()
-            false
-        }
-    }
+        // Some Android/OEM audio stacks reject MIC while accepting a different
+        // capture source. Retry with fresh MediaRecorder instances; never reuse
+        // a partially configured recorder after a failed start.
+        val audioSources = listOf(
+            MediaRecorder.AudioSource.MIC,
+            MediaRecorder.AudioSource.VOICE_RECOGNITION,
+            MediaRecorder.AudioSource.CAMCORDER
+        )
+        for (audioSource in audioSources) {
+            var candidate: MediaRecorder? = null
+            var candidateFile: File? = null
+            var stage = "create recorder"
+            try {
+                val file = File(context.cacheDir, "voice_${UUID.randomUUID()}.m4a")
+                candidateFile = file
+                val activeRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    MediaRecorder(context)
+                } else {
+                    @Suppress("DEPRECATION")
+                    MediaRecorder()
+                }
+                candidate = activeRecorder
+                stage = "select microphone source"
+                activeRecorder.setAudioSource(audioSource)
+                stage = "configure MP4 container"
+                activeRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                stage = "configure AAC encoder"
+                activeRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                stage = "set output file"
+                activeRecorder.setOutputFile(file.absolutePath)
+                stage = "prepare audio recorder"
+                activeRecorder.prepare()
+                stage = "start audio capture"
+                activeRecorder.start()
 
+                recordingFile = file
+                recorder = activeRecorder
+                recordingStartedAtMillis = System.currentTimeMillis()
+                lastStartError = ""
+                return true
+            } catch (error: Exception) {
+                lastStartError = "audioSource=${audioSource}; $stage — ${error.javaClass.simpleName}: ${error.message ?: "no detail"}"
+                try { candidate?.reset() } catch (_: Exception) { }
+                try { candidate?.release() } catch (_: Exception) { }
+                candidateFile?.delete()
+            }
+        }
+        return false
+    }
     @JavascriptInterface
     fun getLastStartError(token: String): String =
         if (isValidToken(token)) lastStartError else ""
