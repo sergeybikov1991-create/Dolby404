@@ -7,6 +7,7 @@ import {
 import {
   FloustreamAuthError,
   verifyClerkJwt,
+  verifyClerkSession,
 } from "./floustream-auth.ts";
 
 const issuer = "https://floustream-test.clerk.accounts.dev";
@@ -126,4 +127,10 @@ Deno.test("rejects a Clerk session without a verified email claim", async () => 
     rejected = error instanceof FloustreamAuthError && error.status === 401;
   }
   if (!rejected) throw new Error("Unverified email session was accepted");
+});
+
+Deno.test("accepts a verified Clerk session before the stable UUID is provisioned", async () => {
+  const { token, jwks } = await makeToken({ app_user_id: undefined });
+  const session = await verifyClerkSession(token, { issuer, jwks });
+  if (session.clerkUserId !== clerkUserId) throw new Error("Unexpected Clerk subject");
 });
