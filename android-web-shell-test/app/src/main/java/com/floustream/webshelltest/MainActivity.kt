@@ -47,7 +47,7 @@ class MainActivity : ComponentActivity() {
     private var pendingCaptureUri: Uri? = null
     private var pendingCaptureFile: File? = null
     private var pendingFileChooserDialog: AlertDialog? = null
-    private var pendingWebAudioPermissionRequest: PermissionRequest? = null
+    private var pendingWebMediaPermissionRequest: PermissionRequest? = null
     private val voiceAudioCoordinator = VoiceAudioSessionCoordinator()
     private val voiceMessageAudioBridge = VoiceMessageAudioBridge(this, voiceAudioCoordinator)
     private lateinit var singleVisualPickerLauncher: ActivityResultLauncher<PickVisualMediaRequest>
@@ -72,7 +72,7 @@ class MainActivity : ComponentActivity() {
         const val PROFILE_URL = SITE_BASE_URL + "profile.html"
         const val HOME_URL = PROFILE_URL
         const val FILE_CHOOSER_REQUEST_CODE = 4102
-        const val AUDIO_PERMISSION_REQUEST_CODE = 4103
+        const val WEB_MEDIA_PERMISSION_REQUEST_CODE = 4103
         const val MAX_AUTH_CHECK_ATTEMPTS = 50
         const val AUTH_CHECK_INTERVAL_MS = 400L
     }
@@ -131,6 +131,8 @@ class MainActivity : ComponentActivity() {
                     favicon: android.graphics.Bitmap?
                 ) {
                     super.onPageStarted(view, url, favicon)
+                    pendingWebMediaPermissionRequest?.deny()
+                    pendingWebMediaPermissionRequest = null
                     val target = url.orEmpty()
                     val targetUri = Uri.parse(target)
                     val trustedSiteOrigin = targetUri.scheme == "https" &&
@@ -247,21 +249,31 @@ class MainActivity : ComponentActivity() {
                 override fun onPermissionRequest(request: PermissionRequest?) {
                     if (request == null) return
                     val origin = request.origin
-                    val audioOnly = request.resources.isNotEmpty() &&
-                        request.resources.all { it == PermissionRequest.RESOURCE_AUDIO_CAPTURE }
-                    val trustedOrigin = origin.scheme == "https" &&
-                        origin.host == "sergeybikov1991-create.github.io"
-                    if (!trustedOrigin || !audioOnly) {
+                    val requestedResources = request.resources.toList()
+                    if (!WebMediaPermissionPolicy.isTrustedOrigin(origin.scheme, origin.host) ||
+                        !WebMediaPermissionPolicy.isSupportedRequest(requestedResources)
+                    ) {
                         request.deny()
                         return
                     }
-                    if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-                        request.grant(arrayOf(PermissionRequest.RESOURCE_AUDIO_CAPTURE))
-                    } else {
-                        pendingWebAudioPermissionRequest?.deny()
-                        pendingWebAudioPermissionRequest = request
-                        requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), AUDIO_PERMISSION_REQUEST_CODE)
+
+                    val requiredPermissions =
+                        WebMediaPermissionPolicy.requiredRuntimePermissions(requestedResources)
+                    val grantedPermissions = currentGrantedWebMediaPermissions()
+                    val missingPermissions = requiredPermissions.filterNot { it in grantedPermissions }
+                    if (missingPermissions.isEmpty()) {
+                        val grantable = WebMediaPermissionPolicy.grantableResources(
+                            requestedResources,
+                            grantedPermissions
+                        )
+                        if (grantable.isEmpty()) request.deny()
+                        else request.grant(grantable.toTypedArray())
+                        return
                     }
+
+                    pendingWebMediaPermissionRequest?.deny()
+                    pendingWebMediaPermissionRequest = request
+                    requestPermissions(missingPermissions.toTypedArray(), WEB_MEDIA_PERMISSION_REQUEST_CODE)
                 }
 
                 override fun onShowCustomView(
@@ -1858,6 +1870,15 @@ class MainActivity : ComponentActivity() {
         if (::inAppUpdater.isInitialized) inAppUpdater.onResume()
     }
 
+    private fun currentGrantedWebMediaPermissions(): Set<String> = buildSet {
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            add(Manifest.permission.RECORD_AUDIO)
+        }
+        if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            add(Manifest.permission.CAMERA)
+        }
+    }
+
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == VoiceMessageAudioBridge.VOICE_PERMISSION_REQUEST_CODE) {
@@ -1866,12 +1887,26 @@ class MainActivity : ComponentActivity() {
             )
             return
         }
-        if (requestCode == AUDIO_PERMISSION_REQUEST_CODE) {
-            val pending = pendingWebAudioPermissionRequest
-            pendingWebAudioPermissionRequest = null
-            if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
-                pending?.grant(arrayOf(PermissionRequest.RESOURCE_AUDIO_CAPTURE))
-            } else pending?.deny()
+        if (requestCode == WEB_MEDIA_PERMISSION_REQUEST_CODE) {
+            val pending = pendingWebMediaPermissionRequest
+            pendingWebMediaPermissionRequest = null
+            if (pending == null) return
+
+            val origin = pending.origin
+            val requestedResources = pending.resources.toList()
+            if (!WebMediaPermissionPolicy.isTrustedOrigin(origin.scheme, origin.host) ||
+                !WebMediaPermissionPolicy.isSupportedRequest(requestedResources)
+            ) {
+                pending.deny()
+                return
+            }
+
+            val grantable = WebMediaPermissionPolicy.grantableResources(
+                requestedResources,
+                currentGrantedWebMediaPermissions()
+            )
+            if (grantable.isEmpty()) pending.deny()
+            else pending.grant(grantable.toTypedArray())
         }
     }
 
@@ -1880,8 +1915,8 @@ class MainActivity : ComponentActivity() {
         fileChooserCallback = null
         pendingFileChooserDialog?.dismiss()
         pendingFileChooserDialog = null
-        pendingWebAudioPermissionRequest?.deny()
-        pendingWebAudioPermissionRequest = null
+        pendingWebMediaPermissionRequest?.deny()
+        pendingWebMediaPermissionRequest = null
         voiceMessageAudioBridge.close()
         cancelAuthCheck()
         if (::inAppUpdater.isInitialized) inAppUpdater.close()

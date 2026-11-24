@@ -20,12 +20,13 @@ Status: implementation baseline and CI pipeline setup in progress. No 2.0 APK is
 - [ ] Borderless photo/video presentation and video preview.
 - [ ] Gallery attachments and persistent per-account media cache.
 - [ ] Existing camera/file chooser behavior.
+- [ ] WebView microphone/camera capture requests are limited to the trusted HTTPS FLOUSTREAM origin and the exact Android runtime permissions requested.
 - [ ] Existing launcher identity.
 - [ ] In-app updater and Android install handoff.
 
 ## Automated checks
 
-- [ ] Gradle unit tests.
+- [ ] Gradle unit tests, including trusted-origin and least-privilege media permission policy tests.
 - [ ] Debug compilation (CI only; not a user test deliverable).
 - [ ] Signed Release compilation.
 - [ ] APK package/version identity.
