@@ -1,4 +1,3 @@
-\set ON_ERROR_STOP on
 DO $$
 DECLARE
   auth_user_fks integer;
