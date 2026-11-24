@@ -462,16 +462,18 @@ test("composer keeps one microphone and the plus menu exposes all four attachmen
 
 test("camera captures a photo and records a video into the attachment preview", async ({ page }) => {
   await mockAuthenticatedChat(page);
-  await page.addInitScript(() => {
-    Object.defineProperty(HTMLVideoElement.prototype, "readyState", { configurable: true, get: () => 4 });
-    HTMLCanvasElement.prototype.getContext = () => ({ drawImage() {} });
-    HTMLCanvasElement.prototype.toBlob = callback => callback(new Blob(["camera-photo"], { type: "image/jpeg" }));
-  });
   await page.goto("/messages.html?with=peer-1");
   await waitForChatReady(page);
   await page.locator("#attach").click();
   await page.locator('[data-attachment-source="camera"]').click();
   await expect(page.locator("#camera-capture")).toBeVisible();
+  await page.evaluate(() => {
+    const video = document.querySelector("#camera-preview");
+    Object.defineProperties(video, { videoWidth: { configurable: true, value: 640 }, videoHeight: { configurable: true, value: 480 }, readyState: { configurable: true, value: 4 } });
+    const canvas = document.querySelector("#camera-canvas");
+    canvas.getContext = () => ({ drawImage() {} });
+    canvas.toBlob = callback => callback(new Blob(["camera-photo"], { type: "image/jpeg" }));
+  });
   await page.locator("#camera-shutter").click();
   await expect(page.locator(".composer-preview-thumb")).toHaveCount(1);
   await expect(page.locator(".composer-preview-thumb").first()).toHaveJSProperty("tagName", "IMG");
