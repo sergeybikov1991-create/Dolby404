@@ -106,7 +106,8 @@ test("Android 1.8 opens the real website without an Android-only home screen", a
   expect(mainActivity).toContain('const val HOME_URL = PROFILE_URL');
   expect(mainActivity).toContain("?: PROFILE_URL");
   expect(mainActivity).toContain("view.loadUrl(destination)");
-  expect(mainActivity).not.toContain("loadDataWithBaseURL(SITE_BASE_URL, html");
+  expect(mainActivity).not.toContain("Твоя авторизация подтверждена. Добро пожаловать!");
+  expect(mainActivity).not.toContain("function continueToHome()");
   expect(mainActivity).not.toContain("applyAndroidMessageMediaStyle(view)");
   expect(mainActivity).toContain("syncAndroidSessionContext(view)");
   expect(mainActivity).toContain("setDownloadListener");
