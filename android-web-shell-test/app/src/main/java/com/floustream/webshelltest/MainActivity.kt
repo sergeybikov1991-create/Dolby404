@@ -488,8 +488,8 @@ class MainActivity : ComponentActivity() {
                     if (window.__floustreamAndroidSessionContextInstalled) return;
                     window.__floustreamAndroidSessionContextInstalled = true;
 
-                    const supabaseUrl = '\${BuildConfig.SUPABASE_URL}';
-                    const publishableKey = '\${BuildConfig.SUPABASE_PUBLISHABLE_KEY}';
+                    const supabaseUrl = '${BuildConfig.SUPABASE_URL}';
+                    const publishableKey = '${BuildConfig.SUPABASE_PUBLISHABLE_KEY}';
                     const bridgeToken = '$bridgeToken';
                     const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
                     let sessionGeneration = 0;
