@@ -1205,7 +1205,9 @@ class MainActivity : ComponentActivity() {
             })();
         """.trimIndent()
         view.evaluateJavascript(script, null)
-    }    private fun installAndroidRouteLifecycleHooks(view: WebView?) {
+    }
+
+    private fun installAndroidRouteLifecycleHooks(view: WebView?) {
         if (view == null || isFinishing || isDestroyed) return
         val bridgeToken = voiceMessageAudioBridge.javascriptToken
         val script = """
@@ -1214,7 +1216,7 @@ class MainActivity : ComponentActivity() {
                     if (window.__floustreamAndroidRouteLifecycleInstalled) return;
                     window.__floustreamAndroidRouteLifecycleInstalled = true;
                     const notifyNative = function(route) {
-                        const normalized = String(route || '').trim().split('?')[0].split('/').pop();
+                        const normalized = String(route || '').trim().split('?')[0];
                         if (!normalized || !window.FloustreamVoiceAudio) return;
                         try {
                             window.FloustreamVoiceAudio.onSiteRouteChanged('$bridgeToken', normalized);
