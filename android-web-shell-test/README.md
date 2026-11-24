@@ -46,7 +46,7 @@ Signed Release (requires the signing environment variables above):
 gradle --no-daemon :app:assembleRelease
 ```
 
-GitHub Actions workflow: `.github/workflows/android-1.7.yml`.
+GitHub Actions workflow: `.github/workflows/android-release-1.0.yml`.
 
 ## Release gates
 
