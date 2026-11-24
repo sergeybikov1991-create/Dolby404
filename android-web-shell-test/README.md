@@ -6,7 +6,7 @@ This Android application is the WebView-based FLOUSTREAM client. It opens the li
 
 - Application ID: `com.floustream.android`
 - Version name: `2.0`
-- Version code: `110`
+- Version code: `111`
 - Minimum Android: 8.0 (API 26)
 - Target Android: API 35
 - Release signing: one persistent upload keystore; never regenerate it after the first public release.
