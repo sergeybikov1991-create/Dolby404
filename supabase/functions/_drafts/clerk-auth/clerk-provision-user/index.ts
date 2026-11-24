@@ -191,7 +191,7 @@ Deno.serve(async (req) => {
     }
 
     if (!userId || !UUID_PATTERN.test(userId)) {
-      throw new Error("stable_flo ustream_user_id_missing".replace("flo ustream", "floustream"));
+      throw new Error("stable_floustream_user_id_missing");
     }
     if (clerkUser.external_id !== userId) {
       await clerkRequest(
