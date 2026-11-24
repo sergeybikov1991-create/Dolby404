@@ -244,6 +244,7 @@ export function createClerkAuthFacade(clerk, supabase) {
 
       if (flow.status === "complete") {
         await finalizeFlow(clerk, flow);
+        await provisionCurrentUser();
         pendingSignIn = null;
         return await getSession();
       }
@@ -295,6 +296,7 @@ export function createClerkAuthFacade(clerk, supabase) {
         throw new Error("Email verification is not complete yet");
       }
       await finalizeFlow(clerk, pendingSignIn);
+      await provisionCurrentUser();
       pendingSignIn = null;
       return await getSession();
     } catch (error) {
