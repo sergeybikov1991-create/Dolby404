@@ -82,6 +82,12 @@ jobs:
       - name: Type-check the game Edge Function
         run: deno check --node-modules-dir=auto supabase/functions/backgammon-action/index.ts
 
+      - name: Type-check shared Clerk identity verifier
+        run: deno check --node-modules-dir=auto supabase/functions/_shared/floustream-auth.ts
+
+      - name: Test Clerk JWT verification
+        run: deno test --node-modules-dir=auto supabase/functions/_shared/floustream-auth.test.ts
+
       - name: Parse browser game module
         run: node --check backgammon.js
 
