@@ -8,7 +8,7 @@ BEGIN
   WHERE contype='f' AND confrelid='auth.users'::regclass
     AND connamespace IN ('public'::regnamespace, 'private'::regnamespace);
   SELECT count(*) INTO app_user_fks FROM pg_constraint
-  WHERE contype='f' AND confrelid='public.app_users'::regclass;
+  WHERE contype='f' AND confrelid=to_regclass('public.app_users');
   SELECT count(*) INTO uid_policies FROM pg_policies
   WHERE (schemaname='public' OR schemaname='storage')
     AND (coalesce(qual,'') ILIKE '%auth.uid()%' OR coalesce(with_check,'') ILIKE '%auth.uid()%');
