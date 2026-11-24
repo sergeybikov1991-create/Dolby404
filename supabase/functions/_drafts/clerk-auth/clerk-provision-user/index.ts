@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
     let firstName = cleanText(metadata.first_name ?? clerkUser.first_name, 60);
     let lastName = cleanText(metadata.last_name ?? clerkUser.last_name, 60);
     let countryCode = cleanText(metadata.country_code, 5).toUpperCase();
-    let preferredLanguage = cleanText(metadata.preferred_language ?? "en", 12).toLowerCase();
+    let preferredLanguage = cleanText(metadata.preferred_language, 12).toLowerCase();
     let username = cleanText(metadata.username, 24);
 
     const { data: existingLink, error: linkError } = await admin
@@ -194,7 +194,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (profileError) throw profileError;
 
-    const displayParts = cleanText(profile?.display_name, 120).split(/\\s+/).filter(Boolean);
+    const displayParts = cleanText(profile?.display_name, 120).split(/\s+/).filter(Boolean);
     firstName ||= cleanText(profile?.first_name, 60) || displayParts[0] || "";
     lastName ||= cleanText(profile?.last_name, 60) || displayParts.slice(1).join(" ");
     countryCode ||= cleanText(profile?.country_code, 5).toUpperCase();
