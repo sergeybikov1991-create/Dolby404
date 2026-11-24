@@ -42,6 +42,7 @@ Add only these small claims in Clerk → Sessions → Customize session token. M
 ```
 
 - `app_user_id` carries the stable FLOUSTREAM UUID preserved in Clerk `external_id`.
+- The backend also requires the default `azp` authorized-party claim to match `CLERK_ALLOWED_PARTIES`; missing or unapproved origins are rejected.
 - `email_verified` lets the server reject sessions without a verified email.
 - `reverification_id` makes sensitive account actions single-use.
 - Keep `role: "authenticated"` from the native Supabase integration.
@@ -53,6 +54,7 @@ Set these only in Supabase Edge Function secrets (never in browser code, GitHub 
 - `CLERK_SECRET_KEY`
 - `CLERK_ISSUER` — exact issuer URL for the production instance
 - `CLERK_JWKS_URL` — optional if the standard issuer JWKS endpoint is used
+- `CLERK_ALLOWED_PARTIES` — comma-separated exact HTTPS origins allowed to create session tokens (no wildcards, no paths); include the website origin used by the Android WebView
 - `SUPABASE_SERVICE_ROLE_KEY` — existing server-side Supabase service-role secret
 
 Set the public Clerk publishable key in the website's public configuration only after the Clerk instance and domain are confirmed. Never place the Clerk secret key in the website or Android APK.
