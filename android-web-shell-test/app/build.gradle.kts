@@ -17,8 +17,8 @@ android {
         minSdk = 26
         targetSdk = 35
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        versionCode = 108
-        versionName = "1.8"
+        versionCode = 110
+        versionName = "2.0"
         buildConfigField("String", "UPDATE_REPOSITORY", "\"sergeybikov1991-create/Dolby404\"")
         buildConfigField("String", "SUPABASE_URL", "\"https://qhpobdktlbhdqsnajypr.supabase.co\"")
         buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"sb_publishable_tzG1qVsbjaW8YE_LBVN87Q_v0CahKN5\"")
