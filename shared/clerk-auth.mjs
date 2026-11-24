@@ -8,8 +8,10 @@ let clerkLoadPromise = null;
 function getFrontendApi(publishableKey) {
   const encoded = publishableKey.split("_").slice(2).join("_");
   if (!encoded) throw new Error("Invalid Clerk publishable key");
-  const decoded = atob(encoded);
-  return decoded.replace(/\$$/, "").replace(/^https?:\/\//, "");
+  const base64 = encoded.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+  const decoded = atob(padded);
+  return decoded.replace(/\$/, "").replace(/^https?:\/\//, "");
 }
 
 export async function loadClerk() {
