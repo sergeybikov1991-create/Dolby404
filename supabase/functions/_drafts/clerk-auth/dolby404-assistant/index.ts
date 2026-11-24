@@ -15,21 +15,6 @@ function json(data: unknown, status = 200) {
   });
 }
 
-function getPublishableKey(): string | null {
-  const keysJson = Deno.env.get("SUPABASE_PUBLISHABLE_KEYS");
-  if (keysJson) {
-    try {
-      const keys = JSON.parse(keysJson);
-      if (typeof keys.default === "string" && keys.default.length > 0) {
-        return keys.default;
-      }
-    } catch {
-      return null;
-    }
-  }
-  return Deno.env.get("SUPABASE_ANON_KEY") ?? null;
-}
-
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
