@@ -126,9 +126,13 @@ Deno.serve(async (req) => {
       .eq("clerk_user_id", clerkIdentity.clerkUserId)
       .maybeSingle();
     if (linkError) throw linkError;
-    if (existingLink?.id) return json({ userId: existingLink.id, provisioned: true });
 
-    let userId = typeof clerkUser.external_id === "string" ? clerkUser.external_id : "";
+    let userId = existingLink?.id ??
+      (typeof clerkUser.external_id === "string" ? clerkUser.external_id : "");
+    if (existingLink?.id && clerkUser.external_id &&
+        clerkUser.external_id !== existingLink.id) {
+      return json({ error: "Clerk and FLOUSTREAM identity mappings do not match" }, 409);
+    }
     if (userId && !UUID_PATTERN.test(userId)) {
       return json({ error: "Clerk external identity is not a valid FLOUSTREAM UUID" }, 409);
     }
@@ -146,6 +150,13 @@ Deno.serve(async (req) => {
           email_confirm: true,
         });
         if (emailSyncError) throw emailSyncError;
+      }
+      if (clerkUser.external_id !== userId) {
+        await clerkRequest(
+          "/users/" + encodeURIComponent(clerkIdentity.clerkUserId),
+          "PATCH",
+          { external_id: userId },
+        );
       }
     } else {
       const existingAuthUser = await findAuthUserByEmail(admin, email);
