@@ -13,6 +13,7 @@ import {
 const issuer = "https://floustream-test.clerk.accounts.dev";
 const userId = "33333333-3333-4333-8333-333333333333";
 const clerkUserId = "user_test123";
+const authorizedParties = ["https://floustream.example"];
 
 async function makeToken(overrides: Record<string, unknown> = {}) {
   const { publicKey, privateKey } = await generateKeyPair("RS256");
@@ -22,6 +23,7 @@ async function makeToken(overrides: Record<string, unknown> = {}) {
   jwk.use = "sig";
 
   const token = await new SignJWT({
+    azp: "https://floustream.example",
     role: "authenticated",
     email_verified: true,
     app_user_id: userId,
@@ -42,7 +44,7 @@ async function makeToken(overrides: Record<string, unknown> = {}) {
 
 Deno.test("accepts a signed Clerk session with a stable UUID claim", async () => {
   const { token, jwks } = await makeToken();
-  const identity = await verifyClerkJwt(token, { issuer, jwks });
+  const identity = await verifyClerkJwt(token, { issuer, jwks, authorizedParties });
 
   if (identity.userId !== userId) throw new Error("Unexpected FLOUSTREAM UUID");
   if (identity.clerkUserId !== clerkUserId) throw new Error("Unexpected Clerk subject");
@@ -52,18 +54,51 @@ Deno.test("rejects a Clerk token issued by another instance", async () => {
   const { token, jwks } = await makeToken();
   let rejected = false;
   try {
-    await verifyClerkJwt(token, { issuer: "https://attacker.clerk.accounts.dev", jwks });
+    await verifyClerkJwt(token, { issuer: "https://attacker.clerk.accounts.dev", jwks, authorizedParties });
   } catch (error) {
     rejected = error instanceof FloustreamAuthError && error.status === 401;
   }
   if (!rejected) throw new Error("Token with wrong issuer was accepted");
 });
 
+Deno.test("rejects a Clerk session from an unapproved origin", async () => {
+  const { token, jwks } = await makeToken({ azp: "https://attacker.example" });
+  let rejected = false;
+  try {
+    await verifyClerkJwt(token, { issuer, jwks, authorizedParties });
+  } catch (error) {
+    rejected = error instanceof FloustreamAuthError && error.status === 401;
+  }
+  if (!rejected) throw new Error("Token from an unapproved origin was accepted");
+});
+
+Deno.test("rejects a Clerk session when the origin claim is missing", async () => {
+  const { token, jwks } = await makeToken({ azp: undefined });
+  let rejected = false;
+  try {
+    await verifyClerkJwt(token, { issuer, jwks, authorizedParties });
+  } catch (error) {
+    rejected = error instanceof FloustreamAuthError && error.status === 401;
+  }
+  if (!rejected) throw new Error("Token without an origin claim was accepted");
+});
+
+Deno.test("rejects an unconfigured authorized-party allowlist", async () => {
+  const { token, jwks } = await makeToken();
+  let rejected = false;
+  try {
+    await verifyClerkJwt(token, { issuer, jwks, authorizedParties: [] });
+  } catch (error) {
+    rejected = error instanceof FloustreamAuthError && error.status === 503;
+  }
+  if (!rejected) throw new Error("Missing authorized-party allowlist was accepted");
+});
+
 Deno.test("rejects a token without the authenticated role", async () => {
   const { token, jwks } = await makeToken({ role: "anon" });
   let rejected = false;
   try {
-    await verifyClerkJwt(token, { issuer, jwks });
+    await verifyClerkJwt(token, { issuer, jwks, authorizedParties });
   } catch (error) {
     rejected = error instanceof FloustreamAuthError && error.status === 401;
   }
@@ -74,7 +109,7 @@ Deno.test("rejects a malformed stable UUID claim", async () => {
   const { token, jwks } = await makeToken({ app_user_id: "not-a-uuid" });
   let rejected = false;
   try {
-    await verifyClerkJwt(token, { issuer, jwks });
+    await verifyClerkJwt(token, { issuer, jwks, authorizedParties });
   } catch (error) {
     rejected = error instanceof FloustreamAuthError && error.status === 401;
   }
@@ -122,7 +157,7 @@ Deno.test("rejects a Clerk session without a verified email claim", async () => 
   const { token, jwks } = await makeToken({ email_verified: false });
   let rejected = false;
   try {
-    await verifyClerkJwt(token, { issuer, jwks });
+    await verifyClerkJwt(token, { issuer, jwks, authorizedParties });
   } catch (error) {
     rejected = error instanceof FloustreamAuthError && error.status === 401;
   }
@@ -131,6 +166,6 @@ Deno.test("rejects a Clerk session without a verified email claim", async () => 
 
 Deno.test("accepts a verified Clerk session before the stable UUID is provisioned", async () => {
   const { token, jwks } = await makeToken({ app_user_id: undefined });
-  const session = await verifyClerkSession(token, { issuer, jwks });
+  const session = await verifyClerkSession(token, { issuer, jwks, authorizedParties });
   if (session.clerkUserId !== clerkUserId) throw new Error("Unexpected Clerk subject");
 });
