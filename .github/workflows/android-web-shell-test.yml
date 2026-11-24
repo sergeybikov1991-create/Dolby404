@@ -50,6 +50,7 @@ jobs:
           test -s "$APK"
           $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android.debug' versionCode='108' versionName='1.8-debug'"
       - name: Run Android WebView emulator smoke test
+        timeout-minutes: 8
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
