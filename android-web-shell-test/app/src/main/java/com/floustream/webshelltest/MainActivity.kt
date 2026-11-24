@@ -60,6 +60,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var multipleVisualPickerLauncher: ActivityResultLauncher<PickVisualMediaRequest>
     private var fullscreenCustomView: View? = null
     @Volatile private var authenticatedUserId: String? = null
+    @Volatile private var pendingNotificationPeerId: String? = null
     private var fullscreenCustomViewCallback: WebChromeClient.CustomViewCallback? = null
     private var fullscreenDecorView: ViewGroup? = null
     private var previousSystemUiVisibility: Int = 0
@@ -86,6 +87,7 @@ class MainActivity : ComponentActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pendingNotificationPeerId = notificationPeerId(intent)
 
         singleVisualPickerLauncher = registerForActivityResult(
             ActivityResultContracts.PickVisualMedia()
@@ -1401,6 +1403,25 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val peerId = notificationPeerId(intent) ?: return
+        pendingNotificationPeerId = peerId
+        if (::webView.isInitialized && !isFinishing && !isDestroyed &&
+            !authenticatedUserId.isNullOrBlank()
+        ) {
+            pendingNotificationPeerId = null
+            webView.loadUrl(SITE_BASE_URL + "messages.html?with=" + Uri.encode(peerId))
+        }
+    }
+
+    private fun notificationPeerId(intent: Intent?): String? {
+        val value = intent?.getStringExtra(FLOUSTREAMMessagingService.EXTRA_NOTIFICATION_PEER_ID)
+            ?.trim().orEmpty()
+        return value.takeIf { it.matches(Regex("[0-9a-fA-F-]{36}")) }
+    }
+
     private fun cancelAuthCheck() {
         authCheckRunnable?.let(mainHandler::removeCallbacks)
         authCheckRunnable = null
@@ -1431,8 +1452,13 @@ class MainActivity : ComponentActivity() {
         startupAuthCheckPending = false
         authFlowActive = false
         view.visibility = View.VISIBLE
-        if (!view.url.orEmpty().startsWith(PROFILE_URL)) {
-            view.loadUrl(PROFILE_URL)
+        val notificationPeerId = pendingNotificationPeerId
+        pendingNotificationPeerId = null
+        val destination = notificationPeerId?.let {
+            SITE_BASE_URL + "messages.html?with=" + Uri.encode(it)
+        } ?: PROFILE_URL
+        if (!view.url.orEmpty().startsWith(destination)) {
+            view.loadUrl(destination)
         }
         checkForUpdatesOnce()
     }
