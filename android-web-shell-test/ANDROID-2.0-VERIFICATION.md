@@ -40,7 +40,7 @@ Status: implementation baseline and CI pipeline setup in progress. No 2.0 APK is
 ## Physical-device checks — OnePlus 10T / Android 15
 
 - [ ] Install signed Release 2.0 over the installed 1.6 Release without uninstalling.
-- [ ] Verify existing account/session continuity.
+- [ ] Verify existing account/session continuity, including refresh of an expired Supabase access token without signing the user out.
 - [ ] Verify launch, navigation, Back, keyboard, rotation and lifecycle.
 - [ ] Verify voice recording and playback.
 - [ ] Verify gallery photo/video sending, previews, playback and cache.
