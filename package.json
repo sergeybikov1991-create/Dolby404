@@ -2,7 +2,7 @@
   "name": "floustream-browser-tests",
   "private": true,
   "scripts": {
-    "test:unit": "node --test tests/backgammon-engine.test.js tests/backgammon-dice.test.js tests/request-cache.test.mjs tests/clerk-supabase-client.test.mjs",
+    "test:unit": "node --test tests/backgammon-engine.test.js tests/backgammon-dice.test.js tests/request-cache.test.mjs tests/clerk-supabase-client.test.mjs tests/clerk-migration-draft.test.mjs",
     "test:e2e": "playwright test"
   },
   "devDependencies": {
