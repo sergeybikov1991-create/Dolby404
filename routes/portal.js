@@ -209,7 +209,7 @@ async function registerUser() {
         showError("Сбой регистрации: ", error);
     } finally {
         registrationInProgress = false;
-        if (Date.now() >= registrationCooldownUntil) {
+        if (!pendingVerification && Date.now() >= registrationCooldownUntil) {
             registerButton.disabled = false;
         }
     }
@@ -277,7 +277,7 @@ async function loginUser() {
     } catch (error) {
         showError("Сбой входа: ", error);
     } finally {
-        loginButton.disabled = false;
+        if (!pendingVerification) loginButton.disabled = false;
     }
 }
 
@@ -309,7 +309,7 @@ async function restoreAccount() {
     } catch (error) {
         showError("Не удалось отправить письмо: ", error);
     } finally {
-        restoreButton.disabled = false;
+        if (!pendingVerification) restoreButton.disabled = false;
     }
 }
 
