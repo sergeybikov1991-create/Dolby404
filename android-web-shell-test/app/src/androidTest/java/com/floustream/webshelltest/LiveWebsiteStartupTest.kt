@@ -31,6 +31,11 @@ class LiveWebsiteStartupTest {
                 val content = activity.findViewById<ViewGroup>(android.R.id.content)
                 val webView = content.getChildAt(0) as? WebView
                 assertTrue("MainActivity must display the website in a WebView", webView != null)
+                assertEquals(
+                    "Android video previews must not require a second user gesture",
+                    false,
+                    webView!!.settings.mediaPlaybackRequiresUserGesture
+                )
                 webViewRef.set(webView)
 
                 val handler = Handler(Looper.getMainLooper())
@@ -43,7 +48,9 @@ class LiveWebsiteStartupTest {
                                 title: document.title,
                                 emailField: !!document.querySelector('#email'),
                                 passwordField: !!document.querySelector('#password'),
-                                logo: document.querySelector('.logo')?.textContent || ''
+                                logo: document.querySelector('.logo')?.textContent || '',
+                                videoStreamBypass: !!window.__floustreamAndroidVideoStreamBypassInstalled,
+                                photoViewportSync: typeof window.__floustreamAndroidSyncPhotoViewers === 'function'
                             })""".trimIndent()
                         ) { raw ->
                             val value = runCatching {
@@ -52,7 +59,9 @@ class LiveWebsiteStartupTest {
                             snapshot.set(value)
                             val ready = value.contains("portal.html") &&
                                 value.contains("\"emailField\":true") &&
-                                value.contains("\"passwordField\":true")
+                                value.contains("\"passwordField\":true") &&
+                                value.contains("\"videoStreamBypass\":true") &&
+                                value.contains("\"photoViewportSync\":true")
                             if (ready) {
                                 finished.countDown()
                             } else if (SystemClock.elapsedRealtime() < deadline) {
@@ -75,6 +84,8 @@ class LiveWebsiteStartupTest {
             assertTrue("Expected the real portal.html route, got: $page", page.contains("portal.html"))
             assertTrue("Expected the website email field, got: $page", page.contains("\"emailField\":true"))
             assertTrue("Expected the website password field, got: $page", page.contains("\"passwordField\":true"))
+            assertTrue("Expected Android progressive video streaming, got: $page", page.contains("\"videoStreamBypass\":true"))
+            assertTrue("Expected Android photo viewport synchronization, got: $page", page.contains("\"photoViewportSync\":true"))
             scenario.onActivity {
                 assertEquals(View.VISIBLE, webViewRef.get()?.visibility)
             }
