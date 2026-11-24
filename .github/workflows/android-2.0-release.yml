@@ -1,13 +1,20 @@
-name: FLOUSTREAM Android 2.0 Signed Release
+name: FLOUSTREAM Android 2.1 Signed Release
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feature/android-2.0-from-1.6
+    paths:
+      - "android-web-shell-test/**"
+      - ".github/workflows/android-2.0-release.yml"
+      - "APK-2.0-ROADMAP.md"
 
 permissions:
   contents: write
 
 concurrency:
-  group: floustream-android-2-0-release
+  group: floustream-android-2-1-release
   cancel-in-progress: true
 
 jobs:
@@ -59,7 +66,7 @@ jobs:
         working-directory: android-web-shell-test
         run: gradle --no-daemon clean :app:testDebugUnitTest :app:assembleDebug
 
-      - name: Verify Android 2.0 behavior contracts
+      - name: Verify Android 2.1 behavior contracts
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -78,11 +85,17 @@ jobs:
           for label, marker in required.items():
               if marker not in source:
                   raise SystemExit(f"Missing required fix: {label}")
-          auth_start = source.index("private fun checkSupabaseSession")
+          auth_start = source.index("private fun checkSiteAuthSession")
           auth_end = source.index("private fun cancelAuthCheck", auth_start)
           auth = source[auth_start:auth_end]
-          if "const rawSession" not in auth or "auth/v1/token?grant_type=refresh_token" not in auth:
-              raise SystemExit("Supabase module-scoped session refresh implementation is missing")
+          if "auth/v1/token?grant_type=refresh_token" in auth:
+              raise SystemExit("Native Android must not refresh Supabase sessions")
+          if "localStorage.setItem(storageKey" in auth:
+              raise SystemExit("Native Android must not rewrite the Supabase session")
+          if "auth/v1/user" not in auth or "__floustreamAuthCheckLastToken" not in auth:
+              raise SystemExit("Read-only session validation and refresh handoff are missing")
+          if "__floustreamAuthCheckGeneration" not in auth:
+              raise SystemExit("Stale auth checks must be invalidated across sign-in route changes")
           site_policy = Path("android-web-shell-test/app/src/main/java/com/floustream/webshelltest/SiteRoutePolicy.kt").read_text()
           if "uri.port == -1 || uri.port == 443" not in site_policy or "uri.normalize().path != path" not in site_policy:
               raise SystemExit("Trusted site route policy was weakened")
@@ -142,7 +155,7 @@ jobs:
             echo "Actual: ${CERT_SHA:-not-found}"
             exit 1
           fi
-          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep -F "package: name='com.floustream.android' versionCode='110' versionName='2.0'"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep -F "package: name='com.floustream.android' versionCode='111' versionName='2.1'"
 
       - name: Generate checksum and updater manifest
         shell: bash
@@ -150,12 +163,12 @@ jobs:
           APK=android-web-shell-test/app/build/outputs/apk/release/app-release.apk
           SHA=$(sha256sum "$APK" | cut -d' ' -f1)
           printf '%s  %s\n' "$SHA" "app-release.apk" > "$APK.sha256"
-          printf '{"versionCode":110,"versionName":"2.0","apkUrl":"https://github.com/sergeybikov1991-create/Dolby404/releases/download/v2.0/app-release.apk","sha256":"%s"}\n' "$SHA" > android-web-shell-test/app/build/outputs/apk/release/update.json
+          printf '{"versionCode":111,"versionName":"2.1","apkUrl":"https://github.com/sergeybikov1991-create/Dolby404/releases/download/v2.1/app-release.apk","sha256":"%s"}\n' "$SHA" > android-web-shell-test/app/build/outputs/apk/release/update.json
 
       - name: Upload signed Release assets to CI
         uses: actions/upload-artifact@v4
         with:
-          name: FLOUSTREAM-Android-2.0-Signed-Release
+          name: FLOUSTREAM-Android-2.1-Signed-Release
           path: |
             android-web-shell-test/app/build/outputs/apk/release/app-release.apk
             android-web-shell-test/app/build/outputs/apk/release/app-release.apk.sha256
@@ -163,21 +176,22 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Publish FLOUSTREAM Android 2.0 GitHub Release
-        if: github.event_name == 'push' && contains(github.event.head_commit.message, '[publish-v2.0]')
+      - name: Publish FLOUSTREAM Android 2.1 GitHub Release
+        if: github.event_name == 'push' && contains(github.event.head_commit.message, '[publish-v2.1]')
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v2.0
+          tag_name: v2.1
           target_commitish: ${{ github.sha }}
-          name: FLOUSTREAM Android 2.0
+          name: FLOUSTREAM Android 2.1
           body: |
-            FLOUSTREAM Android 2.0 — signed production Release.
+            FLOUSTREAM Android 2.1 — signed production Release.
 
-            - Source base: Android 1.6, commit `0177bd27a827e48dd1e3982048443b6382228b5d`
+            - Source base: signed Android APK 2.0, commit `9d88a3a708747312500c50e7100c4a42c8f9c7fe`
             - Package: `com.floustream.android`
-            - Version: `2.0` (versionCode `110`)
+            - Version: `2.1` (versionCode `111`)
             - The existing production signing certificate is preserved.
-            - Update from the installed 1.6 app through FLOUSTREAM's in-app updater. Do not sideload a separate APK.
+            - Android no longer refreshes or rewrites Supabase sessions; the website Supabase JS client owns token rotation.
+            - Update from the installed 2.0 app through FLOUSTREAM's in-app updater. Do not sideload a separate APK.
             - This first in-app update is the controlled physical-device acceptance test; the 1.6 Release remains the rollback point.
           draft: false
           prerelease: false
