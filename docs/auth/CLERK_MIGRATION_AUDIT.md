@@ -90,7 +90,7 @@ Other candidates were inspected:
 - `APK-2.0` is only two commits beyond the protected baseline and changes a bundled website asset.
 - `feature/apk-2.0-debug-clean-from-1.8` contains a WebView client with Release identity `com.floustream.android`, version `2.0`, code `111`, but its README explicitly calls it a Debug candidate and says not to publish a Release APK from it; the production Release baseline is separate.
 - `feature/apk-2.0-release-fcm` is a misleading name for this task: its Gradle/Release workflow identifies it as Android `1.3`, versionCode `103`, not APK 2.0.
-- `auth/clerk-prep-apk-2.0-update` is explicitly Debug-only; its debug identity is `com.floustream.android.debug`, `2.0-debug`, code `110`. It contains an experimental WebView Clerk-session bridge, but its README forbids publishing a Release APK from this branch.
+- `auth/clerk-prep-apk-2.0-update` is explicitly Debug-only; its debug identity is `com.floustream.android.debug`, `2.0-debug`, code `110`. It contains an experimental WebView Clerk-session bridge, but its README forbids publishing a Release APK from this branch. That bridge has not been validated against the current Main 0.9 auth adapter and is not production-ready.
 - Historical native `android-messenger/` source exists at `bb068df16db43804872237f3c55c23aa6c2bfe0c`, but it is old version `0.4.27`, package `com.dolby404.messenger`, and is not the APK 2.0 source.
 - The repository's public release tags reach `v1.6`; no public `v2.0` APK artifact or source-to-artifact mapping was found.
 
