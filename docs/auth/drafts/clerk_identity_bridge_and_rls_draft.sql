@@ -24,7 +24,7 @@ SELECT id FROM auth.users
 ON CONFLICT (id) DO NOTHING;
 
 ALTER TABLE public.app_users ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON TABLE public.app_users FROM anon, authenticated;
+REVOKE ALL ON TABLE public.app_users FROM PUBLIC, anon, authenticated;
 GRANT ALL ON TABLE public.app_users TO service_role;
 
 -- Preserve legacy Supabase Auth registrations during the transition window.
@@ -48,9 +48,6 @@ CREATE TRIGGER floustream_register_legacy_auth_identity
 BEFORE INSERT ON auth.users
 FOR EACH ROW EXECUTE FUNCTION public.register_legacy_auth_identity();
 
--- Resolve a stable FLOUSTREAM UUID from Clerk's trusted app_user_id claim.
--- Legacy Supabase JWTs remain supported because their sub is already a UUID.
--- Non-UUID Clerk sub values without the trusted claim fail closed to NULL.
 -- Resolve a stable FLOUSTREAM UUID from a verified Clerk claim.
 -- Clerk's app_user_id claim is accepted only when it matches the server-managed
 -- app_users mapping for the same Clerk subject. Legacy Supabase UUID subjects
