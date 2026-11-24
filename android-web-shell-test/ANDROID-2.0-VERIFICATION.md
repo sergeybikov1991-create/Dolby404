@@ -41,6 +41,7 @@ Status: implementation baseline and CI pipeline setup in progress. No 2.0 APK is
 
 - [ ] Install signed Release 2.0 over the installed 1.6 Release without uninstalling.
 - [ ] Verify existing account/session continuity, including refresh of an expired Supabase access token without signing the user out.
+- [ ] After authentication, the app opens the real FLOUSTREAM profile route rather than an Android-only welcome screen; signed-out users can still receive update prompts.
 - [ ] Verify launch, navigation, Back, keyboard, rotation and lifecycle.
 - [ ] Verify voice recording and playback.
 - [ ] Verify gallery photo/video sending, previews, playback and cache.

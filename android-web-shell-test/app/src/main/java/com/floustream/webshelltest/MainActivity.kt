@@ -1423,6 +1423,7 @@ class MainActivity : ComponentActivity() {
                         view?.stopLoading()
                         view?.loadUrl(AUTH_URL)
                     }
+                    checkForUpdatesOnce()
                 }
                 "offline" -> {
                     authenticatedUserId = null
@@ -1469,62 +1470,14 @@ class MainActivity : ComponentActivity() {
         entryResolved = true
         startupAuthCheckPending = false
         authFlowActive = false
-        view.stopLoading()
         view.visibility = View.VISIBLE
 
-        val html = """
-            <!doctype html>
-            <html lang="ru">
-            <head>
-              <meta charset="utf-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-              <meta name="color-scheme" content="dark">
-              <title>FLOUSTREAM</title>
-              <style>
-                *{box-sizing:border-box}
-                html,body{margin:0;min-height:100%;width:100%;overflow:hidden}
-                body{min-height:100vh;min-height:100dvh;display:grid;place-items:center;
-                  padding:28px;color:#f8f6ff;font:16px Arial,sans-serif;text-align:center;
-                  background:radial-gradient(ellipse at 18% 18%,#263f91,transparent 48%),
-                  radial-gradient(ellipse at 85% 82%,#54257e,transparent 46%),#090910;
-                  touch-action:pan-y}
-                main{width:min(100%,440px);padding:28px 18px}
-                .logo{font-size:clamp(30px,9vw,46px);font-weight:800;letter-spacing:5px;
-                  text-shadow:0 0 12px #6e8bff,0 0 28px #875cff}
-                .message{margin:30px 0 12px;font-size:clamp(23px,6vw,30px);font-weight:600}
-                .hint{color:#c9c4e1;line-height:1.6;margin:0 auto;max-width:310px}
-                button{margin-top:32px;min-width:190px;padding:16px 28px;border:1px solid #9a7be6;
-                  border-radius:16px;background:linear-gradient(105deg,#405fd3,#7544b9);
-                  box-shadow:0 0 24px #6546bd55;color:white;font-size:17px;font-weight:700}
-                .swipe{margin-top:28px;color:#aaa5c9;font-size:13px;letter-spacing:.5px}
-                .arrow{display:inline-block;margin-left:8px;font-size:20px;vertical-align:-2px}
-              </style>
-            </head>
-            <body>
-              <main id="welcome">
-                <div class="logo">FLOUSTREAM</div>
-                <div class="message">Вы уже зашли</div>
-                <p class="hint">Твоя авторизация подтверждена. Добро пожаловать!</p>
-                <button type="button" onclick="continueToHome()">Продолжить</button>
-                <div class="swipe">Или проведи справа налево <span class="arrow">←</span></div>
-              </main>
-              <script>
-                function continueToHome(){ window.location.href = '$HOME_URL'; }
-                let touchStartX = null;
-                document.addEventListener('touchstart', function(event){
-                  if(event.changedTouches.length) touchStartX = event.changedTouches[0].clientX;
-                }, {passive:true});
-                document.addEventListener('touchend', function(event){
-                  if(touchStartX === null || !event.changedTouches.length) return;
-                  const delta = event.changedTouches[0].clientX - touchStartX;
-                  if(delta < -65) continueToHome();
-                  touchStartX = null;
-                }, {passive:true});
-              </script>
-            </body>
-            </html>
-        """.trimIndent()
-        view.loadDataWithBaseURL(SITE_BASE_URL, html, "text/html", "UTF-8", null)
+        // The live FLOUSTREAM website remains the single source of truth.
+        // After authentication, show its real profile route instead of an
+        // Android-only welcome/home screen.
+        if (!view.url.orEmpty().startsWith(PROFILE_URL)) {
+            view.loadUrl(PROFILE_URL)
+        }
         checkForUpdatesOnce()
     }
 

@@ -26,7 +26,7 @@ The Debug variant uses the separate application ID `com.floustream.android.debug
 
 The 2.0 branch must preserve the working 1.6 behavior unless a separately tested change is explicitly documented:
 
-- existing WebView-based FLOUSTREAM website and Supabase session;
+- existing WebView-based FLOUSTREAM website and Supabase session; after login the real website profile remains the app home, not a separate Android-only welcome screen;
 - short tap on the existing send control sends text or queued attachments; press-and-hold records voice;
 - compact voice-message player with Play/Stop and automatic reset;
 - photo/video media presentation without visible frames, plus viewport-safe chat photo viewing;
