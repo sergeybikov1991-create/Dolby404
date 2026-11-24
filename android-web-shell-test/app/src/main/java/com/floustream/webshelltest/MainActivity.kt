@@ -1244,7 +1244,7 @@ class MainActivity : ComponentActivity() {
                             '.post-photo-viewer img { max-height:calc(100dvh - 32px)!important; }',
                             '.message-media-video { display:block!important; width:100%!important; max-width:420px!important; max-height:420px!important; object-fit:contain!important; background:#090811!important; }',
                             '.video-album-frame { display:block!important; width:100%!important; height:100%!important; object-fit:cover!important; }'
-                        ].join('\\n');
+                        ].join('\n');
                         (routeRoot instanceof ShadowRoot ? routeRoot : document.head).appendChild(style);
                     }
 
