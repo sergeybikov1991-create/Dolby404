@@ -83,7 +83,7 @@ export async function requireFloustreamUser(
     clerkIssuer?: string;
     clerkJwksUrl?: string;
   } = {},
-): Promise<{ userId: string; clerkUserId: string | null; provider: "clerk" | "supabase_legacy" }> {
+): Promise<{ userId: string; clerkUserId: string | null; provider: "clerk" | "supabase_legacy"; claims: Record<string, unknown> | null }> {
   const authorization = request.headers.get("Authorization") ?? "";
   const token = authorization.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
   if (!token) throw new FloustreamAuthError();
@@ -108,6 +108,7 @@ export async function requireFloustreamUser(
         userId: legacyUserId,
         clerkUserId: mapping.clerk_user_id ?? null,
         provider: "supabase_legacy",
+        claims: null,
       };
     }
   }
@@ -130,6 +131,7 @@ export async function requireFloustreamUser(
     userId: identity.userId,
     clerkUserId: identity.clerkUserId,
     provider: "clerk",
+    claims: identity.claims,
   };
 }
 
