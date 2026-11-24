@@ -96,7 +96,7 @@ jobs:
         run: deno check --node-modules-dir=auto supabase/functions/_drafts/clerk-auth/dolby404-assistant/index.ts
 
       - name: Test Clerk JWT verification
-        run: deno test --node-modules-dir=auto supabase/functions/_shared/floustream-auth.test.ts
+        run: deno test --allow-env=CLERK_ALLOWED_PARTIES --node-modules-dir=auto supabase/functions/_shared/floustream-auth.test.ts
 
       - name: Parse browser game module
         run: node --check backgammon.js
