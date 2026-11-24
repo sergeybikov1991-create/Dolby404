@@ -104,3 +104,28 @@ The shadow-user approach is specifically for rollback safety. If production roll
 ## CI status
 
 The first draft PR run (#750) completed successfully for the existing unit, browser and backgammon/Postgres suites. The expanded rehearsal tests are now part of the updated workflow and require their own completed run before this migration draft can be considered validated.
+
+
+## Clerk session claims and sensitive-action reverification
+
+The Clerk session-token configuration must include these claims:
+
+```json
+{
+  "role": "authenticated",
+  "app_user_id": "{{user.external_id}}",
+  "email_verified": "{{user.email_verified}}",
+  "reverification_id": "{{session.reverification_id}}"
+}
+```
+
+The backend helper now rejects Clerk sessions unless the email is verified, the role is `authenticated`, the Clerk subject is a Clerk user ID, and `app_user_id` is a valid UUID. It then verifies that the UUID and Clerk subject match the server-managed `app_users` mapping.
+
+The website has an additive email-code reverification helper based on Clerk's JavaScript Session methods. It requests a first-factor email code, verifies it, clears the token cache, and requests a fresh session token. The backend requires a recent first-factor age (`fva[0]` no more than 10 minutes) and a non-empty `reverification_id` for sensitive account-lifecycle actions.
+
+A one-time `account_lifecycle_reverifications` ledger and service-role-only RPC consume each reverification ID for one action only. The synthetic PostgreSQL rehearsal checks duplicate-proof rejection and rollback removes this ledger. The actual development Clerk instance must still be used to verify the exact emitted `fva` and `reverification_id` claims before enabling account deletion/restore in production.
+
+Official implementation references:
+- Clerk session token custom claims and `user.external_id`: https://clerk.com/docs/guides/sessions/customize-session-tokens and https://clerk.com/docs/guides/sessions/jwt-templates
+- Clerk JavaScript Session reverification methods: https://clerk.com/docs/js-frontend/reference/objects/session
+- Clerk reverification and one-time IDs: https://clerk.com/docs/guides/secure/reverification
