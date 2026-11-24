@@ -1548,6 +1548,7 @@ class MainActivity : ComponentActivity() {
                     button.style.touchAction = 'none';
 
                     const bridgeToken = '$bridgeToken';
+                    const recorderHref = location.href;
                     let recording = false;
                     let startPending = false;
                     let startedAt = 0;
@@ -1696,7 +1697,7 @@ class MainActivity : ComponentActivity() {
 
                     window.addEventListener('floustream:route-metric', function(event) {
                         const nextRoute = String(event && event.detail ? event.detail.route : '').trim();
-                        if (nextRoute && nextRoute !== 'messages.html') {
+                        if (nextRoute && (nextRoute !== 'messages.html' || location.href !== recorderHref)) {
                             disposed = true;
                             cancelRecording();
                             try { window.FloustreamVoiceAudio.cancelNativeRecording(bridgeToken); } catch (_) {}
