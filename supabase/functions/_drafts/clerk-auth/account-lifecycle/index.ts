@@ -254,6 +254,10 @@ Deno.serve(async (req: Request) => {
       return json({ processed: results.length, results });
     }
 
+    if (body.action !== "request_delete" && body.action !== "restore") {
+      return json({ error: "Unknown action" }, 400);
+    }
+
     let identity;
     try {
       identity = await requireFloustreamUser(req, admin);
