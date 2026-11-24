@@ -25,7 +25,7 @@ That native project was subsequently deleted from the active line. It predates t
 - `APK-2.0` is only two commits beyond the protected baseline and changes a bundled website asset; it still contains the isolated test shell, not the production source.
 - `feature/apk-2.0-debug-clean-from-1.8` contains a WebView client with Release identity `com.floustream.android`, version `2.0`, code `111`, but its README explicitly labels the branch a Debug candidate and says not to publish a Release APK from it; the production Release baseline is separate.
 - `auth/clerk-prep-apk-2.0-update` is explicitly Debug-only and identifies its installable debug variant as `com.floustream.android.debug`, version `2.0-debug`, code `110`.
-- The repository's public Android releases currently go through `v1.6`; no public `v2.0` Release artifact was found.
+- The repository's public release tags reach `v1.6`; no public `v2.0` APK artifact or source-to-artifact mapping was found.
 
 These are useful development sources, but none is confirmed as the exact source of the currently installed production Release APK 2.0. Do not silently promote a Debug branch to Release.
 
