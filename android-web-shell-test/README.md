@@ -48,6 +48,6 @@ The existing updater reads the latest published GitHub Release and its `update.j
 
 Workflow: `.github/workflows/android-2.0-release.yml`.
 
-CI runs unit tests, builds the isolated Debug variant, builds the signed Release APK, verifies package identity and signing certificate, and uploads only the signed Release APK plus its checksum and updater manifest. It does not publish a GitHub Release.
+CI runs unit tests, builds the isolated Debug variant, checks Android 2.0 behavior contracts, runs an Android API 35 WebView emulator smoke test, builds the signed Release APK, verifies package identity and signing certificate, and uploads only the signed Release APK plus its checksum and updater manifest. It does not publish a GitHub Release.
 
 A CI artifact is not proof of physical-device behavior. Public publication and replacement of the in-app update target remain blocked until the OnePlus 10T / Android 15 checks, updater in-place installation, and protected-feature regression checks pass, followed by explicit release authorization.

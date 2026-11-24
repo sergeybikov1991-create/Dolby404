@@ -30,6 +30,7 @@ Status: implementation baseline and CI pipeline setup in progress. No 2.0 APK is
 
 - [ ] Gradle unit tests, including trusted-origin and least-privilege media permission policy tests.
 - [ ] Debug compilation (CI only; not a user test deliverable).
+- [ ] Android API 35 emulator smoke test confirms the live FLOUSTREAM portal/login loads in WebView.
 - [ ] Signed Release compilation.
 - [ ] APK package/version identity.
 - [ ] APK signature verification.
