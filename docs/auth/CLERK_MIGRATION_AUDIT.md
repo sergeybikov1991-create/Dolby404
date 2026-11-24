@@ -43,14 +43,14 @@ The user-creation trigger currently creates the public profile, validates regist
 
 ## Edge Function inventory
 
-Active functions found:
-- `registration-risk` (verify_jwt=false): pre-registration risk/domain screening.
-- `account-lifecycle` (verify_jwt=false): manually validates bearer token, decodes claims, and currently calls Supabase Auth getUser; account deletion finalization calls Supabase Auth admin.deleteUser.
-- `send-chat-push` (verify_jwt=false): auth-dependent push workflow.
-- `dolby404-assistant` (verify_jwt=false): inspect and classify its caller identity before changing auth.
-- `backgammon-action` (verify_jwt=true): currently protected by Supabase JWT verification; requires an explicit Clerk-compatible verification design.
+Active functions found and inspected:
+- `registration-risk` (verify_jwt=false): public pre-registration domain/risk screening. Returns `low` or `review` for allowed addresses and blocks invalid/disposable addresses. It does not authenticate a user.
+- `account-lifecycle` (verify_jwt=false): manually validates bearer token with Supabase Auth `getUser`, uses the token's user ID for deletion/restore, and finalizes deletion through `auth.admin.deleteUser`. Must be changed to verify Clerk JWTs, resolve the stable app UUID, delete Clerk identity at finalization, and remove the `app_users` row so the 22 FK cascades still execute.
+- `dolby404-assistant` (verify_jwt=false): manually validates Supabase Auth token and checks the resolved user against the configured admin user ID. Must resolve the stable FLOUSTREAM UUID from a verified Clerk JWT and retain the same admin-only authorization.
+- `backgammon-action` (verify_jwt=true): gateway-verifies the current Supabase JWT and then calls Supabase Auth `getUser`; the player UUID is used for match ownership. Must be tested with Clerk Third-Party Auth at the Functions gateway and explicitly verify/resolve the Clerk identity in the function before using the stable UUID.
+- `send-chat-push` (verify_jwt=false): database-webhook handler protected by its own shared secret; it reads sender/recipient IDs from the webhook payload and uses the service role. It does not call Supabase Auth `getUser`. Keep this separate webhook authentication mechanism; review secret storage/rotation, but do not add a Clerk end-user token requirement to the database webhook.
 
-Do not deploy changes to these production functions during preparation.
+Do not deploy changes to any production function during preparation.
 
 ## Migration and rollback gates
 
