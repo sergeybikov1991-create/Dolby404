@@ -9,7 +9,7 @@ import { prefetchRouteStylesheet } from "./shared/route-styles.mjs";
     "portal.html": () => import("./routes/portal.js"),
     "home.html": () => import("./routes/home.js"),
     "public-profile.html": () => import("./routes/public-profile.js"),
-    "messages.html": () => import("./routes/messages.js"),
+    "messages.html": () => import("./routes/messages.js?v=20261124-12"),
     "profile.html": () => import("./routes/profile.js")
   });
   const modulePromises = new Map();

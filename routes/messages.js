@@ -33,7 +33,7 @@ const MARKUP = `<section class="fs-route-messages">
    <div class="composer-controls">
     <button class="attach" id="attach" type="button" aria-label="Добавить вложение" aria-expanded="false">+</button>
     <textarea id="message-input" maxlength="5000" rows="1" placeholder="Написать сообщение…" aria-label="Текст сообщения"></textarea>
-    <button class="mic" id="mic" type="button" aria-label="Записать голосовое сообщение">♩</button>
+    <button class="mic" id="mic" type="button" aria-label="Записать голосовое сообщение"><svg class="mic-note-icon" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><defs><linearGradient id="mic-note-face" x1="8" y1="4" x2="39" y2="43" gradientUnits="userSpaceOnUse"><stop stop-color="#fff" /><stop offset=".22" stop-color="#e9d7ff" /><stop offset=".52" stop-color="#b982ff" /><stop offset=".78" stop-color="#8750d0" /><stop offset="1" stop-color="#49216f" /></linearGradient><linearGradient id="mic-note-side" x1="18" y1="15" x2="44" y2="45" gradientUnits="userSpaceOnUse"><stop stop-color="#9c65db" /><stop offset="1" stop-color="#28103f" /></linearGradient></defs><path d="M26 7v24.2a7.3 7.3 0 1 1-4-6.4V13l18-4v18.2a7.3 7.3 0 1 1-4-6.4V5z" transform="translate(2 2)" fill="url(#mic-note-side)" stroke="#6f42a5" stroke-width="1.2" stroke-linejoin="round"/><path d="M26 7v24.2a7.3 7.3 0 1 1-4-6.4V13l18-4v18.2a7.3 7.3 0 1 1-4-6.4V5z" fill="url(#mic-note-face)" stroke="#f5eaff" stroke-width="1.25" stroke-linejoin="round"/><path d="M27.5 8.5v21.8M29.5 10.2l8.5-1.9" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" opacity=".8"/></svg></button>
     <button class="voice-cancel" id="voice-cancel" type="button" aria-label="Отменить запись" hidden>×</button>
     <button class="send" id="send" type="submit" aria-label="Отправить">↑</button>
    </div>
@@ -57,7 +57,7 @@ const MARKUP = `<section class="fs-route-messages">
  <img id="photo-viewer-image" alt="">
 </div>
 </section>`;
-export const stylesheet = new URL("./styles/messages.css?v=20261124-11", import.meta.url).href;
+export const stylesheet = new URL("./styles/messages.css?v=20261124-12", import.meta.url).href;
 export const title = "Сообщения · FLOUSTREAM";
 
 export async function mount(root, { signal, navigate, url }) {

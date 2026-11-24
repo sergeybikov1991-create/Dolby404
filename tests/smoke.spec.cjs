@@ -630,25 +630,33 @@ test("chat photos have zero frame and open fullscreen without changing the video
   await page.goto("/messages.html?with=peer-1");
   await expect(page.locator(".message-media-image")).toBeVisible();
   await expect(page.locator(".message-media-video")).toHaveCount(1);
+  const fs = require("node:fs"), path = require("node:path");
+  const chatHtml = fs.readFileSync(path.join(__dirname, "..", "messages.html"), "utf8");
+  const routerCode = fs.readFileSync(path.join(__dirname, "..", "app-router.js"), "utf8");
+  expect(chatHtml).toContain("app-router.js?v=20261124-12");
+  expect(routerCode).toContain('import("./routes/messages.js?v=20261124-12")');
   const styles = await page.evaluate(() => {
     const view = document.querySelector("#floustream-app-shell #floustream-route-view").shadowRoot;
     const image = view.querySelector(".message-media-image");
     const photoBubble = image.closest(".bubble");
     const video = view.querySelector(".message-media-video");
     const videoBubble = video.closest(".bubble");
+    const videoGroup = video.closest(".message-media-stack");
     const mic = view.querySelector("#mic");
     const imageStyle = getComputedStyle(image);
     const photoStyle = getComputedStyle(photoBubble);
     const videoStyle = getComputedStyle(video);
     const videoBubbleStyle = getComputedStyle(videoBubble);
-    const micStyle = getComputedStyle(mic);
+    const videoGroupStyle = getComputedStyle(videoGroup);
+    const micIcon = mic.querySelector(".mic-note-icon");
     return {
       photoClass: photoBubble.classList.contains("photo-message"),
       photoBorder: photoStyle.borderTopWidth, photoPadding: photoStyle.paddingTop, photoBackground: photoStyle.backgroundColor, photoShadow: photoStyle.boxShadow,
       imageBorder: imageStyle.borderTopWidth, imageOutline: imageStyle.outlineWidth, imagePadding: imageStyle.paddingTop, imageBackground: imageStyle.backgroundColor, imageShadow: imageStyle.boxShadow, imageRadius: imageStyle.borderRadius, imageMaxWidth: imageStyle.maxWidth, imageMaxHeight: imageStyle.maxHeight, imageFit: imageStyle.objectFit,
       videoHasPhotoClass: videoBubble.classList.contains("photo-message"), videoRadius: videoStyle.borderRadius, videoBackground: videoStyle.backgroundColor, videoMaxWidth: videoStyle.maxWidth, videoMaxHeight: videoStyle.maxHeight,
       videoBorder: videoStyle.borderTopWidth, videoOutline: videoStyle.outlineWidth, videoShadow: videoStyle.boxShadow, videoBubbleBorder: videoBubbleStyle.borderTopWidth, videoBubbleOutline: videoBubbleStyle.outlineWidth, videoBubbleShadow: videoBubbleStyle.boxShadow,
-      micGlyph: mic.textContent.trim(), micTextShadow: micStyle.textShadow
+      videoGroupBorder: videoGroupStyle.borderTopWidth, videoGroupOutline: videoGroupStyle.outlineWidth, videoGroupShadow: videoGroupStyle.boxShadow, videoGroupPadding: videoGroupStyle.paddingTop,
+      micHasSvg: !!micIcon, micLabel: mic.getAttribute("aria-label"), micText: mic.textContent.trim()
     };
   });
   expect(styles.photoClass).toBe(true);
@@ -676,8 +684,13 @@ test("chat photos have zero frame and open fullscreen without changing the video
   expect(styles.videoBubbleBorder).toBe("0px");
   expect(styles.videoBubbleOutline).toBe("0px");
   expect(styles.videoBubbleShadow).toBe("none");
-  expect(styles.micGlyph).toBe("♩");
-  expect(styles.micTextShadow).toContain("rgb(228, 202, 255)");
+  expect(styles.videoGroupBorder).toBe("0px");
+  expect(styles.videoGroupOutline).toBe("0px");
+  expect(styles.videoGroupShadow).toBe("none");
+  expect(styles.videoGroupPadding).toBe("0px");
+  expect(styles.micHasSvg).toBe(true);
+  expect(styles.micLabel).toBe("Записать голосовое сообщение");
+  expect(styles.micText).toBe("");
   await page.locator(".message-media-image").click();
   await expect(page.locator("#photo-viewer")).toBeVisible();
   await expect(page.locator("#photo-viewer-image")).toHaveAttribute("src", /^(blob:|https:\/\/media\.test\/)/);
