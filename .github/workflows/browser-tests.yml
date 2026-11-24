@@ -90,6 +90,10 @@ jobs:
 
       - name: Type-check Clerk account provisioning draft
         run: deno check --node-modules-dir=auto supabase/functions/_drafts/clerk-auth/clerk-provision-user/index.ts
+      - name: Type-check Clerk backgammon action draft
+        run: deno check --node-modules-dir=auto supabase/functions/_drafts/clerk-auth/backgammon-action/index.ts
+      - name: Type-check Clerk assistant draft
+        run: deno check --node-modules-dir=auto supabase/functions/_drafts/clerk-auth/dolby404-assistant/index.ts
 
       - name: Test Clerk JWT verification
         run: deno test --node-modules-dir=auto supabase/functions/_shared/floustream-auth.test.ts
