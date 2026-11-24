@@ -93,6 +93,7 @@ class LiveWebsiteStartupTest {
             // Exercise the Android send-arrow override against a deterministic composer fixture.
             val voiceComposerReady = CountDownLatch(1)
             val voiceComposerSnapshot = AtomicReference("")
+            val voiceDeadline = SystemClock.elapsedRealtime() + 5_000L
             scenario.onActivity { activity ->
                 val webView = webViewRef.get() ?: error("WebView disappeared")
                 val handler = Handler(Looper.getMainLooper())
@@ -101,12 +102,14 @@ class LiveWebsiteStartupTest {
                         const host = document.querySelector('#floustream-app-shell #floustream-route-view');
                         const root = host && host.shadowRoot ? host.shadowRoot : document;
                         const mount = root instanceof Document ? document.body : root;
-                        mount.insertAdjacentHTML('beforeend',
+                        const fixture = document.createElement('div');
+                        fixture.innerHTML =
                             '<form id="composer"><input id="attachment-input" type="file">' +
                             '<textarea id="message-input"></textarea>' +
                             '<div id="attachment-preview"></div>' +
                             '<button id="mic" type="button" style="display:grid">Mic</button>' +
-                            '<button id="send" type="submit">Send</button></form>');
+                            '<button id="send" type="submit">Send</button></form>';
+                        mount.appendChild(fixture);
                         const form = root.querySelector('#composer');
                         form.addEventListener('submit', event => {
                             event.preventDefault();
@@ -156,7 +159,7 @@ class LiveWebsiteStartupTest {
                             if (value.contains("\"ready\":true")) {
                                 voiceComposerSnapshot.set(value)
                                 voiceComposerReady.countDown()
-                            } else if (SystemClock.elapsedRealtime() < deadline) {
+                            } else if (SystemClock.elapsedRealtime() < voiceDeadline) {
                                 handler.postDelayed(this, 200L)
                             } else {
                                 voiceComposerSnapshot.set(value)
