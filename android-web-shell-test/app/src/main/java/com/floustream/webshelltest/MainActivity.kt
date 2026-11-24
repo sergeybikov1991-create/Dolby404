@@ -104,7 +104,21 @@ class MainActivity : ComponentActivity() {
             if (SiteRoutePolicy.isMessagesRouteName(route)) {
                 mainHandler.post {
                     if (!isFinishing && !isDestroyed && ::webView.isInitialized) {
+                        applyAndroidPhotoViewerFix(webView)
                         applyAndroidVoiceMessageRecorder(webView)
+                        // The SPA route event can fire just before its composer is
+                        // attached to the WebView DOM. Retry after the route mount.
+                        mainHandler.postDelayed({
+                            if (!isFinishing && !isDestroyed && ::webView.isInitialized) {
+                                applyAndroidPhotoViewerFix(webView)
+                                applyAndroidVoiceMessageRecorder(webView)
+                            }
+                        }, 350L)
+                        mainHandler.postDelayed({
+                            if (!isFinishing && !isDestroyed && ::webView.isInitialized) {
+                                applyAndroidVoiceMessageRecorder(webView)
+                            }
+                        }, 900L)
                     }
                 }
             }
@@ -230,7 +244,14 @@ class MainActivity : ComponentActivity() {
                     installAndroidRouteLifecycleHooks(view)
                     val currentRoute = SiteRoutePolicy.routeName(currentUrl)
                     if (SiteRoutePolicy.isMessagesRouteName(currentRoute)) {
+                        applyAndroidPhotoViewerFix(view)
                         applyAndroidVoiceMessageRecorder(view)
+                        mainHandler.postDelayed({
+                            if (!isFinishing && !isDestroyed) {
+                                applyAndroidPhotoViewerFix(view)
+                                applyAndroidVoiceMessageRecorder(view)
+                            }
+                        }, 350L)
                     }
                     if (startupAuthCheckPending &&
                         (currentUrl.startsWith(AUTH_URL) ||
@@ -1554,6 +1575,67 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
+     * Keep the chat photo viewer inside the real Android viewport. The website
+     * styles remain unchanged; this correction is injected only in this WebView.
+     */
+    private fun applyAndroidPhotoViewerFix(view: WebView?) {
+        if (view == null || isFinishing || isDestroyed) return
+        val script = """
+            (function() {
+                try {
+                    const host = document.querySelector('#floustream-app-shell #floustream-route-view');
+                    const root = host && host.shadowRoot ? host.shadowRoot : document;
+                    const styleId = 'floustream-android-photo-viewer-fit-v1';
+                    if (!root.getElementById(styleId)) {
+                        const style = document.createElement('style');
+                        style.id = styleId;
+                        style.textContent = [
+                            '#photo-viewer {',
+                            '  position: fixed !important;',
+                            '  inset: 0 !important;',
+                            '  width: 100vw !important;',
+                            '  height: 100vh !important;',
+                            '  height: 100dvh !important;',
+                            '  box-sizing: border-box !important;',
+                            '  padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)) !important;',
+                            '  display: grid !important;',
+                            '  place-items: center !important;',
+                            '  overflow: hidden !important;',
+                            '}',
+                            '#photo-viewer[hidden] { display: none !important; }',
+                            '#photo-viewer-image {',
+                            '  display: block !important;',
+                            '  width: auto !important;',
+                            '  height: auto !important;',
+                            '  max-width: 100% !important;',
+                            '  max-height: 100% !important;',
+                            '  min-width: 0 !important;',
+                            '  min-height: 0 !important;',
+                            '  object-fit: contain !important;',
+                            '  object-position: center center !important;',
+                            '  image-orientation: from-image !important;',
+                            '  transform: none !important;',
+                            '}'
+                        ].join('\\n');
+                        (root.head || root).appendChild(style);
+                    }
+                    const image = root.querySelector('#photo-viewer-image');
+                    if (image && image.dataset.floustreamAndroidFit !== '1') {
+                        image.dataset.floustreamAndroidFit = '1';
+                        image.addEventListener('load', function() {
+                            image.style.setProperty('max-width', '100%', 'important');
+                            image.style.setProperty('max-height', '100%', 'important');
+                            image.style.setProperty('object-fit', 'contain', 'important');
+                            image.style.setProperty('object-position', 'center center', 'important');
+                        });
+                    }
+                } catch (_) {}
+            })();
+        """.trimIndent()
+        view.evaluateJavascript(script, null)
+    }
+
+    /**
      * Android-only voice control for messages.html. The existing attachment
      * input uploads the recorded audio through the normal message-media flow.
      */
@@ -1739,7 +1821,12 @@ class MainActivity : ComponentActivity() {
                     });
 
                     button.addEventListener('pointerdown', event => {
-                        if (event.button !== 0 || text.value.trim() || disposed) return;
+                        if (event.button !== 0 || disposed) return;
+                        if (text.value.trim()) {
+                            // A normal text send must never inherit the voice-hold click guard.
+                            ignoreClickUntil = 0;
+                            return;
+                        }
                         event.preventDefault();
                         ignoreClickUntil = Date.now() + 900;
                         pointerHeld = true;
@@ -1753,10 +1840,13 @@ class MainActivity : ComponentActivity() {
                         if (!pointerHeld) return;
                         event.preventDefault();
                         pointerHeld = false;
+                        const wasShortTap = !!holdTimer && !recording && !startPending;
                         if (holdTimer) {
                             clearTimeout(holdTimer);
                             holdTimer = null;
                         }
+                        // A short tap is the existing send action; a long hold records voice.
+                        if (wasShortTap) ignoreClickUntil = 0;
                         if (recording) await stopRecording();
                     });
                     button.addEventListener('pointercancel', cancelRecording);
@@ -1768,7 +1858,12 @@ class MainActivity : ComponentActivity() {
                             event.preventDefault();
                             return;
                         }
-                        if (text.value.trim()) form.requestSubmit();
+                        const preview = routeRoot.querySelector('#attachment-preview');
+                        const hasPendingAttachments = !!preview && !preview.hidden;
+                        if (text.value.trim() || hasPendingAttachments) {
+                            event.preventDefault();
+                            form.requestSubmit();
+                        }
                     });
                     button.addEventListener('keydown', event => {
                         if ((event.key === ' ' || event.key === 'Enter') && !event.repeat && !text.value.trim()) {
