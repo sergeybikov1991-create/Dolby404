@@ -93,6 +93,42 @@ export function getSupabaseClient(options = {}) {
   return withAbort(sharedClientPromise, options.signal);
 }
 
+// Clerk/Supabase Third-Party Auth bridge. This is additive and intentionally
+// not selected by existing routes until the migration feature flag is enabled.
+export async function createThirdPartySupabaseClient(getAccessToken, options = {}) {
+  if (typeof getAccessToken !== "function") {
+    throw new TypeError("A third-party access-token provider is required");
+  }
+
+  await withAbort(ensureSdk(), options.signal);
+  if (options.signal?.aborted) throw abortError();
+
+  return window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false
+    },
+    async accessToken() {
+      const token = await getAccessToken();
+      return typeof token === "string" && token.trim() ? token : null;
+    }
+  });
+}
+
+// The provider object is passed in rather than captured once so the active
+// Clerk session is read afresh for every Supabase request.
+export async function createClerkSupabaseClient(clerk = window.Clerk, options = {}) {
+  if (!clerk || typeof clerk !== "object") {
+    throw new Error("Clerk is not initialized");
+  }
+
+  return createThirdPartySupabaseClient(
+    async () => clerk.session?.getToken() ?? null,
+    options
+  );
+}
+
 export async function createAnonymousSupabaseClient(options = {}) {
   await withAbort(ensureSdk(), options.signal);
   return window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
