@@ -1215,6 +1215,138 @@ class MainActivity : ComponentActivity() {
         view.evaluateJavascript(script, null)
     }
 
+
+    /**
+     * Android-only WebView compatibility for the live FLOUSTREAM site.
+     * Keeps photo viewers inside the real visible viewport and streams large
+     * chat videos directly instead of waiting for a full Blob download.
+     */
+    private fun applyAndroidWebViewCompatibility(view: WebView?) {
+        if (view == null || isFinishing || isDestroyed) return
+        val script = """
+            (function() {
+                try {
+                    const routeHost = document.querySelector('#floustream-app-shell #floustream-route-view');
+                    const routeRoot = routeHost && routeHost.shadowRoot ? routeHost.shadowRoot : document;
+                    const isMessagesRoute = !!routeRoot.querySelector('.fs-route-messages');
+                    const styleId = 'floustream-android-viewport-media-v1';
+                    if (!routeRoot.querySelector('#' + styleId)) {
+                        const style = document.createElement('style');
+                        style.id = styleId;
+                        style.textContent = [
+                            '.photo-viewer, .post-photo-viewer { position:fixed!important; inset:0!important; width:100vw!important; height:100dvh!important; max-height:100dvh!important; box-sizing:border-box!important; overflow:hidden!important; }',
+                            '.photo-viewer img, .post-photo-viewer img { max-width:calc(100vw - 24px)!important; width:auto!important; height:auto!important; object-fit:contain!important; }',
+                            isMessagesRoute ? '.photo-viewer img { max-height:calc(100dvh - 48px)!important; }' : '.photo-viewer img { max-height:72vh!important; }',
+                            '.post-photo-viewer img { max-height:calc(100dvh - 32px)!important; }',
+                            '.message-media-video { display:block!important; width:100%!important; max-width:420px!important; max-height:420px!important; object-fit:contain!important; background:#090811!important; }',
+                            '.video-album-frame { display:block!important; width:100%!important; height:100%!important; object-fit:cover!important; }'
+                        ].join('\\n');
+                        (routeRoot instanceof ShadowRoot ? routeRoot : document.head).appendChild(style);
+                    }
+
+                    function syncPhotoViewers() {
+                        const host = document.querySelector('#floustream-app-shell #floustream-route-view');
+                        const roots = [document];
+                        if (host && host.shadowRoot) roots.push(host.shadowRoot);
+                        const viewport = window.visualViewport;
+                        const height = Math.max(1, Math.round(Math.min(
+                            window.innerHeight || 1,
+                            viewport ? viewport.height : (window.innerHeight || 1)
+                        )));
+                        const top = Math.max(0, Math.round(viewport ? viewport.offsetTop : 0));
+                        roots.forEach(root => root.querySelectorAll('.photo-viewer, .post-photo-viewer').forEach(viewer => {
+                            viewer.style.setProperty('top', top + 'px', 'important');
+                            viewer.style.setProperty('height', height + 'px', 'important');
+                            viewer.style.setProperty('bottom', 'auto', 'important');
+                        }));
+                    }
+                    window.__floustreamAndroidSyncPhotoViewers = syncPhotoViewers;
+                    if (!window.__floustreamAndroidViewportListenersInstalled) {
+                        window.__floustreamAndroidViewportListenersInstalled = true;
+                        window.addEventListener('resize', () => window.__floustreamAndroidSyncPhotoViewers?.(), {passive:true});
+                        window.addEventListener('orientationchange', () => setTimeout(() => window.__floustreamAndroidSyncPhotoViewers?.(), 120), {passive:true});
+                        if (window.visualViewport) {
+                            window.visualViewport.addEventListener('resize', () => window.__floustreamAndroidSyncPhotoViewers?.(), {passive:true});
+                            window.visualViewport.addEventListener('scroll', () => window.__floustreamAndroidSyncPhotoViewers?.(), {passive:true});
+                        }
+                    }
+                    syncPhotoViewers();
+
+                    // The site's chat cache downloads the whole video into a Blob.
+                    // Reject only that prefetch so its fallback returns the signed URL
+                    // and the native HTML video element can stream it progressively.
+                    if (!window.__floustreamAndroidVideoStreamBypassInstalled) {
+                        const previousFetch = window.fetch.bind(window);
+                        window.fetch = function(input, init) {
+                            let rawUrl = '';
+                            try { rawUrl = input instanceof Request ? input.url : String(input); } catch (_) {}
+                            try {
+                                const url = new URL(rawUrl, location.href);
+                                const path = decodeURIComponent(url.pathname);
+                                const isChatVideo = path.includes('/storage/v1/object/sign/message-media/') &&
+                                    /\.(mp4|m4v|mov|webm|mkv|3gp|avi)$/i.test(path);
+                                if (isChatVideo) {
+                                    return Promise.reject(new Error('Android streams message videos directly'));
+                                }
+                            } catch (_) {}
+                            return previousFetch(input, init);
+                        };
+                        window.__floustreamAndroidVideoStreamBypassInstalled = true;
+                    }
+
+                    function enhanceVideo(video) {
+                        if (!video || video.dataset.floustreamAndroidVideoEnhanced === '1') return;
+                        const isAlbumFrame = video.classList.contains('video-album-frame');
+                        const isChatVideo = video.classList.contains('message-media-video');
+                        const isPreview = video.classList.contains('composer-preview-thumb');
+                        if (!isAlbumFrame && !isChatVideo && !isPreview) return;
+                        video.dataset.floustreamAndroidVideoEnhanced = '1';
+                        video.playsInline = true;
+                        video.setAttribute('playsinline', '');
+                        if (isAlbumFrame || isPreview) {
+                            video.muted = true;
+                            video.defaultMuted = true;
+                            video.setAttribute('muted', '');
+                        }
+                        video.preload = 'auto';
+                        const seekToPreviewFrame = function() {
+                            if (!isAlbumFrame || !Number.isFinite(video.duration) || video.duration <= 0) return;
+                            try { video.currentTime = Math.min(0.2, video.duration / 3); } catch (_) {}
+                        };
+                        video.addEventListener('loadedmetadata', seekToPreviewFrame, {once:true});
+                        video.addEventListener('loadeddata', function() {
+                            video.dataset.floustreamAndroidFrameReady = '1';
+                        }, {once:true});
+                        if (video.readyState >= 1) seekToPreviewFrame();
+                        if (video.readyState < 2 && video.getAttribute('src')) {
+                            try { video.load(); } catch (_) {}
+                        }
+                    }
+                    function scanVideos(root) {
+                        if (!root) return;
+                        if (root.nodeType === 1 && root.tagName === 'VIDEO') enhanceVideo(root);
+                        if (root.querySelectorAll) root.querySelectorAll('video').forEach(enhanceVideo);
+                    }
+                    scanVideos(routeRoot);
+                    const observerTarget = routeRoot instanceof ShadowRoot ? routeRoot : document.documentElement;
+                    const observerFlag = routeRoot instanceof ShadowRoot
+                        ? 'floustreamAndroidVideoObserverInstalled'
+                        : 'floustreamAndroidDocumentVideoObserverInstalled';
+                    if (observerTarget && !observerTarget[observerFlag]) {
+                        observerTarget[observerFlag] = true;
+                        const observer = new MutationObserver(records => {
+                            records.forEach(record => record.addedNodes.forEach(scanVideos));
+                        });
+                        observer.observe(observerTarget, {subtree:true, childList:true});
+                    }
+                } catch (error) {
+                    console.warn('FLOUSTREAM Android media compatibility:', error);
+                }
+            })();
+        """.trimIndent()
+        view.evaluateJavascript(script, null)
+    }
+
     private fun installAndroidRouteLifecycleHooks(view: WebView?) {
         if (view == null || isFinishing || isDestroyed) return
         val bridgeToken = voiceMessageAudioBridge.javascriptToken
