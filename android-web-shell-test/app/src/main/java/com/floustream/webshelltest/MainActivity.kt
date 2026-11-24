@@ -1814,7 +1814,7 @@ class MainActivity : ComponentActivity() {
 
                     async function startRecording() {
                         if (disposed || recording || startPending || !pointerHeld && !keyboardHeld) return;
-                        if (routeRoot.querySelector('#attach')?.disabled) return;
+                        if (routeRoot.querySelector('#attach')?.disabled || hasPendingAttachments()) return;
                         startPending = true;
                         if (!window.FloustreamVoiceAudio) {
                             startPending = false;
@@ -1858,6 +1858,7 @@ class MainActivity : ComponentActivity() {
 
                     async function stopRecording() {
                         if (!recording || disposed) return;
+                        let submitted = false;
                         button.disabled = true;
                         button.textContent = '…';
                         recording = false;
@@ -1889,12 +1890,18 @@ class MainActivity : ComponentActivity() {
                             transfer.items.add(file);
                             input.files = transfer.files;
                             input.dispatchEvent(new Event('change', { bubbles: true }));
+                            // Release on the existing send arrow completes the voice message.
+                            // Reset before submit so the website's upload handler owns the disabled state.
+                            resetButton();
+                            notice('Отправляем голосовое сообщение…');
+                            form.requestSubmit();
+                            submitted = true;
                         } catch (error) {
                             try { window.FloustreamVoiceAudio.discardCompletedFile(bridgeToken, token); } catch (_) {}
                             notice('Не удалось передать голосовую запись в отправку: ' +
                                 (error && error.message ? error.message : 'попробуй ещё раз.'), true);
                         } finally {
-                            resetButton();
+                            if (!submitted) resetButton();
                         }
                     }
 
@@ -1956,7 +1963,8 @@ class MainActivity : ComponentActivity() {
                         if (text.value.trim() || hasPendingAttachments()) form.requestSubmit();
                     });
                     button.addEventListener('keydown', event => {
-                        if ((event.key === ' ' || event.key === 'Enter') && !event.repeat && !text.value.trim()) {
+                        if ((event.key === ' ' || event.key === 'Enter') && !event.repeat &&
+                            !text.value.trim() && !hasPendingAttachments()) {
                             event.preventDefault();
                             keyboardHeld = true;
                             startAttempt = startRecording();
