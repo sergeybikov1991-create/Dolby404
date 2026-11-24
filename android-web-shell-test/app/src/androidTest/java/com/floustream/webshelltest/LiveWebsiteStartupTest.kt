@@ -43,15 +43,20 @@ class LiveWebsiteStartupTest {
                 val poll = object : Runnable {
                     override fun run() {
                         webView!!.evaluateJavascript(
-                            """JSON.stringify({
-                                url: location.href,
-                                title: document.title,
-                                emailField: !!document.querySelector('#email'),
-                                passwordField: !!document.querySelector('#password'),
-                                logo: document.querySelector('.logo')?.textContent || '',
-                                videoStreamBypass: !!window.__floustreamAndroidVideoStreamBypassInstalled,
-                                photoViewportSync: typeof window.__floustreamAndroidSyncPhotoViewers === 'function'
-                            })""".trimIndent()
+                            """(function() {
+                                const host = document.querySelector('#floustream-app-shell #floustream-route-view');
+                                const root = host && host.shadowRoot ? host.shadowRoot : document;
+                                return JSON.stringify({
+                                    url: location.href,
+                                    title: document.title,
+                                    emailField: !!root.querySelector('#email'),
+                                    passwordField: !!root.querySelector('#password'),
+                                    logo: root.querySelector('.logo')?.textContent || '',
+                                    shadowRoute: !!(host && host.shadowRoot),
+                                    videoStreamBypass: !!window.__floustreamAndroidVideoStreamBypassInstalled,
+                                    photoViewportSync: typeof window.__floustreamAndroidSyncPhotoViewers === 'function'
+                                });
+                            })()""".trimIndent()
                         ) { raw ->
                             val value = runCatching {
                                 JSONTokener(raw ?: "null").nextValue() as? String
