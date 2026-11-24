@@ -922,3 +922,107 @@ CREATE POLICY "Video album files are readable by permanent users" ON "storage"."
   USING (((bucket_id = 'video-albums'::text) AND (((storage.foldername(name))[1] = (( SELECT (SELECT public.floustream_user_id()) AS uid))::text) OR (private.is_profile_section_public(((storage.foldername(name))[1])::uuid, 'videos'::text) AND (COALESCE(( SELECT ((auth.jwt() ->> 'is_anonymous'::text))::boolean AS bool), false) = false)))));
 
 COMMIT;
+
+
+-- Adapt the two catalog-confirmed SQL functions that previously called auth.uid().
+-- The helper supports both legacy Supabase UUID subjects and Clerk's trusted app_user_id claim.
+CREATE OR REPLACE FUNCTION public.guard_scheduled_post_changes()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path TO 'pg_catalog', 'public', 'auth'
+AS $function$
+declare
+  previous_time timestamptz;
+  next_time timestamptz;
+begin
+  if public.floustream_user_id() is not null and current_user <> 'postgres' then
+    if tg_op = 'INSERT' then
+      if new.user_id is distinct from public.floustream_user_id() then
+        raise exception 'You can only schedule posts for your own account';
+      end if;
+      select s.scheduled_at into previous_time
+      from public.scheduled_posts s
+      where s.user_id = new.user_id and s.status in ('pending','failed')
+      order by s.queue_order desc limit 1;
+      if previous_time is not null and new.scheduled_at <= previous_time then
+        raise exception 'Choose a time later than the previous post in your queue';
+      end if;
+      new.status := 'pending';
+      new.published_post_id := null;
+      new.published_at := null;
+      new.attempts := 0;
+      new.last_error := null;
+      new.created_at := now();
+      new.updated_at := now();
+    else
+      if old.status not in ('pending', 'failed') then
+        raise exception 'Only pending or failed scheduled posts can be edited';
+      end if;
+      if new.user_id is distinct from old.user_id
+        or new.queue_order is distinct from old.queue_order
+        or new.status is distinct from old.status
+        or new.published_post_id is distinct from old.published_post_id
+        or new.published_at is distinct from old.published_at
+        or new.attempts is distinct from old.attempts
+        or new.last_error is distinct from old.last_error
+        or new.created_at is distinct from old.created_at then
+        raise exception 'Protected scheduling fields cannot be changed directly';
+      end if;
+      select s.scheduled_at into previous_time
+      from public.scheduled_posts s
+      where s.user_id = old.user_id and s.queue_order < old.queue_order
+        and s.status in ('pending','failed') and s.id <> old.id
+      order by s.queue_order desc limit 1;
+      select s.scheduled_at into next_time
+      from public.scheduled_posts s
+      where s.user_id = old.user_id and s.queue_order > old.queue_order
+        and s.status in ('pending','failed') and s.id <> old.id
+      order by s.queue_order asc limit 1;
+      if previous_time is not null and new.scheduled_at <= previous_time then
+        raise exception 'Choose a time later than the previous post in your queue';
+      end if;
+      if next_time is not null and new.scheduled_at >= next_time then
+        raise exception 'Choose a time earlier than the next post in your queue';
+      end if;
+      new.updated_at := now();
+    end if;
+  else
+    if tg_op = 'UPDATE' then
+      new.updated_at := now();
+    end if;
+  end if;
+  if tg_op = 'INSERT' then
+    if new.scheduled_at <= now() then
+      raise exception 'Scheduled time must be in the future';
+    end if;
+  elsif tg_op = 'UPDATE' and new.scheduled_at is distinct from old.scheduled_at then
+    if new.scheduled_at <= now() then
+      raise exception 'Scheduled time must be in the future';
+    end if;
+  end if;
+  return new;
+end;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.retry_scheduled_post(p_post_id uuid)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'pg_catalog', 'public', 'auth'
+AS $function$
+begin
+  if public.floustream_user_id() is null then
+    raise exception 'Authentication required';
+  end if;
+  update public.scheduled_posts
+  set status = 'pending', last_error = null, updated_at = now()
+  where id = p_post_id
+    and user_id = public.floustream_user_id()
+    and status = 'failed'
+    and scheduled_at > now();
+  if not found then
+    raise exception 'Scheduled post was not found, is not failed, or needs a future time';
+  end if;
+  return true;
+end;
+$function$;
