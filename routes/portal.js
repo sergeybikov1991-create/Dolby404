@@ -2,7 +2,7 @@ import { attachRouteStyles } from "../shared/route-styles.mjs";
 import { getSupabaseClient, SUPABASE_URL, SUPABASE_KEY } from "../shared/supabase-client.mjs";
 
 
-const MARKUP = "\n\n<svg id=\"glass-layer\"></svg>\n\n<div class=\"portal\">\n    <div class=\"logo\">FLOUSTREAM</div>\n    <div class=\"subtitle\">ENTER THE DIGITAL WORLD</div>\n\n    <div class=\"auth-box\">\n        <input id=\"email\" type=\"email\"\n               placeholder=\"Твой Email\">\n\n        <input id=\"password\" type=\"password\"\n               placeholder=\"Пароль (минимум 8 символов)\">\n\n        <input id=\"first-name\" type=\"text\" autocomplete=\"given-name\"\n               placeholder=\"Имя (для регистрации)\" maxlength=\"60\">\n        <input id=\"last-name\" type=\"text\" autocomplete=\"family-name\"\n               placeholder=\"Фамилия (для регистрации)\" maxlength=\"60\">\n        <select id=\"country-code\" aria-label=\"Страна\">\n            <option value=\"\">Выбери страну</option>\n            <option value=\"DE\">Германия</option><option value=\"RU\">Россия</option>\n            <option value=\"UA\">Украина</option><option value=\"BY\">Беларусь</option>\n            <option value=\"KZ\">Казахстан</option><option value=\"NL\">Нидерланды</option>\n            <option value=\"US\">США</option><option value=\"GB\">Великобритания</option>\n            <option value=\"OTHER\">Другая страна</option>\n        </select>\n        <select id=\"preferred-language\" aria-label=\"Язык по умолчанию\">\n            <option value=\"ru\">Русский</option><option value=\"en\">English</option>\n        </select>\n\n        <button id=\"register-button\" disabled>\n            Зарегистрироваться\n        </button>\n\n        <button id=\"login-button\" disabled>\n            Войти\n        </button>\n\n        <button id=\"restore-button\" type=\"button\" disabled>\n            Восстановить аккаунт\n        </button>\n\n        <p id=\"auth-message\">Подключаем систему...</p>\n    </div>\n\n</div>\n\n";
+const MARKUP = "\n\n<svg id=\"glass-layer\"></svg>\n\n<div class=\"portal\">\n    <div class=\"logo\">FLOUSTREAM</div>\n    <div class=\"subtitle\">ENTER THE DIGITAL WORLD</div>\n\n    <div class=\"auth-box\">\n        <input id=\"email\" type=\"email\"\n               placeholder=\"Твой Email\">\n\n        <input id=\"password\" type=\"password\"\n               placeholder=\"Пароль (минимум 8 символов)\">\n\n        <input id=\"first-name\" type=\"text\" autocomplete=\"given-name\"\n               placeholder=\"Имя (для регистрации)\" maxlength=\"60\">\n        <input id=\"last-name\" type=\"text\" autocomplete=\"family-name\"\n               placeholder=\"Фамилия (для регистрации)\" maxlength=\"60\">\n        <select id=\"country-code\" aria-label=\"Страна\">\n            <option value=\"\">Выбери страну</option>\n            <option value=\"DE\">Германия</option><option value=\"RU\">Россия</option>\n            <option value=\"UA\">Украина</option><option value=\"BY\">Беларусь</option>\n            <option value=\"KZ\">Казахстан</option><option value=\"NL\">Нидерланды</option>\n            <option value=\"US\">США</option><option value=\"GB\">Великобритания</option>\n            <option value=\"OTHER\">Другая страна</option>\n        </select>\n        <select id=\"preferred-language\" aria-label=\"Язык по умолчанию\">\n            <option value=\"ru\">Русский</option><option value=\"en\">English</option>\n        </select>\n\n        <button id=\"register-button\" disabled>\n            Зарегистрироваться\n        </button>\n\n        <button id=\"login-button\" disabled>\n            Войти\n        </button>\n\n        <button id=\"restore-button\" type=\"button\" disabled>\n            Восстановить аккаунт\n        </button>\n\n        <div id=\"email-code-panel\" class=\"email-code-panel\" hidden>\n            <p id=\"email-code-hint\">Введи код из письма.</p>\n            <input id=\"email-verification-code\" type=\"text\" inputmode=\"numeric\"\n                   autocomplete=\"one-time-code\" maxlength=\"8\" placeholder=\"Код из письма\">\n            <button id=\"verify-email-code-button\" type=\"button\">Подтвердить код</button>\n        </div>\n\n        <p id=\"auth-message\">Подключаем систему...</p>\n    </div>\n\n</div>\n\n";
 export const stylesheet = new URL("./styles/portal.css?v=1", import.meta.url).href;
 export const title = "FLOUSTREAM — Portal";
 
@@ -16,6 +16,7 @@ let supabaseClient = null;
 let registrationInProgress = false;
 let registrationCooldownUntil = 0;
 let registrationCooldownTimer = null;
+let pendingVerification = null;
 
 function startRegistrationCooldown(seconds, template) {
     if (signal.aborted) return;
@@ -52,6 +53,10 @@ const message = root.querySelector("#auth-message");
 const registerButton = root.querySelector("#register-button");
 const loginButton = root.querySelector("#login-button");
 const restoreButton = root.querySelector("#restore-button");
+const emailCodePanel = root.querySelector("#email-code-panel");
+const emailCodeHint = root.querySelector("#email-code-hint");
+const emailCodeInput = root.querySelector("#email-verification-code");
+const verifyEmailCodeButton = root.querySelector("#verify-email-code-button");
 const countrySelect = root.querySelector("#country-code");
 const languageSelect = root.querySelector("#preferred-language");
 countrySelect.addEventListener("change", () => {
@@ -72,7 +77,7 @@ function showError(prefix, error) {
 
 async function initializeSupabase() {
     try {
-        message.textContent = "Подключаем Supabase...";
+        message.textContent = "Подключаем FLOUSTREAM...";
 
         supabaseClient = await getSupabaseClient({ signal });
         if (signal.aborted) return;
@@ -96,7 +101,7 @@ async function initializeSupabase() {
 
 async function registerUser() {
     if (!supabaseClient) {
-        message.textContent = "Supabase ещё не подключён.";
+        message.textContent = "Система авторизации ещё не подключена.";
         return;
     }
 
@@ -184,6 +189,12 @@ async function registerUser() {
             return;
         }
 
+        if (data.verificationPending) {
+            pendingVerification = "signup";
+            showEmailCodePanel("Мы отправили код подтверждения на твою почту.");
+            return;
+        }
+
         if (data.session) {
             message.textContent = "Регистрация успешна!";
             window.location.href = redirectUrl;
@@ -198,7 +209,7 @@ async function registerUser() {
         showError("Сбой регистрации: ", error);
     } finally {
         registrationInProgress = false;
-        if (Date.now() >= registrationCooldownUntil) {
+        if (!pendingVerification && Date.now() >= registrationCooldownUntil) {
             registerButton.disabled = false;
         }
     }
@@ -238,12 +249,19 @@ async function loginUser() {
             return;
         }
 
+        if (data.verificationPending) {
+            pendingVerification = "signin";
+            showEmailCodePanel("Для завершения входа введи код из письма.");
+            return;
+        }
+
         // Не уходим со страницы, пока не убедились, что сессия
         // доступна из постоянного хранилища этого браузера.
         const saved = await supabaseClient.auth.getSession();
         if (saved.error) throw saved.error;
         if (!data.session || !saved.data?.session ||
-            !window.localStorage.getItem("sb-qhpobdktlbhdqsnajypr-auth-token")) {
+            (window.FLOUSTREAM_AUTH_PROVIDER !== "clerk" &&
+             !window.localStorage.getItem("sb-qhpobdktlbhdqsnajypr-auth-token"))) {
             throw new Error(
                 "Вход подтверждён, но браузер не сохранил сессию. Разреши этому сайту использование локального хранилища и повтори вход."
             );
@@ -259,7 +277,7 @@ async function loginUser() {
     } catch (error) {
         showError("Сбой входа: ", error);
     } finally {
-        loginButton.disabled = false;
+        if (!pendingVerification) loginButton.disabled = false;
     }
 }
 
@@ -270,8 +288,17 @@ async function restoreAccount() {
         return;
     }
     restoreButton.disabled = true;
-    message.textContent = "Если аккаунт с этим адресом ожидает удаления, мы отправим письмо для восстановления.";
+    message.textContent = "Если аккаунт ожидает удаления, отправим код для восстановления.";
     try {
+        if (window.FLOUSTREAM_AUTH_PROVIDER === "clerk") {
+            const { data, error } = await supabaseClient.auth.signInWithOtp({ email });
+            if (error) throw error;
+            if (!data?.verificationPending) throw new Error("Не удалось начать восстановление по коду.");
+            pendingVerification = "restore_signin";
+            showEmailCodePanel("Введи первый код из письма, чтобы подтвердить доступ к аккаунту.");
+            return;
+        }
+
         const redirectTo = new URL("profile.html?restore=1", window.location.href).href;
         const { error } = await supabaseClient.auth.signInWithOtp({
             email,
@@ -282,13 +309,85 @@ async function restoreAccount() {
     } catch (error) {
         showError("Не удалось отправить письмо: ", error);
     } finally {
-        restoreButton.disabled = false;
+        if (!pendingVerification) restoreButton.disabled = false;
+    }
+}
+
+function showEmailCodePanel(hint) {
+    emailCodeHint.textContent = hint;
+    emailCodePanel.hidden = false;
+    emailCodeInput.value = "";
+    verifyEmailCodeButton.disabled = false;
+    registerButton.disabled = true;
+    loginButton.disabled = true;
+    restoreButton.disabled = true;
+    emailCodeInput.focus();
+}
+
+async function verifyEmailCode() {
+    if (!supabaseClient || !pendingVerification) return;
+    const code = emailCodeInput.value.trim();
+    if (!/^[0-9]{6,8}$/.test(code)) {
+        message.textContent = "Введи код из письма (6–8 цифр).";
+        return;
+    }
+
+    verifyEmailCodeButton.disabled = true;
+    try {
+        if (pendingVerification === "signup") {
+            const result = await supabaseClient.auth.verifySignUpEmailCode(code);
+            if (result.error) throw result.error;
+            if (!result.data?.session) throw new Error("Регистрация ещё не завершена.");
+            message.textContent = "Email подтверждён. Открываем FLOUSTREAM…";
+            window.location.href = new URL("profile.html", window.location.href).href;
+            return;
+        }
+
+        if (pendingVerification === "signin") {
+            const result = await supabaseClient.auth.verifySignInEmailCode(code);
+            if (result.error) throw result.error;
+            const saved = await supabaseClient.auth.getSession();
+            if (!saved.data?.session) throw new Error("Сессия не готова. Повтори вход.");
+            message.textContent = "Вход выполнен. Открываем FLOUSTREAM…";
+            window.location.href = new URL("profile.html", window.location.href).href;
+            return;
+        }
+
+        if (pendingVerification === "restore_signin") {
+            const result = await supabaseClient.auth.verifySignInEmailCode(code);
+            if (result.error) throw result.error;
+            const stepUp = await supabaseClient.auth.beginEmailCodeReverification();
+            if (stepUp.status !== "needs_first_factor") {
+                throw new Error("Не удалось запросить дополнительное подтверждение.");
+            }
+            pendingVerification = "restore_reverify";
+            showEmailCodePanel("Доступ подтверждён. Введи второй код из письма для восстановления аккаунта.");
+            return;
+        }
+
+        if (pendingVerification === "restore_reverify") {
+            const result = await supabaseClient.auth.completeEmailCodeReverification(code);
+            if (!result.complete) throw new Error("Дополнительное подтверждение не завершено.");
+            const restored = await supabaseClient.functions.invoke("account-lifecycle", {
+                body: { action: "restore" }
+            });
+            if (restored.error) throw restored.error;
+            message.textContent = "Аккаунт восстановлен. Добро пожаловать обратно!";
+            window.location.href = new URL("profile.html", window.location.href).href;
+        }
+    } catch (error) {
+        showError("Не удалось подтвердить код: ", error);
+        verifyEmailCodeButton.disabled = false;
     }
 }
 
 registerButton.addEventListener("click", registerUser, { signal });
 loginButton.addEventListener("click", loginUser, { signal });
 restoreButton.addEventListener("click", restoreAccount, { signal });
+verifyEmailCodeButton.addEventListener("click", verifyEmailCode, { signal });
+emailCodeInput.addEventListener("keydown", event => {
+    if (event.key === "Enter") verifyEmailCode();
+}, { signal });
 
 initializeSupabase();
 
