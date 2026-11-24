@@ -2,7 +2,7 @@ import { attachRouteStyles } from "../shared/route-styles.mjs";
 import { getSupabaseClient } from "../shared/supabase-client.mjs";
 
 
-export const stylesheet = new URL("./styles/friends.css?v=1", import.meta.url).href;
+export const stylesheet = new URL("./styles/friends.css?v=20261124-10", import.meta.url).href;
 export const title = "Друзья · FLOUSTREAM";
 
 function ensureFriendNotifications() {

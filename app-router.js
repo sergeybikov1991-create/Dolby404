@@ -5,11 +5,11 @@ import { prefetchRouteStylesheet } from "./shared/route-styles.mjs";
 
   const MODULES = Object.freeze({
     "music.html": () => import("./routes/music.js"),
-    "friends.html": () => import("./routes/friends.js"),
+    "friends.html": () => import("./routes/friends.js?v=20261124-10"),
     "portal.html": () => import("./routes/portal.js"),
-    "home.html": () => import("./routes/home.js"),
-    "public-profile.html": () => import("./routes/public-profile.js"),
-    "messages.html": () => import("./routes/messages.js?v=20261124-12"),
+    "home.html": () => import("./routes/home.js?v=20261124-10"),
+    "public-profile.html": () => import("./routes/public-profile.js?v=20261124-10"),
+    "messages.html": () => import("./routes/messages.js?v=20261124-13"),
     "profile.html": () => import("./routes/profile.js")
   });
   const modulePromises = new Map();

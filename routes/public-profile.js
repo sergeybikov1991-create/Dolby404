@@ -21,7 +21,7 @@ function ensureNotificationScripts() {
   }
   return notificationScriptsPromise;
 }
-export const stylesheet = new URL("./styles/public-profile.css?v=1", import.meta.url).href;
+export const stylesheet = new URL("./styles/public-profile.css?v=20261124-10", import.meta.url).href;
 export const title = "Профиль · FLOUSTREAM";
 
 export async function mount(root, { signal, navigate, url }) {
