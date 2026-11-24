@@ -97,3 +97,10 @@
 .camera-shutter{width:76px;height:76px;border:5px solid #fff;border-radius:50%;background:radial-gradient(circle at 30% 20%,#fff,#c8a4f0 40%,#7544aa 100%);box-shadow:0 0 0 5px #ffffff55,0 0 24px #b77cffaa,inset 0 2px 5px #ffffffaa}
 .camera-shutter.recording{background:radial-gradient(circle,#f55c89,#8c1d4c);box-shadow:0 0 0 5px #ff9bb955,0 0 25px #f34e8b}
 @media(max-width:600px){.composer-controls{gap:6px}.attach,.mic,.send,.voice-cancel{width:40px;height:40px;flex-basis:40px}.camera-capture{padding-left:10px;padding-right:10px}}
+
+
+/* Main 0.8 — volumetric neon music-note control and frameless sent video */
+.mic{font-family:"Noto Music","Segoe UI Symbol",serif;font-size:29px;line-height:1;color:#f7eaff;text-shadow:0 1px 0 #fff,0 2px 0 #c9a4f5,0 3px 0 #68418e,0 4px 5px #08050d,0 0 8px #e4caff,0 0 16px #a66bff;}
+.mic.recording{text-shadow:0 1px 0 #fff0f5,0 2px 0 #ff9abd,0 3px 0 #7c214d,0 0 9px #ff9fc8,0 0 18px #ef4e9a;}
+.bubble:has(.message-media-video),.mine .bubble:has(.message-media-video),.bubble:has(.message-media-grid .message-media-video),.mine .bubble:has(.message-media-grid .message-media-video){padding:0!important;border:0!important;outline:0!important;background:transparent!important;box-shadow:none!important;}
+.message-media-video{border:0!important;outline:0!important;box-shadow:none!important;}
