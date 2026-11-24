@@ -18,6 +18,13 @@ Release status: Debug candidate only. No public Release until Debug is approved.
    - Re-apply Android-only capabilities when SPA routes mount, instead of relying only on full page loads.
    - Keep the native JavaScript bridge token-scoped and restricted to known FLOUSTREAM routes.
 
+   - Reuse the existing route-module map, lazy module imports, route prefetching, and performance metrics already implemented by the website; do not replace the current frontend with a different framework.
+
+7. **Video technology boundary**
+   - The current website stores and plays MP4/WebM media; repository inspection found no HLS/DASH manifests or server-side FFmpeg/transcoding pipeline.
+   - APK 1.7 preserves the website's current video upload, display, and playback behavior.
+   - Adaptive multi-quality HLS/DASH transcoding requires a separate server-side processing service and storage/CDN contract. It is not silently introduced into this APK-only change or the shared Supabase backend.
+
 3. **Shadow DOM support**
    - Resolve the chat composer inside the open ShadowRoot used by the SPA router.
    - Install the native hold-to-record voice-message behavior per composer instance, including when the user leaves and re-enters Messages.
