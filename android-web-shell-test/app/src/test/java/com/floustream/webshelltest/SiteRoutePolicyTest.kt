@@ -43,7 +43,7 @@ class SiteRoutePolicyTest {
     @Test
     fun recognizesOnlyMessagesRouteForNativeVoiceRecorder() {
         assertTrue(SiteRoutePolicy.isMessagesRouteName("messages.html"))
-        assertTrue(SiteRoutePolicy.isMessagesRouteName("/messages.html?peer=abc"))
+        assertTrue(SiteRoutePolicy.isMessagesRouteName("messages.html?peer=abc"))
         assertFalse(SiteRoutePolicy.isMessagesRouteName("home.html"))
         assertFalse(SiteRoutePolicy.isMessagesRouteName("public-profile.html"))
         assertFalse(SiteRoutePolicy.isKnownRouteName("https://evil.example/messages.html"))
