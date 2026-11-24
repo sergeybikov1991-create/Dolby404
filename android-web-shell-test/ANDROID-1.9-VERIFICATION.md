@@ -20,7 +20,7 @@ Build target: Debug only. No Release signing or publication is authorized.
 - For signed `message-media` video URLs, bypass the website's full-Blob prefetch path on Android. The site's existing fallback supplies the signed URL to the HTML video element so it can use progressive/range playback.
 - Set video previews to preload enough data to decode a first frame, keep album previews muted/inline, and allow muted preview playback in WebView.
 - Preserve the existing submit handler. A quick tap sends text or queued attachments; the long-press click is suppressed only after the hold threshold is reached. Pending attachments never start voice recording.
-- Keep voice capture on the existing send arrow in Android. Hide the browser-only microphone control in the Android WebView and pass native M4A recordings through the existing attachment input/upload flow.
+- Keep voice capture on the existing send arrow in Android. Hide the browser-only microphone control in the Android WebView and pass native M4A recordings through the existing attachment input and submit the voice message on release.
 - Do not block successful Supabase responses on IndexedDB cache writes. Defer media-cache pruning and background image refresh work.
 - The live website, website Main branch, Supabase schema/data, and immutable APK 2.0 baseline are out of scope and must remain unchanged.
 
@@ -35,7 +35,7 @@ Build target: Debug only. No Release signing or publication is authorized.
 - [ ] Verify full-screen photo alignment on a real Android 15 device.
 - [ ] Verify a chat video shows its first frame and plays without waiting for a full-file Blob download.
 - [ ] Verify text messages and media-only messages send from the existing arrow.
-- [ ] Verify hold-to-record, release-to-finish, preview, and send of a voice message.
+- [ ] Verify hold-to-record and release-to-send a voice message from the existing arrow; confirm upload and playback.
 - [ ] Verify startup, opening a conversation, and media rendering are materially faster without losing authentication or cache isolation.
 
 A green build and emulator smoke test are necessary but do not by themselves prove real-device media behavior. Do not mark the owner-reported defects fully closed until the real-device checks are confirmed.
