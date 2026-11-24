@@ -29,10 +29,10 @@ function getRemoteJwks(jwksUrl: string) {
   return jwks;
 }
 
-export async function verifyClerkJwt(
+export async function verifyClerkSession(
   token: string,
   options: { issuer: string; jwksUrl?: string; jwks?: any },
-): Promise<ClerkIdentity> {
+): Promise<{ clerkUserId: string; claims: Record<string, unknown> }> {
   if (!token || !options.issuer) {
     throw new FloustreamAuthError("Clerk authentication is not configured", 503);
   }
@@ -52,18 +52,35 @@ export async function verifyClerkJwt(
   }
 
   const clerkUserId = typeof payload.sub === "string" ? payload.sub : "";
-  const userId = typeof payload.app_user_id === "string" ? payload.app_user_id : "";
-
   if (
     payload.role !== "authenticated" ||
     payload.email_verified !== true ||
-    !clerkUserId.startsWith("user_") ||
-    !UUID_PATTERN.test(userId)
+    !clerkUserId.startsWith("user_")
   ) {
-    throw new FloustreamAuthError("Clerk session is missing a valid FLOUSTREAM identity", 401);
+    throw new FloustreamAuthError("Clerk session is not verified for FLOUSTREAM", 401);
   }
 
-  return { userId, clerkUserId, claims: payload };
+  return { clerkUserId, claims: payload };
+}
+
+export async function verifyClerkJwt(
+  token: string,
+  options: { issuer: string; jwksUrl?: string; jwks?: any },
+): Promise<ClerkIdentity> {
+  const verified = await verifyClerkSession(token, options);
+  const userId = typeof verified.claims.app_user_id === "string"
+    ? verified.claims.app_user_id
+    : "";
+
+  if (!UUID_PATTERN.test(userId)) {
+    throw new FloustreamAuthError("Clerk session is missing a valid FLOUSTREAM UUID", 401);
+  }
+
+  return {
+    userId,
+    clerkUserId: verified.clerkUserId,
+    claims: verified.claims,
+  };
 }
 
 type AdminAuthClient = {
