@@ -983,6 +983,8 @@ ALTER TABLE "public"."video_album_videos" ADD CONSTRAINT "video_album_videos_own
 
 DROP TRIGGER IF EXISTS floustream_register_legacy_auth_identity ON auth.users;
 DROP FUNCTION IF EXISTS public.register_legacy_auth_identity();
+DROP FUNCTION IF EXISTS public.consume_account_lifecycle_reverification(uuid, text, text);
+DROP TABLE IF EXISTS public.account_lifecycle_reverifications;
 DROP FUNCTION IF EXISTS public.provision_clerk_user(uuid, text, text, text, text, text, text, text, text, text);
 DROP FUNCTION IF EXISTS public.floustream_user_id();
 DROP TABLE public.app_users;
