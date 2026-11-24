@@ -2,7 +2,7 @@ name: FLOUSTREAM browser tests
 
 on:
   push:
-    branches: [main, feature/floustream-backgammon-clean-release, feature/floustream-backgammon-final, feature/performance-1.0-navigation]
+    branches: [main, feature/floustream-backgammon-clean-release, feature/floustream-backgammon-final, feature/performance-1.0-navigation, auth/clerk-prep-main-0.8]
   pull_request:
     branches: [main]
   workflow_dispatch:
