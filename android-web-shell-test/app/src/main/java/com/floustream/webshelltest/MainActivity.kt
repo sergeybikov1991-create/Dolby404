@@ -1749,7 +1749,10 @@ class MainActivity : ComponentActivity() {
                     // Android uses the existing send arrow for press-and-hold voice recording.
                     // The website's browser-only microphone control is hidden only in this app.
                     const legacyMicButton = routeRoot.querySelector('#mic');
-                    if (legacyMicButton) legacyMicButton.hidden = true;
+                    if (legacyMicButton) {
+                        legacyMicButton.hidden = true;
+                        legacyMicButton.style.setProperty('display', 'none', 'important');
+                    }
 
                     // Voice recording is a press-and-hold action on the existing send control.
                     // No second microphone button is added to the composer.
