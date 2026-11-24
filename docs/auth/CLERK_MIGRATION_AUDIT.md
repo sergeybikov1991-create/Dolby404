@@ -75,3 +75,32 @@ Do not deploy changes to these production functions during preparation.
 3. Add regression tests for profile creation, account restore/deletion, chat/media access, Storage ownership, scheduled posts, and backgammon.
 4. Only after the Android production source is located, prepare the matching native/WebView integration on a separate update branch based on APK 2.0.
 5. Present evidence, unresolved risks and exact cutover/rollback steps before any production switch.
+
+
+## Implementation work committed on the preparation branch
+
+- Added an additive `createThirdPartySupabaseClient()` / `createClerkSupabaseClient()` bridge in `shared/supabase-client.mjs`. Existing `getSupabaseClient()` remains unchanged and all existing routes still use the current Supabase Auth path.
+- Added unit tests for fresh Clerk token retrieval and null/no-session behavior.
+- Added a generated forward SQL draft that creates `public.app_users`, preserves the 22 audited FK relationships by redirecting them to the stable registry, replaces the 104 audited `auth.uid()` policies with a verified stable-UUID resolver, and adapts the two scheduled-post SQL functions.
+- Added a guarded rollback SQL draft that restores the original 22 FK targets and all 104 original policies. It refuses to run if any app_users identity has no matching `auth.users` shadow row.
+- Added a synthetic schema-only PostgreSQL fixture (195 catalog-derived columns across 29 tables; no production row data) and forward/rollback rehearsal tests.
+- Added a GitHub Actions rehearsal sequence using a disposable PostgreSQL service database. This does not create a paid Supabase branch and does not touch the production project.
+- Opened draft PR #81 for review and CI only. It is intentionally not mergeable/merged as a deployment action; do not merge it while the rehearsal and blockers remain.
+
+## Identity provisioning and rollback safety refinement
+
+For every new Clerk account, the server-side provisioning workflow must:
+1. Verify the Clerk session JWT and retrieve the Clerk user from Clerk's Backend API.
+2. Confirm the primary email address is verified.
+3. Create a matching Supabase Auth shadow user via the Supabase Admin API, using an inaccessible random password and verified email. This preserves a same-UUID row for rollback and FK restoration; normal sign-in remains Clerk.
+4. Use the resulting Supabase UUID as Clerk `external_id`.
+5. Call `public.provision_clerk_user(...)` with a server-validated Clerk ID and metadata.
+6. Refresh the Clerk session token so the new trusted claim is present before Supabase requests.
+
+The Clerk session token must contain a trusted `app_user_id` claim sourced from Clerk's server-managed `external_id`, plus the `authenticated` role claim required by Supabase Third-Party Auth. The resolver accepts a Clerk UUID only when `app_users.clerk_user_id` matches the JWT subject; a mismatched subject resolves to NULL. Legacy Supabase UUID subjects remain accepted during stabilization.
+
+The shadow-user approach is specifically for rollback safety. If production rollback is ever required, new Clerk-only accounts can recover access through a Supabase password-reset flow; their random shadow password is not known to the user. This behavior must be tested and documented before cutover.
+
+## CI status
+
+The first draft PR run (#750) completed successfully for the existing unit, browser and backgammon/Postgres suites. The expanded rehearsal tests are now part of the updated workflow and require their own completed run before this migration draft can be considered validated.
