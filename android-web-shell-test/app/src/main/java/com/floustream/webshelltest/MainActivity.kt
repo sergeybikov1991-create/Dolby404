@@ -71,6 +71,7 @@ class MainActivity : ComponentActivity() {
     private var authFlowActive = false
     private var startupAuthCheckPending = false
     private var authCheckAttempts = 0
+    private var authCheckNetworkRetries = 0
     private var authCheckRunnable: Runnable? = null
 
     private companion object {
@@ -83,6 +84,8 @@ class MainActivity : ComponentActivity() {
         const val WEB_MEDIA_PERMISSION_REQUEST_CODE = 4103
         const val MAX_AUTH_CHECK_ATTEMPTS = 50
         const val AUTH_CHECK_INTERVAL_MS = 400L
+        const val MAX_AUTH_NETWORK_RETRIES = 1
+        const val AUTH_CHECK_NETWORK_RETRY_DELAY_MS = 900L
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -1435,98 +1438,56 @@ class MainActivity : ComponentActivity() {
                         window.__floustreamAuthCheckState = 'pending';
 
                         (async function() {
-                            try {
-                                const storageKey = 'sb-qhpobdktlbhdqsnajypr-auth-token';
-                                const rawSession = window.localStorage.getItem(storageKey);
-                                if (!rawSession) return 'unauthenticated';
+                            const verifySession = async function() {
+                                // Use the exact shared Supabase client used by the website.
+                                // This avoids duplicating storage keys, API keys, and token refresh logic.
+                                const moduleUrl = new URL('shared/supabase-client.mjs', '${SITE_BASE_URL}').href;
+                                const shared = await import(moduleUrl);
+                                const client = await shared.getSupabaseClient();
+                                const sessionResult = await client.auth.getSession();
+                                if (sessionResult.error) return 'offline';
 
-                                let storedSession;
-                                try {
-                                    storedSession = JSON.parse(rawSession);
-                                } catch (_) {
-                                    return 'unauthenticated';
-                                }
+                                let session = sessionResult.data && sessionResult.data.session;
+                                if (!session || !session.access_token) return 'unauthenticated';
 
-                                let accessToken = storedSession &&
-                                    typeof storedSession.access_token === 'string'
-                                    ? storedSession.access_token
-                                    : '';
-                                const refreshToken = storedSession &&
-                                    typeof storedSession.refresh_token === 'string'
-                                    ? storedSession.refresh_token
-                                    : '';
-                                if (!accessToken) return 'unauthenticated';
-
-                                // Ask Supabase Auth directly. This does not depend
-                                // on an ES-module-scoped JavaScript client instance.
-                                let response = await window.fetch(
-                                    '${BuildConfig.SUPABASE_URL}/auth/v1/user',
-                                    {
-                                        method: 'GET',
-                                        cache: 'no-store',
-                                        headers: {
-                                            'apikey': '${BuildConfig.SUPABASE_PUBLISHABLE_KEY}',
-                                            'Authorization': 'Bearer ' + accessToken,
-                                            'Accept': 'application/json'
-                                        }
-                                    }
-                                );
-
-                                let user = null;
-                                if (response.ok) {
-                                    user = await response.json();
-                                } else if ((response.status === 400 || response.status === 401 ||
-                                            response.status === 403) && refreshToken) {
-                                    // Match supabase-js session recovery: an expired
-                                    // access token is not a signed-out user while its
-                                    // refresh token can still renew the same session.
-                                    response = await window.fetch(
-                                        '${BuildConfig.SUPABASE_URL}/auth/v1/token?grant_type=refresh_token',
-                                        {
-                                            method: 'POST',
-                                            cache: 'no-store',
-                                            headers: {
-                                                'apikey': '${BuildConfig.SUPABASE_PUBLISHABLE_KEY}',
-                                                'Content-Type': 'application/json',
-                                                'Accept': 'application/json'
-                                            },
-                                            body: JSON.stringify({ refresh_token: refreshToken })
-                                        }
-                                    );
-                                    if (response.status === 400 || response.status === 401 ||
-                                        response.status === 403) {
+                                const userResult = await client.auth.getUser();
+                                if (userResult.error) {
+                                    const status = Number(userResult.error.status || 0);
+                                    if (status === 400 || status === 401 || status === 403) {
                                         return 'unauthenticated';
                                     }
-                                    if (!response.ok) return 'offline';
-
-                                    const refreshed = await response.json();
-                                    if (!refreshed || !refreshed.access_token ||
-                                        !refreshed.user || !refreshed.user.id) {
-                                        return 'unauthenticated';
-                                    }
-                                    accessToken = refreshed.access_token;
-                                    user = refreshed.user;
-                                    const expiresAt = Number(refreshed.expires_at) ||
-                                        Math.floor(Date.now() / 1000) +
-                                        Number(refreshed.expires_in || 3600);
-                                    const nextSession = Object.assign({}, storedSession, refreshed, {
-                                        expires_at: expiresAt
-                                    });
-                                    window.localStorage.setItem(storageKey, JSON.stringify(nextSession));
-                                } else {
                                     return 'offline';
                                 }
 
+                                const user = userResult.data && userResult.data.user;
                                 if (!user || !user.id) return 'unauthenticated';
+
+                                // getUser() may refresh an expired session; read it again for push registration.
+                                const latest = await client.auth.getSession();
+                                if (latest.error) return 'offline';
+                                session = latest.data && latest.data.session;
+                                if (!session || !session.access_token) return 'offline';
 
                                 window.__floustreamPushSession = {
                                     userId: user.id,
-                                    accessToken: accessToken,
+                                    accessToken: session.access_token,
                                     isAnonymous: user.is_anonymous === true
                                 };
                                 return 'verified';
-                            } catch (error) {
-                                return 'offline';
+                            };
+
+                            let timeoutId;
+                            try {
+                                return await Promise.race([
+                                    verifySession(),
+                                    new Promise(function(_, reject) {
+                                        timeoutId = setTimeout(function() {
+                                            reject(new Error('Supabase session check timed out'));
+                                        }, 7000);
+                                    })
+                                ]);
+                            } finally {
+                                if (timeoutId) clearTimeout(timeoutId);
                             }
                         })().then(function(state) {
                             window.__floustreamAuthCheckState = state;
@@ -1604,10 +1565,29 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 "offline" -> {
-                    authenticatedUserId = null
-                    voiceMessageAudioBridge.activeUserId = null
-                    cancelAuthCheck()
-                    showOfflineScreen(view)
+                    // A temporary Auth/CDN/network failure must not be mistaken for
+                    // a signed-out user. Reset the JS state and retry once using the
+                    // website's shared Supabase client before showing the offline page.
+                    if (authCheckNetworkRetries < MAX_AUTH_NETWORK_RETRIES) {
+                        authCheckNetworkRetries++
+                        view?.evaluateJavascript(
+                            "(function(){window.__floustreamAuthCheckState=null;" +
+                                "window.__floustreamAuthCheckRunning=false;})()",
+                            null
+                        )
+                        authCheckRunnable = Runnable {
+                            checkSupabaseSession(view)
+                        }
+                        mainHandler.postDelayed(
+                            authCheckRunnable!!,
+                            AUTH_CHECK_NETWORK_RETRY_DELAY_MS
+                        )
+                    } else {
+                        authenticatedUserId = null
+                        voiceMessageAudioBridge.activeUserId = null
+                        cancelAuthCheck()
+                        showOfflineScreen(view)
+                    }
                 }
                 else -> {
                     authCheckAttempts++
@@ -1648,6 +1628,7 @@ class MainActivity : ComponentActivity() {
         authCheckRunnable?.let(mainHandler::removeCallbacks)
         authCheckRunnable = null
         authCheckAttempts = 0
+        authCheckNetworkRetries = 0
     }
 
     // Used only for the bundled onboarding fallback; a signed-out user stays on portal.html.
