@@ -59,7 +59,7 @@ On the current Main 0.9 preparation branch, the pre-authorized-party implementat
 - Clerk JWT verification tests.
 - Disposable PostgreSQL migration rehearsal, stable identity mapping, RLS isolation, and guarded rollback.
 
-The latest change adds explicit Clerk `azp` authorized-party validation and tests for missing/unapproved origins. Its new CI run must complete successfully before the draft is considered validated.
+The authorized-party implementation also passed GitHub Actions run #811: exact `azp` allowlist validation, missing-origin rejection, unapproved-origin rejection, Deno type checks, browser tests, and PostgreSQL migration/rollback rehearsal. Subsequent commits on this branch only refreshed documentation.
 
 ## Clerk configuration and cost
 
