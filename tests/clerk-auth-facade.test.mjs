@@ -126,6 +126,7 @@ test("Clerk password sign-in activates the session and resolves the stable UUID"
   assert.equal(result.data.session.user.id, userId);
   assert.ok(calls.some(call => call[0] === "signIn.password"));
   assert.ok(calls.some(call => call[0] === "signIn.finalize"));
+  assert.ok(calls.some(call => call[0] === "invoke" && call[1] === "clerk-provision-user"));
 });
 
 test("Clerk email-code sign-in supports account recovery", async () => {
@@ -136,6 +137,7 @@ test("Clerk email-code sign-in supports account recovery", async () => {
   assert.equal(verified.data.session.user.id, userId);
   assert.ok(calls.some(call => call[0] === "signIn.sendCode"));
   assert.ok(calls.some(call => call[0] === "signIn.verifyCode"));
+  assert.ok(calls.some(call => call[0] === "invoke" && call[1] === "clerk-provision-user"));
 });
 
 test("Clerk auth facade updates passwords and signs out", async () => {
