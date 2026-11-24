@@ -471,7 +471,7 @@ test("camera captures a photo and records a video into the attachment preview", 
     Object.defineProperties(video, { videoWidth: { configurable: true, value: 640 }, videoHeight: { configurable: true, value: 480 }, readyState: { configurable: true, value: 4 } });
     const canvas = video.getRootNode().querySelector("#camera-canvas");
     canvas.getContext = () => ({ drawImage() {} });
-    canvas.toBlob = callback => callback(new Blob(["camera-photo"], { type: "image/jpeg" }));
+    canvas.toBlob = callback => callback(new Blob([new Uint8Array(512)], { type: "image/jpeg" }));
   });
   await page.locator("#camera-shutter").click();
   await expect(page.locator(".composer-preview-thumb")).toHaveCount(1);
