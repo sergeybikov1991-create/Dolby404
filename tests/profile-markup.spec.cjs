@@ -5,7 +5,7 @@ const path = require("node:path");
 test("profile entry uses the shared SPA router and keeps application code in a route module", () => {
   const html = fs.readFileSync(path.resolve(__dirname, "..", "profile.html"), "utf8");
   const route = fs.readFileSync(path.resolve(__dirname, "..", "routes", "profile.js"), "utf8");
-  expect(html).toContain('src="./app-router.js?v=1"');
+  expect(html).toContain('src="./app-router.js?v=20261124-13"');
   expect(html).not.toContain("const SUPABASE_URL");
   expect(html.match(/id="floustream-critical-shell-style"/g)).toHaveLength(1);
   expect(html.replace(/<style id="floustream-critical-shell-style">[\s\S]*?<\/style>/, "")).not.toMatch(/<style\b/);
