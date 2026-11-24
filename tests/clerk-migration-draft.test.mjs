@@ -41,6 +41,6 @@ test("rollback is guarded and restores all 22 foreign keys to auth.users", () =>
   assert.equal((rollback.match(/DROP CONSTRAINT/g) || []).length, 22);
   assert.equal((rollback.match(/ADD CONSTRAINT/g) || []).length, 22);
   assert.equal((rollback.match(/REFERENCES auth\.users\(id\)/g) || []).length, 22);
-  assert.match(rollback, /DROP TABLE public\.account_lifecycle_reverifications/);
+  assert.match(rollback, /DROP TABLE IF EXISTS public\.account_lifecycle_reverifications/);
   assert.match(rollback, /DROP TABLE public\.app_users/);
 });
