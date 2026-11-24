@@ -1,5 +1,9 @@
 export const SUPABASE_URL = "https://qhpobdktlbhdqsnajypr.supabase.co";
 export const SUPABASE_KEY = "sb_publishable_tzG1qVsbjaW8YE_LBVN87Q_v0CahKN5";
+
+if (typeof window !== "undefined" && !window.FLOUSTREAM_AUTH_PROVIDER) {
+  window.FLOUSTREAM_AUTH_PROVIDER = "supabase";
+}
 const STORAGE_KEY = "sb-qhpobdktlbhdqsnajypr-auth-token";
 const SDK_SOURCES = [
   "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2",
@@ -73,22 +77,34 @@ function ensureSdk() {
 
 export function getSupabaseClient(options = {}) {
   if (!sharedClientPromise) {
-    sharedClientPromise = ensureSdk().then(() => window.supabase.createClient(
-      SUPABASE_URL,
-      SUPABASE_KEY,
-      {
-        auth: {
-          persistSession: true,
-          autoRefreshToken: true,
-          detectSessionInUrl: true,
-          storage: window.localStorage,
-          storageKey: STORAGE_KEY
+    if (window.FLOUSTREAM_AUTH_PROVIDER === "clerk") {
+      sharedClientPromise = (async () => {
+        await ensureSdk();
+        const { loadClerk } = await import("./clerk-auth.mjs");
+        const clerk = await loadClerk();
+        return await createClerkSupabaseClient(clerk, options);
+      })().catch(error => {
+        sharedClientPromise = null;
+        throw error;
+      });
+    } else {
+      sharedClientPromise = ensureSdk().then(() => window.supabase.createClient(
+        SUPABASE_URL,
+        SUPABASE_KEY,
+        {
+          auth: {
+            persistSession: true,
+            autoRefreshToken: true,
+            detectSessionInUrl: true,
+            storage: window.localStorage,
+            storageKey: STORAGE_KEY
+          }
         }
-      }
-    )).catch(error => {
-      sharedClientPromise = null;
-      throw error;
-    });
+      )).catch(error => {
+        sharedClientPromise = null;
+        throw error;
+      });
+    }
   }
   return withAbort(sharedClientPromise, options.signal);
 }
@@ -123,10 +139,20 @@ export async function createClerkSupabaseClient(clerk = window.Clerk, options = 
     throw new Error("Clerk is not initialized");
   }
 
-  return createThirdPartySupabaseClient(
+  const databaseClient = await createThirdPartySupabaseClient(
     async () => clerk.session?.getToken() ?? null,
     options
   );
+  const { createClerkAuthFacade } = await import("./clerk-auth.mjs");
+  const authFacade = createClerkAuthFacade(clerk, databaseClient);
+
+  return new Proxy(databaseClient, {
+    get(target, property) {
+      if (property === "auth") return authFacade;
+      const value = Reflect.get(target, property, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    }
+  });
 }
 
 export async function createAnonymousSupabaseClient(options = {}) {
