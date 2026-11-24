@@ -89,6 +89,29 @@ BEGIN
 END;
 $$;
 
+-- A reverification proof can authorize only one account-lifecycle action.
+SET LOCAL ROLE service_role;
+SELECT public.consume_account_lifecycle_reverification(
+  '33333333-3333-4333-8333-333333333333'::uuid,
+  'reverify_test_once',
+  'request_delete'
+);
+DO $
+BEGIN
+  BEGIN
+    PERFORM public.consume_account_lifecycle_reverification(
+      '33333333-3333-4333-8333-333333333333'::uuid,
+      'reverify_test_once',
+      'request_delete'
+    );
+    RAISE EXCEPTION 'Duplicate reverification proof was accepted';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'reverification_already_used' THEN RAISE; END IF;
+  END;
+END;
+$;
+RESET ROLE;
+
 -- A Clerk token cannot claim another account's UUID unless its subject matches
 -- the server-managed app_users.clerk_user_id mapping.
 SELECT set_config('request.jwt.claims',
