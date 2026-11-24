@@ -457,10 +457,9 @@ class MainActivity : ComponentActivity() {
             view.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             insets
         }
-        ViewCompat.requestApplyInsets(webView)
-
         inAppUpdater = InAppUpdater(this)
         setContentView(webView)
+        ViewCompat.requestApplyInsets(webView)
         if (BuildConfig.DEBUG) {
             WebView.setWebContentsDebuggingEnabled(true)
         }
