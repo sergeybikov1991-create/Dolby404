@@ -32,6 +32,8 @@ test("new Clerk provisioning is service-role only and requires a shadow auth ide
   assert.match(forward, /matching Supabase Auth shadow identity is required/);
   assert.match(forward, /GRANT EXECUTE ON FUNCTION public\.provision_clerk_user[\s\S]*TO service_role/);
   assert.match(forward, /CREATE TRIGGER floustream_register_legacy_auth_identity/);
+  assert.match(forward, /CREATE TABLE IF NOT EXISTS public\.account_lifecycle_reverifications/);
+  assert.match(forward, /consume_account_lifecycle_reverification/);
 });
 
 test("rollback is guarded and restores all 22 foreign keys to auth.users", () => {
@@ -39,5 +41,6 @@ test("rollback is guarded and restores all 22 foreign keys to auth.users", () =>
   assert.equal((rollback.match(/DROP CONSTRAINT/g) || []).length, 22);
   assert.equal((rollback.match(/ADD CONSTRAINT/g) || []).length, 22);
   assert.equal((rollback.match(/REFERENCES auth\.users\(id\)/g) || []).length, 22);
+  assert.match(rollback, /DROP TABLE public\.account_lifecycle_reverifications/);
   assert.match(rollback, /DROP TABLE public\.app_users/);
 });
