@@ -19,6 +19,7 @@ Project ref: `qhpobdktlbhdqsnajypr`; PostgreSQL 17.11; EU Central (Frankfurt); s
 - All 3 users have confirmed email addresses and password hashes (bcrypt).
 - Identity provider inventory contains email only; no MFA factors were found.
 - A key-only audit of `raw_app_meta_data` found provider markers on all 3 users but no `role`, `admin`, `is_admin`, or `permissions` keys. Clerk's omission of Supabase app metadata therefore does not currently remove an observed app role/permission field.
+- No soft-deleted, anonymous, or actively banned users were found in the 3-row Auth inventory.
 - 94 policies in `public`; 80 reference `auth.uid()`.
 - 25 policies in Storage; 24 reference `auth.uid()`.
 - The `cron` schema has 2 policies and neither references `auth.uid()`; they are outside the Clerk identity rewrite.
