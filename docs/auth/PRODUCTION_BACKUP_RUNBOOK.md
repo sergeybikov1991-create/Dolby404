@@ -68,7 +68,7 @@ supabase link --project-ref qhpobdktlbhdqsnajypr
 mkdir -p floustream-pre-clerk-backup/storage
 for bucket in avatars message-media music-private music-public photo-albums posts private-albums private-video-albums video-albums; do
   mkdir -p "floustream-pre-clerk-backup/storage/$bucket"
-  supabase storage cp -r --linked --experimental \
+  supabase storage cp -r --experimental --remote=qhpobdktlbhdqsnajypr \
     "ss:///$bucket" "floustream-pre-clerk-backup/storage/$bucket"
 done
 ```
@@ -89,7 +89,22 @@ tar -C floustream-pre-clerk-backup -czf - storage | \
   --output floustream-pre-clerk-backup/storage.tar.gz.gpg
 ```
 
-Verify that both encrypted files can be decrypted, and that the decrypted database archive passes `pg_restore --list`. Only then remove the unencrypted intermediate copies. Keep a second copy of the encrypted backup on a separate device or offline medium; do not upload it to this public GitHub repository.
+Verify both encrypted files by decrypting into a temporary directory on the same trusted device:
+
+```bash
+mkdir -p /tmp/floustream-backup-verify
+gpg --decrypt floustream-pre-clerk-backup/database/full.dump.gpg \
+  > /tmp/floustream-backup-verify/full.dump
+pg_restore --list /tmp/floustream-backup-verify/full.dump > /dev/null
+
+gpg --decrypt floustream-pre-clerk-backup/storage.tar.gz.gpg \
+  > /tmp/floustream-backup-verify/storage.tar.gz
+tar -tzf /tmp/floustream-backup-verify/storage.tar.gz > /dev/null
+```
+
+Only after both checks succeed should you remove the unencrypted intermediate copies and temporary verification directory. Keep a second copy of the encrypted backup on a separate device or offline medium; do not upload it to this public GitHub repository.
+
+A successful archive-list check is not a restore rehearsal. Restore the dump into a disposable local Supabase/PostgreSQL environment matching the production PostgreSQL major version, and verify that the restored `auth.users`, `public.profiles`, `storage.buckets`, and `storage.objects` counts match the source audit. Restore the Storage archive to a separate local directory and compare all 60 object files. Never restore over the production project during this rehearsal.
 
 ## Cutover gate
 
