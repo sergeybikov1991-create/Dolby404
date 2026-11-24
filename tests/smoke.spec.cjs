@@ -487,7 +487,8 @@ test("camera captures a photo and records a video into the attachment preview", 
   await page.locator("#camera-shutter").click();
   await expect(page.locator(".composer-preview-thumb")).toHaveCount(1);
   await expect(page.locator(".composer-preview-thumb").first()).toHaveJSProperty("tagName", "VIDEO");
-  await expect(page.locator("#camera-status")).toContainText("Видео добавлено");
+  await expect(page.locator("#camera-capture")).toBeHidden();
+  await expect(page.locator("#notice")).toContainText("Видео добавлено");
 });
 
 test("voice mode records and attaches audio without sending it automatically", async ({ page }) => {
