@@ -1,53 +1,53 @@
-# FLOUSTREAM Android 1.0
+# FLOUSTREAM Android 2.0
 
-This Android application is the WebView-based FLOUSTREAM client. It opens the live FLOUSTREAM website inside a native Android Activity and uses the website's existing Supabase authentication/session.
+Android 2.0 is being developed from the verified Android 1.6 source branch. The production package identity and persistent signing certificate are preserved so the final signed 2.0 APK can update an installed 1.6 Release in place.
+
+## Source provenance
+
+- Base branch: `feature/android-1.6-compact-audio-launcher`
+- Base commit: `0177bd27a827e48dd1e3982048443b6382228b5d`
+- Development branch: `feature/android-2.0-from-1.6`
+- Android module: `android-web-shell-test/`
+- Website `main`: out of scope and must remain untouched.
 
 ## Production identity
 
 - Application ID: `com.floustream.android`
-- Version name: `1.0`
-- Version code: `100`
+- Version name: `2.0`
+- Version code: `110` (higher than Android 1.6 / 106)
 - Minimum Android: 8.0 (API 26)
 - Target Android: API 35
-- Release signing: one persistent upload keystore; never regenerate it after the first public release.
+- Compile SDK: 36
+- Java/Kotlin target: 17
 
-The Debug variant deliberately uses a separate ID (`com.floustream.android.debug`) and cannot be upgraded in place to the Release variant. The Release APK must always be signed with the same keystore and certificate fingerprint recorded in the signing passport.
+The Debug variant uses the separate application ID `com.floustream.android.debug`. Debug builds are for automated CI only and are not substitutes for the signed Release candidate or the final Release.
 
-## In-app updates
+## Protected Android 1.6 behavior
 
-The app checks the latest published GitHub Release for an `update.json` asset. The manifest contains `versionCode`, `versionName`, `apkUrl`, and the APK SHA-256 checksum. The app downloads the APK, verifies SHA-256, then hands installation to Android's system package installer. Android may require the user to allow installs from FLOUSTREAM once.
+The 2.0 branch must preserve the working 1.6 behavior unless a separately tested change is explicitly documented:
 
-A public release must include `app-release.apk` and `update.json` as release assets. Do not publish a release until the signed candidate passes device validation.
+- existing WebView-based FLOUSTREAM website and Supabase session;
+- press-and-hold voice-message recording on the existing send control;
+- compact voice-message player with Play/Stop and automatic reset;
+- photo/video media presentation without visible frames;
+- gallery attachment flow, video preview and persistent per-account media cache;
+- existing launcher icon artwork and Android file/camera integration;
+- checksum-verified in-app updater.
 
-Signing identity and certificate fingerprint are recorded in [RELEASE-SIGNING-PASSPORT.md](RELEASE-SIGNING-PASSPORT.md). The private keystore and passwords are never stored in this repository.
+## Release signing
 
-## GitHub Actions signing secrets
+Use the same persistent release keystore and certificate recorded in [RELEASE-SIGNING-PASSPORT.md](RELEASE-SIGNING-PASSPORT.md). Never regenerate or replace the signing key. The private keystore and passwords must remain in GitHub Actions secrets and must never be committed.
 
-The release workflow reads these exact repository Actions secret names:
+The workflow checks the APK signature and the certificate SHA-256 fingerprint before uploading a signed Release candidate.
 
-- `DOLBY404_KEYSTORE_BASE64`: base64-encoded persistent JKS/PKCS12 keystore
-- `DOLBY404_KEYSTORE_PASSWORD`: keystore password
-- `DOLBY404_KEY_ALIAS`: key alias
-- `DOLBY404_KEY_PASSWORD`: private-key password
+## In-app updater
 
-The workflow maps these secrets to the Android Gradle environment variables internally. Never rename or expose the secret values in logs.
+The existing updater reads the latest published GitHub Release and its `update.json` asset. The 2.0 manifest is prepared with versionCode 110, versionName 2.0, the future `v2.0` APK URL and the APK SHA-256. It will not discover 2.0 until the public release is explicitly published.
 
-Keep a secure offline backup of the keystore and passwords. Losing the key can prevent in-place updates for all users. Never commit the keystore or passwords to the repository.
+## CI and publication
 
-## Build
+Workflow: `.github/workflows/android-2.0-release.yml`.
 
-Debug:
-```bash
-gradle --no-daemon :app:assembleDebug
-```
+CI runs unit tests, builds the isolated Debug variant, builds the signed Release APK, verifies package identity and signing certificate, and uploads only the signed Release APK plus its checksum and updater manifest. It does not publish a GitHub Release.
 
-Signed Release (requires the signing environment variables above):
-```bash
-gradle --no-daemon :app:assembleRelease
-```
-
-GitHub Actions workflow: `.github/workflows/android-release-1.0.yml`.
-
-## Release gates
-
-A CI artifact is a release candidate, not a public release. Validate installation, existing-session routing, registration/login, WebView navigation, updater download/checksum/install, and all relevant protected features on a physical device before publishing. Confirm the launcher icon is present and matches the owner-supplied FLOUSTREAM artwork. Keep the immutable APK 2.0 baseline unchanged.
+A CI artifact is not proof of physical-device behavior. Public publication and replacement of the in-app update target remain blocked until the OnePlus 10T / Android 15 checks, updater in-place installation, and protected-feature regression checks pass, followed by explicit release authorization.

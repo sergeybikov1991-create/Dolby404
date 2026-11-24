@@ -1,67 +1,68 @@
 # FLOUSTREAM APK 2.0 — Development Roadmap
 
-Target branch: `APK-2.0`  
-Repository: `sergeybikov1991-create/Dolby404`
+Repository: `sergeybikov1991-create/Dolby404`  
+Development branch: `feature/android-2.0-from-1.6`  
+Base branch: `feature/android-1.6-compact-audio-launcher`  
+Base commit: `0177bd27a827e48dd1e3982048443b6382228b5d`
 
-## Working rules
+## Non-negotiable boundaries
 
-- All APK 2.0 work happens only on `APK-2.0`.
-- Keep the website, Android messenger, and backgammon reference separate.
-- Preserve the isolated WebView test app until device testing is complete.
-- Do not connect the production FLOUSTREAM website before the WebView test passes on a real Android device.
-- Make changes in small, reviewable stages; build and verify each stage before moving on.
-- Prefer current Android platform APIs and official documentation; validate community recommendations against primary sources.
-- Never claim device verification based only on a successful CI build.
+- Android 2.0 work happens only on `feature/android-2.0-from-1.6`.
+- The base 1.6 branch and its published Release remain unchanged.
+- Website `main`, Supabase production schema/data, and unrelated backgammon reference branches are out of scope.
+- Keep the production application ID and persistent signing certificate unchanged for in-place updates.
+- Debug uses a separate application ID and is for CI only; the user receives no Debug build as a substitute for Release.
+- Never claim physical-device verification from CI alone.
+- Do not publish a public Release or change the live updater target without passing the release gates and explicit publication authorization.
 
-## Phases and acceptance criteria
+## Phase 0 — Baseline and repository safety
 
-### Phase 0 — Baseline and repository safety
-- Verify this branch, its starting commit, project layout, Gradle configuration, and CI workflow.
-- Confirm the test app remains isolated from production apps.
-- Acceptance: branch and project structure are verified; a build can be run from this branch.
+- Verify the 1.6 source branch, exact commit, project layout, Gradle configuration, signing passport and updater.
+- Create the dedicated 2.0 branch directly from the verified 1.6 commit.
+- Record source provenance and preserve the original branch.
+- Acceptance: source commit and branch ancestry are confirmed; the 2.0 branch is isolated.
 
-### Phase 1 — WebView engine test on a physical device
-- Install the test APK on the OnePlus 10T (Android 15).
-- Test scrolling, fixed/moving backgrounds, viewport sizing, links, Back navigation, reload, rotation, app pause/resume, and long-session stability.
-- Acceptance: no blocking layout/navigation issues on the device.
+## Phase 1 — Version and Release pipeline
 
-### Phase 2 — Connect the FLOUSTREAM website
-- Configure the production site origin and navigation allowlist.
-- Verify home page, internal routes, responsive layout, and error/offline states.
-- Acceptance: core site pages work inside the shell without breaking external-link handling.
+- Set production identity to `com.floustream.android`, versionName `2.0`, versionCode `110`.
+- Keep Debug isolated as `com.floustream.android.debug`.
+- Build a signed Release candidate with the existing persistent certificate.
+- Verify package identity, certificate fingerprint, APK checksum and updater manifest.
+- Acceptance: CI produces a signed 2.0 Release candidate from the exact recorded commit; no public release is published.
 
-### Phase 3 — Authentication and session continuity
-- Test registration, sign-in, sign-out, password recovery, cookies, and session persistence after app restart.
-- Acceptance: account flows work end-to-end and sessions behave predictably.
+## Phase 2 — Preserve the 1.6 foundation
 
-### Phase 4 — Media and Android permissions
-- Test image/video display and playback, file selection, downloads, gallery access, camera, and permission denial/retry paths.
-- Acceptance: supported media flows work on the device and permissions are requested only when needed.
+- Audit every protected 1.6 behavior before changing implementation.
+- Preserve authentication/session continuity, chat and media behavior, voice-message recording/playback, gallery/camera integration, cache, launcher identity and updater.
+- Add regression checks before changing protected components.
+- Acceptance: no protected behavior is silently removed or replaced; all available automated checks pass.
 
-### Phase 5 — Android integration
-- Verify Back behavior, external links, keyboard and input fields, file chooser, downloads, fullscreen media, orientation, status/navigation bars, and lifecycle handling.
-- Acceptance: common Android interactions behave consistently.
+## Phase 3 — New Android 2.0 internals
 
-### Phase 6 — Network resilience and security
-- Test slow, interrupted, and restored connectivity.
-- Review WebView settings, navigation restrictions, mixed content policy, JavaScript bridge exposure, file access, and origin validation.
-- Acceptance: safe defaults are documented and network failures recover cleanly.
+- Review the current Android/WebView boundaries and native integrations.
+- Keep the website as the source of truth for site UI and account data.
+- Keep native Android responsibilities behind narrow, origin-restricted interfaces.
+- Design new native capabilities around explicit lifecycle ownership, permission handling, cancellation, recovery and testable contracts.
+- Acceptance: architecture changes are isolated, documented and covered by automated tests before integration.
 
-### Phase 7 — FLOUSTREAM visual identity
-- Apply app name, launcher icon, splash/startup presentation, and approved visual styling.
-- Check multiple screen sizes and display densities.
-- Acceptance: the shell looks and feels like FLOUSTREAM without harming site layout.
+## Phase 4 — Authentication, media and lifecycle
 
-### Phase 8 — Release and update pipeline
-- Configure release signing, versioning, artifact naming, and update delivery.
-- Test clean install and in-place update; verify that login/session state is retained where expected.
-- Acceptance: signed release installs and updates reliably.
+- Verify registration/login, saved sessions, WebView routing, Back navigation and process/activity lifecycle.
+- Verify gallery, camera, uploads, downloads, photo/video playback and fullscreen behavior.
+- Verify cache persistence, duplicate prevention and network interruption/recovery.
+- Acceptance: protected 1.6 flows remain reliable through normal app lifecycle and network changes.
 
-### Phase 9 — Final acceptance and rollback point
-- Run the complete install-to-daily-use checklist on a physical device.
-- Record tested commit, APK checksum, CI run, known limitations, and rollback reference.
-- Acceptance: user-approved stable build is archived as the APK 2.0 baseline.
+## Phase 5 — Network resilience and security
 
-## Current known starting point
+- Review WebView origin restrictions, JavaScript bridge exposure, mixed content, file access and external navigation.
+- Test slow, interrupted and restored connectivity.
+- Verify native permissions are requested only when needed and resources are released on route changes and app shutdown.
+- Acceptance: safe defaults and recovery behavior are documented and tested.
 
-The isolated WebView test project is under `android-web-shell-test/`. It uses Android System WebView with a local test page; the FLOUSTREAM website is not connected yet. The existing successful artifact was built from the earlier branch `feature/floustream-android-web-shell`; it must not be described as a build produced from `APK-2.0`.
+## Phase 6 — Final Release and rollback point
+
+- Run unit, integration and applicable instrumentation checks on the exact candidate commit.
+- Verify signed Release identity and certificate, SHA-256, updater manifest and in-place update path.
+- Complete physical-device validation on OnePlus 10T / Android 15.
+- Record commit, CI run, APK checksum, signing fingerprint, test evidence and rollback reference.
+- Acceptance: the user-approved signed APK 2.0 is archived as the new immutable Android baseline.
