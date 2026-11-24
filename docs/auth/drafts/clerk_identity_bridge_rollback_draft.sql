@@ -916,70 +916,70 @@ $function$
 
 -- Return all application foreign keys to auth.users, preserving their original actions.
 ALTER TABLE "private"."backgammon_actions" DROP CONSTRAINT "backgammon_actions_actor_id_fkey";
-ALTER TABLE "private"."backgammon_actions" ADD CONSTRAINT "backgammon_actions_actor_id_fkey" FOREIGN KEY (actor_id) REFERENCES public.app_users(id) ON DELETE CASCADE;
+ALTER TABLE "private"."backgammon_actions" ADD CONSTRAINT "backgammon_actions_actor_id_fkey" FOREIGN KEY (actor_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 ALTER TABLE "public"."account_deletion_requests" DROP CONSTRAINT "account_deletion_requests_user_id_fkey";
-ALTER TABLE "public"."account_deletion_requests" ADD CONSTRAINT "account_deletion_requests_user_id_fkey" FOREIGN KEY (user_id) REFERENCES public.app_users(id) ON DELETE CASCADE;
+ALTER TABLE "public"."account_deletion_requests" ADD CONSTRAINT "account_deletion_requests_user_id_fkey" FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 ALTER TABLE "public"."account_registration_reviews" DROP CONSTRAINT "account_registration_reviews_user_id_fkey";
-ALTER TABLE "public"."account_registration_reviews" ADD CONSTRAINT "account_registration_reviews_user_id_fkey" FOREIGN KEY (user_id) REFERENCES public.app_users(id) ON DELETE CASCADE;
+ALTER TABLE "public"."account_registration_reviews" ADD CONSTRAINT "account_registration_reviews_user_id_fkey" FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 ALTER TABLE "public"."backgammon_matches" DROP CONSTRAINT "backgammon_matches_player_a_fkey";
-ALTER TABLE "public"."backgammon_matches" ADD CONSTRAINT "backgammon_matches_player_a_fkey" FOREIGN KEY (player_a) REFERENCES public.app_users(id) ON DELETE CASCADE;
+ALTER TABLE "public"."backgammon_matches" ADD CONSTRAINT "backgammon_matches_player_a_fkey" FOREIGN KEY (player_a) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 ALTER TABLE "public"."backgammon_matches" DROP CONSTRAINT "backgammon_matches_player_b_fkey";
-ALTER TABLE "public"."backgammon_matches" ADD CONSTRAINT "backgammon_matches_player_b_fkey" FOREIGN KEY (player_b) REFERENCES public.app_users(id) ON DELETE CASCADE;
+ALTER TABLE "public"."backgammon_matches" ADD CONSTRAINT "backgammon_matches_player_b_fkey" FOREIGN KEY (player_b) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 ALTER TABLE "public"."device_push_tokens" DROP CONSTRAINT "device_push_tokens_user_id_fkey";
-ALTER TABLE "public"."device_push_tokens" ADD CONSTRAINT "device_push_tokens_user_id_fkey" FOREIGN KEY (user_id) REFERENCES public.app_users(id) ON DELETE CASCADE;
+ALTER TABLE "public"."device_push_tokens" ADD CONSTRAINT "device_push_tokens_user_id_fkey" FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 ALTER TABLE "public"."direct_message_favorites" DROP CONSTRAINT "direct_message_favorites_user_id_fkey";
-ALTER TABLE "public"."direct_message_favorites" ADD CONSTRAINT "direct_message_favorites_user_id_fkey" FOREIGN KEY (user_id) REFERENCES public.app_users(id) ON DELETE CASCADE;
+ALTER TABLE "public"."direct_message_favorites" ADD CONSTRAINT "direct_message_favorites_user_id_fkey" FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 ALTER TABLE "public"."direct_message_hidden" DROP CONSTRAINT "direct_message_hidden_user_id_fkey";
-ALTER TABLE "public"."direct_message_hidden" ADD CONSTRAINT "direct_message_hidden_user_id_fkey" FOREIGN KEY (user_id) REFERENCES public.app_users(id) ON DELETE CASCADE;
+ALTER TABLE "public"."direct_message_hidden" ADD CONSTRAINT "direct_message_hidden_user_id_fkey" FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 ALTER TABLE "public"."direct_message_pins" DROP CONSTRAINT "direct_message_pins_user_id_fkey";
-ALTER TABLE "public"."direct_message_pins" ADD CONSTRAINT "direct_message_pins_user_id_fkey" FOREIGN KEY (user_id) REFERENCES public.app_users(id) ON DELETE CASCADE;
+ALTER TABLE "public"."direct_message_pins" ADD CONSTRAINT "direct_message_pins_user_id_fkey" FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 ALTER TABLE "public"."direct_message_reactions" DROP CONSTRAINT "direct_message_reactions_user_id_fkey";
-ALTER TABLE "public"."direct_message_reactions" ADD CONSTRAINT "direct_message_reactions_user_id_fkey" FOREIGN KEY (user_id) REFERENCES public.app_users(id) ON DELETE CASCADE;
+ALTER TABLE "public"."direct_message_reactions" ADD CONSTRAINT "direct_message_reactions_user_id_fkey" FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 ALTER TABLE "public"."direct_messages" DROP CONSTRAINT "direct_messages_recipient_id_fkey";
-ALTER TABLE "public"."direct_messages" ADD CONSTRAINT "direct_messages_recipient_id_fkey" FOREIGN KEY (recipient_id) REFERENCES public.app_users(id) ON DELETE CASCADE;
+ALTER TABLE "public"."direct_messages" ADD CONSTRAINT "direct_messages_recipient_id_fkey" FOREIGN KEY (recipient_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 ALTER TABLE "public"."direct_messages" DROP CONSTRAINT "direct_messages_sender_id_fkey";
-ALTER TABLE "public"."direct_messages" ADD CONSTRAINT "direct_messages_sender_id_fkey" FOREIGN KEY (sender_id) REFERENCES public.app_users(id) ON DELETE CASCADE;
+ALTER TABLE "public"."direct_messages" ADD CONSTRAINT "direct_messages_sender_id_fkey" FOREIGN KEY (sender_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 ALTER TABLE "public"."music_tracks" DROP CONSTRAINT "music_tracks_owner_id_fkey";
-ALTER TABLE "public"."music_tracks" ADD CONSTRAINT "music_tracks_owner_id_fkey" FOREIGN KEY (owner_id) REFERENCES public.app_users(id) ON DELETE CASCADE;
+ALTER TABLE "public"."music_tracks" ADD CONSTRAINT "music_tracks_owner_id_fkey" FOREIGN KEY (owner_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 ALTER TABLE "public"."photo_album_photos" DROP CONSTRAINT "photo_album_photos_owner_id_fkey";
-ALTER TABLE "public"."photo_album_photos" ADD CONSTRAINT "photo_album_photos_owner_id_fkey" FOREIGN KEY (owner_id) REFERENCES public.app_users(id) ON DELETE CASCADE;
+ALTER TABLE "public"."photo_album_photos" ADD CONSTRAINT "photo_album_photos_owner_id_fkey" FOREIGN KEY (owner_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 ALTER TABLE "public"."post_reactions" DROP CONSTRAINT "post_reactions_user_id_fkey";
-ALTER TABLE "public"."post_reactions" ADD CONSTRAINT "post_reactions_user_id_fkey" FOREIGN KEY (user_id) REFERENCES public.app_users(id) ON DELETE CASCADE;
+ALTER TABLE "public"."post_reactions" ADD CONSTRAINT "post_reactions_user_id_fkey" FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 ALTER TABLE "public"."private_album_photos" DROP CONSTRAINT "private_album_photos_owner_id_fkey";
-ALTER TABLE "public"."private_album_photos" ADD CONSTRAINT "private_album_photos_owner_id_fkey" FOREIGN KEY (owner_id) REFERENCES public.app_users(id) ON DELETE CASCADE;
+ALTER TABLE "public"."private_album_photos" ADD CONSTRAINT "private_album_photos_owner_id_fkey" FOREIGN KEY (owner_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 ALTER TABLE "public"."private_photo_albums" DROP CONSTRAINT "private_photo_albums_owner_id_fkey";
-ALTER TABLE "public"."private_photo_albums" ADD CONSTRAINT "private_photo_albums_owner_id_fkey" FOREIGN KEY (owner_id) REFERENCES public.app_users(id) ON DELETE CASCADE;
+ALTER TABLE "public"."private_photo_albums" ADD CONSTRAINT "private_photo_albums_owner_id_fkey" FOREIGN KEY (owner_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 ALTER TABLE "public"."private_video_album_videos" DROP CONSTRAINT "private_video_album_videos_owner_id_fkey";
-ALTER TABLE "public"."private_video_album_videos" ADD CONSTRAINT "private_video_album_videos_owner_id_fkey" FOREIGN KEY (owner_id) REFERENCES public.app_users(id) ON DELETE CASCADE;
+ALTER TABLE "public"."private_video_album_videos" ADD CONSTRAINT "private_video_album_videos_owner_id_fkey" FOREIGN KEY (owner_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 ALTER TABLE "public"."profile_privacy_settings" DROP CONSTRAINT "profile_privacy_settings_owner_id_fkey";
-ALTER TABLE "public"."profile_privacy_settings" ADD CONSTRAINT "profile_privacy_settings_owner_id_fkey" FOREIGN KEY (owner_id) REFERENCES public.app_users(id) ON DELETE CASCADE;
+ALTER TABLE "public"."profile_privacy_settings" ADD CONSTRAINT "profile_privacy_settings_owner_id_fkey" FOREIGN KEY (owner_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 ALTER TABLE "public"."profile_visits" DROP CONSTRAINT "profile_visits_visitor_id_fkey";
-ALTER TABLE "public"."profile_visits" ADD CONSTRAINT "profile_visits_visitor_id_fkey" FOREIGN KEY (visitor_id) REFERENCES public.app_users(id) ON DELETE CASCADE;
+ALTER TABLE "public"."profile_visits" ADD CONSTRAINT "profile_visits_visitor_id_fkey" FOREIGN KEY (visitor_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 ALTER TABLE "public"."profiles" DROP CONSTRAINT "profiles_id_fkey";
-ALTER TABLE "public"."profiles" ADD CONSTRAINT "profiles_id_fkey" FOREIGN KEY (id) REFERENCES public.app_users(id) ON DELETE CASCADE;
+ALTER TABLE "public"."profiles" ADD CONSTRAINT "profiles_id_fkey" FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 ALTER TABLE "public"."video_album_videos" DROP CONSTRAINT "video_album_videos_owner_id_fkey";
-ALTER TABLE "public"."video_album_videos" ADD CONSTRAINT "video_album_videos_owner_id_fkey" FOREIGN KEY (owner_id) REFERENCES public.app_users(id) ON DELETE CASCADE;
+ALTER TABLE "public"."video_album_videos" ADD CONSTRAINT "video_album_videos_owner_id_fkey" FOREIGN KEY (owner_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 DROP TRIGGER IF EXISTS floustream_register_legacy_auth_identity ON auth.users;
 DROP FUNCTION IF EXISTS public.register_legacy_auth_identity();
