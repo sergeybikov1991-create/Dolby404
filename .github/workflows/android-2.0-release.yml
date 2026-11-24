@@ -79,6 +79,7 @@ jobs:
               "SPA route lifecycle hook": "floustream:route-metric",
               "Push notification chat routing": "pendingNotificationPeerId",
               "Portal route visibility": "SiteRoutePolicy.isPortalRouteName(route)",
+              "Login form route fallback": "document.querySelector('#email') && document.querySelector('#password')",
               "Profile route auth gate": "SiteRoutePolicy.isProfileRouteName(route)",
           }
           for label, marker in required.items():

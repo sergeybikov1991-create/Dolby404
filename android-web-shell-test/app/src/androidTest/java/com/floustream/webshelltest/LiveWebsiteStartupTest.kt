@@ -52,7 +52,8 @@ class LiveWebsiteStartupTest {
                             snapshot.set(value)
                             val ready = value.contains("portal.html") &&
                                 value.contains("\"emailField\":true") &&
-                                value.contains("\"passwordField\":true")
+                                value.contains("\"passwordField\":true") &&
+                                webView.visibility == View.VISIBLE
                             if (ready) {
                                 finished.countDown()
                             } else if (SystemClock.elapsedRealtime() < deadline) {
@@ -72,7 +73,7 @@ class LiveWebsiteStartupTest {
                 finished.await(65, TimeUnit.SECONDS)
             )
             val page = snapshot.get()
-            assertTrue("Expected the real portal.html route, got: $page", page.contains("portal.html"))
+            assertTrue("Expected the visible real portal.html route, got: $page; WebView visibility=${webViewRef.get()?.visibility}", page.contains("portal.html"))
             assertTrue("Expected the website email field, got: $page", page.contains("\"emailField\":true"))
             assertTrue("Expected the website password field, got: $page", page.contains("\"passwordField\":true"))
             scenario.onActivity {
