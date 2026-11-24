@@ -22,6 +22,7 @@ async function makeToken(overrides: Record<string, unknown> = {}) {
 
   const token = await new SignJWT({
     role: "authenticated",
+    email_verified: true,
     app_user_id: userId,
     ...overrides,
   })
@@ -114,4 +115,15 @@ Deno.test("rejects stale or absent first-factor verification", () => {
     }
     if (!rejected) throw new Error("Stale reverification proof was accepted");
   }
+});
+
+Deno.test("rejects a Clerk session without a verified email claim", async () => {
+  const { token, jwks } = await makeToken({ email_verified: false });
+  let rejected = false;
+  try {
+    await verifyClerkJwt(token, { issuer, jwks });
+  } catch (error) {
+    rejected = error instanceof FloustreamAuthError && error.status === 401;
+  }
+  if (!rejected) throw new Error("Unverified email session was accepted");
 });
