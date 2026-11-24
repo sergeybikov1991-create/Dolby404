@@ -213,6 +213,10 @@ Deno.serve(async (req) => {
       return json({ error: "Required profile details are missing" }, 400);
     }
 
+    if (!/^[A-Z]{2,5}$/.test(countryCode)) {
+      if (profile) countryCode = "OTHER";
+      else return json({ error: "Invalid country code" }, 400);
+    }
     if (!["ru", "en"].includes(preferredLanguage)) {
       if (profile) preferredLanguage = "en";
       else return json({ error: "Invalid preferred language" }, 400);
