@@ -22,8 +22,9 @@ Project ref: `qhpobdktlbhdqsnajypr`; PostgreSQL 17.11; EU Central (Frankfurt); s
 - No soft-deleted, anonymous, or actively banned users were found in the 3-row Auth inventory.
 - 94 policies in `public`; 80 reference `auth.uid()`.
 - 25 policies in Storage; 24 reference `auth.uid()`.
+- The migration rewrites only those 104 identity-dependent policies (80 public + 24 Storage); the other 15 policies in these two schemas are left untouched.
 - The `cron` schema has 2 policies and neither references `auth.uid()`; they are outside the Clerk identity rewrite.
-- 22 application foreign keys reference `auth.users(id)`: 21 in `public` and 1 in `private` (backgammon actions).
+- 22 application foreign keys reference `auth.users(id)`: 21 in `public` and 1 in `private` (backgammon actions). All 22 source constraints use `ON DELETE CASCADE`; the forward migration preserves that behavior when redirecting them to `public.app_users(id)`.
 - Two public SQL functions reference `auth.uid()`: `guard_scheduled_post_changes()` and `retry_scheduled_post(uuid)`.
 - Two triggers on `auth.users`: `on_auth_user_created` invokes `handle_new_user()`; `create_private_photo_album_after_signup` invokes `create_private_photo_album_for_user()`.
 
