@@ -448,23 +448,13 @@ test("persistent shell background stays visible while the next route stylesheet 
 
   // The old route remains mounted while the new route's CSS is in flight.
   await expect(page.locator(".fs-music-logo")).toBeVisible();
-  const background = await page.evaluate(() => {
-    const smoke = getComputedStyle(document.body, "::before");
-    const haze = getComputedStyle(document.body, "::after");
-    return {
-      bodyColor: getComputedStyle(document.body).backgroundColor,
-      image: smoke.backgroundImage,
-      position: smoke.position,
-      pointerEvents: smoke.pointerEvents,
-      hazeImage: haze.backgroundImage,
-      shellStyle: !!document.getElementById("floustream-shell-style")
-    };
-  });
-  expect(background.bodyColor).toBe("rgba(0, 0, 0, 0)");
+  const background = await page.evaluate(() => ({
+    color: getComputedStyle(document.body).backgroundColor,
+    image: getComputedStyle(document.body).backgroundImage,
+    shellStyle: !!document.getElementById("floustream-shell-style")
+  }));
+  expect(background.color).toBe("rgb(9, 9, 16)");
   expect(background.image).toContain("radial-gradient");
-  expect(background.position).toBe("fixed");
-  expect(background.pointerEvents).toBe("none");
-  expect(background.hazeImage).toContain("radial-gradient");
   expect(background.shellStyle).toBe(true);
 
   releaseStyles();

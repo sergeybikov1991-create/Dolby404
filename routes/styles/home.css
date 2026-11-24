@@ -103,3 +103,6 @@ h1{font-size:clamp(25px,5vw,36px);margin:12px 0 8px}
 @keyframes dolbyPulseRing{0%{transform:scale(.55);opacity:.75}85%,100%{transform:scale(1.8);opacity:0}}
 @media(prefers-reduced-motion:reduce){.dolby-online-indicator.is-online,.dolby-online-indicator.is-online::after{animation:none}.dolby-online-indicator.is-online::after{opacity:.35;transform:scale(1.2)}}
 
+
+/* Main 0.9: reveal the shared page-level violet/turquoise atmosphere behind the SPA route. */
+.fs-route-home{background:transparent!important;background-image:none!important}

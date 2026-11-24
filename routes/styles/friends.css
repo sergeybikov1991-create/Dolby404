@@ -18,3 +18,6 @@
 .fs-route-friends button:disabled{opacity:.55;cursor:default}
 .fs-route-friends .notice{min-height:20px;margin:0 0 10px;color:#c8a7e8;font-size:12px}.fs-route-friends .error{color:#ff9db8}
 @media(max-width:560px){.fs-route-friends .person{align-items:flex-start;flex-wrap:wrap}.fs-route-friends .person-main{min-width:calc(100% - 70px)}.fs-route-friends .actions{width:100%;padding-left:64px}.fs-route-friends .topbar{padding:10px 12px}.fs-route-friends .wrap{padding:14px 10px 32px}}
+
+/* Main 0.9: reveal the shared page-level violet/turquoise atmosphere behind the SPA route. */
+.fs-route-friends{background:transparent!important;background-image:none!important}
