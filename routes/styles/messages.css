@@ -104,4 +104,4 @@
 .mic.recording .mic-note-icon{filter:drop-shadow(0 0 4px #fff0f5) drop-shadow(0 0 9px #ff9fc8) drop-shadow(0 0 14px #ef4e9a);}
 .bubble:has(.message-media-video),.mine .bubble:has(.message-media-video),.bubble:has(.message-media-grid .message-media-video),.mine .bubble:has(.message-media-grid .message-media-video){padding:0!important;margin:0!important;border:0!important;outline:0!important;background:transparent!important;box-shadow:none!important;}
 .message-media-stack:has(.message-media-video){padding:0!important;margin:0!important;border:0!important;outline:0!important;background:transparent!important;box-shadow:none!important;border-radius:0!important;}
-.message-media-video{display:block;margin:0!important;padding:0!important;border:0!important;outline:0!important;box-shadow:none!important;background:transparent!important;}
+.message-media-video{display:block;margin:0!important;padding:0!important;border:0!important;outline:0!important;box-shadow:none!important;background:#050509!important;}
