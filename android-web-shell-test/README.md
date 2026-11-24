@@ -57,7 +57,7 @@ A push to the Android Debug 2.0 development branch runs unit tests and builds De
 
 - Source baseline: Android 1.8 commit `3c9be1b875a6834a505064acad46981798f0370e`.
 - The Supabase session verification method and startup WebView navigation must remain byte-for-byte identical to Android 1.8; CI compares both regions against that baseline.
-- Approved Android-only changes: reliable short-tap submission for text and pending attachments, and retrying native microphone capture with supported Android audio sources.
+- Approved Android-only changes: reliable short-tap submission for text and pending attachments, and retrying native microphone capture with supported Android audio sources. On Android, voice recording uses the existing send arrow's press-and-hold action; the browser getUserMedia mic control is hidden to avoid a second capture path.
 - Photo viewer code is intentionally unchanged in this clean rebuild because the owner confirmed that photo opening works.
 - Website `main`, the immutable production APK 2.0 baseline, and the Android 1.8 source branch are protected and must not be modified.
 - This is a Debug candidate only. A successful CI build does not establish real-device recording or upload completion; those require explicit runtime verification.
