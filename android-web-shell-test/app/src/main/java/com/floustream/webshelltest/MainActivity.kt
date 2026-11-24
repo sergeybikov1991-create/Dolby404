@@ -122,22 +122,6 @@ class MainActivity : ComponentActivity() {
                     request: WebResourceRequest?
                 ): WebResourceResponse? {
                     interceptNativeVoiceRecording(request)?.let { return it }
-                    if (request != null && isGuestPhotoAlbumRequest(
-                            request.url.encodedPath.orEmpty(),
-                            request.requestHeaders
-                        )
-                    ) {
-                        val body = """{"error":"Photo albums are unavailable in guest mode"}"""
-                            .toByteArray(StandardCharsets.UTF_8)
-                        return WebResourceResponse(
-                            "application/json",
-                            "UTF-8",
-                            403,
-                            "Forbidden",
-                            mapOf("Cache-Control" to "no-store"),
-                            ByteArrayInputStream(body)
-                        )
-                    }
                     return super.shouldInterceptRequest(view, request)
                 }
 
@@ -234,8 +218,7 @@ class MainActivity : ComponentActivity() {
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
                     this@MainActivity.title = "FLOUSTREAM"
-                    applyAndroidMessageMediaStyle(view)
-                    syncAndroidAlbumAccess(view)
+                    syncAndroidSessionContext(view)
                     applyAndroidPersistentMediaCache(view)
                     applyAndroidOfflineDataCache(view)
 
@@ -466,110 +449,79 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Deny photo-album data and object requests before WebView receives them
-     * whenever the active page has no authenticated Supabase user session.
+     * Keep Android-only caches and the voice recorder scoped to the current
+     * Supabase account without changing the website's visible UI or blocking
+     * public media. The website remains responsible for its own album privacy
+     * and authorization rules.
      */
-    private fun isGuestPhotoAlbumRequest(
-        encodedPath: String,
-        requestHeaders: Map<String, String>
-    ): Boolean = GuestPhotoRequestPolicy.shouldBlock(
-        voiceMessageAudioBridge.activeUserId,
-        encodedPath,
-        requestHeaders
-    )
-
-    /**
-     * Keep the guest restriction native-side and mirror it in the Android UI.
-     * The JavaScript listener follows sign-in/sign-out changes without editing
-     * the hosted website.
-     */
-    private fun syncAndroidAlbumAccess(view: WebView?) {
+    private fun syncAndroidSessionContext(view: WebView?) {
         if (view == null || isFinishing || isDestroyed) return
         val bridgeToken = voiceMessageAudioBridge.javascriptToken
         val script = """
             (function() {
                 try {
-                    if (window.__floustreamAndroidAlbumGuardInstalled) return;
-                    window.__floustreamAndroidAlbumGuardInstalled = true;
-                    const styleId = 'floustream-android-guest-albums';
-                    const style = document.createElement('style');
-                    style.id = styleId;
-                    style.textContent = [
-                        'html.floustream-android-guest img,',
-                        'html.floustream-android-guest .post-photo-viewer,',
-                        'html.floustream-android-guest .photo-viewer,',
-                        'html.floustream-android-guest [data-action="photos"],',
-                        'html.floustream-android-guest #photo-modal,',
-                        'html.floustream-android-guest #photo-viewer,',
-                        'html.floustream-android-guest #post-photo-viewer,',
-                        'html.floustream-android-guest #photo-lightbox,',
-                        'html.floustream-android-guest #author-photos-banner,',
-                        'html.floustream-android-guest #public-albums,',
-                        'html.floustream-android-guest #public-photos-section,',
-                        'html.floustream-android-guest #public-photo-grid,',
-                        'html.floustream-android-guest #album-private-open,',
-                        'html.floustream-android-guest #album-add-open,',
-                        'html.floustream-android-guest #album-backdrop,',
-                        'html.floustream-android-guest #private-album-backdrop,',
-                        'html.floustream-android-guest #album-grid,',
-                        'html.floustream-android-guest #private-album-grid,',
-                        'html.floustream-android-guest #album-viewer,',
-                        'html.floustream-android-guest #private-album-viewer,',
-                        'html.floustream-android-guest #album-share-backdrop {',
-                        '  display: none !important;',
-                        '}'
-                    ].join('\\n');
-                    (document.head || document.documentElement).appendChild(style);
+                    if (window.__floustreamAndroidSessionContextInstalled) return;
+                    window.__floustreamAndroidSessionContextInstalled = true;
+                    const storageKey = 'sb-qhpobdktlbhdqsnajypr-auth-token';
 
-                    const applyGuestState = (session) => {
-                        const isGuest = !session || !session.user || !session.user.id ||
-                            session.user.is_anonymous === true;
-                        const userId = isGuest ? 'guest' : String(session.user.id);
-                        window.__floustreamAndroidUserId = userId;
+                    function applyStoredSession() {
+                        let session = null;
+                        try {
+                            const raw = localStorage.getItem(storageKey);
+                            session = raw ? JSON.parse(raw) : null;
+                        } catch (_) {}
+                        const user = session && session.user;
+                        const userId = user && user.is_anonymous !== true && user.id
+                            ? String(user.id) : '';
+                        window.__floustreamAndroidUserId = userId || 'guest';
                         try {
                             if (window.FloustreamVoiceAudio) {
                                 window.FloustreamVoiceAudio.updateSessionUserId(
                                     '$bridgeToken',
-                                    isGuest ? '' : userId
+                                    userId
                                 );
                             }
                         } catch (_) {}
-                        document.documentElement.classList.toggle('floustream-android-guest', isGuest);
                         if (window.__floustreamAndroidMediaUserChanged) {
                             window.__floustreamAndroidMediaUserChanged();
                         }
                         if (window.__floustreamAndroidDataUserChanged) {
                             window.__floustreamAndroidDataUserChanged();
                         }
-                    };
-                    const connect = (attempt) => {
-                        const authClient =
-                            (typeof client !== 'undefined' && client) ? client :
-                            ((typeof supabaseClient !== 'undefined' && supabaseClient) ? supabaseClient : null);
-                        if (!authClient || !authClient.auth) {
-                            if (attempt < 24) setTimeout(() => connect(attempt + 1), 250);
-                            else applyGuestState(null);
-                            return;
+                    }
+
+                    applyStoredSession();
+                    const originalSetItem = Storage.prototype.setItem;
+                    Storage.prototype.setItem = function(key, value) {
+                        const result = originalSetItem.apply(this, arguments);
+                        if (this === localStorage && key === storageKey) {
+                            queueMicrotask(applyStoredSession);
                         }
-                        authClient.auth.getSession().then((result) => {
-                            applyGuestState(result && result.data ? result.data.session : null);
-                        }).catch(() => applyGuestState(null));
-                        authClient.auth.onAuthStateChange((_event, session) => applyGuestState(session));
+                        return result;
                     };
-                    connect(0);
-                } catch (_) {
-                    document.documentElement.classList.add('floustream-android-guest');
-                }
+                    const originalRemoveItem = Storage.prototype.removeItem;
+                    Storage.prototype.removeItem = function(key) {
+                        const result = originalRemoveItem.apply(this, arguments);
+                        if (this === localStorage && key === storageKey) {
+                            queueMicrotask(applyStoredSession);
+                        }
+                        return result;
+                    };
+                    const originalClear = Storage.prototype.clear;
+                    Storage.prototype.clear = function() {
+                        const result = originalClear.apply(this, arguments);
+                        if (this === localStorage) queueMicrotask(applyStoredSession);
+                        return result;
+                    };
+                    window.addEventListener('storage', function(event) {
+                        if (event.key === storageKey || event.key === null) applyStoredSession();
+                    });
+                } catch (_) {}
             })();
         """.trimIndent()
         view.evaluateJavascript(script, null)
     }
 
-    /**
-     * Persistent WebView media cache shared by all FLOUSTREAM sections.
-     * Only image resources and video poster images are stored; video streams are
-     * deliberately left to the normal network path.
-     */
     private fun applyAndroidPersistentMediaCache(view: WebView?) {
         if (view == null || isFinishing || isDestroyed) return
         val script = """
