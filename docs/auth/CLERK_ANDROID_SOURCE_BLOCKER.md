@@ -30,6 +30,12 @@ That native project was subsequently deleted from the active line. It predates t
 
 These are useful development sources, but none is confirmed as the exact source of the currently installed production Release APK 2.0. Do not silently promote a Debug branch to Release.
 
+## Closest Android 2.0 candidate checked
+
+The branch `feature/apk-2.0-debug-clean-from-1.8` is a descendant of the protected commit (212 commits ahead) and contains a WebView client with production identity `com.floustream.android`, version name `2.0`, and version code `111`. Its README explicitly labels the branch a Debug candidate, says its CI builds Debug only, and states that the production Release baseline is separate. It therefore cannot be treated as the installed signed Release source, even though it is the closest 2.0 code candidate.
+
+The latest public production release found is Android 1.6; its Release workflow source is separate from the 2.0 Debug candidate. No public v2.0 Release asset or exact source-to-artifact provenance was found.
+
 ## Required before Android implementation
 
 Obtain or identify the exact source that produced the currently installed production APK 2.0, including:
