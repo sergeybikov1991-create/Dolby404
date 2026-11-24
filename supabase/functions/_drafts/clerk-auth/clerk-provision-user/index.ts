@@ -104,21 +104,11 @@ Deno.serve(async (req) => {
     if (!email || !email.includes("@")) return json({ error: "Invalid primary email" }, 400);
 
     const metadata = clerkUser.unsafe_metadata ?? {};
-    const firstName = cleanText(metadata.first_name ?? clerkUser.first_name, 60);
-    const lastName = cleanText(metadata.last_name ?? clerkUser.last_name, 60);
-    const countryCode = cleanText(metadata.country_code, 5).toUpperCase();
-    const preferredLanguage = cleanText(metadata.preferred_language ?? "en", 12).toLowerCase();
-    const username = cleanText(metadata.username, 24);
-
-    if (!firstName || !lastName || !/^[A-Z]{2,5}$/.test(countryCode)) {
-      return json({ error: "Required profile details are missing" }, 400);
-    }
-    if (!/^[a-z]{2,5}(-[a-z]{2,5})?$/.test(preferredLanguage)) {
-      return json({ error: "Invalid preferred language" }, 400);
-    }
-    if (username && !/^[a-zA-Z0-9_.]{3,24}$/.test(username)) {
-      return json({ error: "Invalid username" }, 400);
-    }
+    let firstName = cleanText(metadata.first_name ?? clerkUser.first_name, 60);
+    let lastName = cleanText(metadata.last_name ?? clerkUser.last_name, 60);
+    let countryCode = cleanText(metadata.country_code, 5).toUpperCase();
+    let preferredLanguage = cleanText(metadata.preferred_language ?? "en", 12).toLowerCase();
+    let username = cleanText(metadata.username, 24);
 
     const { data: existingLink, error: linkError } = await admin
       .from("app_users")
@@ -193,6 +183,47 @@ Deno.serve(async (req) => {
     if (!userId || !UUID_PATTERN.test(userId)) {
       throw new Error("stable_floustream_user_id_missing");
     }
+
+    // Imported Supabase users may have profile fields that were never copied
+    // into auth.users metadata. Prefer the existing FLOUSTREAM profile so the
+    // first Clerk sign-in does not force users to re-enter their details.
+    const { data: profile, error: profileError } = await admin
+      .from("profiles")
+      .select("first_name,last_name,display_name,country_code,preferred_language,username")
+      .eq("id", userId)
+      .maybeSingle();
+    if (profileError) throw profileError;
+
+    const displayParts = cleanText(profile?.display_name, 120).split(/\\s+/).filter(Boolean);
+    firstName ||= cleanText(profile?.first_name, 60) || displayParts[0] || "";
+    lastName ||= cleanText(profile?.last_name, 60) || displayParts.slice(1).join(" ");
+    countryCode ||= cleanText(profile?.country_code, 5).toUpperCase();
+    preferredLanguage ||= cleanText(profile?.preferred_language, 12).toLowerCase();
+    username ||= cleanText(profile?.username, 24);
+
+    // Existing profiles are authoritative. Fallbacks only satisfy the trusted
+    // provisioning RPC's required arguments; ON CONFLICT keeps stored fields.
+    if (profile) {
+      firstName ||= "FLOUSTREAM";
+      lastName ||= "User";
+      countryCode ||= "OTHER";
+      preferredLanguage ||= "en";
+    } else if (!firstName || !lastName || !/^[A-Z]{2,5}$/.test(countryCode) ||
+               !["ru", "en"].includes(preferredLanguage)) {
+      return json({ error: "Required profile details are missing" }, 400);
+    }
+
+    if (!["ru", "en"].includes(preferredLanguage)) {
+      if (profile) preferredLanguage = "en";
+      else return json({ error: "Invalid preferred language" }, 400);
+    }
+    if (username && !/^[a-z0-9_]{3,24}$/.test(username.toLowerCase())) {
+      if (profile) username = "";
+      else return json({ error: "Invalid username" }, 400);
+    } else if (username) {
+      username = username.toLowerCase();
+    }
+
     if (clerkUser.external_id !== userId) {
       await clerkRequest(
         "/users/" + encodeURIComponent(clerkIdentity.clerkUserId),
