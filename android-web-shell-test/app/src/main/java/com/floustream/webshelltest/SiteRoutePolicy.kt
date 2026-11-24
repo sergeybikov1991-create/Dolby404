@@ -54,8 +54,12 @@ internal object SiteRoutePolicy {
     fun isMessagesRouteName(route: String?): Boolean =
         normalizeRoute(route) == "messages.html"
 
-    private fun normalizeRoute(route: String?): String? =
-        route?.trim()?.substringBefore('?')?.substringAfterLast('/')?.takeIf { it.isNotBlank() }
+    private fun normalizeRoute(route: String?): String? {
+        val candidate = route?.trim()?.substringBefore('?')?.substringBefore('#') ?: return null
+        if (candidate.isBlank() || candidate.contains("://") || candidate.contains('\\')) return null
+        if (candidate.contains('/') && !candidate.startsWith(SITE_PATH)) return null
+        return candidate.substringAfterLast('/').takeIf { it.isNotBlank() }
+    }
 
     private fun parse(value: String?): URI? {
         if (value.isNullOrBlank()) return null
