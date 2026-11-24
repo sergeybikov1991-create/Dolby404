@@ -208,6 +208,48 @@ REVOKE ALL ON FUNCTION public.provision_clerk_user(uuid, text, text, text, text,
 GRANT EXECUTE ON FUNCTION public.provision_clerk_user(uuid, text, text, text, text, text, text, text, text, text)
   TO service_role;
 
+-- One-time, action-bound proof ledger for Clerk session reverification.
+CREATE TABLE IF NOT EXISTS public.account_lifecycle_reverifications (
+  verification_id text PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES public.app_users(id) ON DELETE CASCADE,
+  action text NOT NULL CHECK (action IN ('request_delete', 'restore')),
+  consumed_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE public.account_lifecycle_reverifications ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.account_lifecycle_reverifications FROM PUBLIC, anon, authenticated;
+GRANT ALL ON TABLE public.account_lifecycle_reverifications TO service_role;
+
+CREATE OR REPLACE FUNCTION public.consume_account_lifecycle_reverification(
+  p_user_id uuid,
+  p_verification_id text,
+  p_action text
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $function$
+BEGIN
+  IF p_user_id IS NULL
+    OR nullif(trim(p_verification_id), '') IS NULL
+    OR length(p_verification_id) > 256
+    OR p_action NOT IN ('request_delete', 'restore') THEN
+    RAISE EXCEPTION 'Invalid account lifecycle reverification';
+  END IF;
+
+  INSERT INTO public.account_lifecycle_reverifications(verification_id, user_id, action)
+  VALUES (p_verification_id, p_user_id, p_action);
+EXCEPTION
+  WHEN unique_violation THEN
+    RAISE EXCEPTION 'reverification_already_used';
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.consume_account_lifecycle_reverification(uuid, text, text)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.consume_account_lifecycle_reverification(uuid, text, text)
+  TO service_role;
+
 -- Move all 22 application foreign keys from auth.users to the stable registry.
 -- Existing UUID values remain unchanged; ON DELETE behavior is preserved.
 ALTER TABLE "private"."backgammon_actions" DROP CONSTRAINT "backgammon_actions_actor_id_fkey";
