@@ -1575,6 +1575,15 @@ class MainActivity : ComponentActivity() {
                     const input = routeRoot.querySelector('#attachment-input');
                     const text = routeRoot.querySelector('#message-input');
                     const button = routeRoot.querySelector('#send');
+                    const mic = routeRoot.querySelector('#mic');
+                    // Android uses the existing send arrow for press-and-hold voice recording.
+                    // Hide the browser getUserMedia control so WebView does not open a second
+                    // microphone capture path that can fail with "Could not start audio source".
+                    if (mic) {
+                        mic.hidden = true;
+                        mic.style.setProperty('display', 'none', 'important');
+                        mic.setAttribute('aria-hidden', 'true');
+                    }
                     if (!form || !input || !text || !button ||
                         form.dataset.floustreamAndroidVoiceRecorderInstalled === '1') return;
                     form.dataset.floustreamAndroidVoiceRecorderInstalled = '1';
@@ -1639,6 +1648,8 @@ class MainActivity : ComponentActivity() {
                     async function startRecording() {
                         if (disposed || recording || startPending || !pointerHeld && !keyboardHeld) return;
                         if (routeRoot.querySelector('#attach')?.disabled) return;
+                        const pendingPreview = routeRoot.querySelector('#attachment-preview');
+                        if (pendingPreview && !pendingPreview.hidden) return;
                         startPending = true;
                         if (!window.FloustreamVoiceAudio) {
                             startPending = false;
@@ -1745,7 +1756,12 @@ class MainActivity : ComponentActivity() {
                     });
 
                     button.addEventListener('pointerdown', event => {
-                        if (event.button !== 0 || text.value.trim() || disposed) return;
+                        const preview = routeRoot.querySelector('#attachment-preview');
+                        const hasPendingAttachments = !!preview && !preview.hidden;
+                        if (event.button !== 0 || text.value.trim() || hasPendingAttachments || disposed) {
+                            ignoreClickUntil = 0;
+                            return;
+                        }
                         event.preventDefault();
                         ignoreClickUntil = Date.now() + 900;
                         pointerHeld = true;
