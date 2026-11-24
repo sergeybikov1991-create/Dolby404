@@ -120,3 +120,33 @@ jobs:
         env:
           PGPASSWORD: postgres
         run: psql -h 127.0.0.1 -U postgres -d floustream_test -v ON_ERROR_STOP=1 -f tests/backgammon-migration.test.sql
+
+      - name: Create isolated Clerk migration rehearsal database
+        env:
+          PGPASSWORD: postgres
+        run: createdb -h 127.0.0.1 -U postgres clerk_migration_test
+
+      - name: Build synthetic Clerk migration schema fixture
+        env:
+          PGPASSWORD: postgres
+        run: psql -h 127.0.0.1 -U postgres -d clerk_migration_test -v ON_ERROR_STOP=1 -f tests/clerk-migration-fixture.sql
+
+      - name: Apply Clerk identity and RLS migration draft
+        env:
+          PGPASSWORD: postgres
+        run: psql -h 127.0.0.1 -U postgres -d clerk_migration_test -v ON_ERROR_STOP=1 -f docs/auth/drafts/clerk_identity_bridge_and_rls_draft.sql
+
+      - name: Verify Clerk identity mapping and RLS isolation
+        env:
+          PGPASSWORD: postgres
+        run: psql -h 127.0.0.1 -U postgres -d clerk_migration_test -v ON_ERROR_STOP=1 -f tests/clerk-migration-rehearsal.test.sql
+
+      - name: Apply guarded Clerk rollback draft
+        env:
+          PGPASSWORD: postgres
+        run: psql -h 127.0.0.1 -U postgres -d clerk_migration_test -v ON_ERROR_STOP=1 -f docs/auth/drafts/clerk_identity_bridge_rollback_draft.sql
+
+      - name: Verify rollback restores original constraints and policies
+        env:
+          PGPASSWORD: postgres
+        run: psql -h 127.0.0.1 -U postgres -d clerk_migration_test -v ON_ERROR_STOP=1 -f tests/clerk-migration-rollback.test.sql
