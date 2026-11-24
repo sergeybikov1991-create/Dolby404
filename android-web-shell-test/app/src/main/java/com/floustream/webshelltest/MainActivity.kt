@@ -1269,15 +1269,19 @@ class MainActivity : ComponentActivity() {
                                     return 'unauthenticated';
                                 }
 
-                                const accessToken = storedSession &&
+                                let accessToken = storedSession &&
                                     typeof storedSession.access_token === 'string'
                                     ? storedSession.access_token
+                                    : '';
+                                const refreshToken = storedSession &&
+                                    typeof storedSession.refresh_token === 'string'
+                                    ? storedSession.refresh_token
                                     : '';
                                 if (!accessToken) return 'unauthenticated';
 
                                 // Ask Supabase Auth directly. This does not depend
                                 // on an ES-module-scoped JavaScript client instance.
-                                const response = await window.fetch(
+                                let response = await window.fetch(
                                     '${BuildConfig.SUPABASE_URL}/auth/v1/user',
                                     {
                                         method: 'GET',
@@ -1290,13 +1294,51 @@ class MainActivity : ComponentActivity() {
                                     }
                                 );
 
-                                if (response.status === 400 || response.status === 401 ||
-                                    response.status === 403) {
-                                    return 'unauthenticated';
-                                }
-                                if (!response.ok) return 'offline';
+                                let user = null;
+                                if (response.ok) {
+                                    user = await response.json();
+                                } else if ((response.status === 400 || response.status === 401 ||
+                                            response.status === 403) && refreshToken) {
+                                    // Match supabase-js session recovery: an expired
+                                    // access token is not a signed-out user while its
+                                    // refresh token can still renew the same session.
+                                    response = await window.fetch(
+                                        '${BuildConfig.SUPABASE_URL}/auth/v1/token?grant_type=refresh_token',
+                                        {
+                                            method: 'POST',
+                                            cache: 'no-store',
+                                            headers: {
+                                                'apikey': '${BuildConfig.SUPABASE_PUBLISHABLE_KEY}',
+                                                'Content-Type': 'application/json',
+                                                'Accept': 'application/json'
+                                            },
+                                            body: JSON.stringify({ refresh_token: refreshToken })
+                                        }
+                                    );
+                                    if (response.status === 400 || response.status === 401 ||
+                                        response.status === 403) {
+                                        return 'unauthenticated';
+                                    }
+                                    if (!response.ok) return 'offline';
 
-                                const user = await response.json();
+                                    const refreshed = await response.json();
+                                    if (!refreshed || !refreshed.access_token ||
+                                        !refreshed.user || !refreshed.user.id) {
+                                        return 'unauthenticated';
+                                    }
+                                    accessToken = refreshed.access_token;
+                                    user = refreshed.user;
+                                    const expiresAt = Number(refreshed.expires_at) ||
+                                        Math.floor(Date.now() / 1000) +
+                                        Number(refreshed.expires_in || 3600);
+                                    const nextSession = Object.assign({}, storedSession, refreshed, {
+                                        expires_at: expiresAt
+                                    });
+                                    window.localStorage.setItem(storageKey, JSON.stringify(nextSession));
+                                } else {
+                                    return 'offline';
+                                }
+
                                 if (!user || !user.id) return 'unauthenticated';
 
                                 window.__floustreamPushSession = {
