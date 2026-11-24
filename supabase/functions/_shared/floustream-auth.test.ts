@@ -78,3 +78,40 @@ Deno.test("rejects a malformed stable UUID claim", async () => {
   }
   if (!rejected) throw new Error("Malformed app_user_id was accepted");
 });
+
+import {
+  requireRecentEmailReverification,
+} from "./floustream-auth.ts";
+
+Deno.test("accepts a recent email-code reverification", () => {
+  const id = requireRecentEmailReverification({
+    reverification_id: "reverify_test_123",
+    fva: [3, -1],
+  });
+  if (id !== "reverify_test_123") throw new Error("Unexpected reverification ID");
+});
+
+Deno.test("rejects missing reverification proof", () => {
+  let rejected = false;
+  try {
+    requireRecentEmailReverification({ fva: [1, -1] });
+  } catch (error) {
+    rejected = error instanceof FloustreamAuthError && error.status === 403;
+  }
+  if (!rejected) throw new Error("Missing reverification proof was accepted");
+});
+
+Deno.test("rejects stale or absent first-factor verification", () => {
+  for (const fva of [[11, -1], [-1, -1], null]) {
+    let rejected = false;
+    try {
+      requireRecentEmailReverification({
+        reverification_id: "reverify_test_456",
+        fva: fva as unknown,
+      });
+    } catch (error) {
+      rejected = error instanceof FloustreamAuthError && error.status === 403;
+    }
+    if (!rejected) throw new Error("Stale reverification proof was accepted");
+  }
+});
