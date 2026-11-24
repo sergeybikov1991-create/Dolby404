@@ -1,4 +1,4 @@
-name: FLOUSTREAM Android 1.8 Debug
+name: FLOUSTREAM Android 2.0 Debug
 
 on:
   workflow_dispatch:
@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: floustream-android-1-8-debug-${{ github.ref }}
+  group: floustream-android-2-0-debug-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -41,18 +41,34 @@ jobs:
       - name: Run Android unit tests
         working-directory: android-web-shell-test
         run: gradle --no-daemon :app:testDebugUnitTest
-      - name: Build Debug 1.8 APK
+      - name: Build Debug 2.0 APK
         working-directory: android-web-shell-test
         run: gradle --no-daemon clean :app:assembleDebug
+      - name: Verify Android 2.0 chat fixes are present
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          source = Path("android-web-shell-test/app/src/main/java/com/floustream/webshelltest/MainActivity.kt").read_text()
+          required = {
+              "Android photo viewer viewport correction": "floustream-android-photo-viewer-fit-v1",
+              "Short tap remains the send action": "val wasShortTap = !!holdTimer && !recording && !startPending",
+              "Pending attachment can be sent without text": "const hasPendingAttachments = !!preview && !preview.hidden",
+              "Voice recorder retry after SPA route mount": "}, 900L)",
+          }
+          for label, marker in required.items():
+              if marker not in source:
+                  raise SystemExit(f"Missing required fix: {label}")
+          print("Android 2.0 chat fix markers verified.")
+          PY
       - name: Verify Debug APK identity
         run: |
           APK=android-web-shell-test/app/build/outputs/apk/debug/app-debug.apk
           test -s "$APK"
-          $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android.debug' versionCode='108' versionName='1.8-debug'"
+          $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android.debug' versionCode='110' versionName='2.0-debug'"
       - name: Upload test APK
         uses: actions/upload-artifact@v4
         with:
-          name: FLOUSTREAM-Android-1.8-Debug
+          name: FLOUSTREAM-Android-2.0-Debug
           path: android-web-shell-test/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
