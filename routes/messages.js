@@ -617,7 +617,6 @@ void start();
 
   return async () => {
     setScrollLock(false);
-    try { closeCameraCapture(); } catch (_) { stopCameraStream(); }
     if (window.openPhotoViewer === openPhotoViewer) delete window.openPhotoViewer;
     if (activeTusUpload) {
       try { await activeTusUpload.abort(false); } catch (_) {}
