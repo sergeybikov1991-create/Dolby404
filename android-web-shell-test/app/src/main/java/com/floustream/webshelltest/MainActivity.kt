@@ -1233,6 +1233,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun checkForUpdatesOnce() {
+        // Debug 1.8 is a separate test install; never offer production APK updates here.
+        if (BuildConfig.DEBUG) return
         if (!updateCheckStarted && ::inAppUpdater.isInitialized) {
             updateCheckStarted = true
             inAppUpdater.checkForUpdate()
