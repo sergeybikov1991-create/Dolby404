@@ -57,7 +57,7 @@ const MARKUP = `<section class="fs-route-messages">
  <img id="photo-viewer-image" alt="">
 </div>
 </section>`;
-export const stylesheet = new URL("./styles/messages.css?v=20261124-12", import.meta.url).href;
+export const stylesheet = new URL("./styles/messages.css?v=20261124-13", import.meta.url).href;
 export const title = "Сообщения · FLOUSTREAM";
 
 export async function mount(root, { signal, navigate, url }) {

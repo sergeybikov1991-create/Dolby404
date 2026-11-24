@@ -141,3 +141,25 @@ test("Main 0.9 atmospheric background is visible through every dark SPA route su
     expect(css, file).toContain(rule);
   }
 });
+
+
+test("Main 0.9 SPA route styles and router modules use fresh cache keys", () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const expected = {
+    "home.js": "home.css?v=20261124-10",
+    "public-profile.js": "public-profile.css?v=20261124-10",
+    "friends.js": "friends.css?v=20261124-10",
+    "messages.js": "messages.css?v=20261124-13"
+  };
+  for (const [file, marker] of Object.entries(expected)) {
+    const source = fs.readFileSync(path.resolve(__dirname, "..", "routes", file), "utf8");
+    expect(source, file).toContain(marker);
+  }
+  const router = fs.readFileSync(path.resolve(__dirname, "..", "app-router.js"), "utf8");
+  for (const marker of ["home.js?v=20261124-10","public-profile.js?v=20261124-10","friends.js?v=20261124-10","messages.js?v=20261124-13"]) expect(router).toContain(marker);
+  for (const page of ["home.html","portal.html","profile.html","public-profile.html","friends.html","messages.html","music.html"]) {
+    const html = fs.readFileSync(path.resolve(__dirname, "..", page), "utf8");
+    expect(html, page).toContain("app-router.js?v=20261124-13");
+  }
+});

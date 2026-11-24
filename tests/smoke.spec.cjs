@@ -633,8 +633,8 @@ test("chat photos have zero frame and open fullscreen without changing the video
   const fs = require("node:fs"), path = require("node:path");
   const chatHtml = fs.readFileSync(path.join(__dirname, "..", "messages.html"), "utf8");
   const routerCode = fs.readFileSync(path.join(__dirname, "..", "app-router.js"), "utf8");
-  expect(chatHtml).toContain("app-router.js?v=20261124-12");
-  expect(routerCode).toContain('import("./routes/messages.js?v=20261124-12")');
+  expect(chatHtml).toContain("app-router.js?v=20261124-13");
+  expect(routerCode).toContain('import("./routes/messages.js?v=20261124-13")');
   const styles = await page.evaluate(() => {
     const view = document.querySelector("#floustream-app-shell #floustream-route-view").shadowRoot;
     const image = view.querySelector(".message-media-image");
