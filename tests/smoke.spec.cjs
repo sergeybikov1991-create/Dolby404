@@ -105,6 +105,7 @@ async function mockAuthenticatedChat(page, options = {}) {
         }
         if (config.micPermissionDenied) throw new Error("Permission denied by test");
         const track = { stop: () => { state.micStopped += 1; } };
+        if (constraints?.video) { const stream = new MediaStream(); stream.getTracks = () => [track]; return stream; }
         return { getTracks: () => [track] };
       }
     } });
