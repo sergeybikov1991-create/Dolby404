@@ -13,7 +13,7 @@ Base commit: `0177bd27a827e48dd1e3982048443b6382228b5d`
 - Keep the production application ID and persistent signing certificate unchanged for in-place updates.
 - Debug uses a separate application ID and is for CI only; the user receives no Debug build as a substitute for Release.
 - Never claim physical-device verification from CI alone.
-- Do not publish a public Release or change the live updater target without passing the release gates and explicit publication authorization.
+- Do not publish a public Release before all automated and emulator release gates pass. The owner has approved publishing v2.0 through the in-app updater for physical-device acceptance; the 1.6 Release remains the rollback point until device checks pass.
 
 ## Phase 0 — Baseline and repository safety
 
@@ -28,7 +28,7 @@ Base commit: `0177bd27a827e48dd1e3982048443b6382228b5d`
 - Keep Debug isolated as `com.floustream.android.debug`.
 - Build a signed Release candidate with the existing persistent certificate.
 - Verify package identity, certificate fingerprint, APK checksum and updater manifest.
-- Acceptance: CI produces a signed 2.0 Release candidate from the exact recorded commit; no public release is published.
+- Acceptance: CI produces a signed 2.0 Release from the exact recorded commit, verifies package identity and certificate, then publishes v2.0 only on the explicit `[publish-v2.0]` commit marker after all gates pass.
 
 ## Phase 2 — Preserve the 1.6 foundation
 
@@ -63,6 +63,6 @@ Base commit: `0177bd27a827e48dd1e3982048443b6382228b5d`
 
 - Run unit, integration and applicable instrumentation checks on the exact candidate commit.
 - Verify signed Release identity and certificate, SHA-256, updater manifest and in-place update path.
-- Complete physical-device validation on OnePlus 10T / Android 15.
+- Deliver the first v2.0 installation through the in-app updater and complete physical-device validation on OnePlus 10T / Android 15.
 - Record commit, CI run, APK checksum, signing fingerprint, test evidence and rollback reference.
-- Acceptance: the user-approved signed APK 2.0 is archived as the new immutable Android baseline.
+- Acceptance: after device validation passes, the user-approved signed APK 2.0 is archived as the new immutable Android baseline; APK 1.6 remains the rollback reference.

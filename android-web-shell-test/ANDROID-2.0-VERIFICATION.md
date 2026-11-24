@@ -1,6 +1,6 @@
 # FLOUSTREAM Android 2.0 — Verification Passport
 
-Status: implementation baseline and CI pipeline setup in progress. No 2.0 APK is represented as an existing public or installed release.
+Status: signed Release 2.0 is prepared for controlled in-app updater validation. CI and Android API 35 emulator checks must pass on the exact publishing commit. Physical-device acceptance is still pending.
 
 ## Source provenance
 
@@ -38,6 +38,7 @@ Status: implementation baseline and CI pipeline setup in progress. No 2.0 APK is
 - [ ] Release certificate fingerprint matches the signing passport.
 - [ ] SHA-256 and updater manifest generation.
 - [ ] CI artifact is tied to the exact source commit.
+- [ ] GitHub Release v2.0 contains the signed APK, checksum and update.json; v2.0 is the latest stable release.
 
 ## Physical-device checks — OnePlus 10T / Android 15
 
@@ -54,4 +55,4 @@ Status: implementation baseline and CI pipeline setup in progress. No 2.0 APK is
 
 ## Release decision
 
-CI success alone does not authorize publication. Public Release v2.0 and the live updater target remain blocked until all required device checks pass and the owner explicitly authorizes publication.
+Public Release v2.0 is published only after the complete CI and Android API 35 emulator gates pass, using the owner-approved `[publish-v2.0]` marker. The first installation is deliberately delivered through the in-app updater for physical-device acceptance. Do not mark 2.0 as the immutable baseline until the OnePlus 10T / Android 15 checks pass; APK 1.6 remains the rollback point.

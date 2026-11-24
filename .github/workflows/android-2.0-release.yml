@@ -1,4 +1,4 @@
-name: FLOUSTREAM Android 2.0 Signed Release Candidate
+name: FLOUSTREAM Android 2.0 Signed Release
 
 on:
   workflow_dispatch:
@@ -11,14 +11,14 @@ on:
       - "APK-2.0-ROADMAP.md"
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
-  group: floustream-android-2-0-rc
+  group: floustream-android-2-0-release
   cancel-in-progress: true
 
 jobs:
-  signed-release-candidate:
+  signed-release:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -159,13 +159,40 @@ jobs:
           printf '%s  %s\n' "$SHA" "app-release.apk" > "$APK.sha256"
           printf '{"versionCode":110,"versionName":"2.0","apkUrl":"https://github.com/sergeybikov1991-create/Dolby404/releases/download/v2.0/app-release.apk","sha256":"%s"}\n' "$SHA" > android-web-shell-test/app/build/outputs/apk/release/update.json
 
-      - name: Upload signed Release candidate
+      - name: Upload signed Release assets to CI
         uses: actions/upload-artifact@v4
         with:
-          name: FLOUSTREAM-Android-2.0-Signed-RC
+          name: FLOUSTREAM-Android-2.0-Signed-Release
           path: |
             android-web-shell-test/app/build/outputs/apk/release/app-release.apk
             android-web-shell-test/app/build/outputs/apk/release/app-release.apk.sha256
             android-web-shell-test/app/build/outputs/apk/release/update.json
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish FLOUSTREAM Android 2.0 GitHub Release
+        if: github.event_name == 'push' && contains(github.event.head_commit.message, '[publish-v2.0]')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v2.0
+          target_commitish: ${{ github.sha }}
+          name: FLOUSTREAM Android 2.0
+          body: |
+            FLOUSTREAM Android 2.0 — signed production Release.
+
+            - Source base: Android 1.6, commit `0177bd27a827e48dd1e3982048443b6382228b5d`
+            - Package: `com.floustream.android`
+            - Version: `2.0` (versionCode `110`)
+            - The existing production signing certificate is preserved.
+            - Update from the installed 1.6 app through FLOUSTREAM's in-app updater. Do not sideload a separate APK.
+            - This first in-app update is the controlled physical-device acceptance test; the 1.6 Release remains the rollback point.
+          draft: false
+          prerelease: false
+          make_latest: true
+          overwrite_files: true
+          fail_on_unmatched_files: true
+          generate_release_notes: false
+          files: |
+            android-web-shell-test/app/build/outputs/apk/release/app-release.apk
+            android-web-shell-test/app/build/outputs/apk/release/app-release.apk.sha256
+            android-web-shell-test/app/build/outputs/apk/release/update.json

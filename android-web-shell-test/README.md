@@ -42,12 +42,12 @@ The workflow checks the APK signature and the certificate SHA-256 fingerprint be
 
 ## In-app updater
 
-The existing updater reads the latest published GitHub Release and its `update.json` asset. The 2.0 manifest is prepared with versionCode 110, versionName 2.0, the future `v2.0` APK URL and the APK SHA-256. It will not discover 2.0 until the public release is explicitly published.
+The existing updater reads the latest published GitHub Release and its `update.json` asset. The 2.0 manifest is prepared with versionCode 110, versionName 2.0, the `v2.0` APK URL and the APK SHA-256. After the automated and emulator gates pass, the controlled public v2.0 Release is published so the installed 1.6 app can receive it through the in-app updater. Do not sideload the APK.
 
 ## CI and publication
 
 Workflow: `.github/workflows/android-2.0-release.yml`.
 
-CI runs unit tests, builds the isolated Debug variant, checks Android 2.0 behavior contracts, runs an Android API 35 WebView emulator smoke test, builds the signed Release APK, verifies package identity and signing certificate, and uploads only the signed Release APK plus its checksum and updater manifest. It does not publish a GitHub Release.
+CI runs unit tests, builds the isolated Debug variant, checks Android 2.0 behavior contracts, runs an Android API 35 WebView emulator smoke test, builds the signed Release APK, verifies package identity and signing certificate, and uploads the signed Release APK plus checksum and updater manifest. The workflow publishes GitHub Release `v2.0` only when the commit message contains the explicit `[publish-v2.0]` gate marker and every preceding check succeeds.
 
-A CI artifact is not proof of physical-device behavior. Public publication and replacement of the in-app update target remain blocked until the OnePlus 10T / Android 15 checks, updater in-place installation, and protected-feature regression checks pass, followed by explicit release authorization.
+The first public Release is intentionally the in-app update validation path: install it over the existing 1.6 Release through the app's updater, then complete the OnePlus 10T / Android 15 regression checks. APK 1.6 remains the rollback point until those physical-device checks pass. Do not distribute or install a Debug build.
