@@ -54,6 +54,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var multipleVisualPickerLauncher: ActivityResultLauncher<PickVisualMediaRequest>
     private var fullscreenCustomView: View? = null
     @Volatile private var authenticatedUserId: String? = null
+    @Volatile private var pendingNotificationPeerId: String? = null
     private var fullscreenCustomViewCallback: WebChromeClient.CustomViewCallback? = null
     private var fullscreenDecorView: ViewGroup? = null
     private var previousSystemUiVisibility: Int = 0
@@ -80,6 +81,9 @@ class MainActivity : ComponentActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pendingNotificationPeerId = NotificationPeerPolicy.normalize(
+            intent?.getStringExtra(FLOUSTREAMMessagingService.EXTRA_NOTIFICATION_PEER_ID)
+        )
 
         singleVisualPickerLauncher = registerForActivityResult(
             ActivityResultContracts.PickVisualMedia()
@@ -1447,6 +1451,21 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val peerId = NotificationPeerPolicy.normalize(
+            intent.getStringExtra(FLOUSTREAMMessagingService.EXTRA_NOTIFICATION_PEER_ID)
+        ) ?: return
+        pendingNotificationPeerId = peerId
+        if (::webView.isInitialized && !isFinishing && !isDestroyed &&
+            !authenticatedUserId.isNullOrBlank()
+        ) {
+            pendingNotificationPeerId = null
+            webView.loadUrl(SITE_BASE_URL + "messages.html?with=" + Uri.encode(peerId))
+        }
+    }
+
     private fun cancelAuthCheck() {
         authCheckRunnable?.let(mainHandler::removeCallbacks)
         authCheckRunnable = null
@@ -1473,10 +1492,14 @@ class MainActivity : ComponentActivity() {
         view.visibility = View.VISIBLE
 
         // The live FLOUSTREAM website remains the single source of truth.
-        // After authentication, show its real profile route instead of an
-        // Android-only welcome/home screen.
-        if (!view.url.orEmpty().startsWith(PROFILE_URL)) {
-            view.loadUrl(PROFILE_URL)
+        // A notification tap opens the corresponding chat after auth succeeds.
+        val peerId = pendingNotificationPeerId
+        pendingNotificationPeerId = null
+        val destination = peerId?.let {
+            SITE_BASE_URL + "messages.html?with=" + Uri.encode(it)
+        } ?: PROFILE_URL
+        if (!view.url.orEmpty().startsWith(destination)) {
+            view.loadUrl(destination)
         }
         checkForUpdatesOnce()
     }

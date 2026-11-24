@@ -77,6 +77,7 @@ jobs:
               "Pending attachment can be sent without text": "const hasPendingAttachments = !!preview && !preview.hidden",
               "Voice recorder retries after SPA route mount": "}, 900L)",
               "SPA route lifecycle hook": "floustream:route-metric",
+              "Push notification chat routing": "pendingNotificationPeerId",
           }
           for label, marker in required.items():
               if marker not in source:

@@ -23,6 +23,7 @@ Status: implementation baseline and CI pipeline setup in progress. No 2.0 APK is
 - [ ] Chat photo viewer remains inside the Android viewport in portrait and landscape.
 - [ ] SPA route changes reinstall the Android voice recorder/photo viewer integration only on known FLOUSTREAM routes.
 - [ ] WebView microphone/camera capture requests are limited to the trusted HTTPS FLOUSTREAM origin and the exact Android runtime permissions requested.
+- [ ] Tapping a push notification opens the sender's chat after authentication; malformed peer IDs are ignored.
 - [ ] Existing launcher identity.
 - [ ] In-app updater and Android install handoff.
 
