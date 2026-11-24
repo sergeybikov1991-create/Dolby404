@@ -463,6 +463,7 @@ test("composer keeps one microphone and the plus menu exposes all four attachmen
 test("camera captures a photo and records a video into the attachment preview", async ({ page }) => {
   await mockAuthenticatedChat(page);
   await page.addInitScript(() => {
+    Object.defineProperty(HTMLVideoElement.prototype, "readyState", { configurable: true, get: () => 4 });
     HTMLCanvasElement.prototype.getContext = () => ({ drawImage() {} });
     HTMLCanvasElement.prototype.toBlob = callback => callback(new Blob(["camera-photo"], { type: "image/jpeg" }));
   });
