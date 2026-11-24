@@ -133,16 +133,34 @@ Deno.serve(async (req) => {
       return json({ error: "Clerk external identity is not a valid FLOUSTREAM UUID" }, 409);
     }
 
+    let registrationRisk: any = { risk: "low", reason: "existing_account" };
+
     if (userId) {
       const { data: shadow, error: shadowError } = await admin.auth.admin.getUserById(userId);
-      if (shadowError || !shadow?.user || shadow.user.email?.toLowerCase() !== email) {
-        return json({ error: "The linked Supabase identity is missing or does not match" }, 409);
+      if (shadowError || !shadow?.user) {
+        return json({ error: "The linked Supabase identity is missing" }, 409);
+      }
+      if (shadow.user.email?.toLowerCase() !== email) {
+        const { error: emailSyncError } = await admin.auth.admin.updateUserById(userId, {
+          email,
+          email_confirm: true,
+        });
+        if (emailSyncError) throw emailSyncError;
       }
     } else {
       const existingAuthUser = await findAuthUserByEmail(admin, email);
       if (existingAuthUser) {
         userId = existingAuthUser.id;
       } else {
+        const riskResult = await admin.functions.invoke("registration-risk", {
+          body: { email },
+        });
+        if (riskResult.error) throw riskResult.error;
+        registrationRisk = riskResult.data;
+        if (!registrationRisk?.allowed || !["low", "review"].includes(registrationRisk.risk)) {
+          return json({ error: "This email address cannot be used for registration" }, 403);
+        }
+
         const { data: created, error: createError } = await admin.auth.admin.createUser({
           email,
           password: randomPassword(),
@@ -153,6 +171,8 @@ Deno.serve(async (req) => {
             country_code: countryCode,
             preferred_language: preferredLanguage,
             display_name: firstName + " " + lastName,
+            registration_risk: registrationRisk.risk,
+            registration_risk_reason: cleanText(registrationRisk.reason, 240),
           },
         });
         if (createError || !created?.user?.id) throw createError ?? new Error("shadow_user_creation_failed");
@@ -164,15 +184,6 @@ Deno.serve(async (req) => {
         "PATCH",
         { external_id: userId },
       );
-    }
-
-    const riskResult = await admin.functions.invoke("registration-risk", {
-      body: { email },
-    });
-    if (riskResult.error) throw riskResult.error;
-    const risk = riskResult.data;
-    if (!risk?.allowed || !["low", "review"].includes(risk.risk)) {
-      return json({ error: "This email address cannot be used for registration" }, 403);
     }
 
     const { error: provisionError } = await admin.rpc("provision_clerk_user", {
@@ -192,7 +203,7 @@ Deno.serve(async (req) => {
     return json({ userId, provisioned: true });
   } catch (error) {
     // Do not log tokens, passwords, email addresses, or provider secrets.
-    console.error("clerk_provision_failed", error instanceof Error ? error.message : "unknown");
+    console.error("clerk_provision_failed");
     return json({ error: "Unable to prepare the FLOUSTREAM account. Please retry." }, 500);
   }
 });
