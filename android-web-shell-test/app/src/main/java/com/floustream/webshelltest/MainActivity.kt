@@ -972,22 +972,24 @@ class MainActivity : ComponentActivity() {
                             if (response.ok &&
                                 (response.headers.get('content-type') || '').toLowerCase().includes('application/json')) {
                                 try {
-                                    const body = await response.clone().text();
-                                    if (body.length <= 5 * 1024 * 1024 && activeUser() === userId) {
-                                        const headers = {};
-                                        response.headers.forEach((value, name) => {
-                                            if (!['set-cookie', 'set-cookie2'].includes(name.toLowerCase())) {
-                                                headers[name] = value;
-                                            }
-                                        });
-                                        // Cache writes must never hold up the live Supabase response.
-                                        writeCached({
-                                            key: key,
-                                            body: body,
-                                            headers: headers,
-                                            savedAt: Date.now()
-                                        }).catch(function() {});
-                                    }
+                                    const headers = {};
+                                    response.headers.forEach((value, name) => {
+                                        if (!['set-cookie', 'set-cookie2'].includes(name.toLowerCase())) {
+                                            headers[name] = value;
+                                        }
+                                    });
+                                    // Read and persist a clone in the background; never await cache work
+                                    // before returning the successful live API response to the page.
+                                    response.clone().text().then(function(body) {
+                                        if (body.length <= 5 * 1024 * 1024 && activeUser() === userId) {
+                                            writeCached({
+                                                key: key,
+                                                body: body,
+                                                headers: headers,
+                                                savedAt: Date.now()
+                                            }).catch(function() {});
+                                        }
+                                    }).catch(function() {});
                                 } catch (_) {
                                     // Cache failures must never break a successful server response.
                                 }
