@@ -51,22 +51,155 @@ FOR EACH ROW EXECUTE FUNCTION public.register_legacy_auth_identity();
 -- Resolve a stable FLOUSTREAM UUID from Clerk's trusted app_user_id claim.
 -- Legacy Supabase JWTs remain supported because their sub is already a UUID.
 -- Non-UUID Clerk sub values without the trusted claim fail closed to NULL.
+-- Resolve a stable FLOUSTREAM UUID from a verified Clerk claim.
+-- Clerk's app_user_id claim is accepted only when it matches the server-managed
+-- app_users mapping for the same Clerk subject. Legacy Supabase UUID subjects
+-- remain accepted during the stabilization window.
 CREATE OR REPLACE FUNCTION public.floustream_user_id()
 RETURNS uuid
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
+SECURITY DEFINER
 SET search_path = ''
 AS $function$
-  SELECT CASE
-    WHEN COALESCE(auth.jwt() ->> 'app_user_id', auth.jwt() ->> 'sub')
-      ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-    THEN COALESCE(auth.jwt() ->> 'app_user_id', auth.jwt() ->> 'sub')::uuid
-    ELSE NULL
-  END;
+DECLARE
+  claims jsonb := auth.jwt();
+  claim_user_id text := claims ->> 'app_user_id';
+  subject text := claims ->> 'sub';
+  candidate uuid;
+BEGIN
+  IF claim_user_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN
+    candidate := claim_user_id::uuid;
+    IF EXISTS (
+      SELECT 1 FROM public.app_users u
+      WHERE u.id = candidate AND u.clerk_user_id = subject
+    ) THEN
+      RETURN candidate;
+    END IF;
+    RETURN NULL;
+  END IF;
+
+  IF subject ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN
+    candidate := subject::uuid;
+    IF EXISTS (SELECT 1 FROM public.app_users u WHERE u.id = candidate) THEN
+      RETURN candidate;
+    END IF;
+  END IF;
+
+  RETURN NULL;
+END;
 $function$;
 
 REVOKE ALL ON FUNCTION public.floustream_user_id() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.floustream_user_id() TO anon, authenticated;
+
+-- Trusted, idempotent provisioning entry point. The Edge Function must first
+-- verify the Clerk JWT, fetch the Clerk user from the Backend API, confirm the
+-- primary email is verified, and set Clerk external_id to p_user_id. Only the
+-- service_role may call this function.
+CREATE OR REPLACE FUNCTION public.provision_clerk_user(
+  p_user_id uuid,
+  p_clerk_user_id text,
+  p_email text,
+  p_first_name text,
+  p_last_name text,
+  p_country_code text,
+  p_preferred_language text,
+  p_username text DEFAULT NULL,
+  p_registration_risk text DEFAULT 'low',
+  p_registration_risk_reason text DEFAULT NULL
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $function$
+DECLARE
+  email_domain text := lower(split_part(coalesce(p_email, ''), '@', 2));
+  blocked_domain text;
+  risk_value text := lower(coalesce(p_registration_risk, 'low'));
+  risk_reason_value text := coalesce(p_registration_risk_reason, 'domain_requires_manual_review');
+  display_value text;
+  final_username text;
+  registered_id uuid;
+BEGIN
+  IF p_user_id IS NULL
+    OR p_clerk_user_id IS NULL
+    OR p_clerk_user_id !~ '^user_[A-Za-z0-9]+$'
+    OR p_email IS NULL
+    OR p_email !~ '^[^[:space:]@]+@[^[:space:]@]+$'
+    OR nullif(trim(p_first_name), '') IS NULL
+    OR nullif(trim(p_last_name), '') IS NULL
+    OR upper(coalesce(p_country_code, '')) !~ '^[A-Z]{2,5}$'
+    OR lower(coalesce(p_preferred_language, '')) NOT IN ('ru', 'en')
+    OR risk_value NOT IN ('low', 'review') THEN
+    RAISE EXCEPTION 'Invalid FLOUSTREAM account provisioning data';
+  END IF;
+
+  SELECT domain INTO blocked_domain
+  FROM unnest(ARRAY[
+    '10minutemail.com','10minutemail.net','guerrillamail.com','guerrillamail.net',
+    'mailinator.com','yopmail.com','getnada.com','tempmail.com','temp-mail.org',
+    'throwawaymail.com','dispostable.com','maildrop.cc','sharklasers.com',
+    'fakeinbox.com','emailondeck.com','trashmail.com','mintemail.com',
+    'mohmal.com','minuteinbox.com','mailnesia.com','mytemp.email'
+  ]) AS domain
+  WHERE email_domain = domain OR email_domain LIKE '%.' || domain
+  LIMIT 1;
+
+  IF blocked_domain IS NOT NULL THEN
+    RAISE EXCEPTION 'disposable_email_domain_not_allowed';
+  END IF;
+
+  IF email_domain LIKE 'xn--%' OR email_domain ~ '[0-9]{3,}' THEN
+    risk_value := 'review';
+    risk_reason_value := 'unusual_email_domain';
+  END IF;
+
+  IF p_username IS NOT NULL AND p_username !~ '^[a-z0-9_]{3,24}$' THEN
+    RAISE EXCEPTION 'username_invalid_format';
+  END IF;
+
+  final_username := coalesce(p_username, 'user_' || replace(p_user_id::text, '-', ''));
+  display_value := trim(p_first_name) || ' ' || trim(p_last_name);
+
+  INSERT INTO public.app_users (id, clerk_user_id)
+  VALUES (p_user_id, p_clerk_user_id)
+  ON CONFLICT (id) DO UPDATE
+    SET clerk_user_id = EXCLUDED.clerk_user_id
+    WHERE public.app_users.clerk_user_id IS NULL
+       OR public.app_users.clerk_user_id = EXCLUDED.clerk_user_id
+  RETURNING id INTO registered_id;
+
+  IF registered_id IS NULL THEN
+    RAISE EXCEPTION 'FLOUSTREAM identity is already linked to another Clerk account';
+  END IF;
+
+  INSERT INTO public.profiles (
+    id, username, display_name, first_name, last_name,
+    country_code, preferred_language, account_status
+  ) VALUES (
+    p_user_id, final_username, display_value, trim(p_first_name), trim(p_last_name),
+    upper(p_country_code), lower(p_preferred_language), 'active'
+  )
+  ON CONFLICT (id) DO NOTHING;
+
+  INSERT INTO public.private_photo_albums(owner_id)
+  VALUES (p_user_id)
+  ON CONFLICT (owner_id) DO NOTHING;
+
+  IF risk_value = 'review' THEN
+    INSERT INTO public.account_registration_reviews(user_id, risk_level, reason)
+    VALUES (p_user_id, 'review', risk_reason_value)
+    ON CONFLICT (user_id) DO NOTHING;
+  END IF;
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.provision_clerk_user(uuid, text, text, text, text, text, text, text, text, text)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.provision_clerk_user(uuid, text, text, text, text, text, text, text, text, text)
+  TO service_role;
 
 -- Move all 22 application foreign keys from auth.users to the stable registry.
 -- Existing UUID values remain unchanged; ON DELETE behavior is preserved.
