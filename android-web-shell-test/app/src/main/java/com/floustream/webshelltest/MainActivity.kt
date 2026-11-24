@@ -77,7 +77,7 @@ class MainActivity : ComponentActivity() {
         const val WELCOME_ASSET_URL = "file:///android_asset/index.html"
         const val AUTH_URL = SITE_BASE_URL + "portal.html"
         const val PROFILE_URL = SITE_BASE_URL + "profile.html"
-        const val HOME_URL = SITE_BASE_URL + "home.html"
+        const val HOME_URL = PROFILE_URL
         const val FILE_CHOOSER_REQUEST_CODE = 4102
         const val WEB_MEDIA_PERMISSION_REQUEST_CODE = 4103
         const val MAX_AUTH_CHECK_ATTEMPTS = 50
