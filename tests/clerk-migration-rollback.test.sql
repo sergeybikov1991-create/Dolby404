@@ -19,6 +19,9 @@ BEGIN
   IF uid_policies <> 104 THEN
     RAISE EXCEPTION 'Rollback did not restore all original auth.uid policies: %', uid_policies;
   END IF;
+  IF to_regclass('public.account_lifecycle_reverifications') IS NOT NULL THEN
+    RAISE EXCEPTION 'Rollback did not remove the one-time reverification ledger';
+  END IF;
   IF to_regclass('public.app_users') IS NOT NULL THEN
     RAISE EXCEPTION 'Rollback did not remove provider-independent registry table';
   END IF;
