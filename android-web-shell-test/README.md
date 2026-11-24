@@ -1,17 +1,17 @@
-# FLOUSTREAM Android 1.0
+# FLOUSTREAM Android 1.7
 
 This Android application is the WebView-based FLOUSTREAM client. It opens the live FLOUSTREAM website inside a native Android Activity and uses the website's existing Supabase authentication/session.
 
 ## Production identity
 
 - Application ID: `com.floustream.android`
-- Version name: `1.0`
-- Version code: `100`
+- Version name: `1.7`
+- Version code: `107`
 - Minimum Android: 8.0 (API 26)
 - Target Android: API 35
 - Release signing: one persistent upload keystore; never regenerate it after the first public release.
 
-The Debug variant deliberately uses a separate ID (`com.floustream.android.debug`) and cannot be upgraded in place to the Release variant. The Release APK must always be signed with the same keystore and certificate fingerprint recorded in the signing passport.
+The Debug variant deliberately uses a separate ID (`com.floustream.android.debug`) and can be installed alongside the production Release app. The Release APK must always be signed with the same keystore and certificate fingerprint recorded in the signing passport.
 
 ## In-app updates
 
@@ -46,7 +46,7 @@ Signed Release (requires the signing environment variables above):
 gradle --no-daemon :app:assembleRelease
 ```
 
-GitHub Actions workflow: `.github/workflows/android-release-1.0.yml`.
+GitHub Actions workflow: `.github/workflows/android-1.7.yml`.
 
 ## Release gates
 
