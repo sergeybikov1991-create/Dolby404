@@ -17,6 +17,8 @@ class SiteRoutePolicyTest {
         assertFalse(SiteRoutePolicy.isTrustedSiteUrl(
             "http://sergeybikov1991-create.github.io/Dolby404/home.html"
         ))
+        assertFalse(SiteRoutePolicy.isTrustedOrigin("relative/path"))
+        assertFalse(SiteRoutePolicy.isTrustedOrigin("mailto:someone@example.com"))
         assertFalse(SiteRoutePolicy.isTrustedSiteUrl(
             "https://example.com/Dolby404/home.html"
         ))

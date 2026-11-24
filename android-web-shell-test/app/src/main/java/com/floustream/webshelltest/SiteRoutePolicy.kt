@@ -23,8 +23,8 @@ internal object SiteRoutePolicy {
 
     fun isTrustedOrigin(value: String?): Boolean {
         val uri = parse(value) ?: return false
-        return uri.scheme.equals("https", ignoreCase = true) &&
-            uri.host.equals(SITE_HOST, ignoreCase = true) &&
+        return uri.scheme?.equals("https", ignoreCase = true) == true &&
+            uri.host?.equals(SITE_HOST, ignoreCase = true) == true &&
             (uri.port == -1 || uri.port == 443) &&
             uri.rawUserInfo == null
     }
