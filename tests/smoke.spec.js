@@ -112,6 +112,9 @@ test("Android 1.8 opens the real website without an Android-only home screen", a
   expect(mainActivity).toContain("syncAndroidSessionContext(view)");
   expect(mainActivity).toContain("setDownloadListener");
   expect(mainActivity).toContain("override fun onNewIntent(intent: Intent)");
+  expect(mainActivity).toContain("grant_type=refresh_token");
+  expect(mainActivity).toContain("refresh_token: refreshToken");
+  expect(mainActivity).toContain("if (BuildConfig.DEBUG) return");
   expect(mainActivity).not.toContain("floustream-android-guest");
   expect(profile).toContain('id="drawer-menu-button"');
   expect(profile).toContain('id="side-drawer"');
