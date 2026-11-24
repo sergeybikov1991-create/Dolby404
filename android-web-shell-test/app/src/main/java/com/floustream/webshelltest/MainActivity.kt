@@ -231,6 +231,12 @@ class MainActivity : ComponentActivity() {
                     val currentRoute = SiteRoutePolicy.routeName(currentUrl)
                     if (SiteRoutePolicy.isMessagesRouteName(currentRoute)) {
                         applyAndroidVoiceMessageRecorder(view)
+                        mainHandler.postDelayed({
+                            if (!isFinishing && !isDestroyed) applyAndroidVoiceMessageRecorder(view)
+                        }, 350L)
+                        mainHandler.postDelayed({
+                            if (!isFinishing && !isDestroyed) applyAndroidVoiceMessageRecorder(view)
+                        }, 900L)
                     }
                     if (startupAuthCheckPending &&
                         (currentUrl.startsWith(AUTH_URL) ||
@@ -1753,10 +1759,13 @@ class MainActivity : ComponentActivity() {
                         if (!pointerHeld) return;
                         event.preventDefault();
                         pointerHeld = false;
+                        const wasShortTap = !!holdTimer && !recording && !startPending;
                         if (holdTimer) {
                             clearTimeout(holdTimer);
                             holdTimer = null;
                         }
+                        // A short tap remains the normal send action; a long hold records voice.
+                        if (wasShortTap) ignoreClickUntil = 0;
                         if (recording) await stopRecording();
                     });
                     button.addEventListener('pointercancel', cancelRecording);
@@ -1768,7 +1777,12 @@ class MainActivity : ComponentActivity() {
                             event.preventDefault();
                             return;
                         }
-                        if (text.value.trim()) form.requestSubmit();
+                        const preview = routeRoot.querySelector('#attachment-preview');
+                        const hasPendingAttachments = !!preview && !preview.hidden;
+                        if (text.value.trim() || hasPendingAttachments) {
+                            event.preventDefault();
+                            form.requestSubmit();
+                        }
                     });
                     button.addEventListener('keydown', event => {
                         if ((event.key === ' ' || event.key === 'Enter') && !event.repeat && !text.value.trim()) {
