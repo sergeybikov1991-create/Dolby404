@@ -2,7 +2,7 @@ name: FLOUSTREAM browser tests
 
 on:
   push:
-    branches: [main, feature/floustream-backgammon-clean-release, feature/floustream-backgammon-final, feature/performance-1.0-navigation]
+    branches: [main, feature/floustream-backgammon-clean-release, feature/floustream-backgammon-final, feature/performance-1.0-navigation, auth/clerk-prep-main-0.8]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -82,6 +82,22 @@ jobs:
       - name: Type-check the game Edge Function
         run: deno check --node-modules-dir=auto supabase/functions/backgammon-action/index.ts
 
+      - name: Type-check shared Clerk identity verifier
+        run: deno check --node-modules-dir=auto supabase/functions/_shared/floustream-auth.ts
+
+      - name: Type-check Clerk account lifecycle draft
+        run: deno check --node-modules-dir=auto supabase/functions/_drafts/clerk-auth/account-lifecycle/index.ts
+
+      - name: Type-check Clerk account provisioning draft
+        run: deno check --node-modules-dir=auto supabase/functions/_drafts/clerk-auth/clerk-provision-user/index.ts
+      - name: Type-check Clerk backgammon action draft
+        run: deno check --node-modules-dir=auto supabase/functions/_drafts/clerk-auth/backgammon-action/index.ts
+      - name: Type-check Clerk assistant draft
+        run: deno check --node-modules-dir=auto supabase/functions/_drafts/clerk-auth/dolby404-assistant/index.ts
+
+      - name: Test Clerk JWT verification
+        run: deno test --node-modules-dir=auto supabase/functions/_shared/floustream-auth.test.ts
+
       - name: Parse browser game module
         run: node --check backgammon.js
 
@@ -120,3 +136,33 @@ jobs:
         env:
           PGPASSWORD: postgres
         run: psql -h 127.0.0.1 -U postgres -d floustream_test -v ON_ERROR_STOP=1 -f tests/backgammon-migration.test.sql
+
+      - name: Create isolated Clerk migration rehearsal database
+        env:
+          PGPASSWORD: postgres
+        run: createdb -h 127.0.0.1 -U postgres clerk_migration_test
+
+      - name: Build synthetic Clerk migration schema fixture
+        env:
+          PGPASSWORD: postgres
+        run: psql -h 127.0.0.1 -U postgres -d clerk_migration_test -v ON_ERROR_STOP=1 -f tests/clerk-migration-fixture.sql
+
+      - name: Apply Clerk identity and RLS migration draft
+        env:
+          PGPASSWORD: postgres
+        run: psql -h 127.0.0.1 -U postgres -d clerk_migration_test -v ON_ERROR_STOP=1 -f docs/auth/drafts/clerk_identity_bridge_and_rls_draft.sql
+
+      - name: Verify Clerk identity mapping and RLS isolation
+        env:
+          PGPASSWORD: postgres
+        run: psql -h 127.0.0.1 -U postgres -d clerk_migration_test -v ON_ERROR_STOP=1 -f tests/clerk-migration-rehearsal.test.sql
+
+      - name: Apply guarded Clerk rollback draft
+        env:
+          PGPASSWORD: postgres
+        run: psql -h 127.0.0.1 -U postgres -d clerk_migration_test -v ON_ERROR_STOP=1 -f docs/auth/drafts/clerk_identity_bridge_rollback_draft.sql
+
+      - name: Verify rollback restores original constraints and policies
+        env:
+          PGPASSWORD: postgres
+        run: psql -h 127.0.0.1 -U postgres -d clerk_migration_test -v ON_ERROR_STOP=1 -f tests/clerk-migration-rollback.test.sql
