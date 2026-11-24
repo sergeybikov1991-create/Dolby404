@@ -29,9 +29,14 @@ function getRemoteJwks(jwksUrl: string) {
   return jwks;
 }
 
+function resolveAuthorizedParties(configured?: string[]): string[] {
+  const source = configured ?? (Deno.env.get("CLERK_ALLOWED_PARTIES") ?? "").split(",");
+  return source.map(value => value.trim()).filter(Boolean);
+}
+
 export async function verifyClerkSession(
   token: string,
-  options: { issuer: string; jwksUrl?: string; jwks?: any },
+  options: { issuer: string; jwksUrl?: string; jwks?: any; authorizedParties?: string[] },
 ): Promise<{ clerkUserId: string; claims: Record<string, unknown> }> {
   if (!token || !options.issuer) {
     throw new FloustreamAuthError("Clerk authentication is not configured", 503);
@@ -51,6 +56,15 @@ export async function verifyClerkSession(
     throw new FloustreamAuthError("Invalid or expired Clerk session", 401);
   }
 
+  const authorizedParties = resolveAuthorizedParties(options.authorizedParties);
+  if (authorizedParties.length === 0) {
+    throw new FloustreamAuthError("Clerk authorized-party allowlist is not configured", 503);
+  }
+  const authorizedParty = typeof payload.azp === "string" ? payload.azp : "";
+  if (!authorizedParty || !authorizedParties.includes(authorizedParty)) {
+    throw new FloustreamAuthError("Clerk session origin is not allowed", 401);
+  }
+
   const clerkUserId = typeof payload.sub === "string" ? payload.sub : "";
   if (
     payload.role !== "authenticated" ||
@@ -65,7 +79,7 @@ export async function verifyClerkSession(
 
 export async function verifyClerkJwt(
   token: string,
-  options: { issuer: string; jwksUrl?: string; jwks?: any },
+  options: { issuer: string; jwksUrl?: string; jwks?: any; authorizedParties?: string[] },
 ): Promise<ClerkIdentity> {
   const verified = await verifyClerkSession(token, options);
   const userId = typeof verified.claims.app_user_id === "string"
@@ -100,6 +114,7 @@ export async function requireFloustreamUser(
     allowLegacySupabase?: boolean;
     clerkIssuer?: string;
     clerkJwksUrl?: string;
+    clerkAuthorizedParties?: string[];
   } = {},
 ): Promise<{ userId: string; clerkUserId: string | null; provider: "clerk" | "supabase_legacy"; claims: Record<string, unknown> | null }> {
   const authorization = request.headers.get("Authorization") ?? "";
@@ -133,7 +148,11 @@ export async function requireFloustreamUser(
 
   const issuer = options.clerkIssuer ?? Deno.env.get("CLERK_ISSUER") ?? "";
   const jwksUrl = options.clerkJwksUrl ?? Deno.env.get("CLERK_JWKS_URL") ?? undefined;
-  const identity = await verifyClerkJwt(token, { issuer, jwksUrl });
+  const identity = await verifyClerkJwt(token, {
+    issuer,
+    jwksUrl,
+    authorizedParties: options.clerkAuthorizedParties,
+  });
 
   const { data: mapping, error: mappingError } = await admin
     .from("app_users")
