@@ -206,8 +206,8 @@ Deno.serve(async (req) => {
       p_country_code: countryCode,
       p_preferred_language: preferredLanguage,
       p_username: username || null,
-      p_registration_risk: risk.risk,
-      p_registration_risk_reason: cleanText(risk.reason, 240) || null,
+      p_registration_risk: registrationRisk.risk,
+      p_registration_risk_reason: cleanText(registrationRisk.reason, 240) || null,
     });
     if (provisionError) throw provisionError;
 
