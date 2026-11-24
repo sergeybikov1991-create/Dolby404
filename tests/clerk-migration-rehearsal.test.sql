@@ -96,7 +96,7 @@ SELECT public.consume_account_lifecycle_reverification(
   'reverify_test_once',
   'request_delete'
 );
-DO $
+DO $proof$
 BEGIN
   BEGIN
     PERFORM public.consume_account_lifecycle_reverification(
@@ -109,7 +109,7 @@ BEGIN
     IF SQLERRM <> 'reverification_already_used' THEN RAISE; END IF;
   END;
 END;
-$;
+$proof$;
 RESET ROLE;
 
 -- A Clerk token cannot claim another account's UUID unless its subject matches
