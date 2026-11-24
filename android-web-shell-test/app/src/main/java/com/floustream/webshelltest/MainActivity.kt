@@ -24,6 +24,7 @@ import androidx.core.content.FileProvider
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import android.webkit.CookieManager
@@ -101,9 +102,10 @@ class MainActivity : ComponentActivity() {
         }
 
         voiceMessageAudioBridge.routeChangeListener = { route ->
-            if (SiteRoutePolicy.isMessagesRouteName(route)) {
-                mainHandler.post {
-                    if (!isFinishing && !isDestroyed && ::webView.isInitialized) {
+            mainHandler.post {
+                if (!isFinishing && !isDestroyed && ::webView.isInitialized) {
+                    applyAndroidWebViewCompatibility(webView)
+                    if (SiteRoutePolicy.isMessagesRouteName(route)) {
                         applyAndroidVoiceMessageRecorder(webView)
                     }
                 }
@@ -118,6 +120,8 @@ class MainActivity : ComponentActivity() {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             settings.loadsImagesAutomatically = true
+            settings.mediaPlaybackRequiresUserGesture = false
+            settings.cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
             settings.javaScriptCanOpenWindowsAutomatically = false
             settings.setSupportMultipleWindows(false)
             webViewClient = object : WebViewClient() {
@@ -225,6 +229,7 @@ class MainActivity : ComponentActivity() {
                     syncAndroidSessionContext(view)
                     applyAndroidPersistentMediaCache(view)
                     applyAndroidOfflineDataCache(view)
+                    applyAndroidWebViewCompatibility(view)
 
                     val currentUrl = url.orEmpty()
                     installAndroidRouteLifecycleHooks(view)
@@ -441,6 +446,13 @@ class MainActivity : ComponentActivity() {
                 Toast.makeText(this, "Не удалось начать загрузку файла.", Toast.LENGTH_LONG).show()
             }
         }
+
+        ViewCompat.setOnApplyWindowInsetsListener(webView) { view, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            view.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
+            insets
+        }
+        ViewCompat.requestApplyInsets(webView)
 
         inAppUpdater = InAppUpdater(this)
         setContentView(webView)
@@ -939,12 +951,13 @@ class MainActivity : ComponentActivity() {
                                                 headers[name] = value;
                                             }
                                         });
-                                        await writeCached({
+                                        // Cache writes must never hold up the live Supabase response.
+                                        writeCached({
                                             key: key,
                                             body: body,
                                             headers: headers,
                                             savedAt: Date.now()
-                                        });
+                                        }).catch(function() {});
                                     }
                                 } catch (_) {
                                     // Cache failures must never break a successful server response.
