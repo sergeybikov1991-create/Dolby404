@@ -94,6 +94,12 @@ jobs:
         working-directory: android-web-shell-test
         run: gradle --no-daemon clean :app:assembleDebug
 
+      - name: Verify Debug APK identity
+        run: |
+          APK=android-web-shell-test/app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android.debug' versionCode='107' versionName='1.7-debug'"
+
       - name: Build signed Release APK candidate
         if: steps.signing.outputs.ready == 'true'
         working-directory: android-web-shell-test
@@ -124,8 +130,8 @@ jobs:
         run: |
           APK=android-web-shell-test/app/build/outputs/apk/release/app-release.apk
           SHA=$(sha256sum "$APK" | cut -d' ' -f1)
-          printf '%s  %s\\n' "$SHA" "app-release.apk" > "$APK.sha256"
-          printf '{"versionCode":107,"versionName":"1.7","apkUrl":"https://github.com/sergeybikov1991-create/Dolby404/releases/download/v1.7/app-release.apk","sha256":"%s"}\\n' "$SHA" > android-web-shell-test/app/build/outputs/apk/release/update.json
+          printf '%s  %s\n' "$SHA" "app-release.apk" > "$APK.sha256"
+          printf '{"versionCode":107,"versionName":"1.7","apkUrl":"https://github.com/sergeybikov1991-create/Dolby404/releases/download/v1.7/app-release.apk","sha256":"%s"}\n' "$SHA" > android-web-shell-test/app/build/outputs/apk/release/update.json
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
