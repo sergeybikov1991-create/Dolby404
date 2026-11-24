@@ -85,6 +85,9 @@ jobs:
       - name: Type-check shared Clerk identity verifier
         run: deno check --node-modules-dir=auto supabase/functions/_shared/floustream-auth.ts
 
+      - name: Type-check Clerk account lifecycle draft
+        run: deno check --node-modules-dir=auto supabase/functions/_drafts/clerk-auth/account-lifecycle/index.ts
+
       - name: Test Clerk JWT verification
         run: deno test --node-modules-dir=auto supabase/functions/_shared/floustream-auth.test.ts
 
