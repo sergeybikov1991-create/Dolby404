@@ -2,13 +2,6 @@ name: FLOUSTREAM Android 2.0 Signed Release
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - feature/android-2.0-from-1.6
-    paths:
-      - "android-web-shell-test/**"
-      - ".github/workflows/android-2.0-release.yml"
-      - "APK-2.0-ROADMAP.md"
 
 permissions:
   contents: write
