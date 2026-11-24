@@ -2,12 +2,14 @@ package com.floustream.webshelltest
 
 import android.Manifest
 import android.app.AlertDialog
+import android.app.DownloadManager
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.ClipData
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
+import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
@@ -16,6 +18,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.FrameLayout
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.core.content.FileProvider
 import androidx.activity.result.ActivityResultLauncher
@@ -23,12 +26,14 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import android.webkit.CookieManager
 import android.webkit.PermissionRequest
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.URLUtil
 import android.webkit.ValueCallback
 import com.floustream.webshelltest.audio.VoiceAudioSessionCoordinator
 import com.floustream.webshelltest.audio.VoiceMessageAudioBridge
@@ -411,6 +416,42 @@ class MainActivity : ComponentActivity() {
 
                     return launchGenericFileChooser(fileChooserParams)
                 }
+            }
+        }
+
+        // Preserve website attachment downloads inside Android WebView. The site
+        // supplies signed HTTPS URLs (including Supabase Storage URLs); keep the
+        // browser session headers so private attachments download as the user.
+        webView.setDownloadListener { url, userAgent, contentDisposition, mimeType, _ ->
+            val downloadUri = runCatching { Uri.parse(url) }.getOrNull()
+            if (downloadUri?.scheme != "https") {
+                Toast.makeText(this, "Загрузка доступна только по защищённой ссылке.", Toast.LENGTH_LONG).show()
+                return@setDownloadListener
+            }
+            runCatching {
+                val fileName = URLUtil.guessFileName(url, contentDisposition, mimeType)
+                    .replace(Regex("[\\\\/:*?\"<>|]"), "_")
+                    .take(180)
+                    .ifBlank { "floustream-download" }
+                val request = DownloadManager.Request(downloadUri).apply {
+                    setTitle(fileName)
+                    setDescription("Загрузка из FLOUSTREAM")
+                    setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                    setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
+                    setAllowedOverMetered(true)
+                    setAllowedOverRoaming(true)
+                    setMimeType(mimeType?.takeIf { it.isNotBlank() } ?: "application/octet-stream")
+                    addRequestHeader("User-Agent", userAgent?.takeIf { it.isNotBlank() } ?: webView.settings.userAgentString)
+                    addRequestHeader("Referer", SITE_BASE_URL)
+                    CookieManager.getInstance().getCookie(url)?.takeIf { it.isNotBlank() }?.let {
+                        addRequestHeader("Cookie", it)
+                    }
+                }
+                val manager = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
+                manager.enqueue(request)
+                Toast.makeText(this, "Файл загружается: $fileName", Toast.LENGTH_SHORT).show()
+            }.onFailure {
+                Toast.makeText(this, "Не удалось начать загрузку файла.", Toast.LENGTH_LONG).show()
             }
         }
 
