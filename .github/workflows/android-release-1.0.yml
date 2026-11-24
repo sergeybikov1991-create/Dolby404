@@ -171,10 +171,11 @@ jobs:
       - name: Verify approved Release candidate before publication
         if: github.event_name == 'workflow_dispatch' && inputs.publish_release
         run: |
-          APK=release-candidate/app-release.apk
+          cd release-candidate
+          APK=app-release.apk
           test -s "$APK"
-          sha256sum -c release-candidate/app-release.apk.sha256
-          python -m json.tool release-candidate/update.json >/dev/null
+          sha256sum -c app-release.apk.sha256
+          python -m json.tool update.json >/dev/null
           $ANDROID_HOME/build-tools/36.0.0/apksigner verify --verbose "$APK"
           CERT_SHA=$($ANDROID_HOME/build-tools/36.0.0/apksigner verify --print-certs "$APK" | grep 'Signer #1 certificate SHA-256 digest:' | cut -d: -f2- | tr -d '[:space:]' | tr '[:lower:]' '[:upper:]')
           EXPECTED_CERT_SHA="757681105E9DFA43B84036C637815FBA0A98FB6169DADF75E7AE136504A9EED9"
