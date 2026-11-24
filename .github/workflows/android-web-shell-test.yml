@@ -1,4 +1,4 @@
-name: FLOUSTREAM Android 1.8 Debug
+name: FLOUSTREAM Android 1.9 Debug
 
 on:
   workflow_dispatch:
@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: floustream-android-1-8-debug-${{ github.ref }}
+  group: floustream-android-1-9-debug-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -41,18 +41,18 @@ jobs:
       - name: Run Android unit tests
         working-directory: android-web-shell-test
         run: gradle --no-daemon :app:testDebugUnitTest
-      - name: Build Debug 1.8 APK
+      - name: Build Debug 1.9 APK
         working-directory: android-web-shell-test
         run: gradle --no-daemon clean :app:assembleDebug
       - name: Verify Debug APK identity
         run: |
           APK=android-web-shell-test/app/build/outputs/apk/debug/app-debug.apk
           test -s "$APK"
-          $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android.debug' versionCode='108' versionName='1.8-debug'"
+          $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android.debug' versionCode='109' versionName='1.9-debug'"
       - name: Upload test APK
         uses: actions/upload-artifact@v4
         with:
-          name: FLOUSTREAM-Android-1.8-Debug
+          name: FLOUSTREAM-Android-1.9-Debug
           path: android-web-shell-test/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
