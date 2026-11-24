@@ -64,6 +64,7 @@ class LiveWebsiteStartupTest {
                     }
                 }
                 handler.post(poll)
+                handler.postDelayed({ finished.countDown() }, 75_000L)
             }
 
             assertTrue(
