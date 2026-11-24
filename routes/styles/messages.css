@@ -87,7 +87,7 @@
 .voice-mode-close,.voice-mode-action,.camera-close,.camera-mode,.camera-shutter{border:1px solid #c5a0ee;background:linear-gradient(145deg,#7650a0,#2b1a40);color:#fff;box-shadow:0 4px 10px #0009,0 0 14px #a66bff55,inset 0 1px 2px #ffffff55;cursor:pointer}
 .voice-mode-close{display:grid;place-items:center;border-radius:50%}.voice-mode-action{border-radius:999px;font-weight:800}
 .camera-capture{position:fixed;inset:0;z-index:10002;display:flex;flex-direction:column;justify-content:space-between;padding:max(16px,env(safe-area-inset-top)) 16px max(20px,env(safe-area-inset-bottom));background:#050409;color:#fff}
-.camera-capture[hidden]{display:none!important}.camera-capture video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#050409}
+.camera-capture[hidden]{display:none!important}.camera-capture video{position:absolute;inset:0;z-index:0;width:100%;height:100%;object-fit:cover;background:#050409;pointer-events:none}
 .camera-capture-top,.camera-capture-bottom{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:16px}
 .camera-capture-top{padding:8px 10px;border-radius:16px;background:#09061099;backdrop-filter:blur(10px)}
 .camera-close{width:44px;height:44px;border-radius:50%;font-size:27px}
