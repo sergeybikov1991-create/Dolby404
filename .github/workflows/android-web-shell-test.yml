@@ -1,7 +1,13 @@
-name: FLOUSTREAM Android 2.0 Debug
+name: FLOUSTREAM Android 2.0.1 Validation
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches:
+      - feature/apk-2.0-debug-from-1.8
+    paths:
+      - "android-web-shell-test/**"
+      - ".github/workflows/android-web-shell-test.yml"
   push:
     paths:
       - "android-web-shell-test/**"
@@ -11,7 +17,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: floustream-android-2-0-debug-${{ github.ref }}
+  group: floustream-android-2-0-1-validation-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -41,7 +47,7 @@ jobs:
       - name: Run Android unit tests
         working-directory: android-web-shell-test
         run: gradle --no-daemon :app:testDebugUnitTest
-      - name: Build Debug 2.0 APK
+      - name: Build Debug 2.0.1 APK
         working-directory: android-web-shell-test
         run: gradle --no-daemon clean :app:assembleDebug
       - name: Verify Android 2.0 chat fixes are present
@@ -58,22 +64,32 @@ jobs:
           for label, marker in required.items():
               if marker not in source:
                   raise SystemExit(f"Missing required fix: {label}")
-          auth_start = source.index("private fun checkSupabaseSession")
-          auth_end = source.index("private fun cancelAuthCheck", auth_start)
-          auth = source[auth_start:auth_end]
-          if "const rawSession" not in auth or "auth/v1/token?grant_type=refresh_token" not in auth or "import(moduleUrl)" in auth:
-              raise SystemExit("Android 1.8 auth/session refresh implementation was changed")
-          print("Android 2.0 chat fixes verified; Android 1.8 auth preserved.")
+          dispatch_start = source.index("private fun checkAuthSession")
+          dispatch_end = source.index("private fun checkSupabaseSession", dispatch_start)
+          dispatch = source[dispatch_start:dispatch_end]
+          clerk_start = source.index("private fun checkClerkSession")
+          clerk_end = source.index("override fun onNewIntent", clerk_start)
+          clerk_auth = source[clerk_start:clerk_end]
+          legacy_start = source.index("private fun checkSupabaseSession")
+          legacy_end = source.index("private fun checkClerkSession", legacy_start)
+          legacy_auth = source[legacy_start:legacy_end]
+          if "FLOUSTREAM_AUTH_PROVIDER" not in dispatch or "checkClerkSession(view)" not in dispatch or "checkSupabaseSession(view)" not in dispatch:
+              raise SystemExit("Android auth provider dispatcher is missing")
+          if "/rest/v1/rpc/floustream_user_id" not in source or "window.Clerk" not in source:
+              raise SystemExit("Clerk session-to-FLOUSTREAM identity bridge is missing")
+          if "auth/v1/token?grant_type=refresh_token" not in legacy_auth or "const rawSession" not in legacy_auth:
+              raise SystemExit("Supabase fallback session path was not preserved")
+          print("Android 2.0.1 Clerk identity bridge and Supabase fallback verified.")
           PY
       - name: Verify Debug APK identity
         run: |
           APK=android-web-shell-test/app/build/outputs/apk/debug/app-debug.apk
           test -s "$APK"
-          $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android.debug' versionCode='110' versionName='2.0-debug'"
+          $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android.debug' versionCode='111' versionName='2.0.1-debug'"
       - name: Upload test APK
         uses: actions/upload-artifact@v4
         with:
-          name: FLOUSTREAM-Android-2.0-Debug
+          name: FLOUSTREAM-Android-2.0.1-Debug
           path: android-web-shell-test/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14

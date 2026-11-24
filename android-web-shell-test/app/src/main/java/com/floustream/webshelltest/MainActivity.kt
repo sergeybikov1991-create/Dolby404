@@ -257,7 +257,7 @@ class MainActivity : ComponentActivity() {
                         (currentUrl.startsWith(AUTH_URL) ||
                          currentUrl.startsWith(PROFILE_URL))
                     ) {
-                        checkSupabaseSession(view)
+                        checkAuthSession(view)
                         return
                     }
 
@@ -469,22 +469,36 @@ class MainActivity : ComponentActivity() {
             WebView.setWebContentsDebuggingEnabled(true)
         }
 
-        // Keep the same HTTPS origin and Supabase localStorage used by the website.
+        // Keep the same HTTPS origin and Clerk session cookies used by the website.
         webView.loadUrl(SITE_BASE_URL)
     }
 
     /**
      * Keep Android-only caches and the voice recorder scoped to the current
-     * Supabase account without changing the website's visible UI or blocking
+     * Clerk account without changing the website's visible UI or blocking
      * public media. The website remains responsible for its own album privacy
      * and authorization rules.
      */
     private fun syncAndroidSessionContext(view: WebView?) {
         if (view == null || isFinishing || isDestroyed) return
+        view.evaluateJavascript(
+            "(window.FLOUSTREAM_AUTH_PROVIDER || 'supabase')"
+        ) { provider ->
+            if (provider?.contains("clerk") == true) {
+                syncClerkSessionContext(view)
+            } else {
+                syncSupabaseSessionContext(view)
+            }
+        }
+    }
+
+    private fun syncSupabaseSessionContext(view: WebView?) {
+        if (view == null || isFinishing || isDestroyed) return
         val bridgeToken = voiceMessageAudioBridge.javascriptToken
         val script = """
             (function() {
                 try {
+                    if (window.FLOUSTREAM_AUTH_PROVIDER === 'clerk') return;
                     if (window.__floustreamAndroidSessionContextInstalled) return;
                     window.__floustreamAndroidSessionContextInstalled = true;
                     const storageKey = 'sb-qhpobdktlbhdqsnajypr-auth-token';
@@ -541,6 +555,151 @@ class MainActivity : ComponentActivity() {
                     window.addEventListener('storage', function(event) {
                         if (event.key === storageKey || event.key === null) applyStoredSession();
                     });
+                } catch (_) {}
+            })();
+        """.trimIndent()
+        view.evaluateJavascript(script, null)
+    }
+
+    private fun syncClerkSessionContext(view: WebView?) {
+        if (view == null || isFinishing || isDestroyed) return
+        val bridgeToken = voiceMessageAudioBridge.javascriptToken
+        val script = """
+            (function() {
+                try {
+                    if (window.__floustreamAndroidSessionContextInstalled) return;
+                    if (window.FLOUSTREAM_AUTH_PROVIDER !== 'clerk') return;
+                    window.__floustreamAndroidSessionContextInstalled = true;
+
+                    const supabaseUrl = '${BuildConfig.SUPABASE_URL}';
+                    const publishableKey = '${BuildConfig.SUPABASE_PUBLISHABLE_KEY}';
+                    const bridgeToken = '$bridgeToken';
+                    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                    let sessionGeneration = 0;
+
+                    function setGuestSession() {
+                        window.__floustreamAndroidUserId = 'guest';
+                        window.__floustreamPushSession = {
+                            userId: '',
+                            accessToken: '',
+                            isAnonymous: true
+                        };
+                        try {
+                            if (window.FloustreamVoiceAudio) {
+                                window.FloustreamVoiceAudio.updateSessionUserId(bridgeToken, '');
+                            }
+                        } catch (_) {}
+                        if (window.__floustreamAndroidMediaUserChanged) {
+                            window.__floustreamAndroidMediaUserChanged();
+                        }
+                        if (window.__floustreamAndroidDataUserChanged) {
+                            window.__floustreamAndroidDataUserChanged();
+                        }
+                    }
+
+                    async function resolveClerkSession() {
+                        const clerk = window.Clerk;
+                        if (!clerk || !clerk.loaded || clerk.session === undefined) {
+                            return { state: 'pending' };
+                        }
+                        if (!clerk.session) return { state: 'unauthenticated' };
+
+                        const token = await clerk.session.getToken();
+                        if (!token) return { state: 'unauthenticated' };
+
+                        const response = await window.fetch(
+                            supabaseUrl + '/rest/v1/rpc/floustream_user_id',
+                            {
+                                method: 'POST',
+                                cache: 'no-store',
+                                headers: {
+                                    'apikey': publishableKey,
+                                    'Authorization': 'Bearer ' + token,
+                                    'Content-Type': 'application/json',
+                                    'Accept': 'application/json'
+                                },
+                                body: '{}'
+                            }
+                        );
+
+                        if (response.status === 401 || response.status === 403) {
+                            return { state: 'unauthenticated' };
+                        }
+                        if (!response.ok) return { state: 'offline' };
+
+                        const userId = await response.json();
+                        if (typeof userId !== 'string' || !uuidPattern.test(userId)) {
+                            return { state: 'unauthenticated' };
+                        }
+
+                        return {
+                            state: 'verified',
+                            userId: userId,
+                            accessToken: token
+                        };
+                    }
+
+                    window.__floustreamResolveClerkSession = resolveClerkSession;
+
+                    async function applyStoredSession() {
+                        const generation = ++sessionGeneration;
+                        try {
+                            const result = await resolveClerkSession();
+                            if (generation !== sessionGeneration || result.state === 'pending' ||
+                                result.state === 'offline') return;
+
+                            if (result.state === 'verified') {
+                                window.__floustreamAndroidUserId = result.userId;
+                                window.__floustreamPushSession = {
+                                    userId: result.userId,
+                                    accessToken: result.accessToken,
+                                    isAnonymous: false
+                                };
+                                try {
+                                    if (window.FloustreamVoiceAudio) {
+                                        window.FloustreamVoiceAudio.updateSessionUserId(
+                                            bridgeToken,
+                                            result.userId
+                                        );
+                                    }
+                                } catch (_) {}
+                            } else {
+                                setGuestSession();
+                            }
+
+                            window.__floustreamAuthCheckState = result.state;
+                            window.__floustreamAuthCheckRunning = false;
+                            if (window.__floustreamAndroidMediaUserChanged) {
+                                window.__floustreamAndroidMediaUserChanged();
+                            }
+                            if (window.__floustreamAndroidDataUserChanged) {
+                                window.__floustreamAndroidDataUserChanged();
+                            }
+                        } catch (_) {
+                            // Keep the last known user context during transient network errors.
+                        }
+                    }
+
+                    function attachClerkListener(attempt) {
+                        const clerk = window.Clerk;
+                        if (clerk && typeof clerk.addListener === 'function') {
+                            if (!window.__floustreamClerkListenerInstalled) {
+                                window.__floustreamClerkListenerInstalled = true;
+                                clerk.addListener(function() {
+                                    queueMicrotask(applyStoredSession);
+                                });
+                            }
+                            applyStoredSession();
+                            return;
+                        }
+                        if (attempt < 40) {
+                            window.setTimeout(function() {
+                                attachClerkListener(attempt + 1);
+                            }, 250);
+                        }
+                    }
+
+                    attachClerkListener(0);
                 } catch (_) {}
             })();
         """.trimIndent()
@@ -1268,6 +1427,24 @@ class MainActivity : ComponentActivity() {
      * inside ES modules, so names such as "client" and "supabaseClient" are
      * intentionally not available on the global window object.
      */
+    /**
+     * Verifies the active Clerk session through the Supabase Third-Party Auth
+     * bridge. Supabase returns the stable FLOUSTREAM UUID only when the Clerk
+     * subject and server-managed app_user_id mapping match.
+     */
+    private fun checkAuthSession(view: WebView?) {
+        if (view == null || isFinishing || isDestroyed) return
+        view.evaluateJavascript(
+            "(window.FLOUSTREAM_AUTH_PROVIDER || 'supabase')"
+        ) { provider ->
+            if (provider?.contains("clerk") == true) {
+                checkClerkSession(view)
+            } else {
+                checkSupabaseSession(view)
+            }
+        }
+    }
+
     private fun checkSupabaseSession(view: WebView?) {
         if (view == null || isFinishing || isDestroyed) return
 
@@ -1462,6 +1639,123 @@ class MainActivity : ComponentActivity() {
                     } else {
                         authCheckRunnable = Runnable {
                             checkSupabaseSession(view)
+                        }
+                        mainHandler.postDelayed(authCheckRunnable!!, AUTH_CHECK_INTERVAL_MS)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun checkClerkSession(view: WebView?) {
+        if (view == null || isFinishing || isDestroyed) return
+
+        val script = """
+            (function() {
+                try {
+                    const clerk = window.Clerk;
+                    if (!clerk || !clerk.loaded || clerk.session === undefined ||
+                        typeof window.__floustreamResolveClerkSession !== 'function') {
+                        return { state: 'pending' };
+                    }
+
+                    if (!window.__floustreamAuthCheckRunning &&
+                        !window.__floustreamAuthCheckState) {
+                        window.__floustreamAuthCheckRunning = true;
+                        window.__floustreamAuthCheckState = 'pending';
+
+                        window.__floustreamResolveClerkSession().then(function(result) {
+                            window.__floustreamAuthCheckState = result.state;
+                            if (result.state === 'verified') {
+                                window.__floustreamPushSession = {
+                                    userId: result.userId,
+                                    accessToken: result.accessToken,
+                                    isAnonymous: false
+                                };
+                            }
+                            window.__floustreamAuthCheckRunning = false;
+                        }).catch(function() {
+                            window.__floustreamAuthCheckState = 'offline';
+                            window.__floustreamAuthCheckRunning = false;
+                        });
+                    }
+
+                    return { state: window.__floustreamAuthCheckState || 'pending' };
+                } catch (_) {
+                    return { state: 'offline' };
+                }
+            })();
+        """.trimIndent()
+
+        view.evaluateJavascript(script) { result ->
+            if (isFinishing || isDestroyed || !startupAuthCheckPending) return@evaluateJavascript
+
+            val state = try {
+                JSONObject(result ?: "{}").optString("state", "pending")
+            } catch (_: Exception) {
+                "pending"
+            }
+
+            when (state) {
+                "verified" -> {
+                    cancelAuthCheck()
+                    startupAuthCheckPending = false
+                    entryResolved = true
+                    authFlowActive = false
+                    view?.evaluateJavascript(
+                        "(function(){ return window.__floustreamPushSession || {}; })()"
+                    ) { pushResult ->
+                        try {
+                            val pushSession = JSONObject(pushResult ?: "{}")
+                            authenticatedUserId = if (pushSession.optBoolean("isAnonymous", false)) {
+                                null
+                            } else {
+                                pushSession.optString("userId").takeIf { it.isNotBlank() }
+                            }
+                            voiceMessageAudioBridge.activeUserId = authenticatedUserId
+                            PushTokenRegistrar.register(
+                                this@MainActivity,
+                                pushSession.optString("userId"),
+                                pushSession.optString("accessToken")
+                            )
+                        } catch (_: Exception) {
+                            // Push registration is retried at the next authenticated startup.
+                        }
+                        if (!isFinishing && !isDestroyed) showAuthenticatedScreen(view)
+                    }
+                }
+                "unauthenticated" -> {
+                    authenticatedUserId = null
+                    voiceMessageAudioBridge.activeUserId = null
+                    cancelAuthCheck()
+                    startupAuthCheckPending = false
+                    val currentUrl = view?.url.orEmpty()
+
+                    if (currentUrl.startsWith(AUTH_URL)) {
+                        entryResolved = true
+                        authFlowActive = true
+                        view?.visibility = View.VISIBLE
+                    } else {
+                        entryResolved = false
+                        authFlowActive = false
+                        view?.stopLoading()
+                        view?.loadUrl(AUTH_URL)
+                    }
+                }
+                "offline" -> {
+                    authenticatedUserId = null
+                    voiceMessageAudioBridge.activeUserId = null
+                    cancelAuthCheck()
+                    showOfflineScreen(view)
+                }
+                else -> {
+                    authCheckAttempts++
+                    if (authCheckAttempts >= MAX_AUTH_CHECK_ATTEMPTS) {
+                        cancelAuthCheck()
+                        showOfflineScreen(view)
+                    } else {
+                        authCheckRunnable = Runnable {
+                            checkClerkSession(view)
                         }
                         mainHandler.postDelayed(authCheckRunnable!!, AUTH_CHECK_INTERVAL_MS)
                     }
