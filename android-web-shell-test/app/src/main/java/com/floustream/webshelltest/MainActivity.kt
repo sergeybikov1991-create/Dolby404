@@ -111,6 +111,8 @@ class MainActivity : ComponentActivity() {
         }
 
         webView = WebView(this).apply {
+            CookieManager.getInstance().setAcceptCookie(true)
+            CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
             visibility = View.INVISIBLE
             setBackgroundColor(android.graphics.Color.rgb(12, 14, 30))
             settings.javaScriptEnabled = true
