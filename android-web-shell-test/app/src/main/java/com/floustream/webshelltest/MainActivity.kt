@@ -1320,7 +1320,7 @@ class MainActivity : ComponentActivity() {
                 <p>Не удалось проверить подключение к серверу.<br>
                 Твоя сохранённая авторизация не сброшена.</p>
                 <p>Проверь интернет и повтори проверку.</p>
-                <button onclick="location.href='$SITE_BASE_URL'">Повторить</button>
+                <button onclick="location.href='$AUTH_URL'">Повторить</button>
               </main>
             </body>
             </html>
