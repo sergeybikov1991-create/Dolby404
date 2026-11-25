@@ -100,8 +100,9 @@ class MainActivity : ComponentActivity() {
             if (!isFinishing && !isDestroyed && ::webView.isInitialized) {
                 when {
                     SiteRoutePolicy.isPortalRouteName(route) -> {
+                        // Reset only the 1.3 check result when the SPA returns to the sign-in route.
                         webView.evaluateJavascript(
-                            "(function(){window.__floustreamAuthCheckGeneration=(Number(window.__floustreamAuthCheckGeneration||0)+1);window.__floustreamAuthCheckState=null;window.__floustreamAuthCheckLastToken=null;window.__floustreamAuthCheckRunning=false;})()",
+                            "(function(){window.__floustreamAuthCheckState=null;window.__floustreamAuthCheckRunning=false;})()",
                             null
                         )
                         authenticatedUserId = null
