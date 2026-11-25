@@ -33,6 +33,7 @@ import android.webkit.ValueCallback
 import com.floustream.webshelltest.audio.VoiceAudioSessionCoordinator
 import com.floustream.webshelltest.audio.VoiceMessageAudioBridge
 import org.json.JSONObject
+import org.json.JSONTokener
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.FileInputStream
@@ -69,6 +70,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var sessionMirrorBridge: SessionMirrorBridge
     private var sessionRestoreReloadUsed = false
     private var sessionMirrorRestoreDisabled = false
+    private var sessionMirrorRestoredThisLaunch = false
 
     private companion object {
         const val SITE_BASE_URL = "https://sergeybikov1991-create.github.io/Dolby404/"
@@ -282,6 +284,7 @@ class MainActivity : ComponentActivity() {
                     applyAndroidOfflineDataCache(view)
                     installAndroidRouteLifecycleHooks(view)
                     installAndroidSessionMirrorHook(view)
+                    snapshotSessionMirror(view)
 
                     val currentUrl = url.orEmpty()
                     val currentRoute = SiteRoutePolicy.routeName(currentUrl)
@@ -1484,6 +1487,7 @@ class MainActivity : ComponentActivity() {
                     // launch check then validates the refreshed token.
                     cancelAuthCheck()
                     startupAuthCheckPending = false
+                    sessionMirrorRestoredThisLaunch = true
                     if (!sessionRestoreReloadUsed) {
                         sessionRestoreReloadUsed = true
                         view.stopLoading()
@@ -1565,7 +1569,31 @@ class MainActivity : ComponentActivity() {
                     authCheckAttempts++
                     if (authCheckAttempts >= MAX_AUTH_CHECK_ATTEMPTS) {
                         cancelAuthCheck()
-                        showOfflineScreen(view)
+                        if (sessionMirrorRestoredThisLaunch) {
+                            // The mirrored session was accepted locally but the
+                            // server never confirmed it (for example, Supabase
+                            // rotated the refresh token elsewhere). Drop it
+                            // everywhere instead of looping or reporting a
+                            // network failure.
+                            sessionMirrorRestoreDisabled = true
+                            sessionMirrorStore.clear()
+                            authenticatedUserId = null
+                            voiceMessageAudioBridge.activeUserId = null
+                            startupAuthCheckPending = false
+                            entryResolved = false
+                            authFlowActive = false
+                            view.stopLoading()
+                            view.evaluateJavascript(
+                                "(function(){try{window.localStorage.removeItem('" +
+                                    SessionMirrorPolicy.STORAGE_KEY +
+                                    "');}catch(_){}})()",
+                                null
+                            )
+                            view.loadUrl(AUTH_URL)
+                            checkForUpdatesOnce()
+                        } else {
+                            showOfflineScreen(view)
+                        }
                     } else {
                         authCheckRunnable = Runnable {
                             checkSiteAuthSession(view)
@@ -2156,6 +2184,43 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         if (::inAppUpdater.isInitialized) inAppUpdater.onResume()
+    }
+
+    override fun onPause() {
+        // Android can kill the process right after the app leaves the
+        // foreground. Capture the live Supabase tokens before that happens.
+        if (::webView.isInitialized) snapshotSessionMirror(webView)
+        super.onPause()
+    }
+
+    /**
+     * Copies the session currently held by the website's `localStorage` into the
+     * native mirror.
+     *
+     * supabase-js rotates the refresh token while the page initializes, which
+     * can happen before [installAndroidSessionMirrorHook] is injected, so relying
+     * on the storage hook alone can leave the mirror holding an already-used
+     * refresh token. Reading the value directly on every page load and whenever
+     * the app leaves the foreground keeps the mirror on the newest token pair.
+     */
+    private fun snapshotSessionMirror(view: WebView?) {
+        if (view == null || isFinishing || isDestroyed) return
+        if (!SiteRoutePolicy.isTrustedSiteUrl(view.url)) return
+        view.evaluateJavascript(
+            "(function(){try{return window.localStorage.getItem('" +
+                SessionMirrorPolicy.STORAGE_KEY +
+                "')||'';}catch(_){return '';}})()"
+        ) { result ->
+            if (isFinishing || isDestroyed) return@evaluateJavascript
+            val raw = try {
+                JSONTokener(result ?: "").nextValue() as? String
+            } catch (_: Exception) {
+                null
+            } ?: return@evaluateJavascript
+            // An empty value means Chromium dropped the write, not that the user
+            // signed out: a real sign-out clears the mirror through the JS hook.
+            if (raw.isNotBlank()) sessionMirrorStore.save(raw)
+        }
     }
 
     private fun currentGrantedWebMediaPermissions(): Set<String> = buildSet {
