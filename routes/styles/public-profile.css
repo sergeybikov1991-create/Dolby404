@@ -228,36 +228,17 @@
 .fs-route-public-profile{background:transparent!important;background-image:none!important}
 
  
-/* Main 0.10 preview — compact outgoing friend-request state */
-.friend-cta.friend-cta--pending{
- flex:0 0 auto;
- min-width:0;
- min-height:40px;
- gap:7px;
- padding:6px 4px;
- overflow:visible;
- border:0;
- border-radius:0;
- background:transparent;
- box-shadow:none;
- color:#cbb9e7;
- font-size:12px;
- font-weight:700;
- letter-spacing:.01em;
- cursor:pointer;
+
+ 
+/* Main 0.10 preview — first state: not friends yet */
+.friend-cta.friend-cta--add{
+ flex:0 0 auto;min-width:0;min-height:44px;gap:7px;padding:7px 5px;
+ border:0;border-radius:0;background:transparent;box-shadow:none;
+ color:#e4d4ff;font-size:13px;font-weight:800;letter-spacing:.01em;
 }
-.friend-cta.friend-cta--pending:hover{filter:brightness(1.12)}
-.friend-cta.friend-cta--pending:active{transform:scale(.97);filter:brightness(1.2)}
-.friend-cta--pending [aria-hidden="true"]{display:grid;place-items:center;width:25px;height:25px;color:#d4b8ff}
-.friend-cta--pending svg{display:block;width:24px;height:24px;overflow:visible;fill:none;stroke:#c9a4ff;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 3px #a66bff99) drop-shadow(0 0 7px #8050df66)}
-.friend-cta--pending svg .friend-cta-check{stroke:#65f0b5;stroke-width:2.4;filter:drop-shadow(0 0 3px #42f0ad)}
-.friend-cta--pending .friend-cta-visible-label{white-space:nowrap;color:#cdbbe7}
-.friend-cta--pending .friend-cta-sr-only{
- position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;
- overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important;
-}
-.friend-cta.friend-cta--pending:focus-visible{outline:2px solid #a77be0;outline-offset:4px;border-radius:8px}
-@media(max-width:440px){
- .friend-cta.friend-cta--pending{min-height:38px;padding:5px 2px;font-size:11px}
- .friend-cta--pending [aria-hidden="true"],.friend-cta--pending svg{width:22px;height:22px}
-}
+.friend-cta--add [aria-hidden="true"]{display:grid;place-items:center;width:25px;height:25px;color:#d4b8ff}
+.friend-cta--add svg{display:block;width:24px;height:24px;overflow:visible;fill:none;stroke:#d4b8ff;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 3px #a66bff99) drop-shadow(0 0 7px #8050df66)}
+.friend-cta.friend-cta--add:hover{filter:brightness(1.16)}
+.friend-cta.friend-cta--add:active{transform:scale(.97)}
+.friend-cta.friend-cta--add:focus-visible{outline:2px solid #a77be0;outline-offset:4px;border-radius:8px}
+@media(max-width:440px){.friend-cta.friend-cta--add{min-height:40px;padding:6px 3px;font-size:12px}.friend-cta--add [aria-hidden="true"],.friend-cta--add svg{width:22px;height:22px}}
