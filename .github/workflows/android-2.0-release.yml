@@ -1,4 +1,4 @@
-name: FLOUSTREAM Android 2.2 Signed Release
+name: FLOUSTREAM Android 2.3 Signed Release
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: floustream-android-2-2-release
+  group: floustream-android-2-3-release
   cancel-in-progress: true
 
 jobs:
@@ -66,7 +66,7 @@ jobs:
         working-directory: android-web-shell-test
         run: gradle --no-daemon clean :app:testDebugUnitTest :app:assembleDebug
 
-      - name: Verify Android 2.2 behavior contracts
+      - name: Verify Android 2.3 behavior contracts
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -81,10 +81,14 @@ jobs:
               "Portal route visibility": "SiteRoutePolicy.isPortalRouteName(route)",
               "Login form route fallback": "document.querySelector('#email') && document.querySelector('#password')",
               "Profile route auth gate": "SiteRoutePolicy.isProfileRouteName(route)",
+              "Native session mirror snapshot": "private fun snapshotSessionMirror(view: WebView?)",
+              "Session mirror refreshed in onPause": "override fun onPause()",
           }
           for label, marker in required.items():
               if marker not in source:
                   raise SystemExit(f"Missing required fix: {label}")
+          if "snapshotSessionMirror(view)" not in source:
+              raise SystemExit("Session mirror snapshot is never called")
           auth_start = source.index("private fun checkSiteAuthSession")
           auth_end = source.index("private fun cancelAuthCheck", auth_start)
           auth = source[auth_start:auth_end]
@@ -107,7 +111,7 @@ jobs:
           site_policy = Path("android-web-shell-test/app/src/main/java/com/floustream/webshelltest/SiteRoutePolicy.kt").read_text()
           if "uri.port == -1 || uri.port == 443" not in site_policy or "uri.normalize().path != path" not in site_policy:
               raise SystemExit("Trusted site route policy was weakened")
-          print("Android 2.0 chat, route and session contracts verified.")
+          print("Android 2.3 chat, route and session contracts verified.")
           PY
 
       - name: Enable KVM for Android emulator
@@ -163,7 +167,7 @@ jobs:
             echo "Actual: ${CERT_SHA:-not-found}"
             exit 1
           fi
-          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep -F "package: name='com.floustream.android' versionCode='112' versionName='2.2'"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep -F "package: name='com.floustream.android' versionCode='113' versionName='2.3'"
 
       - name: Generate checksum and updater manifest
         shell: bash
@@ -171,12 +175,12 @@ jobs:
           APK=android-web-shell-test/app/build/outputs/apk/release/app-release.apk
           SHA=$(sha256sum "$APK" | cut -d' ' -f1)
           printf '%s  %s\n' "$SHA" "app-release.apk" > "$APK.sha256"
-          printf '{"versionCode":112,"versionName":"2.2","apkUrl":"https://github.com/sergeybikov1991-create/Dolby404/releases/download/v2.2/app-release.apk","sha256":"%s"}\n' "$SHA" > android-web-shell-test/app/build/outputs/apk/release/update.json
+          printf '{"versionCode":113,"versionName":"2.3","apkUrl":"https://github.com/sergeybikov1991-create/Dolby404/releases/download/v2.3/app-release.apk","sha256":"%s"}\n' "$SHA" > android-web-shell-test/app/build/outputs/apk/release/update.json
 
       - name: Upload signed Release assets to CI
         uses: actions/upload-artifact@v4
         with:
-          name: FLOUSTREAM-Android-2.2-Signed-Release
+          name: FLOUSTREAM-Android-2.3-Signed-Release
           path: |
             android-web-shell-test/app/build/outputs/apk/release/app-release.apk
             android-web-shell-test/app/build/outputs/apk/release/app-release.apk.sha256
@@ -184,22 +188,24 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Publish FLOUSTREAM Android 2.2 GitHub Release
-        if: github.event_name == 'push' && contains(github.event.head_commit.message, '[publish-v2.2]')
+      - name: Publish FLOUSTREAM Android 2.3 GitHub Release
+        if: github.event_name == 'push' && contains(github.event.head_commit.message, '[publish-v2.3]')
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v2.2
+          tag_name: v2.3
           target_commitish: ${{ github.sha }}
-          name: FLOUSTREAM Android 2.2
+          name: FLOUSTREAM Android 2.3
           body: |
-            FLOUSTREAM Android 2.2 — signed production Release.
+            FLOUSTREAM Android 2.3 — signed production Release.
 
-            - Source base: signed Android APK 2.1
+            - Source base: signed Android APK 2.2
             - Package: `com.floustream.android`
-            - Version: `2.2` (versionCode `112`)
+            - Version: `2.3` (versionCode `113`)
             - The existing production signing certificate is preserved.
-            - Saved sign-in now survives app restarts. The WebView can lose its asynchronous localStorage commit when Android kills the process, so supabase-js session writes are mirrored in app-private storage and restored on the next launch. The website Supabase JS client still owns every token refresh and rotation; Android never refreshes or rewrites a session.
-            - Update from the installed 2.1 app through FLOUSTREAM's in-app updater. Do not sideload a separate APK.
+            - Sign-in persistence hardening. The native mirror of the website's supabase-js session is now snapshotted straight from WebView `localStorage` after every page load and whenever the app leaves the foreground, so a refresh-token rotation that happens before the storage hook is injected can no longer leave a stale token pair in the mirror.
+            - If a restored session is not confirmed by the server, the app now clears it and opens the normal sign-in page instead of a connection error screen.
+            - The website Supabase JS client still owns every token refresh and rotation; Android never refreshes or rewrites a session.
+            - Update from the installed 2.2 app through FLOUSTREAM's in-app updater. Do not sideload a separate APK.
             - The 1.6 Release remains the rollback point.
           draft: false
           prerelease: false
