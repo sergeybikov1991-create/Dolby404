@@ -164,7 +164,7 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
           script: >-
-            cd android-web-shell-test && { gradle --no-daemon :app:connectedDebugAndroidTest; test_result=$?; adb -s emulator-5554 logcat -d -t 4000 | grep -E 'FLOUSTREAM-WebView|chromium|WebView|AndroidRuntime|net::ERR' | tail -n 120 || true; exit "$test_result"; }
+            cd android-web-shell-test && { test_result=0; gradle --no-daemon :app:connectedDebugAndroidTest || test_result=$?; adb -s emulator-5554 logcat -d | grep -E 'FLOUSTREAM-WebView|chromium|WebView|AndroidRuntime|net::ERR' | tail -n 160 || true; exit "$test_result"; }
 
       - name: Build signed Release APK
         working-directory: android-web-shell-test
