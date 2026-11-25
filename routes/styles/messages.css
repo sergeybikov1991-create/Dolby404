@@ -137,7 +137,7 @@
 .fs-route-messages .fly-antennae{animation:flou-fly-antenna 2.2s ease-in-out infinite;transform-origin:50% 100%}
 .fs-route-messages .chat-fly.is-flying{animation:flou-fly-away .72s cubic-bezier(.2,.7,.3,1) forwards}
 .fs-route-messages .chat-fly.is-flying .fly-wings path{animation:flou-fly-fast .075s linear infinite}
-@keyframes flou-fly-perch{0%,100%{translate:0 0 rotate(-1deg)}50%{translate:0 -2px rotate(1deg)}}
+@keyframes flou-fly-perch{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-2px) rotate(1deg)}}
 @keyframes flou-fly-wing{0%,88%,100%{transform:rotate(0deg)}92%{transform:rotate(-13deg)}96%{transform:rotate(8deg)}}
 @keyframes flou-fly-fast{to{transform:rotate(35deg) scaleY(.35)}}
 @keyframes flou-fly-legs{0%,100%{transform:rotate(0)}50%{transform:rotate(4deg)}}
