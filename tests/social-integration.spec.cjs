@@ -267,11 +267,16 @@ test("a friend request sent from a public profile appears in the friends inbox a
 
   await page.goto("/public-profile.html?id=peer-1");
   await expect(page.locator("#display-name")).toHaveText("Peer User");
-  await expect(page.locator("#friend-cta-label")).toHaveText("В друзья");
+  await expect(page.locator("#friend-cta")).toHaveAttribute("data-state", "add");
+  await expect(page.locator("#friend-cta")).toHaveAttribute("aria-label", "Добавить в друзья");
+  await expect(page.locator("#friend-mark circle")).toHaveCount(0);
   await expect(page.locator("#contact-cta")).toHaveAttribute("href", "messages.html?with=peer-1");
+  await expect(page.locator("#contact-cta")).toContainText("Написать");
 
   await page.locator("#friend-cta").click();
-  await expect(page.locator("#friend-cta-label")).toHaveText("Заявка отправлена");
+  await expect(page.locator("#friend-cta")).toHaveAttribute("data-state", "pending");
+  await expect(page.locator("#friend-cta")).toHaveAttribute("aria-label", "Заявка ожидает подтверждения");
+  await expect(page.locator("#friend-mark circle")).toHaveCount(1);
   await expect.poll(() => page.evaluate(() => window.__friendFlowState.friend_requests.length)).toBe(1);
 
   await page.evaluate(() => window.FloustreamRouter.navigate("friends.html"));

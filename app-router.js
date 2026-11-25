@@ -8,7 +8,7 @@ import { prefetchRouteStylesheet } from "./shared/route-styles.mjs";
     "friends.html": () => import("./routes/friends.js?v=20261124-10"),
     "portal.html": () => import("./routes/portal.js"),
     "home.html": () => import("./routes/home.js?v=20261124-10"),
-    "public-profile.html": () => import("./routes/public-profile.js?v=20261124-10"),
+    "public-profile.html": () => import("./routes/public-profile.js?v=20261125-main-1.10"),
     "messages.html": () => import("./routes/messages.js?v=20261124-13"),
     "profile.html": () => import("./routes/profile.js")
   });
