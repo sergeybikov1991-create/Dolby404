@@ -65,6 +65,10 @@ class MainActivity : ComponentActivity() {
     private var startupAuthCheckPending = false
     private var authCheckAttempts = 0
     private var authCheckRunnable: Runnable? = null
+    private lateinit var sessionMirrorStore: SessionMirrorStore
+    private lateinit var sessionMirrorBridge: SessionMirrorBridge
+    private var sessionRestoreReloadUsed = false
+    private var sessionMirrorRestoreDisabled = false
 
     private companion object {
         const val SITE_BASE_URL = "https://sergeybikov1991-create.github.io/Dolby404/"
@@ -76,6 +80,7 @@ class MainActivity : ComponentActivity() {
         const val WEB_MEDIA_PERMISSION_REQUEST_CODE = 4103
         const val MAX_AUTH_CHECK_ATTEMPTS = 50
         const val AUTH_CHECK_INTERVAL_MS = 400L
+        const val SESSION_BRIDGE_NAME = "FloustreamSession"
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -138,6 +143,9 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        sessionMirrorStore = SessionMirrorStore(this)
+        sessionMirrorBridge = SessionMirrorBridge(sessionMirrorStore)
+
         webView = WebView(this).apply {
             visibility = View.INVISIBLE
             setBackgroundColor(android.graphics.Color.rgb(12, 14, 30))
@@ -183,8 +191,10 @@ class MainActivity : ComponentActivity() {
                     val trustedSiteOrigin = SiteRoutePolicy.isTrustedSiteUrl(target)
                     if (trustedSiteOrigin) {
                         view?.addJavascriptInterface(voiceMessageAudioBridge, "FloustreamVoiceAudio")
+                        view?.addJavascriptInterface(sessionMirrorBridge, SESSION_BRIDGE_NAME)
                     } else {
                         view?.removeJavascriptInterface("FloustreamVoiceAudio")
+                        view?.removeJavascriptInterface(SESSION_BRIDGE_NAME)
                     }
 
                     if (target.startsWith(AUTH_URL)) {
@@ -271,6 +281,7 @@ class MainActivity : ComponentActivity() {
                     applyAndroidPersistentMediaCache(view)
                     applyAndroidOfflineDataCache(view)
                     installAndroidRouteLifecycleHooks(view)
+                    installAndroidSessionMirrorHook(view)
 
                     val currentUrl = url.orEmpty()
                     val currentRoute = SiteRoutePolicy.routeName(currentUrl)
@@ -1264,6 +1275,62 @@ class MainActivity : ComponentActivity() {
         view.evaluateJavascript(script, null)
     }
 
+    /**
+     * Mirrors the website's Supabase session into app-private storage.
+     *
+     * supabase-js owns the session and keeps writing it to the WebView's
+     * `localStorage`. This hook only copies those writes (and the removals that
+     * follow a sign-out) through [SessionMirrorBridge], so a process kill that
+     * happens before Chromium commits `localStorage` cannot sign the user out.
+     */
+    private fun installAndroidSessionMirrorHook(view: WebView?) {
+        if (view == null || isFinishing || isDestroyed) return
+        if (!SiteRoutePolicy.isTrustedSiteUrl(view.url)) return
+        val storageKey = SessionMirrorPolicy.STORAGE_KEY
+        val script = """
+            (function() {
+                try {
+                    if (window.__floustreamSessionMirrorInstalled) return;
+                    if (!window.$SESSION_BRIDGE_NAME) return;
+                    window.__floustreamSessionMirrorInstalled = true;
+                    const storageKey = '$storageKey';
+                    const push = function(value) {
+                        if (typeof value !== 'string' || !value) return;
+                        try { window.$SESSION_BRIDGE_NAME.save(value); } catch (_) {}
+                    };
+                    const drop = function() {
+                        try { window.$SESSION_BRIDGE_NAME.clear(); } catch (_) {}
+                    };
+                    try {
+                        const originalSetItem = Storage.prototype.setItem;
+                        Storage.prototype.setItem = function(name, value) {
+                            const result = originalSetItem.apply(this, arguments);
+                            try { if (String(name) === storageKey) push(String(value)); } catch (_) {}
+                            return result;
+                        };
+                        const originalRemoveItem = Storage.prototype.removeItem;
+                        Storage.prototype.removeItem = function(name) {
+                            const result = originalRemoveItem.apply(this, arguments);
+                            try { if (String(name) === storageKey) drop(); } catch (_) {}
+                            return result;
+                        };
+                        const originalClear = Storage.prototype.clear;
+                        Storage.prototype.clear = function() {
+                            const result = originalClear.apply(this, arguments);
+                            try { drop(); } catch (_) {}
+                            return result;
+                        };
+                    } catch (_) {}
+                    try {
+                        const current = window.localStorage.getItem(storageKey);
+                        if (current) push(current);
+                    } catch (_) {}
+                } catch (_) {}
+            })();
+        """.trimIndent()
+        view.evaluateJavascript(script, null)
+    }
+
     private fun checkForUpdatesOnce() {
         if (!updateCheckStarted && ::inAppUpdater.isInitialized) {
             updateCheckStarted = true
@@ -1277,6 +1344,18 @@ class MainActivity : ComponentActivity() {
         // Supabase JS on the FLOUSTREAM website is the only component allowed
         // to refresh/rotate the persisted session. Android only validates the
         // current access token and waits for the website client to replace it.
+        // A mirrored session is restored verbatim and never modified natively.
+        val mirroredSession = if (sessionMirrorRestoreDisabled) {
+            null
+        } else {
+            sessionMirrorStore.read()
+        }
+        val mirroredLiteral = if (mirroredSession == null) {
+            "null"
+        } else {
+            JSONObject.quote(mirroredSession)
+        }
+        val storageKey = SessionMirrorPolicy.STORAGE_KEY
         val script = """
             (function() {
                 try {
@@ -1291,8 +1370,23 @@ class MainActivity : ComponentActivity() {
 
                         (async function() {
                             try {
-                                const storageKey = 'sb-qhpobdktlbhdqsnajypr-auth-token';
-                                const rawSession = window.localStorage.getItem(storageKey);
+                                const storageKey = '$storageKey';
+                                let rawSession = window.localStorage.getItem(storageKey);
+                                if (!rawSession) {
+                                    // Chromium can lose the asynchronous
+                                    // localStorage commit when Android kills the
+                                    // process right after the session was saved.
+                                    // Restore the mirrored session and let the
+                                    // website's own client refresh it.
+                                    const mirrored = $mirroredLiteral;
+                                    if (mirrored) {
+                                        try {
+                                            window.localStorage.setItem(storageKey, mirrored);
+                                            rawSession = window.localStorage.getItem(storageKey);
+                                        } catch (_) {}
+                                        if (rawSession) return 'restored';
+                                    }
+                                }
                                 if (!rawSession) return 'unauthenticated';
 
                                 let storedSession;
@@ -1383,6 +1477,38 @@ class MainActivity : ComponentActivity() {
             }
 
             when (state) {
+                "restored" -> {
+                    // The saved session was missing from WebView storage but is
+                    // still available natively. Reload the site entry once so the
+                    // website's supabase-js picks it up and refreshes it; the next
+                    // launch check then validates the refreshed token.
+                    cancelAuthCheck()
+                    startupAuthCheckPending = false
+                    if (!sessionRestoreReloadUsed) {
+                        sessionRestoreReloadUsed = true
+                        view.stopLoading()
+                        view.loadUrl(SITE_BASE_URL)
+                    } else {
+                        // The restored session is not usable (for example, the
+                        // refresh token was revoked). Drop it everywhere and show
+                        // the normal sign-in flow instead of looping or reporting
+                        // a network failure.
+                        sessionMirrorRestoreDisabled = true
+                        authenticatedUserId = null
+                        voiceMessageAudioBridge.activeUserId = null
+                        entryResolved = false
+                        authFlowActive = false
+                        view.stopLoading()
+                        view.evaluateJavascript(
+                            "(function(){try{window.localStorage.removeItem('" +
+                                SessionMirrorPolicy.STORAGE_KEY +
+                                "');}catch(_){}})()",
+                            null
+                        )
+                        view.loadUrl(AUTH_URL)
+                        checkForUpdatesOnce()
+                    }
+                }
                 "verified" -> {
                     cancelAuthCheck()
                     startupAuthCheckPending = false
