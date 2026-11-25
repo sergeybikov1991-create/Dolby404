@@ -127,6 +127,7 @@ class MainActivity : ComponentActivity() {
             settings.loadsImagesAutomatically = true
             settings.javaScriptCanOpenWindowsAutomatically = false
             settings.setSupportMultipleWindows(false)
+            // Temporary diagnostics stay enabled until the live WebView smoke test is verified.
             webViewClient = object : WebViewClient() {
                 override fun shouldInterceptRequest(
                     view: WebView?,
