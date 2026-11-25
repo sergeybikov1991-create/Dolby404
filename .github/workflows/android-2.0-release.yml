@@ -1,10 +1,11 @@
-name: FLOUSTREAM Android 2.2 Signed Release
+name: FLOUSTREAM Android 2.4 Signed Release
 
 on:
   workflow_dispatch:
   push:
     branches:
       - feature/android-2.0-from-1.6
+      - feature/android-2.4-auth-restore-1.3
     paths:
       - "android-web-shell-test/**"
       - ".github/workflows/android-2.0-release.yml"
@@ -14,7 +15,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: floustream-android-2-2-release
+  group: floustream-android-2-4-release
   cancel-in-progress: true
 
 jobs:
@@ -66,7 +67,7 @@ jobs:
         working-directory: android-web-shell-test
         run: gradle --no-daemon clean :app:testDebugUnitTest :app:assembleDebug
 
-      - name: Verify Android 2.2 behavior contracts
+      - name: Verify Android 2.4 behavior contracts
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -81,33 +82,51 @@ jobs:
               "Portal route visibility": "SiteRoutePolicy.isPortalRouteName(route)",
               "Login form route fallback": "document.querySelector('#email') && document.querySelector('#password')",
               "Profile route auth gate": "SiteRoutePolicy.isProfileRouteName(route)",
+              "APK 1.3 successful-login screen": "Вы уже зашли",
+              "APK 1.3 Continue action": "Продолжить",
           }
           for label, marker in required.items():
               if marker not in source:
                   raise SystemExit(f"Missing required fix: {label}")
-          auth_start = source.index("private fun checkSiteAuthSession")
+
+          auth_start = source.index("private fun checkSupabaseSession")
           auth_end = source.index("private fun cancelAuthCheck", auth_start)
           auth = source[auth_start:auth_end]
-          if "auth/v1/token?grant_type=refresh_token" in auth:
-              raise SystemExit("Native Android must not refresh Supabase sessions")
-          restore_write = "window.localStorage.setItem(storageKey, mirrored)"
-          if restore_write not in auth:
-              raise SystemExit("Persisted Supabase session restore is missing")
-          if auth.count("localStorage.setItem") != 1:
-              raise SystemExit(
-                  "Native Android may only restore the mirrored Supabase session; "
-                  "it must never create or rewrite one"
-              )
-          if "sessionMirrorStore.read()" not in auth:
-              raise SystemExit("Restored session must come from the native mirror")
-          if "auth/v1/user" not in auth or "__floustreamAuthCheckLastToken" not in auth:
-              raise SystemExit("Read-only session validation and refresh handoff are missing")
-          if "__floustreamAuthCheckGeneration" not in auth:
-              raise SystemExit("Stale auth checks must be invalidated across sign-in route changes")
+          if "authClient.auth.getSession()" not in auth or "authClient.auth.getUser()" not in auth:
+              raise SystemExit("APK 1.3 Supabase session restore and server confirmation are missing")
+          if "sessionMirror" in source or "SessionMirror" in source:
+              raise SystemExit("APK 2.3 native session mirror must be completely removed")
+          if "localStorage.setItem" in auth or "auth/v1/token?grant_type=refresh_token" in auth:
+              raise SystemExit("Native Android must not restore or refresh Supabase tokens")
+          if "window.__floustreamPushSession" not in auth:
+              raise SystemExit("Authenticated user handoff for existing app features is missing")
+          if "PushTokenRegistrar.register" not in auth:
+              raise SystemExit("Existing authenticated push-token registration is missing")
+
+          profile = Path("profile.html").read_text()
+          for marker in ("persistSession:true", "autoRefreshToken:true", "storage:window.localStorage",
+                         'storageKey:"sb-qhpobdktlbhdqsnajypr-auth-token"'):
+              if marker not in profile:
+                  raise SystemExit(f"Website-owned session persistence is missing: {marker}")
+          portal = Path("portal.html").read_text()
+          for marker in ("auth.signUp(", "auth.signInWithPassword(", "auth.signInWithOtp("):
+              if marker not in portal:
+                  raise SystemExit(f"APK 1.3 registration/login/recovery flow is missing: {marker}")
+
+          if Path("android-web-shell-test/app/src/main/java/com/floustream/webshelltest/SessionMirrorStore.kt").exists():
+              raise SystemExit("Old SessionMirrorStore file still exists")
+          if Path("android-web-shell-test/app/src/main/java/com/floustream/webshelltest/SessionMirrorBridge.kt").exists():
+              raise SystemExit("Old SessionMirrorBridge file still exists")
+          if Path("android-web-shell-test/app/src/test/java/com/floustream/webshelltest/SessionMirrorPolicyTest.kt").exists():
+              raise SystemExit("Old SessionMirrorPolicyTest still exists")
+
           site_policy = Path("android-web-shell-test/app/src/main/java/com/floustream/webshelltest/SiteRoutePolicy.kt").read_text()
           if "uri.port == -1 || uri.port == 443" not in site_policy or "uri.normalize().path != path" not in site_policy:
               raise SystemExit("Trusted site route policy was weakened")
-          print("Android 2.0 chat, route and session contracts verified.")
+          build = Path("android-web-shell-test/app/build.gradle.kts").read_text()
+          if 'versionCode = 114' not in build or 'versionName = "2.4"' not in build:
+              raise SystemExit("Android APK version must be 2.4 / versionCode 114")
+          print("Android 2.4 media, voice, routing and APK 1.3 authentication contracts verified.")
           PY
 
       - name: Enable KVM for Android emulator
@@ -163,7 +182,7 @@ jobs:
             echo "Actual: ${CERT_SHA:-not-found}"
             exit 1
           fi
-          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep -F "package: name='com.floustream.android' versionCode='112' versionName='2.2'"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep -F "package: name='com.floustream.android' versionCode='114' versionName='2.4'"
 
       - name: Generate checksum and updater manifest
         shell: bash
@@ -171,12 +190,12 @@ jobs:
           APK=android-web-shell-test/app/build/outputs/apk/release/app-release.apk
           SHA=$(sha256sum "$APK" | cut -d' ' -f1)
           printf '%s  %s\n' "$SHA" "app-release.apk" > "$APK.sha256"
-          printf '{"versionCode":112,"versionName":"2.2","apkUrl":"https://github.com/sergeybikov1991-create/Dolby404/releases/download/v2.2/app-release.apk","sha256":"%s"}\n' "$SHA" > android-web-shell-test/app/build/outputs/apk/release/update.json
+          printf '{"versionCode":114,"versionName":"2.4","apkUrl":"https://github.com/sergeybikov1991-create/Dolby404/releases/download/v2.2/app-release.apk","sha256":"%s"}\n' "$SHA" > android-web-shell-test/app/build/outputs/apk/release/update.json
 
       - name: Upload signed Release assets to CI
         uses: actions/upload-artifact@v4
         with:
-          name: FLOUSTREAM-Android-2.2-Signed-Release
+          name: FLOUSTREAM-Android-2.4-Signed-Release
           path: |
             android-web-shell-test/app/build/outputs/apk/release/app-release.apk
             android-web-shell-test/app/build/outputs/apk/release/app-release.apk.sha256
@@ -184,23 +203,22 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Publish FLOUSTREAM Android 2.2 GitHub Release
-        if: github.event_name == 'push' && contains(github.event.head_commit.message, '[publish-v2.2]')
+      - name: Publish FLOUSTREAM Android 2.4 GitHub Release
+        if: github.event_name == 'push' && contains(github.event.head_commit.message, '[publish-v2.4]')
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v2.2
+          tag_name: v2.4
           target_commitish: ${{ github.sha }}
-          name: FLOUSTREAM Android 2.2
+          name: FLOUSTREAM Android 2.4
           body: |
-            FLOUSTREAM Android 2.2 — signed production Release.
+            FLOUSTREAM Android 2.4 — signed production Release.
 
-            - Source base: signed Android APK 2.1
-            - Package: `com.floustream.android`
-            - Version: `2.2` (versionCode `112`)
-            - The existing production signing certificate is preserved.
-            - Saved sign-in now survives app restarts. The WebView can lose its asynchronous localStorage commit when Android kills the process, so supabase-js session writes are mirrored in app-private storage and restored on the next launch. The website Supabase JS client still owns every token refresh and rotation; Android never refreshes or rewrites a session.
-            - Update from the installed 2.1 app through FLOUSTREAM's in-app updater. Do not sideload a separate APK.
-            - The 1.6 Release remains the rollback point.
+            - Source base: the signed Android APK 2.3 rollback point.
+            - Authentication, registration, session restoration and the successful-login confirmation flow are restored from the verified Android 1.3 source.
+            - Supabase JS remains the sole owner of session persistence in WebView localStorage and automatic token refresh. The APK 2.3 native SessionMirrorStore/SessionMirrorBridge system has been removed completely.
+            - The existing production signing certificate and all unrelated APK 2.3 chat, media, voice, cache and notification features are preserved.
+            - Update through FLOUSTREAM's in-app updater. Do not sideload a separate APK.
+            - APK 2.3 remains the rollback point.
           draft: false
           prerelease: false
           make_latest: true
