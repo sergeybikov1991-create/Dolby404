@@ -130,11 +130,11 @@ jobs:
           retention-days: 30
 
       - name: Publish public GitHub Release
-        if: steps.signing.outputs.ready == 'true' && ((github.event_name == 'workflow_dispatch' && inputs.publish_release) || (github.event_name == 'push' && github.ref == 'refs/tags/v1.4.1') || (github.event_name == 'push' && github.ref == 'refs/heads/rollback/android-1.4-inplace'))
+        if: steps.signing.outputs.ready == 'true' && ((github.event_name == 'workflow_dispatch' && inputs.publish_release) || (github.event_name == 'push' && github.ref == 'refs/tags/v1.4.1'))
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.4.1
-          name: FLOUSTREAM Android 1.4 Rollback
+          name: FLOUSTREAM Android 1.4.1
           body: |
             FLOUSTREAM Android 1.4.1. APK подписан тем же release-сертификатом, versionCode 116, versionName 1.4.1. Исправлена проверка Supabase-сессии для модульной архитектуры сайта.
             Подписанный APK, SHA-256 и манифест встроенного обновления.
