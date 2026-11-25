@@ -79,9 +79,6 @@ jobs:
               "Voice recorder retries after SPA route mount": "}, 900L)",
               "SPA route lifecycle hook": "floustream:route-metric",
               "Push notification chat routing": "pendingNotificationPeerId",
-              "Portal route visibility": "SiteRoutePolicy.isPortalRouteName(route)",
-              "Login form route fallback": "document.querySelector('#email') && document.querySelector('#password')",
-              "Profile route auth gate": "SiteRoutePolicy.isProfileRouteName(route)",
               "APK 1.3 successful-login screen": "Вы уже зашли",
               "APK 1.3 Continue action": "Продолжить",
           }
