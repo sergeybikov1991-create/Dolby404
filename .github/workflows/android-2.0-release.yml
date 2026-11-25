@@ -143,6 +143,14 @@ jobs:
           fi
           ls -l /dev/kvm
 
+      - name: Verify live FLOUSTREAM website from runner
+        run: |
+          curl --fail --location --silent --show-error --connect-timeout 10 --max-time 30 \
+            --output /tmp/floustream-home.html \
+            --write-out 'FLOUSTREAM website HTTP status: %{http_code}\n' \
+            https://sergeybikov1991-create.github.io/Dolby404/
+          grep -qi 'FLOUSTREAM' /tmp/floustream-home.html
+
       - name: Run Android WebView emulator smoke test
         timeout-minutes: 25
         uses: reactivecircus/android-emulator-runner@v2
