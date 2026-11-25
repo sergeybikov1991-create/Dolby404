@@ -43,6 +43,12 @@ class LiveWebsiteStartupTest {
                                 title: document.title,
                                 emailField: !!document.querySelector('#email'),
                                 passwordField: !!document.querySelector('#password'),
+                                authMessage: document.querySelector('#auth-message')?.textContent || '',
+                                registerDisabled: !!document.querySelector('#register-button')?.disabled,
+                                supabaseGlobal: !!(window.supabase && window.supabase.createClient),
+                                supabaseClientType: typeof supabaseClient,
+                                authCheckState: window.__floustreamAuthCheckState || '',
+                                authCheckRunning: !!window.__floustreamAuthCheckRunning,
                                 logo: document.querySelector('.logo')?.textContent || ''
                             })""".trimIndent()
                         ) { raw ->
@@ -73,7 +79,14 @@ class LiveWebsiteStartupTest {
                 finished.await(65, TimeUnit.SECONDS)
             )
             val page = snapshot.get()
-            assertTrue("Expected the visible real portal.html route, got: $page; WebView visibility=${webViewRef.get()?.visibility}", page.contains("portal.html"))
+            assertTrue(
+                "Expected the visible real portal.html route with working Supabase initialization, got: $page; WebView visibility=${webViewRef.get()?.visibility}",
+                page.contains("portal.html") &&
+                    page.contains("\"emailField\":true") &&
+                    page.contains("\"passwordField\":true") &&
+                    page.contains("\"supabaseGlobal\":true") &&
+                    page.contains("\"supabaseClientType\":\"object\"")
+            )
             assertTrue("Expected the website email field, got: $page", page.contains("\"emailField\":true"))
             assertTrue("Expected the website password field, got: $page", page.contains("\"passwordField\":true"))
             scenario.onActivity {
