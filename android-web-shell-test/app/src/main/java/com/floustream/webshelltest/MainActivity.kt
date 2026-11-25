@@ -159,7 +159,7 @@ class MainActivity : ComponentActivity() {
                 ) {
                     super.onPageStarted(view, url, favicon)
                     android.util.Log.d(
-                        "FLOUSTREAM-WebView",
+                        "FLOUSTREAM-WebView-DIAG",
                         "Main-frame navigation: host=${runCatching { android.net.Uri.parse(url).host }.getOrNull()}, path=${runCatching { android.net.Uri.parse(url).encodedPath }.getOrNull()}"
                     )
                     pendingWebMediaPermissionRequest?.deny()
@@ -245,7 +245,7 @@ class MainActivity : ComponentActivity() {
                     super.onReceivedError(view, request, error)
                     if (request?.isForMainFrame == true && !entryResolved) {
                         android.util.Log.w(
-                            "FLOUSTREAM-WebView",
+                            "FLOUSTREAM-WebView-DIAG",
                             "Main-frame load failed: host=${request.url.host}, path=${request.url.encodedPath}, code=${error?.errorCode}, description=${error?.description}"
                         )
                         showOfflineScreen(view)
@@ -260,7 +260,7 @@ class MainActivity : ComponentActivity() {
                     super.onReceivedHttpError(view, request, errorResponse)
                     if (request?.isForMainFrame == true) {
                         android.util.Log.w(
-                            "FLOUSTREAM-WebView",
+                            "FLOUSTREAM-WebView-DIAG",
                             "Main-frame HTTP response: host=${request.url.host}, path=${request.url.encodedPath}, status=${errorResponse?.statusCode}"
                         )
                     }
@@ -269,7 +269,7 @@ class MainActivity : ComponentActivity() {
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
                     android.util.Log.d(
-                        "FLOUSTREAM-WebView",
+                        "FLOUSTREAM-WebView-DIAG",
                         "Main-frame finished: host=${runCatching { android.net.Uri.parse(url).host }.getOrNull()}, path=${runCatching { android.net.Uri.parse(url).encodedPath }.getOrNull()}, title=${view?.title}"
                     )
                     this@MainActivity.title = "FLOUSTREAM"
