@@ -375,6 +375,8 @@ class MainActivity : ComponentActivity() {
         }
 
         inAppUpdater = InAppUpdater(this)
+        // Check releases immediately; updater availability must not depend on WebView redirects or login state.
+        checkForUpdatesOnce()
         setContentView(webView)
         if (BuildConfig.DEBUG) {
             WebView.setWebContentsDebuggingEnabled(true)
