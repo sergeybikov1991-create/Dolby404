@@ -150,7 +150,7 @@ test("Main 1.10 public profile route uses fresh cache keys", () => {
     "home.js": "home.css?v=20261124-10",
     "public-profile.js": "public-profile.css?v=20261125-main-1.10",
     "friends.js": "friends.css?v=20261124-10",
-    "messages.js": "messages.css?v=20261124-13"
+    "messages.js": "messages.css?v=20261125-01"
   };
   for (const [file, marker] of Object.entries(expected)) {
     const source = fs.readFileSync(path.resolve(__dirname, "..", "routes", file), "utf8");

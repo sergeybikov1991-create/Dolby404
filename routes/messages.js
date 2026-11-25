@@ -11,6 +11,7 @@ const MARKUP = `<section class="fs-route-messages">
   <button class="game-toggle" id="game-toggle" type="button" hidden>Играть</button>
  </header>
  <section class="chat">
+  <div class="chat-atmosphere" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
   <div class="messages" id="messages"><div class="empty">Подключаем сообщения…</div></div>
   <iframe class="game-frame" id="game-frame" title="Игра в длинные нарды" hidden loading="lazy"></iframe>
   <div class="notice" id="notice" aria-live="polite"></div>
@@ -30,6 +31,15 @@ const MARKUP = `<section class="fs-route-messages">
     <div class="composer-preview-list" id="attachment-preview-list"></div>
     <div class="composer-preview-count" id="attachment-preview-count"></div>
    </div>
+  <button class="chat-fly" id="chat-fly" type="button" aria-label="Муха — нажми, чтобы она улетела" title="Улететь" hidden>
+   <svg viewBox="0 0 55 42" aria-hidden="true" focusable="false">
+    <g class="fly-wings"><path d="M25 17C17 4 7 4 5 10c-2 6 8 12 20 12z"/><path d="M28 17C33 3 45 2 49 8c3 6-7 13-20 15z"/></g>
+    <g class="fly-legs" fill="none" stroke="#050505" stroke-width="1.7" stroke-linecap="round"><path d="M26 25l-7 8-6 2M30 25l-1 9-5 4M33 23l8 7 6 1M24 22l-8-4-5 1"/></g>
+    <path class="fly-body" d="M22 20c4-4 12-3 16 1 2 2 1 5-2 6l-12 1c-4 0-6-5-2-8z"/>
+    <path class="fly-head" d="M15 18c-4-1-7 2-6 5 1 3 5 4 8 2l4-3z"/>
+    <path class="fly-antennae" d="M12 18L8 12M15 18l1-7" fill="none" stroke="#050505" stroke-width="1.2" stroke-linecap="round"/>
+   </svg>
+  </button>
    <div class="composer-controls">
     <button class="attach" id="attach" type="button" aria-label="Добавить вложение" aria-expanded="false">+</button>
     <textarea id="message-input" maxlength="5000" rows="1" placeholder="Написать сообщение…" aria-label="Текст сообщения"></textarea>
@@ -57,7 +67,7 @@ const MARKUP = `<section class="fs-route-messages">
  <img id="photo-viewer-image" alt="">
 </div>
 </section>`;
-export const stylesheet = new URL("./styles/messages.css?v=20261124-13", import.meta.url).href;
+export const stylesheet = new URL("./styles/messages.css?v=20261125-01", import.meta.url).href;
 export const title = "Сообщения · FLOUSTREAM";
 
 export async function mount(root, { signal, navigate, url }) {
@@ -485,8 +495,19 @@ $("voice-mode-close").addEventListener("click",()=>{if(voiceRecording)void finis
 $("voice-mode-action").addEventListener("click",()=>{if(voiceRecording)void finishVoiceRecording(false);else if(!$("voice-mode-action").disabled)void beginVoiceRecording(true);});
 signal.addEventListener("abort",()=>{clearInterval(voiceTimer);if(voiceRecorder&&voiceRecorder.state!=="inactive")try{voiceRecorder.stop();}catch(_){}stopVoiceStream();},{once:true});
    const messageInput=$("message-input");
+   const fly=$("chat-fly");
+   let flyTimer=null,flyReturnTimer=null,flyPosition=0;
+   const flyPositions=["18%","38%","61%","79%"];
+   function clearFlyTimers(){clearTimeout(flyTimer);clearTimeout(flyReturnTimer);flyTimer=null;flyReturnTimer=null;}
+   function showFly(){if(signal.aborted||!fly)return;fly.classList.remove("is-flying");fly.hidden=false;fly.style.left=flyPositions[flyPosition++%flyPositions.length];}
+   function scheduleFlyReturn(){clearTimeout(flyReturnTimer);flyReturnTimer=setTimeout(showFly,5000);}
+   function hideFlyAndReturn(){if(!fly)return;clearTimeout(flyTimer);fly.hidden=true;fly.classList.remove("is-flying");scheduleFlyReturn();}
+   function flyAway(){if(!fly||fly.hidden)return;clearTimeout(flyReturnTimer);fly.classList.add("is-flying");flyTimer=setTimeout(()=>{fly.hidden=true;fly.classList.remove("is-flying");scheduleFlyReturn();},720);}
+   fly.addEventListener("click",flyAway);
+   flyTimer=setTimeout(showFly,5000);
+   signal.addEventListener("abort",clearFlyTimers,{once:true});
    function resizeMessageInput(){messageInput.style.height="auto";messageInput.style.height=Math.min(132,Math.max(44,messageInput.scrollHeight))+"px";messageInput.style.overflowY=messageInput.scrollHeight>132?"auto":"hidden";}
-   messageInput.addEventListener("input",resizeMessageInput);
+   messageInput.addEventListener("input",()=>{resizeMessageInput();hideFlyAndReturn();});
    messageInput.addEventListener("keydown",event=>{if(event.key==="Enter"&&!event.shiftKey){event.preventDefault();$("composer").requestSubmit();}});
    function openAttachmentMenu(open){const menu=$("attachment-menu"),button=$("attach");menu.hidden=!(open??menu.hidden);button.setAttribute("aria-expanded",String(!menu.hidden));}
    $("attach").addEventListener("click",()=>openAttachmentMenu($("attachment-menu").hidden));
