@@ -337,9 +337,23 @@ async function start(){
     const result=await client.from("friend_requests").select("id,requester_id,recipient_id,status").eq("user_low_id",low).eq("user_high_id",high).maybeSingle();
     if(result.error)throw result.error;const row=result.data;
     friendButton.disabled=false;friendButton.onclick=null;friendStatus.textContent="";
+    const sentByViewer=!!row&&row.status==="pending"&&row.requester_id===viewer.id;
+    friendButton.dataset.friendState=sentByViewer?"pending-sent":"";
+    friendButton.classList.toggle("friend-cta--pending",sentByViewer);
+    const icon=friendButton.querySelector("[aria-hidden=\\"true\\"]");
+    let visibleLabel=friendButton.querySelector(".friend-cta-visible-label");
+    if(sentByViewer){
+     icon.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="9" cy="7" r="3.5"></circle><path d="M2.8 20a6.2 6.2 0 0 1 12.4 0"></path><path class="friend-cta-check" d="m15.2 10.8 2.1 2.1 4-4.3"></path></svg>';
+     if(!visibleLabel){visibleLabel=document.createElement("span");visibleLabel.className="friend-cta-visible-label";visibleLabel.textContent="Ожидание";friendButton.insertBefore(visibleLabel,friendLabel);}
+     friendLabel.classList.add("friend-cta-sr-only");
+    }else{
+     icon.textContent="♧＋";
+     visibleLabel?.remove();
+     friendLabel.classList.remove("friend-cta-sr-only");
+    }
     if(!row){friendLabel.textContent="В друзья";friendButton.onclick=sendFriendRequest;}
     else if(row.status==="accepted"){friendLabel.textContent="Вы друзья";friendButton.disabled=true;}
-    else if(row.requester_id===viewer.id){friendLabel.textContent="Заявка отправлена";friendButton.onclick=cancelFriendRequest;}
+    else if(sentByViewer){friendLabel.textContent="Заявка отправлена";friendButton.onclick=cancelFriendRequest;}
     else{friendLabel.textContent="Принять приглашение";friendButton.onclick=acceptFriendRequest;}
    }
    async function sendFriendRequest(){
