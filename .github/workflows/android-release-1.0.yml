@@ -10,7 +10,7 @@ on:
         default: false
   push:
     branches:
-      - fix/android-updater-1.5.2
+      - fix/android-updater-1.5.1
     tags:
       - v1.5.2
     paths:
@@ -125,11 +125,11 @@ jobs:
           retention-days: 30
 
       - name: Publish public GitHub Release
-        if: steps.signing.outputs.ready == 'true' && ((github.event_name == 'workflow_dispatch' && inputs.publish_release) || (github.event_name == 'push' && (github.ref == 'refs/tags/v1.5.2' || github.ref == 'refs/heads/fix/android-updater-1.5.2')))
+        if: steps.signing.outputs.ready == 'true' && ((github.event_name == 'workflow_dispatch' && inputs.publish_release) || (github.event_name == 'push' && (github.ref == 'refs/tags/v1.5.2' || github.ref == 'refs/heads/fix/android-updater-1.5.1')))
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.5.2
-          target_commitish: fix/android-updater-1.5.2
+          target_commitish: fix/android-updater-1.5.1
           name: FLOUSTREAM Android 1.5.2
           body: |
             FLOUSTREAM Android 1.5.2. Обновлён встроенный механизм проверки релизов: резервный адрес манифеста, понятная диагностика ошибок, проверка SHA-256 перед установкой. Сохранены package id и release signing certificate.
