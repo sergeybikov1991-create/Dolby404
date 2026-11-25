@@ -1,4 +1,4 @@
-name: FLOUSTREAM Android 1.4 Rollback Release
+name: FLOUSTREAM Android 1.4.1 Release
 
 on:
   workflow_dispatch:
@@ -14,6 +14,9 @@ on:
       - feature/apk-2.0-release-fcm
       - feature/android-1.4-step1-fullscreen-video
       - rollback/android-1.4-inplace
+      - feature/android-1.4.1-auth-bridge
+    tags:
+      - v1.4.1
     paths:
       - "android-web-shell-test/**"
       - ".github/workflows/android-release-1.0.yml"
@@ -104,7 +107,7 @@ jobs:
             exit 1
           fi
           echo "APK signing certificate matches the FLOUSTREAM release passport."
-          $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android' versionCode='115' versionName='1.4'"
+          $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android' versionCode='116' versionName='1.4.1'"
 
       - name: Generate checksum and updater manifest
         if: steps.signing.outputs.ready == 'true'
@@ -112,12 +115,12 @@ jobs:
           APK=android-web-shell-test/app/build/outputs/apk/release/app-release.apk
           SHA=$(sha256sum "$APK" | cut -d' ' -f1)
           printf '%s  %s\n' "$SHA" "app-release.apk" > "$APK.sha256"
-          printf '{"versionCode":115,"versionName":"1.4","apkUrl":"https://github.com/sergeybikov1991-create/Dolby404/releases/download/v1.4-rollback/app-release.apk","sha256":"%s"}\n' "$SHA" > android-web-shell-test/app/build/outputs/apk/release/update.json
+          printf '{"versionCode":116,"versionName":"1.4.1","apkUrl":"https://github.com/sergeybikov1991-create/Dolby404/releases/download/v1.4.1/app-release.apk","sha256":"%s"}\n' "$SHA" > android-web-shell-test/app/build/outputs/apk/release/update.json
 
       - name: Upload CI artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: FLOUSTREAM-Android-1.4-Rollback-RC
+          name: FLOUSTREAM-Android-1.4.1-RC
           path: |
             android-web-shell-test/app/build/outputs/apk/debug/app-debug.apk
             android-web-shell-test/app/build/outputs/apk/release/app-release.apk
@@ -127,13 +130,13 @@ jobs:
           retention-days: 30
 
       - name: Publish public GitHub Release
-        if: steps.signing.outputs.ready == 'true' && ((github.event_name == 'workflow_dispatch' && inputs.publish_release) || (github.event_name == 'push' && github.ref == 'refs/heads/rollback/android-1.4-inplace'))
+        if: steps.signing.outputs.ready == 'true' && ((github.event_name == 'workflow_dispatch' && inputs.publish_release) || (github.event_name == 'push' && github.ref == 'refs/tags/v1.4.1') || (github.event_name == 'push' && github.ref == 'refs/heads/rollback/android-1.4-inplace'))
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.4-rollback
+          tag_name: v1.4.1
           name: FLOUSTREAM Android 1.4 Rollback
           body: |
-            Возвратный Release-пакет FLOUSTREAM 1.4 на базе исходников версии 1.4. APK собран с versionCode 115, чтобы Android разрешил обновление поверх более новых установленных версий без удаления приложения. В интерфейсе версия остаётся 1.4.
+            FLOUSTREAM Android 1.4.1. APK подписан тем же release-сертификатом, versionCode 116, versionName 1.4.1. Исправлена проверка Supabase-сессии для модульной архитектуры сайта.
             Подписанный APK, SHA-256 и манифест встроенного обновления.
           draft: false
           prerelease: false
@@ -144,4 +147,4 @@ jobs:
             android-web-shell-test/app/build/outputs/apk/release/update.json
           fail_on_unmatched_files: true
 
-# Rollback release is published only after signing, unit tests, APK identity and checksum steps pass.
+# FLOUSTREAM 1.4.1 is built on the isolated candidate branch. Public v1.4.1 publication is triggered only by an explicitly pushed v1.4.1 tag after device verification.
