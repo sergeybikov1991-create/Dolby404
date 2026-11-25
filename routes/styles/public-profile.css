@@ -205,13 +205,24 @@
 @media(prefers-reduced-motion:reduce){.contact-cta{animation:none}.contact-cta::before{animation:none;opacity:.35;transform:translateX(90%) rotate(24deg)}}
 @media(max-width:600px){.contact-cta{width:calc(100% - 28px);margin:0 14px 18px;min-height:58px}}
 
-.profile-actions{display:flex;gap:10px;width:calc(100% - 44px);max-width:650px;margin:0 22px 12px}
-.profile-actions[hidden]{display:none}.profile-actions .contact-cta{width:auto;max-width:none;min-width:0;flex:1;margin:0;padding:12px 10px;min-height:58px;font-size:14px}
-.friend-cta{position:relative;isolation:isolate;display:flex;align-items:center;justify-content:center;gap:7px;flex:1;min-width:0;min-height:58px;padding:12px 10px;overflow:hidden;border:1px solid #9b79d1;border-radius:17px;background:linear-gradient(125deg,#282044,#3b2860 55%,#20294f);box-shadow:inset 0 1px 1px #ffffff30,0 7px 20px #3d236b55,0 0 18px #8d62d733;color:#f4eaff;font-size:14px;font-weight:850;cursor:pointer;transition:transform .18s ease,filter .18s ease}
-.friend-cta span:first-child{font-size:17px;color:#d9b9ff}
-.friend-cta:active{transform:scale(.985);filter:brightness(1.18)}.friend-cta:disabled{opacity:.65;cursor:default}
-.friend-action-status{min-height:16px;margin:-5px 22px 16px;text-align:center;color:#c7a4ed;font-size:11px}
-@media(max-width:440px){.profile-actions{gap:7px}.profile-actions .contact-cta,.friend-cta{font-size:12px;padding:10px 7px;min-height:54px}}
+.profile-actions{display:flex;align-items:center;justify-content:flex-start;gap:23px;width:calc(100% - 44px);max-width:650px;margin:0 22px 22px}
+.profile-actions[hidden]{display:none}
+.profile-actions .contact-cta{width:auto;max-width:none;min-width:145px;flex:0 0 auto;margin:0;padding:12px 25px;min-height:58px;font-size:14px}
+.friend-cta{position:relative;display:grid;place-items:center;flex:0 0 43px;width:43px;height:43px;min-width:43px;min-height:43px;padding:0;overflow:visible;border:0;border-radius:0;background:transparent;box-shadow:none;color:#dedaff;cursor:pointer;transition:transform .18s ease,filter .18s ease}
+.friend-person{display:block;width:34px;height:34px;overflow:visible;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+.friend-mark{position:absolute;right:7px;top:8px;display:block;width:8.5px;height:8.5px;overflow:visible;fill:none;stroke:#a995ff;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+.friend-cta[data-state="accepted"] .friend-mark{stroke:#55d99a;filter:drop-shadow(0 0 2px #55d99a55)}
+.friend-cta:active{transform:scale(.94);filter:brightness(1.12)}
+.friend-cta:disabled{opacity:1;cursor:default}
+.friend-cta:focus-visible{outline:2px solid #a995ff;outline-offset:5px;border-radius:5px}
+.friend-cta.is-changing .friend-person{animation:friendPersonTransition .38s ease both}
+.friend-cta.is-changing .friend-mark{animation:friendMarkTransition .38s ease both}
+@keyframes friendPersonTransition{0%{transform:scale(.94);opacity:.72}65%{transform:scale(1.06)}100%{transform:scale(1);opacity:1}}
+@keyframes friendMarkTransition{0%{transform:scale(.45) rotate(-18deg);opacity:0}100%{transform:scale(1) rotate(0);opacity:1}}
+.friend-action-status{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+@media(max-width:600px){.profile-actions{gap:18px;margin:0 14px 18px;width:calc(100% - 28px)}.profile-actions .contact-cta{min-width:145px;min-height:54px;padding:10px 22px}}
+@media(max-width:440px){.profile-actions{gap:15px}.profile-actions .contact-cta{font-size:12px;padding:10px 18px;min-height:54px}}
+@media(prefers-reduced-motion:reduce){.friend-cta,.friend-cta.is-changing .friend-person,.friend-cta.is-changing .friend-mark{animation:none;transition:none}}
 
 .public-albums{display:grid;gap:18px;margin:18px 0 24px;padding:18px;border:1px solid #382b4b;border-radius:18px;background:linear-gradient(145deg,#191625,#101019)}
 .public-album-section[hidden],.public-albums[hidden]{display:none!important}
