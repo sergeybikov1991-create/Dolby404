@@ -15,6 +15,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
+import android.util.Log
 import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
 import androidx.core.content.FileProvider
@@ -132,6 +133,7 @@ class MainActivity : ComponentActivity() {
                 ) {
                     super.onPageStarted(view, url, favicon)
                     val target = url.orEmpty()
+                    Log.i("FLOUSTREAM-WebView-DIAG", "page_started url=${Uri.parse(target).host}${Uri.parse(target).encodedPath}")
                     val targetUri = Uri.parse(target)
                     val trustedSiteOrigin = targetUri.scheme == "https" &&
                         targetUri.host == "sergeybikov1991-create.github.io"
@@ -212,7 +214,12 @@ class MainActivity : ComponentActivity() {
                     error: android.webkit.WebResourceError?
                 ) {
                     super.onReceivedError(view, request, error)
+                    Log.e(
+                        "FLOUSTREAM-WebView-DIAG",
+                        "web_error mainFrame=${request?.isForMainFrame} code=${error?.errorCode} description=${error?.description} url=${request?.url?.let { it.host + it.encodedPath }}"
+                    )
                     if (request?.isForMainFrame == true && !entryResolved) {
+                        logAuthSnapshot(view, "main-frame-load-error")
                         showOfflineScreen(view)
                     }
                 }
@@ -220,6 +227,7 @@ class MainActivity : ComponentActivity() {
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
                     this@MainActivity.title = "FLOUSTREAM"
+                    Log.i("FLOUSTREAM-WebView-DIAG", "page_finished url=${url?.let { Uri.parse(it).host + Uri.parse(it).encodedPath }} title=${view?.title}")
                     applyAndroidMessageMediaStyle(view)
                     syncAndroidAlbumAccess(view)
                     applyAndroidPersistentMediaCache(view)
@@ -242,6 +250,16 @@ class MainActivity : ComponentActivity() {
                 }
             }
             webChromeClient = object : WebChromeClient() {
+                override fun onConsoleMessage(message: android.webkit.ConsoleMessage?): Boolean {
+                    if (message != null) {
+                        Log.i(
+                            "FLOUSTREAM-WebView-DIAG",
+                            "js_console level=${message.messageLevel()} line=${message.lineNumber()} source=${message.sourceId()} message=${message.message()}"
+                        )
+                    }
+                    return super.onConsoleMessage(message)
+                }
+
                 override fun onPermissionRequest(request: PermissionRequest?) {
                     if (request == null) return
                     val origin = request.origin
@@ -383,7 +401,8 @@ class MainActivity : ComponentActivity() {
         }
 
         // Keep the same HTTPS origin and Supabase localStorage used by the website.
-        webView.loadUrl(SITE_BASE_URL)
+        Log.i("FLOUSTREAM-WebView-DIAG", "startup target=portal.html version=${BuildConfig.VERSION_NAME}")
+        webView.loadUrl(AUTH_URL)
     }
 
     /**
@@ -991,110 +1010,106 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * The hosted site owns the Supabase JS client and refresh-token lifecycle.
-     * Android only reads the persisted access token and verifies it with Auth REST.
+     * Reuse the exact module-scoped Supabase singleton used by portal.js/profile.js.
+     * This avoids a second REST client and keeps refresh/session state consistent.
      */
     private fun checkSupabaseSession(view: WebView?) {
         if (view == null || isFinishing || isDestroyed) return
-        val projectRef = Uri.parse(BuildConfig.SUPABASE_URL).host
-            ?.substringBefore(".")
-            ?.takeIf { it.isNotBlank() }
-            ?: run {
-                showOfflineScreen(view)
-                return
-            }
-        val storageKeyJson = JSONObject.quote("sb-$projectRef-auth-token")
-        val supabaseUrlJson = JSONObject.quote(BuildConfig.SUPABASE_URL.trimEnd('/'))
-        val publishableKeyJson = JSONObject.quote(BuildConfig.SUPABASE_PUBLISHABLE_KEY)
         val script = """
             (function() {
-                try {
-                    const storageKey = $storageKeyJson;
-                    const supabaseUrl = $supabaseUrlJson;
-                    const publishableKey = $publishableKeyJson;
-                    if (!window.__floustreamAuthCheckRunning &&
-                        !window.__floustreamAuthCheckState) {
-                        window.__floustreamAuthCheckRunning = true;
-                        window.__floustreamAuthCheckState = 'pending';
-                        (async function() {
-                            try {
-                                let raw = window.localStorage.getItem(storageKey);
-                                if (!raw) return 'unauthenticated';
-                                let stored = JSON.parse(raw);
-                                let accessToken = stored && (stored.access_token ||
-                                    (stored.currentSession && stored.currentSession.access_token));
-                                const expiresAt = Number(stored && (stored.expires_at ||
-                                    (stored.currentSession && stored.currentSession.expires_at)) || 0);
-                                // Let the website's own Supabase client refresh a nearly
-                                // expired token. Android never refreshes or writes tokens.
-                                if (accessToken && expiresAt > 0 &&
-                                    expiresAt * 1000 <= Date.now() + 45000) {
-                                    await new Promise(resolve => setTimeout(resolve, 1800));
-                                    raw = window.localStorage.getItem(storageKey);
-                                    if (!raw) return 'unauthenticated';
-                                    stored = JSON.parse(raw);
-                                    accessToken = stored && (stored.access_token ||
-                                        (stored.currentSession && stored.currentSession.access_token));
-                                }
-                                if (!accessToken || typeof accessToken !== 'string') {
+                const log = (stage, detail) => {
+                    window.__floustreamAuthCheckStage = stage;
+                    try { console.info('[FLOUSTREAM-AUTH] ' + stage + (detail ? ' ' + detail : '')); } catch (_) {}
+                };
+                if (window.__floustreamAuthCheckRunning) {
+                    return { state: window.__floustreamAuthCheckState || 'pending',
+                             stage: window.__floustreamAuthCheckStage || 'already-running' };
+                }
+                if (!window.__floustreamAuthCheckState) {
+                    window.__floustreamAuthCheckRunning = true;
+                    window.__floustreamAuthCheckState = 'pending';
+                    (async function() {
+                        try {
+                            log('module-import');
+                            const moduleUrl = new URL('shared/supabase-client.mjs', location.origin + location.pathname.replace(/[^/]*$/, '')).href;
+                            const supabaseModule = await import(moduleUrl);
+                            if (!supabaseModule || typeof supabaseModule.getSupabaseClient !== 'function') {
+                                throw new Error('shared Supabase module does not export getSupabaseClient');
+                            }
+
+                            log('client-initialize');
+                            const client = await supabaseModule.getSupabaseClient();
+                            if (!client || !client.auth) throw new Error('Supabase client/auth unavailable');
+
+                            log('get-session');
+                            const sessionResult = await Promise.race([
+                                client.auth.getSession(),
+                                new Promise((_, reject) => setTimeout(() => reject(new Error('getSession timeout after 15000ms')), 15000))
+                            ]);
+                            if (sessionResult.error) throw sessionResult.error;
+                            const session = sessionResult.data && sessionResult.data.session;
+                            if (!session || !session.access_token) {
+                                log('no-session');
+                                return 'unauthenticated';
+                            }
+
+                            log('get-user');
+                            const userResult = await Promise.race([
+                                client.auth.getUser(),
+                                new Promise((_, reject) => setTimeout(() => reject(new Error('getUser timeout after 18000ms')), 18000))
+                            ]);
+                            if (userResult.error) {
+                                const status = Number(userResult.error.status || userResult.error.code || 0);
+                                if (status === 400 || status === 401 || status === 403) {
+                                    log('invalid-session', 'status=' + status);
                                     return 'unauthenticated';
                                 }
-                                const controller = new AbortController();
-                                const timeout = setTimeout(() => controller.abort(), 12000);
-                                let response;
-                                try {
-                                    response = await fetch(supabaseUrl + '/auth/v1/user', {
-                                        method: 'GET',
-                                        headers: {
-                                            'apikey': publishableKey,
-                                            'Authorization': 'Bearer ' + accessToken,
-                                            'Accept': 'application/json'
-                                        },
-                                        cache: 'no-store',
-                                        signal: controller.signal
-                                    });
-                                } finally {
-                                    clearTimeout(timeout);
-                                }
-                                if (response.ok) {
-                                    const user = await response.json();
-                                    if (user && user.id) {
-                                        window.__floustreamPushSession = {
-                                            userId: user.id,
-                                            accessToken: accessToken,
-                                            isAnonymous: user.is_anonymous === true
-                                        };
-                                        return 'verified';
-                                    }
-                                    return 'offline';
-                                }
-                                if (response.status === 400 || response.status === 401 ||
-                                    response.status === 403) return 'unauthenticated';
-                                return 'offline';
-                            } catch (error) {
-                                return 'offline';
+                                throw userResult.error;
                             }
-                        })().then(function(state) {
-                            window.__floustreamAuthCheckState = state;
-                            window.__floustreamAuthCheckRunning = false;
-                        }).catch(function() {
-                            window.__floustreamAuthCheckState = 'offline';
-                            window.__floustreamAuthCheckRunning = false;
-                        });
-                    }
-                    return { state: window.__floustreamAuthCheckState || 'pending' };
-                } catch (error) {
-                    return { state: 'offline' };
+                            const user = userResult.data && userResult.data.user;
+                            if (!user || !user.id) throw new Error('getUser returned no user');
+
+                            window.__floustreamPushSession = {
+                                userId: user.id,
+                                accessToken: session.access_token,
+                                isAnonymous: user.is_anonymous === true
+                            };
+                            log('verified', 'user=' + user.id);
+                            return 'verified';
+                        } catch (error) {
+                            const message = error && error.message ? error.message : String(error);
+                            const name = error && error.name ? error.name : 'Error';
+                            const status = error && error.status ? error.status : '';
+                            log('failed', 'name=' + name + ' status=' + status + ' message=' + message);
+                            window.__floustreamAuthCheckError = {
+                                name: name, status: status, message: message
+                            };
+                            return 'offline';
+                        }
+                    })().then(function(state) {
+                        window.__floustreamAuthCheckState = state;
+                        window.__floustreamAuthCheckRunning = false;
+                        log('finished', 'state=' + state);
+                    }).catch(function(error) {
+                        window.__floustreamAuthCheckError = {
+                            name: error && error.name || 'Error',
+                            message: error && error.message || String(error)
+                        };
+                        window.__floustreamAuthCheckState = 'offline';
+                        window.__floustreamAuthCheckRunning = false;
+                        log('promise-rejected', window.__floustreamAuthCheckError.message);
+                    });
                 }
+                return { state: window.__floustreamAuthCheckState || 'pending',
+                         stage: window.__floustreamAuthCheckStage || 'starting' };
             })();
         """.trimIndent()
         view.evaluateJavascript(script) { result ->
             if (isFinishing || isDestroyed || !startupAuthCheckPending) return@evaluateJavascript
-            val state = try {
-                JSONObject(result ?: "{}").optString("state", "pending")
-            } catch (_: Exception) {
-                "pending"
-            }
+            val payload = try { JSONObject(result ?: "{}") } catch (_: Exception) { JSONObject() }
+            val state = payload.optString("state", "pending")
+            val stage = payload.optString("stage", "unknown")
+            Log.i("FLOUSTREAM-WebView-DIAG", "auth_check state=$state stage=$stage attempt=$authCheckAttempts")
             when (state) {
                 "verified" -> {
                     cancelAuthCheck()
@@ -1102,23 +1117,27 @@ class MainActivity : ComponentActivity() {
                     entryResolved = true
                     authFlowActive = false
                     view.evaluateJavascript(
-                        "(function(){ return window.__floustreamPushSession || {}; })()"
+                        "(function(){ return JSON.stringify({session:window.__floustreamPushSession || null,error:window.__floustreamAuthCheckError || null,stage:window.__floustreamAuthCheckStage || null}); })()"
                     ) { pushResult ->
                         try {
-                            val pushSession = JSONObject(pushResult ?: "{}")
+                            val snapshot = JSONObject(pushResult ?: "{}")
+                            val pushSession = snapshot.optJSONObject("session") ?: JSONObject()
                             authenticatedUserId = if (pushSession.optBoolean("isAnonymous", false)) {
                                 null
                             } else {
                                 pushSession.optString("userId").takeIf { it.isNotBlank() }
                             }
                             voiceMessageAudioBridge.activeUserId = authenticatedUserId
-                            PushTokenRegistrar.register(
-                                this@MainActivity,
-                                pushSession.optString("userId"),
-                                pushSession.optString("accessToken")
-                            )
-                        } catch (_: Exception) {
-                            // Push registration is retried at the next authenticated startup.
+                            if (pushSession.has("userId")) {
+                                PushTokenRegistrar.register(
+                                    this@MainActivity,
+                                    pushSession.optString("userId"),
+                                    pushSession.optString("accessToken")
+                                )
+                            }
+                            Log.i("FLOUSTREAM-WebView-DIAG", "auth_verified userPresent=${pushSession.has("userId")} stage=${snapshot.optString("stage")}")
+                        } catch (error: Exception) {
+                            Log.e("FLOUSTREAM-WebView-DIAG", "auth_verified snapshot_error=${error.message}")
                         }
                         if (!isFinishing && !isDestroyed) showAuthenticatedScreen(view)
                     }
@@ -1129,6 +1148,7 @@ class MainActivity : ComponentActivity() {
                     cancelAuthCheck()
                     startupAuthCheckPending = false
                     val currentUrl = view.url.orEmpty()
+                    Log.i("FLOUSTREAM-WebView-DIAG", "auth_unauthenticated current=${Uri.parse(currentUrl).encodedPath}")
                     if (currentUrl.startsWith(AUTH_URL)) {
                         entryResolved = true
                         authFlowActive = true
@@ -1141,15 +1161,16 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 "offline" -> {
-                    // Preserve WebView localStorage and the saved session on network errors.
                     authenticatedUserId = null
                     voiceMessageAudioBridge.activeUserId = null
+                    logAuthSnapshot(view, "auth-offline")
                     cancelAuthCheck()
                     showOfflineScreen(view)
                 }
                 else -> {
                     authCheckAttempts++
                     if (authCheckAttempts >= MAX_AUTH_CHECK_ATTEMPTS) {
+                        logAuthSnapshot(view, "auth-poll-timeout")
                         cancelAuthCheck()
                         showOfflineScreen(view)
                     } else {
@@ -1158,6 +1179,26 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+        }
+    }
+
+    private fun logAuthSnapshot(view: WebView?, reason: String) {
+        if (view == null || isFinishing || isDestroyed) return
+        val snapshotScript = """
+            (function() {
+                return JSON.stringify({
+                    href: location.href,
+                    title: document.title,
+                    readyState: document.readyState,
+                    authStage: window.__floustreamAuthCheckStage || null,
+                    authState: window.__floustreamAuthCheckState || null,
+                    authError: window.__floustreamAuthCheckError || null,
+                    supabaseModuleLoaded: !!window.__floustreamAuthCheckStage
+                });
+            })()
+        """.trimIndent()
+        view.evaluateJavascript(snapshotScript) { raw ->
+            Log.e("FLOUSTREAM-WebView-DIAG", "snapshot reason=$reason data=$raw")
         }
     }
 
