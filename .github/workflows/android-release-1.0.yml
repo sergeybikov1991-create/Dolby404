@@ -130,10 +130,11 @@ jobs:
           retention-days: 30
 
       - name: Publish public GitHub Release
-        if: steps.signing.outputs.ready == 'true' && ((github.event_name == 'workflow_dispatch' && inputs.publish_release) || (github.event_name == 'push' && github.ref == 'refs/tags/v1.5.0'))
+        if: steps.signing.outputs.ready == 'true' && ((github.event_name == 'workflow_dispatch' && inputs.publish_release) || (github.event_name == 'push' && (github.ref == 'refs/tags/v1.5.0' || github.ref == 'refs/heads/feature/android-1.4.1-auth-bridge')))
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.5.0
+          target_commitish: feature/android-1.4.1-auth-bridge
           name: FLOUSTREAM Android 1.5
           body: |
             FLOUSTREAM Android 1.5. APK подписан тем же release-сертификатом, versionCode 117, versionName 1.5. Исправлена проверка Supabase-сессии для модульной архитектуры сайта. Публикуется как последний стабильный релиз для встроенного обновлятора.
