@@ -139,6 +139,19 @@ class MainActivity : ComponentActivity() {
                 ): WebResourceResponse? {
                     interceptNativeVoiceRecording(request)?.let { return it }
                     interceptSupabaseSdkFallback(request)?.let { return it }
+                    if (request != null) {
+                        val requestHost = request.url.host.orEmpty()
+                        if (requestHost.contains("jsdelivr.net") ||
+                            requestHost.contains("unpkg.com") ||
+                            requestHost.contains("supabase.co") ||
+                            requestHost.contains("supabase.com")
+                        ) {
+                            android.util.Log.d(
+                                "FLOUSTREAM-WebView-DIAG",
+                                "Subresource request: host=$requestHost, path=${request.url.encodedPath}, method=${request.method}"
+                            )
+                        }
+                    }
                     if (request != null && isGuestPhotoAlbumRequest(
                             request.url.encodedPath.orEmpty(),
                             request.requestHeaders
@@ -249,6 +262,12 @@ class MainActivity : ComponentActivity() {
                     error: android.webkit.WebResourceError?
                 ) {
                     super.onReceivedError(view, request, error)
+                    if (request?.isForMainFrame != true && request != null) {
+                        android.util.Log.w(
+                            "FLOUSTREAM-WebView-DIAG",
+                            "Subresource load failed: host=${request.url.host}, path=${request.url.encodedPath}, code=${error?.errorCode}, description=${error?.description}"
+                        )
+                    }
                     if (request?.isForMainFrame == true && !entryResolved) {
                         android.util.Log.w(
                             "FLOUSTREAM-WebView-DIAG",
@@ -1425,6 +1444,10 @@ class MainActivity : ComponentActivity() {
             } catch (_: Exception) {
                 "pending"
             }
+            android.util.Log.d(
+                "FLOUSTREAM-WebView-DIAG",
+                "Auth startup poll: client=$clientExpression, attempt=$authCheckAttempts, state=$state, raw=${result.orEmpty()}"
+            )
 
             when (state) {
                 "verified" -> {
@@ -1588,6 +1611,27 @@ class MainActivity : ComponentActivity() {
 
     private fun showOfflineScreen(view: WebView?) {
         if (view == null || isFinishing || isDestroyed) return
+        view.evaluateJavascript(
+            """JSON.stringify({
+                href: location.href,
+                title: document.title,
+                readyState: document.readyState,
+                authMessage: document.querySelector('#auth-message')?.textContent || '',
+                supabaseGlobal: !!(window.supabase && window.supabase.createClient),
+                supabaseClientType: typeof supabaseClient,
+                authCheckState: window.__floustreamAuthCheckState || '',
+                authCheckRunning: !!window.__floustreamAuthCheckRunning
+            })"""
+        ) { snapshot ->
+            android.util.Log.w(
+                "FLOUSTREAM-WebView-DIAG",
+                "Pre-offline page snapshot: ${snapshot.orEmpty()}"
+            )
+        }
+        android.util.Log.w(
+            "FLOUSTREAM-WebView-DIAG",
+            "Offline fallback selected: currentUrl=${view.url}, title=${view.title}, entryResolved=$entryResolved, startupAuthCheckPending=$startupAuthCheckPending"
+        )
         cancelAuthCheck()
         startupAuthCheckPending = false
         authFlowActive = false
