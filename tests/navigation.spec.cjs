@@ -143,12 +143,12 @@ test("Main 0.9 atmospheric background is visible through every dark SPA route su
 });
 
 
-test("Main 0.9 SPA route styles and router modules use fresh cache keys", () => {
+test("Main 1.10 public profile route uses fresh cache keys", () => {
   const fs = require("node:fs");
   const path = require("node:path");
   const expected = {
     "home.js": "home.css?v=20261124-10",
-    "public-profile.js": "public-profile.css?v=20261124-10",
+    "public-profile.js": "public-profile.css?v=20261125-main-1.10",
     "friends.js": "friends.css?v=20261124-10",
     "messages.js": "messages.css?v=20261124-13"
   };
@@ -157,9 +157,10 @@ test("Main 0.9 SPA route styles and router modules use fresh cache keys", () => 
     expect(source, file).toContain(marker);
   }
   const router = fs.readFileSync(path.resolve(__dirname, "..", "app-router.js"), "utf8");
-  for (const marker of ["home.js?v=20261124-10","public-profile.js?v=20261124-10","friends.js?v=20261124-10","messages.js?v=20261124-13"]) expect(router).toContain(marker);
+  for (const marker of ["home.js?v=20261124-10","public-profile.js?v=20261125-main-1.10","friends.js?v=20261124-10","messages.js?v=20261124-13"]) expect(router).toContain(marker);
   for (const page of ["home.html","portal.html","profile.html","public-profile.html","friends.html","messages.html","music.html"]) {
     const html = fs.readFileSync(path.resolve(__dirname, "..", page), "utf8");
-    expect(html, page).toContain("app-router.js?v=20261124-13");
+    const routerVersion = page === "public-profile.html" ? "app-router.js?v=20261125-main-1.10" : "app-router.js?v=20261124-13";
+    expect(html, page).toContain(routerVersion);
   }
 });
