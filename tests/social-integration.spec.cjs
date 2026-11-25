@@ -267,7 +267,9 @@ test("a friend request sent from a public profile appears in the friends inbox a
 
   await page.goto("/public-profile.html?id=peer-1");
   await expect(page.locator("#display-name")).toHaveText("Peer User");
-  await expect(page.locator("#friend-cta-label")).toHaveText("В друзья");
+  await expect(page.locator("#friend-cta-label")).toHaveText("Добавить");
+  await expect(page.locator("#friend-cta")).toHaveAttribute("data-friend-state", "add");
+  await expect(page.locator("#contact-cta")).toContainText("Написать");
   await expect(page.locator("#contact-cta")).toHaveAttribute("href", "messages.html?with=peer-1");
 
   await page.locator("#friend-cta").click();
