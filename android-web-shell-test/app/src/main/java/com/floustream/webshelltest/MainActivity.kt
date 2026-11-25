@@ -68,6 +68,7 @@ class MainActivity : ComponentActivity() {
     private var startupAuthCheckPending = false
     private var authCheckAttempts = 0
     private var authCheckRunnable: Runnable? = null
+    private var authCheckEvaluationInFlight = false
 
     private companion object {
         const val SITE_BASE_URL = "https://sergeybikov1991-create.github.io/Dolby404/"
@@ -1342,6 +1343,11 @@ class MainActivity : ComponentActivity() {
      */
     private fun checkSupabaseSession(view: WebView?, clientExpression: String) {
         if (view == null || isFinishing || isDestroyed) return
+        // GitHub Pages may deliver onPageFinished more than once for the same route.
+        // Keep one native evaluation and one retry chain so duplicate callbacks cannot
+        // consume the auth timeout twice as fast or race the visible login page.
+        if (authCheckEvaluationInFlight || authCheckRunnable != null) return
+        authCheckEvaluationInFlight = true
 
         val script = """
             (function() {
@@ -1411,6 +1417,7 @@ class MainActivity : ComponentActivity() {
         """.trimIndent()
 
         view.evaluateJavascript(script) { result ->
+            authCheckEvaluationInFlight = false
             if (isFinishing || isDestroyed || !startupAuthCheckPending) return@evaluateJavascript
 
             val state = try {
@@ -1479,6 +1486,7 @@ class MainActivity : ComponentActivity() {
                         showOfflineScreen(view)
                     } else {
                         authCheckRunnable = Runnable {
+                            authCheckRunnable = null
                             checkSupabaseSession(view, clientExpression)
                         }
                         mainHandler.postDelayed(authCheckRunnable!!, AUTH_CHECK_INTERVAL_MS)
@@ -1491,6 +1499,7 @@ class MainActivity : ComponentActivity() {
     private fun cancelAuthCheck() {
         authCheckRunnable?.let(mainHandler::removeCallbacks)
         authCheckRunnable = null
+        authCheckEvaluationInFlight = false
         authCheckAttempts = 0
     }
 
