@@ -158,6 +158,10 @@ class MainActivity : ComponentActivity() {
                     favicon: android.graphics.Bitmap?
                 ) {
                     super.onPageStarted(view, url, favicon)
+                    android.util.Log.d(
+                        "FLOUSTREAM-WebView",
+                        "Main-frame navigation: host=${runCatching { android.net.Uri.parse(url).host }.getOrNull()}, path=${runCatching { android.net.Uri.parse(url).encodedPath }.getOrNull()}"
+                    )
                     pendingWebMediaPermissionRequest?.deny()
                     pendingWebMediaPermissionRequest = null
                     val target = url.orEmpty()
