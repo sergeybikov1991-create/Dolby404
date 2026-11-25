@@ -231,9 +231,7 @@ class MainActivity : ComponentActivity() {
                         (currentUrl.startsWith(AUTH_URL) ||
                          currentUrl.startsWith(PROFILE_URL))
                     ) {
-                        val clientExpression =
-                            if (currentUrl.startsWith(PROFILE_URL)) "client" else "supabaseClient"
-                        checkSupabaseSession(view, clientExpression)
+                        checkSupabaseSession(view)
                         return
                     }
 
@@ -990,56 +988,86 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun checkSupabaseSession(view: WebView?, clientExpression: String) {
+    /**
+     * The hosted site owns the Supabase JS client and refresh-token lifecycle.
+     * Android only reads the persisted access token and verifies it with Auth REST.
+     */
+    private fun checkSupabaseSession(view: WebView?) {
         if (view == null || isFinishing || isDestroyed) return
-
+        val projectRef = Uri.parse(BuildConfig.SUPABASE_URL).host
+            ?.substringBefore(".")
+            ?.takeIf { it.isNotBlank() }
+            ?: run {
+                showOfflineScreen(view)
+                return
+            }
+        val storageKeyJson = JSONObject.quote("sb-$projectRef-auth-token")
+        val supabaseUrlJson = JSONObject.quote(BuildConfig.SUPABASE_URL.trimEnd('/'))
+        val publishableKeyJson = JSONObject.quote(BuildConfig.SUPABASE_PUBLISHABLE_KEY)
         val script = """
             (function() {
                 try {
-                    if (typeof $clientExpression === 'undefined' || !$clientExpression) {
-                        return { state: 'pending' };
-                    }
-
+                    const storageKey = $storageKeyJson;
+                    const supabaseUrl = $supabaseUrlJson;
+                    const publishableKey = $publishableKeyJson;
                     if (!window.__floustreamAuthCheckRunning &&
                         !window.__floustreamAuthCheckState) {
                         window.__floustreamAuthCheckRunning = true;
                         window.__floustreamAuthCheckState = 'pending';
-
                         (async function() {
                             try {
-                                const authClient = $clientExpression;
-                                const stored = await authClient.auth.getSession();
-                                if (stored.error) {
-                                    const storedStatus = Number(stored.error.status || 0);
-                                    if (storedStatus === 400 || storedStatus === 401 || storedStatus === 403) {
-                                        return 'unauthenticated';
+                                let raw = window.localStorage.getItem(storageKey);
+                                if (!raw) return 'unauthenticated';
+                                let stored = JSON.parse(raw);
+                                let accessToken = stored && (stored.access_token ||
+                                    (stored.currentSession && stored.currentSession.access_token));
+                                const expiresAt = Number(stored && (stored.expires_at ||
+                                    (stored.currentSession && stored.currentSession.expires_at)) || 0);
+                                // Let the website's own Supabase client refresh a nearly
+                                // expired token. Android never refreshes or writes tokens.
+                                if (accessToken && expiresAt > 0 &&
+                                    expiresAt * 1000 <= Date.now() + 45000) {
+                                    await new Promise(resolve => setTimeout(resolve, 1800));
+                                    raw = window.localStorage.getItem(storageKey);
+                                    if (!raw) return 'unauthenticated';
+                                    stored = JSON.parse(raw);
+                                    accessToken = stored && (stored.access_token ||
+                                        (stored.currentSession && stored.currentSession.access_token));
+                                }
+                                if (!accessToken || typeof accessToken !== 'string') {
+                                    return 'unauthenticated';
+                                }
+                                const controller = new AbortController();
+                                const timeout = setTimeout(() => controller.abort(), 12000);
+                                let response;
+                                try {
+                                    response = await fetch(supabaseUrl + '/auth/v1/user', {
+                                        method: 'GET',
+                                        headers: {
+                                            'apikey': publishableKey,
+                                            'Authorization': 'Bearer ' + accessToken,
+                                            'Accept': 'application/json'
+                                        },
+                                        cache: 'no-store',
+                                        signal: controller.signal
+                                    });
+                                } finally {
+                                    clearTimeout(timeout);
+                                }
+                                if (response.ok) {
+                                    const user = await response.json();
+                                    if (user && user.id) {
+                                        window.__floustreamPushSession = {
+                                            userId: user.id,
+                                            accessToken: accessToken,
+                                            isAnonymous: user.is_anonymous === true
+                                        };
+                                        return 'verified';
                                     }
                                     return 'offline';
                                 }
-                                if (!stored.data || !stored.data.session) {
-                                    return 'unauthenticated';
-                                }
-
-                                // getUser() contacts Supabase Auth; getSession() alone
-                                // only reads the local token cache.
-                                const confirmed = await authClient.auth.getUser();
-                                if (!confirmed.error && confirmed.data && confirmed.data.user) {
-                                    window.__floustreamPushSession = {
-                                        userId: confirmed.data.user.id,
-                                        accessToken: stored.data.session.access_token,
-                                        isAnonymous: confirmed.data.user.is_anonymous === true
-                                    };
-                                    return 'verified';
-                                }
-
-                                const error = confirmed.error || {};
-                                const status = Number(error.status || 0);
-                                const code = String(error.code || '').toLowerCase();
-                                if (status === 400 || status === 401 || status === 403 ||
-                                    code.includes('invalid') || code.includes('expired') ||
-                                    code.includes('not_found')) {
-                                    return 'unauthenticated';
-                                }
+                                if (response.status === 400 || response.status === 401 ||
+                                    response.status === 403) return 'unauthenticated';
                                 return 'offline';
                             } catch (error) {
                                 return 'offline';
@@ -1052,30 +1080,26 @@ class MainActivity : ComponentActivity() {
                             window.__floustreamAuthCheckRunning = false;
                         });
                     }
-
                     return { state: window.__floustreamAuthCheckState || 'pending' };
                 } catch (error) {
                     return { state: 'offline' };
                 }
             })();
         """.trimIndent()
-
         view.evaluateJavascript(script) { result ->
             if (isFinishing || isDestroyed || !startupAuthCheckPending) return@evaluateJavascript
-
             val state = try {
                 JSONObject(result ?: "{}").optString("state", "pending")
             } catch (_: Exception) {
                 "pending"
             }
-
             when (state) {
                 "verified" -> {
                     cancelAuthCheck()
                     startupAuthCheckPending = false
                     entryResolved = true
                     authFlowActive = false
-                    view?.evaluateJavascript(
+                    view.evaluateJavascript(
                         "(function(){ return window.__floustreamPushSession || {}; })()"
                     ) { pushResult ->
                         try {
@@ -1102,25 +1126,20 @@ class MainActivity : ComponentActivity() {
                     voiceMessageAudioBridge.activeUserId = null
                     cancelAuthCheck()
                     startupAuthCheckPending = false
-                    val currentUrl = view?.url.orEmpty()
-
+                    val currentUrl = view.url.orEmpty()
                     if (currentUrl.startsWith(AUTH_URL)) {
-                        // An unauthenticated visitor must stay on the login page.
-                        // Replacing portal.html with the bundled welcome page here
-                        // prevented users from ever completing their first login.
                         entryResolved = true
                         authFlowActive = true
-                        view?.visibility = View.VISIBLE
+                        view.visibility = View.VISIBLE
                     } else {
-                        // A stale/expired session on a protected profile page
-                        // should return to the sign-in screen, not the welcome loop.
                         entryResolved = false
                         authFlowActive = false
-                        view?.stopLoading()
-                        view?.loadUrl(AUTH_URL)
+                        view.stopLoading()
+                        view.loadUrl(AUTH_URL)
                     }
                 }
                 "offline" -> {
+                    // Preserve WebView localStorage and the saved session on network errors.
                     authenticatedUserId = null
                     voiceMessageAudioBridge.activeUserId = null
                     cancelAuthCheck()
@@ -1132,9 +1151,7 @@ class MainActivity : ComponentActivity() {
                         cancelAuthCheck()
                         showOfflineScreen(view)
                     } else {
-                        authCheckRunnable = Runnable {
-                            checkSupabaseSession(view, clientExpression)
-                        }
+                        authCheckRunnable = Runnable { checkSupabaseSession(view) }
                         mainHandler.postDelayed(authCheckRunnable!!, AUTH_CHECK_INTERVAL_MS)
                     }
                 }
