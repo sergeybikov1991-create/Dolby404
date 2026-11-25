@@ -240,7 +240,25 @@ class MainActivity : ComponentActivity() {
                 ) {
                     super.onReceivedError(view, request, error)
                     if (request?.isForMainFrame == true && !entryResolved) {
+                        android.util.Log.w(
+                            "FLOUSTREAM-WebView",
+                            "Main-frame load failed: host=${request.url.host}, path=${request.url.encodedPath}, code=${error?.errorCode}, description=${error?.description}"
+                        )
                         showOfflineScreen(view)
+                    }
+                }
+
+                override fun onReceivedHttpError(
+                    view: WebView?,
+                    request: WebResourceRequest?,
+                    errorResponse: android.webkit.WebResourceResponse?
+                ) {
+                    super.onReceivedHttpError(view, request, errorResponse)
+                    if (request?.isForMainFrame == true) {
+                        android.util.Log.w(
+                            "FLOUSTREAM-WebView",
+                            "Main-frame HTTP response: host=${request.url.host}, path=${request.url.encodedPath}, status=${errorResponse?.statusCode}"
+                        )
                     }
                 }
 
