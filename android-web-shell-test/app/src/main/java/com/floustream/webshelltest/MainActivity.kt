@@ -96,46 +96,25 @@ class MainActivity : ComponentActivity() {
             completeFileChooser(uris.takeIf { it.isNotEmpty() }?.toTypedArray())
         }
 
+        // Keep the 2.3 SPA route hook only for chat media/voice UI.
+        // Authentication itself follows the verified APK 1.3 page-load flow.
         voiceMessageAudioBridge.routeChangeListener = { route ->
-            if (!isFinishing && !isDestroyed && ::webView.isInitialized) {
-                when {
-                    SiteRoutePolicy.isPortalRouteName(route) -> {
-                        // Reset only the 1.3 check result when the SPA returns to the sign-in route.
-                        webView.evaluateJavascript(
-                            "(function(){window.__floustreamAuthCheckState=null;window.__floustreamAuthCheckRunning=false;})()",
-                            null
-                        )
-                        authenticatedUserId = null
-                        voiceMessageAudioBridge.activeUserId = null
-                        entryResolved = true
-                        startupAuthCheckPending = false
-                        authFlowActive = true
-                        webView.visibility = View.VISIBLE
-                        checkForUpdatesOnce()
-                    }
-                    SiteRoutePolicy.isProfileRouteName(route) -> {
-                        if ((authFlowActive || !entryResolved) && !startupAuthCheckPending) {
-                            startupAuthCheckPending = true
-                            webView.visibility = View.INVISIBLE
-                            checkSupabaseSession(webView, "client")
-                        }
-                    }
-                    SiteRoutePolicy.isMessagesRouteName(route) -> {
+            if (!isFinishing && !isDestroyed && ::webView.isInitialized &&
+                SiteRoutePolicy.isMessagesRouteName(route)
+            ) {
+                applyAndroidPhotoViewerFix(webView)
+                applyAndroidVoiceMessageRecorder(webView)
+                mainHandler.postDelayed({
+                    if (!isFinishing && !isDestroyed && ::webView.isInitialized) {
                         applyAndroidPhotoViewerFix(webView)
                         applyAndroidVoiceMessageRecorder(webView)
-                        mainHandler.postDelayed({
-                            if (!isFinishing && !isDestroyed && ::webView.isInitialized) {
-                                applyAndroidPhotoViewerFix(webView)
-                                applyAndroidVoiceMessageRecorder(webView)
-                            }
-                        }, 350L)
-                        mainHandler.postDelayed({
-                            if (!isFinishing && !isDestroyed && ::webView.isInitialized) {
-                                applyAndroidVoiceMessageRecorder(webView)
-                            }
-                        }, 900L)
                     }
-                }
+                }, 350L)
+                mainHandler.postDelayed({
+                    if (!isFinishing && !isDestroyed && ::webView.isInitialized) {
+                        applyAndroidVoiceMessageRecorder(webView)
+                    }
+                }, 900L)
             }
         }
 
@@ -1258,9 +1237,6 @@ class MainActivity : ComponentActivity() {
                     else {
                         const path = location.pathname.split('/').pop();
                         if (path) notifyNative(path);
-                    }
-                    if (document.querySelector('#email') && document.querySelector('#password')) {
-                        notifyNative('portal.html');
                     }
                 } catch (_) {}
             })();
