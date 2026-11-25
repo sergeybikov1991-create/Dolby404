@@ -38,6 +38,8 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FilterInputStream
 import java.nio.charset.StandardCharsets
+import java.net.HttpURLConnection
+import java.net.URL
 
 class MainActivity : ComponentActivity() {
     private lateinit var inAppUpdater: InAppUpdater
@@ -134,6 +136,7 @@ class MainActivity : ComponentActivity() {
                     request: WebResourceRequest?
                 ): WebResourceResponse? {
                     interceptNativeVoiceRecording(request)?.let { return it }
+                    interceptSupabaseSdkFallback(request)?.let { return it }
                     if (request != null && isGuestPhotoAlbumRequest(
                             request.url.encodedPath.orEmpty(),
                             request.requestHeaders
@@ -460,6 +463,40 @@ class MainActivity : ComponentActivity() {
 
         // Keep the same HTTPS origin and Supabase localStorage used by the website.
         webView.loadUrl(SITE_BASE_URL)
+    }
+
+    /**
+     * Keep the website's original Supabase JS URL and auth code unchanged.
+     * If WebView cannot fetch jsDelivr in a given Android network environment,
+     * retrieve the same official UMD package from Supabase's documented unpkg CDN.
+     */
+    private fun interceptSupabaseSdkFallback(request: WebResourceRequest?): WebResourceResponse? {
+        val url = request?.url?.toString().orEmpty()
+        if (!url.startsWith("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2")) return null
+        return runCatching {
+            val connection = (URL("https://unpkg.com/@supabase/supabase-js@2").openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 10_000
+                readTimeout = 20_000
+                instanceFollowRedirects = true
+                setRequestProperty("Accept", "application/javascript, */*")
+                setRequestProperty("User-Agent", "FLOUSTREAM-Android-WebView")
+            }
+            val status = connection.responseCode
+            if (status !in 200..299) {
+                connection.disconnect()
+                return@runCatching null
+            }
+            val stream = connection.inputStream
+            WebResourceResponse(
+                "application/javascript",
+                "UTF-8",
+                status,
+                "OK",
+                mapOf("Cache-Control" to "public, max-age=3600"),
+                stream
+            )
+        }.getOrNull()
     }
 
     /**
