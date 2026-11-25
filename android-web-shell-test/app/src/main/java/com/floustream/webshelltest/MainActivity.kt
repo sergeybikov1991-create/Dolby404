@@ -268,6 +268,10 @@ class MainActivity : ComponentActivity() {
 
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
+                    android.util.Log.d(
+                        "FLOUSTREAM-WebView",
+                        "Main-frame finished: host=${runCatching { android.net.Uri.parse(url).host }.getOrNull()}, path=${runCatching { android.net.Uri.parse(url).encodedPath }.getOrNull()}, title=${view?.title}"
+                    )
                     this@MainActivity.title = "FLOUSTREAM"
                     applyAndroidMessageMediaStyle(view)
                     syncAndroidAlbumAccess(view)
