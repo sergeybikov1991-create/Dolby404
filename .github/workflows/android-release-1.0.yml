@@ -1,22 +1,18 @@
-name: FLOUSTREAM Android 1.5 Release
+name: FLOUSTREAM Android 1.5.1 Release
 
 on:
   workflow_dispatch:
     inputs:
       publish_release:
-        description: "Опубликовать публичный GitHub Release v1.5.0 после проверок APK"
+        description: "Опубликовать публичный GitHub Release v1.5.1 после проверок APK"
         required: false
         type: boolean
         default: false
   push:
     branches:
-      - release/android-1.0
-      - feature/apk-2.0-release-fcm
-      - feature/android-1.4-step1-fullscreen-video
-      - rollback/android-1.4-inplace
-      - feature/android-1.4.1-auth-bridge
+      - fix/android-updater-1.5.1
     tags:
-      - v1.5.0
+      - v1.5.1
     paths:
       - "android-web-shell-test/**"
       - ".github/workflows/android-release-1.0.yml"
@@ -25,7 +21,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: floustream-android-1-4-rollback
+  group: floustream-android-updater-release
   cancel-in-progress: false
 
 jobs:
@@ -61,8 +57,7 @@ jobs:
           KEY_PASSWORD: ${{ secrets.DOLBY404_KEY_PASSWORD }}
         run: |
           if [ -z "$KEYSTORE_B64" ] || [ -z "$STORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::error::Release signing secrets are missing or empty. Configure all four repository Actions secrets before building FLOUSTREAM 1.4."
+            echo "::error::Release signing secrets are missing or empty."
             exit 1
           fi
           echo "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/floustream-release.jks"
@@ -79,7 +74,7 @@ jobs:
         working-directory: android-web-shell-test
         run: gradle --no-daemon :app:testDebugUnitTest
 
-      - name: Build Debug APK
+      - name: Build Debug APK for CI verification
         working-directory: android-web-shell-test
         run: gradle --no-daemon clean :app:assembleDebug
 
@@ -107,7 +102,7 @@ jobs:
             exit 1
           fi
           echo "APK signing certificate matches the FLOUSTREAM release passport."
-          $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android' versionCode='117' versionName='1.5'"
+          $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android' versionCode='118' versionName='1.5.1'"
 
       - name: Generate checksum and updater manifest
         if: steps.signing.outputs.ready == 'true'
@@ -115,30 +110,29 @@ jobs:
           APK=android-web-shell-test/app/build/outputs/apk/release/app-release.apk
           SHA=$(sha256sum "$APK" | cut -d' ' -f1)
           printf '%s  %s\n' "$SHA" "app-release.apk" > "$APK.sha256"
-          printf '{"versionCode":117,"versionName":"1.5","apkUrl":"https://github.com/sergeybikov1991-create/Dolby404/releases/download/v1.5.0/app-release.apk","sha256":"%s"}\n' "$SHA" > android-web-shell-test/app/build/outputs/apk/release/update.json
+          printf '{"versionCode":118,"versionName":"1.5.1","apkUrl":"https://github.com/sergeybikov1991-create/Dolby404/releases/download/v1.5.1/app-release.apk","sha256":"%s"}\n' "$SHA" > android-web-shell-test/app/build/outputs/apk/release/update.json
 
       - name: Upload CI artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: FLOUSTREAM-Android-1.5-RC
+          name: FLOUSTREAM-Android-1.5.1-RC
           path: |
             android-web-shell-test/app/build/outputs/apk/debug/app-debug.apk
             android-web-shell-test/app/build/outputs/apk/release/app-release.apk
             android-web-shell-test/app/build/outputs/apk/release/app-release.apk.sha256
             android-web-shell-test/app/build/outputs/apk/release/update.json
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 30
 
       - name: Publish public GitHub Release
-        if: steps.signing.outputs.ready == 'true' && ((github.event_name == 'workflow_dispatch' && inputs.publish_release) || (github.event_name == 'push' && (github.ref == 'refs/tags/v1.5.0' || github.ref == 'refs/heads/feature/android-1.4.1-auth-bridge')))
+        if: steps.signing.outputs.ready == 'true' && ((github.event_name == 'workflow_dispatch' && inputs.publish_release) || (github.event_name == 'push' && (github.ref == 'refs/tags/v1.5.1' || github.ref == 'refs/heads/fix/android-updater-1.5.1')))
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.5.0
-          target_commitish: feature/android-1.4.1-auth-bridge
-          name: FLOUSTREAM Android 1.5
+          tag_name: v1.5.1
+          target_commitish: fix/android-updater-1.5.1
+          name: FLOUSTREAM Android 1.5.1
           body: |
-            FLOUSTREAM Android 1.5. APK подписан тем же release-сертификатом, versionCode 117, versionName 1.5. Исправлена проверка Supabase-сессии для модульной архитектуры сайта. Публикуется как последний стабильный релиз для встроенного обновлятора.
-            Подписанный APK, SHA-256 и манифест встроенного обновления.
+            FLOUSTREAM Android 1.5.1. Обновлён встроенный механизм проверки релизов: резервный адрес манифеста, понятная диагностика ошибок, проверка SHA-256 перед установкой. Сохранены package id и release signing certificate.
           draft: false
           prerelease: false
           make_latest: true
@@ -147,5 +141,3 @@ jobs:
             android-web-shell-test/app/build/outputs/apk/release/app-release.apk.sha256
             android-web-shell-test/app/build/outputs/apk/release/update.json
           fail_on_unmatched_files: true
-
-# FLOUSTREAM 1.5 is built on the isolated Android candidate branch. Publishing tag v1.5.0 creates the latest public release and updater manifest.
