@@ -340,7 +340,7 @@ async function start(){
     const sentByViewer=!!row&&row.status==="pending"&&row.requester_id===viewer.id;
     friendButton.dataset.friendState=sentByViewer?"pending-sent":"";
     friendButton.classList.toggle("friend-cta--pending",sentByViewer);
-    const icon=friendButton.querySelector("[aria-hidden=\\"true\\"]");
+    const icon=friendButton.querySelector("[aria-hidden='true']");
     let visibleLabel=friendButton.querySelector(".friend-cta-visible-label");
     if(sentByViewer){
      icon.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="9" cy="7" r="3.5"></circle><path d="M2.8 20a6.2 6.2 0 0 1 12.4 0"></path><path class="friend-cta-check" d="m15.2 10.8 2.1 2.1 4-4.3"></path></svg>';
