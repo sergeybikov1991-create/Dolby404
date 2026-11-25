@@ -13,5 +13,21 @@ self.addEventListener("activate", event => {
   })());
 });
 
+// Open the exact conversation associated with a clicked message notification.
+self.addEventListener("notificationclick", event => {
+  event.notification.close();
+  const target = new URL(event.notification.data?.url || "messages.html", self.registration.scope);
+  if (target.origin !== self.location.origin) return;
+  event.waitUntil((async () => {
+    const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    for (const client of windows) {
+      if (typeof client.navigate === "function") await client.navigate(target.href);
+      await client.focus();
+      return;
+    }
+    await self.clients.openWindow(target.href);
+  })());
+});
+
 // Intentionally no fetch handler: HTML, scripts, styles, auth/session data,
 // Supabase API responses and media are never cached by this service worker.
