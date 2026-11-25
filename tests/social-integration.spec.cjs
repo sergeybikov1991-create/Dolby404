@@ -272,6 +272,8 @@ test("a friend request sent from a public profile appears in the friends inbox a
 
   await page.locator("#friend-cta").click();
   await expect(page.locator("#friend-cta-label")).toHaveText("Заявка отправлена");
+  await expect(page.locator("#friend-cta")).toHaveAttribute("data-friend-state", "pending-sent");
+  await expect(page.locator("#friend-cta .friend-cta-visible-label")).toHaveText("Ожидание");
   await expect.poll(() => page.evaluate(() => window.__friendFlowState.friend_requests.length)).toBe(1);
 
   await page.evaluate(() => window.FloustreamRouter.navigate("friends.html"));
