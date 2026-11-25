@@ -190,7 +190,7 @@ jobs:
           APK=android-web-shell-test/app/build/outputs/apk/release/app-release.apk
           SHA=$(sha256sum "$APK" | cut -d' ' -f1)
           printf '%s  %s\n' "$SHA" "app-release.apk" > "$APK.sha256"
-          printf '{"versionCode":114,"versionName":"2.4","apkUrl":"https://github.com/sergeybikov1991-create/Dolby404/releases/download/v2.2/app-release.apk","sha256":"%s"}\n' "$SHA" > android-web-shell-test/app/build/outputs/apk/release/update.json
+          printf '{"versionCode":114,"versionName":"2.4","apkUrl":"https://github.com/sergeybikov1991-create/Dolby404/releases/download/v2.4/app-release.apk","sha256":"%s"}\n' "$SHA" > android-web-shell-test/app/build/outputs/apk/release/update.json
 
       - name: Upload signed Release assets to CI
         uses: actions/upload-artifact@v4
