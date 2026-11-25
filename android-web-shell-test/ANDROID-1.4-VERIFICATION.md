@@ -1,6 +1,6 @@
-# FLOUSTREAM Android 1.4 — implementation and verification
+# FLOUSTREAM Android 1.4.1 — implementation and verification
 
-Release gate: publish v1.4 only after all seven checks below pass independently on the signed Release build. Do not publish a partial candidate.
+Release gate: publish v1.4.1 only after all seven checks below pass independently on the signed Release build. The native auth check reads the website-owned Supabase storage entry and verifies the access token through Auth REST; it does not access module-scoped JS clients or refresh/write tokens. Do not publish a partial candidate.
 
 ## Work items
 
@@ -26,4 +26,4 @@ Release gate: publish v1.4 only after all seven checks below pass independently 
 
 - APK 2.0 baseline commit remains immutable.
 - Website `main` branch remains untouched.
-- No public `v1.4` release until every check above is green.
+- No public `v1.4.1` release until every check above is green.
