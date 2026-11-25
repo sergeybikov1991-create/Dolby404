@@ -24,6 +24,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import android.webkit.PermissionRequest
+import android.webkit.ConsoleMessage
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -312,6 +313,16 @@ class MainActivity : ComponentActivity() {
                 }
             }
             webChromeClient = object : WebChromeClient() {
+                override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
+                    if (consoleMessage != null) {
+                        android.util.Log.d(
+                            "FLOUSTREAM-WebView-DIAG",
+                            "Console: level=${consoleMessage.messageLevel()}, source=${consoleMessage.sourceId()}, line=${consoleMessage.lineNumber()}, message=${consoleMessage.message()}"
+                        )
+                    }
+                    return true
+                }
+
                 override fun onPermissionRequest(request: PermissionRequest?) {
                     if (request == null) return
                     val origin = request.origin
@@ -461,8 +472,10 @@ class MainActivity : ComponentActivity() {
             WebView.setWebContentsDebuggingEnabled(true)
         }
 
-        // Keep the same HTTPS origin and Supabase localStorage used by the website.
-        webView.loadUrl(SITE_BASE_URL)
+        // Open the real portal directly. The hosted root splash currently throws a
+        // JavaScript error before routing; portal.html owns the same Supabase
+        // localStorage and can restore an existing session before showing login.
+        webView.loadUrl(AUTH_URL)
     }
 
     /**
@@ -473,6 +486,7 @@ class MainActivity : ComponentActivity() {
     private fun interceptSupabaseSdkFallback(request: WebResourceRequest?): WebResourceResponse? {
         val url = request?.url?.toString().orEmpty()
         if (!url.startsWith("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2")) return null
+        android.util.Log.d("FLOUSTREAM-WebView-DIAG", "Supabase SDK fallback requested")
         return runCatching {
             val connection = (URL("https://unpkg.com/@supabase/supabase-js@2").openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
@@ -483,6 +497,7 @@ class MainActivity : ComponentActivity() {
                 setRequestProperty("User-Agent", "FLOUSTREAM-Android-WebView")
             }
             val status = connection.responseCode
+            android.util.Log.d("FLOUSTREAM-WebView-DIAG", "Supabase SDK fallback HTTP status=$status")
             if (status !in 200..299) {
                 connection.disconnect()
                 return@runCatching null
@@ -495,6 +510,11 @@ class MainActivity : ComponentActivity() {
                 "OK",
                 mapOf("Cache-Control" to "public, max-age=3600"),
                 stream
+            )
+        }.onFailure { error ->
+            android.util.Log.w(
+                "FLOUSTREAM-WebView-DIAG",
+                "Supabase SDK fallback failed: ${error.javaClass.simpleName}"
             )
         }.getOrNull()
     }
