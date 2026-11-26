@@ -57,6 +57,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var connectionWebView: WebView
     @Volatile private var connectionProbeInFlight = false
     @Volatile private var connectionPageReady = false
+    private val connectionDiagnosticLock = Any()
+    private var connectionDiagnostic = JSONObject()
     private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
     private var pendingCaptureUri: Uri? = null
     private var pendingCaptureFile: File? = null
@@ -122,6 +124,26 @@ class MainActivity : ComponentActivity() {
         @JavascriptInterface
         fun retry() {
             runOnUiThread { startConnectionProbe() }
+        }
+
+        @JavascriptInterface
+        fun saveDiagnostic(): String {
+            return try {
+                val saved = saveConnectionDiagnosticReport()
+                runOnUiThread {
+                    if (!isFinishing && !isDestroyed) {
+                        try {
+                            shareConnectionDiagnosticReport(saved.second, saved.first)
+                        } catch (error: Exception) {
+                            Log.e("FLOUSTREAM-CONNECT", "diagnostic_share_failed type=${error.javaClass.simpleName}")
+                        }
+                    }
+                }
+                saved.first
+            } catch (error: Exception) {
+                Log.e("FLOUSTREAM-CONNECT", "diagnostic_save_failed type=${error.javaClass.simpleName}")
+                "ERROR"
+            }
         }
     }
 
@@ -548,6 +570,96 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun beginConnectionDiagnostic() {
+        val now = System.currentTimeMillis()
+        val code = "FS-" +
+            java.text.SimpleDateFormat("yyMMdd-HHmmss", java.util.Locale.US).format(java.util.Date(now)) +
+            "-" + java.util.UUID.randomUUID().toString().take(8).uppercase(java.util.Locale.US)
+        val connectivity = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val activeNetwork = connectivity.activeNetwork
+        val capabilities = activeNetwork?.let { connectivity.getNetworkCapabilities(it) }
+        val transport = when {
+            capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true -> "wifi"
+            capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true -> "cellular"
+            capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) == true -> "ethernet"
+            capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true -> "vpn"
+            else -> "other_or_unknown"
+        }
+        val network = JSONObject()
+            .put("transport", transport)
+            .put("hasInternetCapability", capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true)
+            .put("isValidated", capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true)
+            .put("isCaptivePortal", capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_CAPTIVE_PORTAL) == true)
+            .put("isMetered", connectivity.isActiveNetworkMetered)
+        val report = JSONObject()
+            .put("diagnosticCode", code)
+            .put("createdAtUtc", java.time.Instant.ofEpochMilli(now).toString())
+            .put("appVersion", BuildConfig.VERSION_NAME)
+            .put("applicationId", BuildConfig.APPLICATION_ID)
+            .put("androidVersion", android.os.Build.VERSION.RELEASE ?: "unknown")
+            .put("androidApi", android.os.Build.VERSION.SDK_INT)
+            .put("manufacturer", android.os.Build.MANUFACTURER ?: "unknown")
+            .put("deviceModel", android.os.Build.MODEL ?: "unknown")
+            .put("locale", java.util.Locale.getDefault().toLanguageTag())
+            .put("timeZone", java.util.TimeZone.getDefault().id)
+            .put("serverHost", Uri.parse(SITE_BASE_URL).host ?: "unknown")
+            .put("network", network)
+            .put("checks", org.json.JSONArray())
+        synchronized(connectionDiagnosticLock) {
+            connectionDiagnostic = report
+        }
+        recordConnectionDiagnostic("internet", "started")
+    }
+
+    private fun recordConnectionDiagnostic(
+        stage: String,
+        status: String,
+        details: JSONObject = JSONObject()
+    ) {
+        synchronized(connectionDiagnosticLock) {
+            if (!connectionDiagnostic.has("checks")) return
+            val entry = JSONObject()
+                .put("stage", stage)
+                .put("status", status)
+                .put("timeUtc", java.time.Instant.now().toString())
+                .put("details", details)
+            connectionDiagnostic.optJSONArray("checks")?.put(entry)
+            connectionDiagnostic.put("updatedAtUtc", java.time.Instant.now().toString())
+        }
+    }
+
+    private fun saveConnectionDiagnosticReport(): Pair<String, File> {
+        val snapshot = synchronized(connectionDiagnosticLock) {
+            JSONObject(connectionDiagnostic.toString())
+        }
+        if (!snapshot.has("diagnosticCode")) {
+            beginConnectionDiagnostic()
+            return saveConnectionDiagnosticReport()
+        }
+        val code = snapshot.optString("diagnosticCode", "FS-UNKNOWN")
+        snapshot.put("savedAtUtc", java.time.Instant.now().toString())
+        val directory = File(filesDir, "diagnostics").apply { mkdirs() }
+        val reportFile = File(directory, "$code.json")
+        reportFile.writeText(snapshot.toString(2), Charsets.UTF_8)
+        return code to reportFile
+    }
+
+    private fun shareConnectionDiagnosticReport(reportFile: File, code: String) {
+        val uri = FileProvider.getUriForFile(
+            this,
+            "${BuildConfig.APPLICATION_ID}.fileprovider",
+            reportFile
+        )
+        val sendIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "application/json"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            putExtra(Intent.EXTRA_TEXT, "FLOUSTREAM: диагностический код $code")
+            clipData = ClipData.newUri(contentResolver, "FLOUSTREAM diagnostic report", uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        startActivity(Intent.createChooser(sendIntent, "Отправить отчёт диагностики"))
+    }
+
     /**
      * First test uses only the app's existing HTTPS entry route.
      * The site's own Supabase client then performs the real Auth session check.
@@ -558,6 +670,7 @@ class MainActivity : ComponentActivity() {
         ) return
 
         connectionProbeInFlight = true
+        beginConnectionDiagnostic()
         connectionWebView.visibility = View.VISIBLE
         webView.visibility = View.INVISIBLE
         setConnectionStage("internet", "Проверка", "Проверяем интернет-соединение…", 8)
@@ -573,6 +686,7 @@ class MainActivity : ComponentActivity() {
                 ) {
                     throw IllegalStateException("Интернет-соединение недоступно")
                 }
+                recordConnectionDiagnostic("internet", "ok")
 
                 setConnectionStage("internet", "Проверка", "Сеть обнаружена. Проверяем доступ к серверу…", 24)
                 failedStage = "dns"
@@ -582,11 +696,19 @@ class MainActivity : ComponentActivity() {
                     ?: throw IllegalStateException("Не задан адрес основного сервера")
                 val addresses = InetAddress.getAllByName(host)
                 if (addresses.isEmpty()) throw IllegalStateException("DNS не вернул адрес сервера")
+                val resolvedAddressList = org.json.JSONArray()
+                addresses.forEach { resolvedAddressList.put(it.hostAddress ?: "") }
+                recordConnectionDiagnostic(
+                    "dns",
+                    "ok",
+                    JSONObject().put("host", host).put("addresses", resolvedAddressList)
+                )
                 Log.i("FLOUSTREAM-CONNECT", "dns_resolved host=$host addressCount=${addresses.size}")
                 setConnectionStage("dns", "Готово", "DNS ответил", 58)
 
                 failedStage = "server"
                 setConnectionStage("server", "Проверка", "Проверяем основной шлюз…", 68)
+                val requestStartedAt = System.currentTimeMillis()
                 val connection = (URL(AUTH_URL).openConnection() as HttpURLConnection).apply {
                     requestMethod = "GET"
                     connectTimeout = 8000
@@ -599,6 +721,14 @@ class MainActivity : ComponentActivity() {
                 } finally {
                     connection.disconnect()
                 }
+                recordConnectionDiagnostic(
+                    "server",
+                    if (responseCode in 200..399) "ok" else "error",
+                    JSONObject()
+                        .put("httpStatus", responseCode)
+                        .put("durationMs", System.currentTimeMillis() - requestStartedAt)
+                        .put("host", host)
+                )
                 if (responseCode !in 200..399) {
                     throw IllegalStateException("Основной сервер ответил HTTP $responseCode")
                 }
@@ -620,6 +750,11 @@ class MainActivity : ComponentActivity() {
                     webView.loadUrl(AUTH_URL)
                 }
             } catch (error: Exception) {
+                recordConnectionDiagnostic(
+                    failedStage,
+                    "error",
+                    JSONObject().put("errorType", error.javaClass.simpleName)
+                )
                 Log.w("FLOUSTREAM-CONNECT", "probe_failed stage=$failedStage type=${error.javaClass.simpleName}")
                 runOnUiThread {
                     connectionProbeInFlight = false
