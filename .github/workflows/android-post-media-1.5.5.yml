@@ -1,4 +1,4 @@
-name: FLOUSTREAM Android 1.5.5 Post Media Release Candidate
+name: FLOUSTREAM Android 1.5.5 Post Media Release
 
 on:
   push:
@@ -97,7 +97,7 @@ jobs:
           printf '%s  %s\n' "$SHA" "app-release.apk" > "$APK.sha256"
           printf '{"versionCode":124,"versionName":"1.5.5","apkUrl":"https://github.com/sergeybikov1991-create/Dolby404/releases/download/v1.5.5/app-release.apk","sha256":"%s"}\n' "$SHA" > android-web-shell-test/app/build/outputs/apk/release/update.json
 
-      - name: Upload signed Release candidate
+      - name: Upload signed Release APK
         uses: actions/upload-artifact@v4
         with:
           name: FLOUSTREAM-Android-1.5.5-Release-Candidate
@@ -109,7 +109,7 @@ jobs:
           retention-days: 30
 
       - name: Publish v1.5.5 for the in-app updater
-        if: github.event_name == 'workflow_dispatch' && inputs.publish_release
+        if: success() && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish_release))
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.5.5
