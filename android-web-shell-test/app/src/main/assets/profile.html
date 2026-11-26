@@ -2117,7 +2117,7 @@ function postMediaUrl(client,item){
  if(typeof item==="string"){
   const value=item.trim();if(!value)return "";
   if(/^https?:\/\//i.test(value))return validUrl(value);
-  try{return validUrl(client.storage.from(bucket).getPublicUrl(value.replace(/^\/+ /,"").replace(/^\/+ /,"")).data.publicUrl);}catch(_){return "";}
+  try{return validUrl(client.storage.from(bucket).getPublicUrl(value.replace(/^\/+/,"")).data.publicUrl);}catch(_){return "";}
  }
  if(!item||typeof item!=="object")return "";
  const direct=item.url||item.publicUrl||item.public_url||item.src||item.image_url||item.download_url;
@@ -2125,11 +2125,11 @@ function postMediaUrl(client,item){
   const value=String(direct).trim();
   if(/^https?:\/\//i.test(value))return validUrl(value);
   if(value.startsWith("/storage/v1/object/"))return validUrl(SUPABASE_URL+value);
-  try{return validUrl(client.storage.from(bucket).getPublicUrl(value.replace(/^\/+ /,"")).data.publicUrl);}catch(_){}
+  try{return validUrl(client.storage.from(bucket).getPublicUrl(value.replace(/^\/+/,"")).data.publicUrl);}catch(_){}
  }
  const pathValue=item.object_path||item.storage_path||item.file_path||item.path;
  if(!pathValue)return "";
- try{return validUrl(client.storage.from(bucket).getPublicUrl(String(pathValue).replace(/^\/+ /,"")).data.publicUrl);}catch(_){return "";}
+ try{return validUrl(client.storage.from(bucket).getPublicUrl(String(pathValue).replace(/^\/+/,"")).data.publicUrl);}catch(_){return "";}
 }
 
 function postMediaType(item){
