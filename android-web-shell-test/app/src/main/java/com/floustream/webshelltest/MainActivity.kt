@@ -320,9 +320,7 @@ class MainActivity : ComponentActivity() {
                         (currentUrl.startsWith(AUTH_URL) ||
                          currentUrl.startsWith(PROFILE_URL))
                     ) {
-                        val clientExpression =
-                            if (currentUrl.startsWith(PROFILE_URL)) "client" else "supabaseClient"
-                        checkSupabaseSession(view, clientExpression)
+                        checkSupabaseSession(view)
                         return
                     }
 
@@ -1366,69 +1364,108 @@ class MainActivity : ComponentActivity() {
      * the WebView's localStorage. Android only asks that same client to confirm
      * the saved session with Auth before showing the authenticated screen.
      */
-    private fun checkSupabaseSession(view: WebView?, clientExpression: String) {
+    /**
+     * The website keeps its Supabase client inside an ES module, so it is not
+     * visible as a global variable to Android's evaluateJavascript call.
+     * Read the exact session document from the shared WebView localStorage and
+     * validate its access token with Auth. Supabase JS remains the only owner of
+     * persistence and refresh; Android never writes or rotates tokens.
+     */
+    private fun checkSupabaseSession(view: WebView?) {
         if (view == null || isFinishing || isDestroyed) return
         // GitHub Pages may deliver onPageFinished more than once for the same route.
-        // Keep one native evaluation and one retry chain so duplicate callbacks cannot
-        // consume the auth timeout twice as fast or race the visible login page.
         if (authCheckEvaluationInFlight || authCheckRunnable != null) return
         authCheckEvaluationInFlight = true
 
+        val storageKey = SUPABASE_STORAGE_KEY
         val script = """
             (function() {
                 try {
-                    if (typeof $clientExpression === 'undefined' || !$clientExpression) {
-                        return { state: 'pending' };
-                    }
-
+                    const generation = Number(window.__floustreamAuthCheckGeneration || 0);
+                    const state = window.__floustreamAuthCheckState;
                     if (!window.__floustreamAuthCheckRunning &&
-                        !window.__floustreamAuthCheckState) {
+                        state !== 'verified' &&
+                        state !== 'unauthenticated' &&
+                        state !== 'offline') {
                         window.__floustreamAuthCheckRunning = true;
                         window.__floustreamAuthCheckState = 'pending';
 
                         (async function() {
                             try {
-                                const authClient = $clientExpression;
-                                const stored = await authClient.auth.getSession();
-                                if (stored.error) {
-                                    const storedStatus = Number(stored.error.status || 0);
-                                    if (storedStatus === 400 || storedStatus === 401 || storedStatus === 403) {
-                                        return 'unauthenticated';
-                                    }
-                                    return 'offline';
-                                }
-                                if (!stored.data || !stored.data.session) {
+                                const rawSession = window.localStorage.getItem('$storageKey');
+                                if (!rawSession) return 'unauthenticated';
+
+                                let storedSession;
+                                try {
+                                    storedSession = JSON.parse(rawSession);
+                                } catch (_) {
                                     return 'unauthenticated';
                                 }
 
-                                // Match APK 1.3: let Supabase JS restore/refresh its own
-                                // localStorage session, then confirm the user on the server.
-                                const confirmed = await authClient.auth.getUser();
-                                if (!confirmed.error && confirmed.data && confirmed.data.user) {
-                                    window.__floustreamPushSession = {
-                                        userId: confirmed.data.user.id,
-                                        accessToken: stored.data.session.access_token,
-                                        isAnonymous: confirmed.data.user.is_anonymous === true
-                                    };
-                                    return 'verified';
+                                const accessToken = storedSession &&
+                                    typeof storedSession.access_token === 'string'
+                                    ? storedSession.access_token
+                                    : '';
+                                if (!accessToken) return 'unauthenticated';
+
+                                // Let the website's Supabase client refresh near-expiry tokens.
+                                const expiresAt = Number(storedSession.expires_at) || 0;
+                                if (expiresAt && expiresAt <= Math.floor(Date.now() / 1000) + 30) {
+                                    return 'pending';
                                 }
 
-                                const error = confirmed.error || {};
-                                const status = Number(error.status || 0);
-                                const code = String(error.code || '').toLowerCase();
-                                if (status === 400 || status === 401 || status === 403 ||
-                                    code.includes('invalid') || code.includes('expired') ||
-                                    code.includes('not_found')) {
-                                    return 'unauthenticated';
+                                // A rejected token is checked again only after the website rotates it.
+                                if (window.__floustreamAuthCheckLastToken === accessToken) {
+                                    return 'pending';
                                 }
-                                return 'offline';
+
+                                const controller = new AbortController();
+                                const timeout = setTimeout(() => controller.abort(), 15000);
+                                let response;
+                                try {
+                                    response = await window.fetch(
+                                        '\${BuildConfig.SUPABASE_URL}/auth/v1/user',
+                                        {
+                                            method: 'GET',
+                                            cache: 'no-store',
+                                            signal: controller.signal,
+                                            headers: {
+                                                'apikey': '\${BuildConfig.SUPABASE_PUBLISHABLE_KEY}',
+                                                'Authorization': 'Bearer ' + accessToken,
+                                                'Accept': 'application/json'
+                                            }
+                                        }
+                                    );
+                                } finally {
+                                    clearTimeout(timeout);
+                                }
+
+                                if (response.status === 400 || response.status === 401 ||
+                                    response.status === 403) {
+                                    window.__floustreamAuthCheckLastToken = accessToken;
+                                    return 'pending';
+                                }
+                                if (!response.ok) return 'offline';
+
+                                const user = await response.json();
+                                if (!user || !user.id) return 'pending';
+
+                                window.__floustreamAuthCheckLastToken = null;
+                                window.__floustreamPushSession = {
+                                    userId: user.id,
+                                    accessToken: accessToken,
+                                    isAnonymous: user.is_anonymous === true
+                                };
+                                return 'verified';
                             } catch (error) {
                                 return 'offline';
                             }
-                        })().then(function(state) {
-                            window.__floustreamAuthCheckState = state;
+                        })().then(function(nextState) {
+                            if (generation !== Number(window.__floustreamAuthCheckGeneration || 0)) return;
+                            window.__floustreamAuthCheckState = nextState;
                             window.__floustreamAuthCheckRunning = false;
                         }).catch(function() {
+                            if (generation !== Number(window.__floustreamAuthCheckGeneration || 0)) return;
                             window.__floustreamAuthCheckState = 'offline';
                             window.__floustreamAuthCheckRunning = false;
                         });
@@ -1452,7 +1489,7 @@ class MainActivity : ComponentActivity() {
             }
             android.util.Log.d(
                 "FLOUSTREAM-WebView-DIAG",
-                "Auth startup poll: client=$clientExpression, attempt=$authCheckAttempts, state=$state, raw=${result.orEmpty()}"
+                "Auth startup poll: tokenSource=WebView-localStorage, attempt=$authCheckAttempts, state=$state, raw=\${result.orEmpty()}"
             )
 
             when (state) {
@@ -1491,7 +1528,6 @@ class MainActivity : ComponentActivity() {
                     val currentUrl = view.url.orEmpty()
 
                     if (currentUrl.startsWith(AUTH_URL)) {
-                        // An unauthenticated visitor stays on the original sign-in page.
                         entryResolved = true
                         authFlowActive = true
                         view.visibility = View.VISIBLE
@@ -1501,6 +1537,7 @@ class MainActivity : ComponentActivity() {
                         view.stopLoading()
                         view.loadUrl(AUTH_URL)
                     }
+                    checkForUpdatesOnce()
                 }
                 "offline" -> {
                     authenticatedUserId = null
@@ -1516,7 +1553,7 @@ class MainActivity : ComponentActivity() {
                     } else {
                         authCheckRunnable = Runnable {
                             authCheckRunnable = null
-                            checkSupabaseSession(view, clientExpression)
+                            checkSupabaseSession(view)
                         }
                         mainHandler.postDelayed(authCheckRunnable!!, AUTH_CHECK_INTERVAL_MS)
                     }
