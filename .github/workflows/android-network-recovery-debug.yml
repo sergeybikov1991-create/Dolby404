@@ -1,0 +1,66 @@
+name: FLOUSTREAM Android 1.5.4 Network Recovery Debug
+
+on:
+  push:
+    branches:
+      - fix/android-1.5.4-network-recovery
+    paths:
+      - "android-web-shell-test/**"
+      - ".github/workflows/android-network-recovery-debug.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: floustream-network-recovery-debug-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-debug:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.13"
+
+      - name: Run Android unit tests
+        working-directory: android-web-shell-test
+        run: gradle --no-daemon :app:testDebugUnitTest
+
+      - name: Build Debug APK
+        working-directory: android-web-shell-test
+        run: gradle --no-daemon clean :app:assembleDebug
+
+      - name: Verify Debug APK package
+        run: |
+          APK=android-web-shell-test/app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android' versionCode='123' versionName='1.5.4'"
+          sha256sum "$APK" | tee "$APK.sha256"
+
+      - name: Upload Debug APK for device testing
+        uses: actions/upload-artifact@v4
+        with:
+          name: FLOUSTREAM-Android-1.5.4-Network-Recovery-Debug
+          path: |
+            android-web-shell-test/app/build/outputs/apk/debug/app-debug.apk
+            android-web-shell-test/app/build/outputs/apk/debug/app-debug.apk.sha256
+          if-no-files-found: error
+          retention-days: 14
