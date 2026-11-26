@@ -96,7 +96,7 @@ class InAppUpdater(private val activity: Activity) {
         try {
             return JSONObject(
                 readText(
-                    URL("https://github.com/sergeybikov1991-create/Dolby404/releases/download/v1.5.0/update.json")
+                    URL("https://github.com/sergeybikov1991-create/Dolby404/releases/download/v2.5.0/update.json")
                 )
             )
         } catch (fallbackError: Exception) {

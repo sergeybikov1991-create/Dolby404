@@ -49,6 +49,7 @@ class MainActivity : ComponentActivity() {
     private var updateCheckStarted = false
     private lateinit var webView: WebView
     private lateinit var connectionWebView: WebView
+    private lateinit var splashWebView: WebView
     private val connectionDiagnosticLock = Any()
     private var connectionDiagnostic = JSONObject()
     private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
@@ -105,6 +106,7 @@ class MainActivity : ComponentActivity() {
         const val SITE_BASE_URL = "https://sergeybikov1991-create.github.io/Dolby404/"
         const val WELCOME_ASSET_URL = "file:///android_asset/index.html"
         const val CONNECTION_ASSET_URL = "file:///android_asset/connection.html"
+        const val SPLASH_ASSET_URL = "file:///android_asset/splash.html"
         const val AUTH_URL = SITE_BASE_URL + "portal.html"
         const val PROFILE_URL = SITE_BASE_URL + "profile.html"
         const val HOME_URL = PROFILE_URL
@@ -117,6 +119,9 @@ class MainActivity : ComponentActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.decorView.setBackgroundColor(android.graphics.Color.rgb(9, 13, 28))
+        window.statusBarColor = android.graphics.Color.rgb(9, 13, 28)
+        window.navigationBarColor = android.graphics.Color.rgb(9, 13, 28)
 
         // Ask for notification permission independently of Firebase and login state.
         singleVisualPickerLauncher = registerForActivityResult(
@@ -221,6 +226,7 @@ class MainActivity : ComponentActivity() {
                     if (target == WELCOME_ASSET_URL || target.startsWith(HOME_URL)) {
                         entryResolved = true
                         startupAuthCheckPending = false
+                        hideSplashScreen()
                         view?.visibility = View.VISIBLE
                     }
                 }
@@ -249,6 +255,7 @@ class MainActivity : ComponentActivity() {
                     }
                     if (target.startsWith(HOME_URL)) {
                         entryResolved = true
+                        hideSplashScreen()
                         view?.visibility = View.VISIBLE
                     }
                     return false
@@ -297,6 +304,7 @@ class MainActivity : ComponentActivity() {
                     }
 
                     if (url == WELCOME_ASSET_URL || url?.startsWith(HOME_URL) == true) {
+                        hideSplashScreen()
                         view?.visibility = View.VISIBLE
                         checkForUpdatesOnce()
                     }
@@ -465,6 +473,15 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        splashWebView = WebView(this).apply {
+            setBackgroundColor(android.graphics.Color.rgb(9, 13, 28))
+            settings.javaScriptEnabled = false
+            settings.domStorageEnabled = false
+            isVerticalScrollBarEnabled = false
+            isHorizontalScrollBarEnabled = false
+            overScrollMode = View.OVER_SCROLL_NEVER
+        }
+
         val appRoot = FrameLayout(this).apply {
             setBackgroundColor(android.graphics.Color.rgb(9, 13, 28))
             addView(
@@ -481,9 +498,17 @@ class MainActivity : ComponentActivity() {
                     ViewGroup.LayoutParams.MATCH_PARENT
                 )
             )
+            addView(
+                splashWebView,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+            )
         }
         window.decorView.setBackgroundColor(android.graphics.Color.rgb(9, 13, 28))
         setContentView(appRoot)
+        splashWebView.loadUrl(SPLASH_ASSET_URL)
 
         if (BuildConfig.DEBUG) {
             WebView.setWebContentsDebuggingEnabled(true)
@@ -522,8 +547,22 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun hideSplashScreen() {
+        if (!::splashWebView.isInitialized || isFinishing || isDestroyed) return
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            splashWebView.visibility = View.GONE
+        } else {
+            runOnUiThread {
+                if (!isFinishing && !isDestroyed && ::splashWebView.isInitialized) {
+                    splashWebView.visibility = View.GONE
+                }
+            }
+        }
+    }
+
     private fun hideConnectionScreen() {
         if (!::connectionWebView.isInitialized || isFinishing || isDestroyed) return
+        hideSplashScreen()
         runOnUiThread {
             if (!isFinishing && !isDestroyed) {
                 connectionWebView.visibility = View.GONE
@@ -1394,6 +1433,7 @@ class MainActivity : ComponentActivity() {
                     if (currentUrl.startsWith(AUTH_URL)) {
                         entryResolved = true
                         authFlowActive = true
+                        hideSplashScreen()
                         view.visibility = View.VISIBLE
                     } else {
                         entryResolved = false
@@ -1538,6 +1578,7 @@ class MainActivity : ComponentActivity() {
         startupAuthCheckPending = false
         authFlowActive = false
         view.stopLoading()
+        hideSplashScreen()
         view.visibility = View.INVISIBLE
         if (::connectionWebView.isInitialized) connectionWebView.visibility = View.VISIBLE
         setConnectionStage(
@@ -1917,6 +1958,10 @@ class MainActivity : ComponentActivity() {
         if (::inAppUpdater.isInitialized) inAppUpdater.close()
         if (fullscreenCustomView != null) {
             exitFullscreenCustomView(notifyWebView = false)
+        }
+        if (::splashWebView.isInitialized) {
+            splashWebView.stopLoading()
+            splashWebView.destroy()
         }
         if (::connectionWebView.isInitialized) {
             connectionWebView.stopLoading()
