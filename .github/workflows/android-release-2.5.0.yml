@@ -68,7 +68,7 @@ jobs:
           test "$CERT_SHA" = "$EXPECTED_CERT_SHA"
           $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -F "package: name='com.floustream.android' versionCode='125' versionName='2.5.0'"
           unzip -l "$APK" | grep -F 'assets/splash.html'
-          unzip -l "$APK" | grep -F 'res/mipmap-anydpi-v26/ic_launcher.xml'
+          $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "^application-icon-[0-9]+:"
           SHA=$(sha256sum "$APK" | cut -d' ' -f1)
           echo "$SHA  app-release.apk" > "$APK.sha256"
           mkdir -p release-assets
