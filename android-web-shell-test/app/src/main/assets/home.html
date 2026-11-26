@@ -408,8 +408,15 @@ function postMediaType(item){
         if(type==="photo"||type==="image"){
           media=document.createElement("img");
           media.alt=item.name||"Фото публикации";
-          media.loading="lazy";
+          media.loading="eager";
           media.decoding="async";
+          media.addEventListener("error",()=>{
+            if(wrapper.querySelector(".post-media-error"))return;
+            const note=document.createElement("div");note.className="post-media-error";
+            note.textContent="Не удалось загрузить фотографию публикации. Проверьте доступность изображения.";
+            wrapper.appendChild(note);
+            console.warn("FLOUSTREAM post image failed to load:",mediaUrl);
+          },{once:true});
           media.src=mediaUrl;
         }else if(type==="music"||type==="audio"){
           media=document.createElement("audio");
@@ -428,6 +435,7 @@ function postMediaType(item){
           continue;
         }
         media.addEventListener("error",()=>{
+          if(type==="photo")return;
           if(wrapper.querySelector(".post-media-error"))return;
           const note=document.createElement("div");
           note.className="post-media-error";
