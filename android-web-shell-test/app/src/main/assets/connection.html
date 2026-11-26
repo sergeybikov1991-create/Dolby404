@@ -8,13 +8,11 @@
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;width:100%;min-height:100%;font-family:Arial,sans-serif;color:#fff}
-body{min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:28px 24px;
-background:radial-gradient(ellipse at 50% 35%,#19264a 0%,#0b1022 55%,#070a14 100%)}
+body{min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:28px 24px;background:radial-gradient(ellipse at 50% 35%,#19264a 0%,#0b1022 55%,#070a14 100%)}
 .screen{width:100%;max-width:390px}
 .brand{text-align:center;font-size:27px;font-weight:700;letter-spacing:3px;color:#b8d9ff;text-shadow:0 0 18px #438dff}
 .subtitle{margin-top:12px;text-align:center;color:#899bbd;font-size:14px}
-.routes{margin-top:38px;padding:18px 22px;border:1px solid rgba(112,153,255,.15);border-radius:18px;
-background:rgba(22,34,62,.55);box-shadow:0 10px 35px rgba(0,0,0,.2)}
+.routes{margin-top:38px;padding:18px 22px;border:1px solid rgba(112,153,255,.15);border-radius:18px;background:rgba(22,34,62,.55);box-shadow:0 10px 35px rgba(0,0,0,.2)}
 .route{display:flex;align-items:center;gap:13px;padding:14px 0}
 .route+.route{border-top:1px solid rgba(255,255,255,.06)}
 .dot{width:9px;height:9px;flex-shrink:0;border-radius:50%;background:#58647c}
@@ -29,9 +27,14 @@ background:rgba(22,34,62,.55);box-shadow:0 10px 35px rgba(0,0,0,.2)}
 .progress{margin-top:26px;height:3px;background:#26334e;border-radius:10px;overflow:hidden}
 .progress-bar{width:4%;height:100%;background:#55caff;box-shadow:0 0 12px #55caff;transition:width .35s ease}
 .message{min-height:38px;margin-top:19px;text-align:center;color:#9eacc8;font-size:13px;line-height:1.5}
-.retry{display:none;width:100%;min-height:48px;margin-top:18px;border:1px solid rgba(150,180,255,.45);border-radius:14px;
-background:linear-gradient(110deg,#405bd0,#6842a8);color:#fff;font-size:15px;font-weight:700}
-.retry.visible{display:block}
+.retry,.diagnostic{display:none;width:100%;min-height:48px;margin-top:14px;border:1px solid rgba(150,180,255,.45);border-radius:14px;background:linear-gradient(110deg,#405bd0,#6842a8);color:#fff;font-size:15px;font-weight:700}
+.retry.visible,.diagnostic.visible{display:block}
+.diagnostic{background:linear-gradient(110deg,#263f78,#493b86);border-color:rgba(126,177,255,.55)}
+.diagnostic-result{display:none;margin-top:14px;padding:13px;border:1px solid rgba(112,153,255,.22);border-radius:13px;background:rgba(22,34,62,.7);text-align:center}
+.diagnostic-result.visible{display:block}
+.diagnostic-label{color:#9eacc8;font-size:12px}
+.diagnostic-code{margin-top:7px;color:#b9ddff;font-size:15px;font-weight:700;letter-spacing:1px;overflow-wrap:anywhere}
+.diagnostic-hint{margin-top:8px;color:#8294b7;font-size:11px;line-height:1.45}
 @keyframes pulse{50%{opacity:.4}}
 @media(prefers-reduced-motion:reduce){.route.checking .dot{animation:none}.progress-bar{transition:none}}
 </style>
@@ -40,60 +43,77 @@ background:linear-gradient(110deg,#405bd0,#6842a8);color:#fff;font-size:15px;fon
 <main class="screen">
   <div class="brand">FLOUSTREAM</div>
   <div class="subtitle">Подключение к серверу</div>
-
   <section class="routes" aria-live="polite">
-    <div class="route" data-stage="internet">
-      <span class="dot"></span><span class="country">Интернет</span><span class="status">Ожидание</span>
-    </div>
-    <div class="route" data-stage="dns">
-      <span class="dot"></span><span class="country">DNS</span><span class="status">Ожидание</span>
-    </div>
-    <div class="route" data-stage="server">
-      <span class="dot"></span><span class="country">Основной шлюз</span><span class="status">Ожидание</span>
-    </div>
+    <div class="route" data-stage="internet"><span class="dot"></span><span class="country">Интернет</span><span class="status">Ожидание</span></div>
+    <div class="route" data-stage="dns"><span class="dot"></span><span class="country">DNS</span><span class="status">Ожидание</span></div>
+    <div class="route" data-stage="server"><span class="dot"></span><span class="country">Основной шлюз</span><span class="status">Ожидание</span></div>
   </section>
-
   <div class="progress"><div class="progress-bar" id="progress"></div></div>
   <div class="message" id="message">Подготавливаем проверку соединения…</div>
   <button class="retry" id="retry" type="button">Повторить проверку</button>
+  <button class="diagnostic" id="diagnostic" type="button">Сохранить код и логи</button>
+  <section class="diagnostic-result" id="diagnosticResult" aria-live="polite">
+    <div class="diagnostic-label">Код диагностики FLOUSTREAM</div>
+    <div class="diagnostic-code" id="diagnosticCode"></div>
+    <div class="diagnostic-hint">Отчёт сохранён на телефоне. Отправь файл разработчику через открывшееся меню. Пароли и токены авторизации в отчёт не включаются.</div>
+  </section>
 </main>
-
 <script>
 (function(){
-  const rows = Array.from(document.querySelectorAll("[data-stage]"));
-  const message = document.getElementById("message");
-  const progress = document.getElementById("progress");
-  const retry = document.getElementById("retry");
+  const rows=Array.from(document.querySelectorAll("[data-stage]"));
+  const message=document.getElementById("message");
+  const progress=document.getElementById("progress");
+  const retry=document.getElementById("retry");
+  const diagnostic=document.getElementById("diagnostic");
+  const diagnosticResult=document.getElementById("diagnosticResult");
+  const diagnosticCode=document.getElementById("diagnosticCode");
 
-  function update(stage, status, text, percent, failed) {
-    const row = rows.find(item => item.dataset.stage === stage);
-    if (row) {
-      row.classList.remove("checking", "done", "failed");
-      row.classList.add(failed ? "failed" : status === "Готово" || status === "Подключено" ? "done" : "checking");
-      row.querySelector(".status").textContent = status;
+  function update(stage,status,text,percent,failed){
+    const row=rows.find(item=>item.dataset.stage===stage);
+    if(row){
+      row.classList.remove("checking","done","failed");
+      row.classList.add(failed?"failed":status==="Готово"||status==="Подключено"?"done":"checking");
+      row.querySelector(".status").textContent=status;
     }
-    message.textContent = text;
-    progress.style.width = Math.max(0, Math.min(100, Number(percent) || 0)) + "%";
-    retry.classList.toggle("visible", !!failed);
+    message.textContent=text;
+    progress.style.width=Math.max(0,Math.min(100,Number(percent)||0))+"%";
+    retry.classList.toggle("visible",!!failed);
+    diagnostic.classList.toggle("visible",!!failed);
+    if(failed) diagnosticResult.classList.remove("visible");
   }
 
-  retry.addEventListener("click", function(){
+  retry.addEventListener("click",function(){
     retry.classList.remove("visible");
-    rows.forEach(row => {
-      row.classList.remove("checking", "done", "failed");
-      row.querySelector(".status").textContent = "Ожидание";
+    diagnostic.classList.remove("visible");
+    diagnosticResult.classList.remove("visible");
+    rows.forEach(row=>{
+      row.classList.remove("checking","done","failed");
+      row.querySelector(".status").textContent="Ожидание";
     });
-    message.textContent = "Повторно проверяем подключение…";
-    progress.style.width = "2%";
-    if (window.FloustreamConnectionBridge) {
-      window.FloustreamConnectionBridge.retry();
-    } else {
-      message.textContent = "Не удалось запустить проверку. Перезапусти приложение.";
-      retry.classList.add("visible");
+    message.textContent="Повторно проверяем подключение…";
+    progress.style.width="2%";
+    if(window.FloustreamConnectionBridge){window.FloustreamConnectionBridge.retry();}
+    else{message.textContent="Не удалось запустить проверку. Перезапусти приложение.";retry.classList.add("visible");}
+  });
+
+  diagnostic.addEventListener("click",function(){
+    diagnostic.disabled=true;
+    diagnostic.textContent="Сохраняем отчёт…";
+    try{
+      const code=window.FloustreamConnectionBridge?window.FloustreamConnectionBridge.saveDiagnostic():"ERROR";
+      if(!code||code==="ERROR") throw new Error("save_failed");
+      diagnosticCode.textContent=code;
+      diagnosticResult.classList.add("visible");
+      message.textContent="Диагностический отчёт сохранён.";
+      diagnostic.textContent="Отчёт сохранён";
+    }catch(error){
+      message.textContent="Не удалось сохранить отчёт. Повтори попытку.";
+      diagnostic.textContent="Повторить сохранение отчёта";
+      diagnostic.disabled=false;
     }
   });
 
-  window.FLOUSTREAMConnection = { update: update };
+  window.FLOUSTREAMConnection={update:update};
 })();
 </script>
 </body>
