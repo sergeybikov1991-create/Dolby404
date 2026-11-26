@@ -10,6 +10,8 @@ import android.content.IntentFilter
 import android.content.ClipData
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -44,11 +46,17 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FilterInputStream
 import java.nio.charset.StandardCharsets
+import java.net.HttpURLConnection
+import java.net.InetAddress
+import java.net.URL
 
 class MainActivity : ComponentActivity() {
     private lateinit var inAppUpdater: InAppUpdater
     private var updateCheckStarted = false
     private lateinit var webView: WebView
+    private lateinit var connectionWebView: WebView
+    @Volatile private var connectionProbeInFlight = false
+    @Volatile private var connectionPageReady = false
     private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
     private var pendingCaptureUri: Uri? = null
     private var pendingCaptureFile: File? = null
@@ -110,9 +118,19 @@ class MainActivity : ComponentActivity() {
 
     private val pushSessionBridge = PushSessionBridge()
 
+    private inner class ConnectionScreenBridge {
+        @JavascriptInterface
+        fun retry() {
+            runOnUiThread { startConnectionProbe() }
+        }
+    }
+
+    private val connectionScreenBridge = ConnectionScreenBridge()
+
     private companion object {
         const val SITE_BASE_URL = "https://sergeybikov1991-create.github.io/Dolby404/"
         const val WELCOME_ASSET_URL = "file:///android_asset/index.html"
+        const val CONNECTION_ASSET_URL = "file:///android_asset/connection.html"
         const val AUTH_URL = SITE_BASE_URL + "portal.html"
         const val PROFILE_URL = SITE_BASE_URL + "profile.html"
         const val HOME_URL = PROFILE_URL
@@ -444,7 +462,42 @@ class MainActivity : ComponentActivity() {
         inAppUpdater = InAppUpdater(this)
         // Check releases immediately; updater availability must not depend on WebView redirects or login state.
         checkForUpdatesOnce()
-        setContentView(webView)
+        connectionWebView = WebView(this).apply {
+            setBackgroundColor(android.graphics.Color.rgb(9, 13, 28))
+            settings.javaScriptEnabled = true
+            settings.domStorageEnabled = false
+            addJavascriptInterface(connectionScreenBridge, "FloustreamConnectionBridge")
+            webViewClient = object : WebViewClient() {
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    super.onPageFinished(view, url)
+                    if (url == CONNECTION_ASSET_URL && !connectionPageReady) {
+                        connectionPageReady = true
+                        startConnectionProbe()
+                    }
+                }
+            }
+        }
+
+        val appRoot = FrameLayout(this).apply {
+            setBackgroundColor(android.graphics.Color.rgb(9, 13, 28))
+            addView(
+                webView,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+            )
+            addView(
+                connectionWebView,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+            )
+        }
+        window.decorView.setBackgroundColor(android.graphics.Color.rgb(9, 13, 28))
+        setContentView(appRoot)
+
         ContextCompat.registerReceiver(
             this,
             pushTokenUpdatedReceiver,
@@ -456,15 +509,131 @@ class MainActivity : ComponentActivity() {
             WebView.setWebContentsDebuggingEnabled(true)
         }
 
-        // Keep the same HTTPS origin and Supabase localStorage used by the website.
-        Log.i("FLOUSTREAM-WebView-DIAG", "startup target=portal.html version=${BuildConfig.VERSION_NAME}")
-        webView.loadUrl(AUTH_URL)
+        Log.i("FLOUSTREAM-WebView-DIAG", "startup target=connection-screen version=${BuildConfig.VERSION_NAME}")
+        connectionWebView.loadUrl(CONNECTION_ASSET_URL)
     }
 
     /**
      * Deny photo-album data and object requests before WebView receives them
      * whenever the active page has no authenticated Supabase user session.
      */
+    private fun setConnectionStage(
+        stage: String,
+        status: String,
+        message: String,
+        progress: Int,
+        failed: Boolean = false
+    ) {
+        if (!::connectionWebView.isInitialized || isFinishing || isDestroyed) return
+        val script = "window.FLOUSTREAMConnection && window.FLOUSTREAMConnection.update(" +
+            "${JSONObject.quote(stage)}," +
+            "${JSONObject.quote(status)}," +
+            "${JSONObject.quote(message)}," +
+            "${progress.coerceIn(0, 100)}," +
+            "${failed})"
+        runOnUiThread {
+            if (!isFinishing && !isDestroyed && ::connectionWebView.isInitialized) {
+                connectionWebView.evaluateJavascript(script, null)
+            }
+        }
+    }
+
+    private fun hideConnectionScreen() {
+        if (!::connectionWebView.isInitialized || isFinishing || isDestroyed) return
+        runOnUiThread {
+            if (!isFinishing && !isDestroyed) {
+                connectionWebView.visibility = View.GONE
+                if (::webView.isInitialized) webView.visibility = View.VISIBLE
+            }
+        }
+    }
+
+    /**
+     * First test uses only the app's existing HTTPS entry route.
+     * The site's own Supabase client then performs the real Auth session check.
+     */
+    private fun startConnectionProbe() {
+        if (!::connectionWebView.isInitialized || !connectionPageReady ||
+            isFinishing || isDestroyed || connectionProbeInFlight
+        ) return
+
+        connectionProbeInFlight = true
+        connectionWebView.visibility = View.VISIBLE
+        webView.visibility = View.INVISIBLE
+        setConnectionStage("internet", "Проверка", "Проверяем интернет-соединение…", 8)
+
+        Thread {
+            var failedStage = "internet"
+            try {
+                val connectivity = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+                val activeNetwork = connectivity.activeNetwork
+                val capabilities = activeNetwork?.let { connectivity.getNetworkCapabilities(it) }
+                if (capabilities == null ||
+                    !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                ) {
+                    throw IllegalStateException("Интернет-соединение недоступно")
+                }
+
+                setConnectionStage("internet", "Готово", "Интернет доступен", 28)
+                failedStage = "dns"
+                setConnectionStage("dns", "Проверка", "Проверяем DNS основного сервера…", 38)
+
+                val host = Uri.parse(SITE_BASE_URL).host
+                    ?: throw IllegalStateException("Не задан адрес основного сервера")
+                val addresses = InetAddress.getAllByName(host)
+                if (addresses.isEmpty()) throw IllegalStateException("DNS не вернул адрес сервера")
+                Log.i("FLOUSTREAM-CONNECT", "dns_resolved host=$host addressCount=${addresses.size}")
+                setConnectionStage("dns", "Готово", "DNS ответил", 58)
+
+                failedStage = "server"
+                setConnectionStage("server", "Проверка", "Проверяем основной шлюз…", 68)
+                val connection = (URL(AUTH_URL).openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 8000
+                    readTimeout = 8000
+                    instanceFollowRedirects = true
+                    setRequestProperty("Cache-Control", "no-cache")
+                }
+                val responseCode = try {
+                    connection.responseCode
+                } finally {
+                    connection.disconnect()
+                }
+                if (responseCode !in 200..399) {
+                    throw IllegalStateException("Основной сервер ответил HTTP $responseCode")
+                }
+
+                Log.i("FLOUSTREAM-CONNECT", "gateway_reachable http=$responseCode")
+                runOnUiThread {
+                    connectionProbeInFlight = false
+                    if (isFinishing || isDestroyed) return@runOnUiThread
+                    setConnectionStage(
+                        "server",
+                        "Подключено",
+                        "Сервер доступен. Проверяем авторизацию…",
+                        86
+                    )
+                    webView.visibility = View.INVISIBLE
+                    startupAuthCheckPending = true
+                    authCheckAttempts = 0
+                    webView.loadUrl(AUTH_URL)
+                }
+            } catch (error: Exception) {
+                Log.w("FLOUSTREAM-CONNECT", "probe_failed stage=$failedStage type=${error.javaClass.simpleName}")
+                runOnUiThread {
+                    connectionProbeInFlight = false
+                    if (isFinishing || isDestroyed) return@runOnUiThread
+                    val message = when (failedStage) {
+                        "internet" -> "Нет доступа к интернету. Проверь соединение и повтори проверку."
+                        "dns" -> "Не удалось найти адрес основного сервера через DNS."
+                        else -> "Основной сервер пока не отвечает. Можно повторить проверку."
+                    }
+                    setConnectionStage(failedStage, "Ошибка", message, 100, true)
+                }
+            }
+        }.apply { name = "FLOUSTREAM-Connection-Probe" }.start()
+    }
+
     private fun isGuestPhotoAlbumRequest(
         encodedPath: String,
         requestHeaders: Map<String, String>
@@ -1246,6 +1415,7 @@ class MainActivity : ComponentActivity() {
             val payload = try { JSONObject(result ?: "{}") } catch (_: Exception) { JSONObject() }
             val state = payload.optString("state", "pending")
             val stage = payload.optString("stage", "unknown")
+            if (state == "pending") setConnectionStage("server", "Подключено", "Проверяем авторизацию…", 88)
             Log.i("FLOUSTREAM-WebView-DIAG", "auth_check state=$state stage=$stage attempt=$authCheckAttempts")
             when (state) {
                 "verified" -> {
@@ -1253,6 +1423,7 @@ class MainActivity : ComponentActivity() {
                     startupAuthCheckPending = false
                     entryResolved = true
                     authFlowActive = false
+                    hideConnectionScreen()
                     view.evaluateJavascript(
                         "(function(){ return {session:window.__floustreamPushSession || null,error:window.__floustreamAuthCheckError || null,stage:window.__floustreamAuthCheckStage || null}; })()"
                     ) { pushResult ->
@@ -1300,6 +1471,7 @@ class MainActivity : ComponentActivity() {
                     if (currentUrl.startsWith(AUTH_URL)) {
                         entryResolved = true
                         authFlowActive = true
+                        hideConnectionScreen()
                         view.visibility = View.VISIBLE
                     } else {
                         entryResolved = false
@@ -1363,6 +1535,7 @@ class MainActivity : ComponentActivity() {
         entryResolved = true
         startupAuthCheckPending = false
         authFlowActive = false
+        hideConnectionScreen()
         view.stopLoading()
         view.loadUrl(WELCOME_ASSET_URL)
     }
@@ -1374,6 +1547,7 @@ class MainActivity : ComponentActivity() {
         startupAuthCheckPending = false
         authFlowActive = false
         view.stopLoading()
+        hideConnectionScreen()
         view.visibility = View.VISIBLE
 
         val html = """
@@ -1438,42 +1612,15 @@ class MainActivity : ComponentActivity() {
         startupAuthCheckPending = false
         authFlowActive = false
         view.stopLoading()
-        view.visibility = View.VISIBLE
-
-        val html = """
-            <!doctype html>
-            <html lang="ru">
-            <head>
-              <meta charset="utf-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1">
-              <meta name="color-scheme" content="dark">
-              <title>FLOUSTREAM — Нет подключения</title>
-              <style>
-                *{box-sizing:border-box}
-                body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;
-                  color:#f7f4ff;font:16px Arial,sans-serif;text-align:center;
-                  background:radial-gradient(ellipse at 20% 15%,#243b83,transparent 48%),
-                  radial-gradient(ellipse at 85% 85%,#54247d,transparent 45%),#090910}
-                main{width:min(100%,420px)}
-                h1{font-size:28px;letter-spacing:3px;text-shadow:0 0 20px #875cff}
-                p{color:#c7c2df;line-height:1.6}
-                button{margin-top:18px;padding:15px 25px;border:1px solid #9271d9;
-                  border-radius:16px;background:linear-gradient(100deg,#405bd0,#7543b7);
-                  color:white;font-size:16px;font-weight:700}
-              </style>
-            </head>
-            <body>
-              <main>
-                <h1>FLOUSTREAM</h1>
-                <p>Не удалось проверить подключение к серверу.<br>
-                Твоя сохранённая авторизация не сброшена.</p>
-                <p>Проверь интернет и повтори проверку.</p>
-                <button onclick="location.href='$AUTH_URL'">Повторить</button>
-              </main>
-            </body>
-            </html>
-        """.trimIndent()
-        view.loadDataWithBaseURL(SITE_BASE_URL, html, "text/html", "UTF-8", null)
+        view.visibility = View.INVISIBLE
+        if (::connectionWebView.isInitialized) connectionWebView.visibility = View.VISIBLE
+        setConnectionStage(
+            "server",
+            "Ошибка",
+            "Не удалось подтвердить подключение к FLOUSTREAM. Проверь соединение и повтори проверку.",
+            100,
+            true
+        )
     }
 
     /**
@@ -1849,6 +1996,11 @@ class MainActivity : ComponentActivity() {
         if (::inAppUpdater.isInitialized) inAppUpdater.close()
         if (fullscreenCustomView != null) {
             exitFullscreenCustomView(notifyWebView = false)
+        }
+        if (::connectionWebView.isInitialized) {
+            connectionWebView.stopLoading()
+            connectionWebView.removeJavascriptInterface("FloustreamConnectionBridge")
+            connectionWebView.destroy()
         }
         if (::webView.isInitialized) {
             webView.stopLoading()
