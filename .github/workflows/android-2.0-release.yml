@@ -6,6 +6,7 @@ on:
     branches:
       - feature/android-2.0-from-1.6
       - feature/android-2.4-auth-restore-1.3
+      - fix/android-2.4-russia-connectivity
     paths:
       - "android-web-shell-test/**"
       - ".github/workflows/android-2.0-release.yml"
@@ -42,6 +43,30 @@ jobs:
         with:
           gradle-version: "8.13"
 
+      - name: Set up Node.js for the pinned Supabase browser SDK
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Bundle pinned Supabase JS for Android WebView
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK_VERSION="2.119.2"
+          PACK_JSON="$(npm pack "@supabase/supabase-js@${SDK_VERSION}" --json --pack-destination "$RUNNER_TEMP")"
+          TARBALL="$(node -e 'const p=JSON.parse(process.argv[1]); if (!p[0]?.filename) process.exit(2); process.stdout.write(p[0].filename)' "$PACK_JSON")"
+          tar -xzf "$RUNNER_TEMP/$TARBALL" -C "$RUNNER_TEMP" package/dist/umd/supabase.js package/LICENSE
+          ASSET_DIR="android-web-shell-test/app/src/main/assets/vendor"
+          mkdir -p "$ASSET_DIR"
+          install "$RUNNER_TEMP/package/dist/umd/supabase.js" "$ASSET_DIR/supabase.js"
+          install "$RUNNER_TEMP/package/LICENSE" "$ASSET_DIR/SUPABASE-JS-LICENSE.txt"
+          SDK_BYTES="$(wc -c < "$ASSET_DIR/supabase.js" | tr -d ' ')"
+          if [ "$SDK_BYTES" -lt 100000 ]; then
+            echo "::error::The pinned Supabase UMD bundle is missing or unexpectedly small ($SDK_BYTES bytes)."
+            exit 1
+          fi
+          echo "Bundled @supabase/supabase-js@${SDK_VERSION}: $SDK_BYTES bytes"
+
       - name: Check release signing secrets
         id: signing
         env:
@@ -72,6 +97,22 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           source = Path("android-web-shell-test/app/src/main/java/com/floustream/webshelltest/MainActivity.kt").read_text()
+          sdk_asset = Path("android-web-shell-test/app/src/main/assets/vendor/supabase.js")
+          sdk_license = Path("android-web-shell-test/app/src/main/assets/vendor/SUPABASE-JS-LICENSE.txt")
+          if not sdk_asset.is_file() or sdk_asset.stat().st_size < 100_000:
+              raise SystemExit("Pinned Supabase UMD bundle is missing or incomplete")
+          if not sdk_license.is_file() or sdk_license.stat().st_size == 0:
+              raise SystemExit("Supabase JS MIT license notice is missing")
+          for marker in (
+              'const val SUPABASE_SDK_VERSION = "2.119.2"',
+              'interceptSupabaseSdk(request)',
+              'assets.open("vendor/supabase.js")',
+              'apk-bundled-$SUPABASE_SDK_VERSION',
+          ):
+              if marker not in source:
+                  raise SystemExit(f"Android local Supabase SDK integration is missing: {marker}")
+          if "HttpURLConnection" in source or "unpkg.com/@supabase/supabase-js@2\").openConnection()" in source:
+              raise SystemExit("Android must not fetch a second SDK copy from a CDN at runtime")
           required = {
               "Android photo viewer viewport correction": "floustream-android-photo-viewer-fit-v1",
               "Short tap remains the send action": "const wasShortTap = !!holdTimer && !recording && !startPending",
@@ -123,7 +164,7 @@ jobs:
           build = Path("android-web-shell-test/app/build.gradle.kts").read_text()
           if 'versionCode = 114' not in build or 'versionName = "2.4"' not in build:
               raise SystemExit("Android APK version must be 2.4 / versionCode 114")
-          print("Android 2.4 media, voice, routing and APK 1.3 authentication contracts verified.")
+          print("Android 2.4 media, voice, routing, APK 1.3 auth and bundled Supabase SDK contracts verified.")
           PY
 
       - name: Enable KVM for Android emulator
