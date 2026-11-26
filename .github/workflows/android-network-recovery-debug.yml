@@ -52,7 +52,7 @@ jobs:
         run: |
           APK=android-web-shell-test/app/build/outputs/apk/debug/app-debug.apk
           test -s "$APK"
-          $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android' versionCode='123' versionName='1.5.4'"
+          $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android' versionCode='123' versionName='1.5.4-debug'"
           sha256sum "$APK" | tee "$APK.sha256"
 
       - name: Upload Debug APK for device testing
