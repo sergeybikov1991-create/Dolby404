@@ -16,8 +16,8 @@ android {
         applicationId = "com.floustream.android"
         minSdk = 26
         targetSdk = 35
-        versionCode = 119
-        versionName = "1.5.2"
+        versionCode = 120
+        versionName = "1.5.3"
         buildConfigField("String", "UPDATE_REPOSITORY", "\"sergeybikov1991-create/Dolby404\"")
         buildConfigField("String", "SUPABASE_URL", "\"https://qhpobdktlbhdqsnajypr.supabase.co\"")
         buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"sb_publishable_tzG1qVsbjaW8YE_LBVN87Q_v0CahKN5\"")
@@ -39,6 +39,11 @@ android {
     buildTypes {
         debug {
             versionNameSuffix = "-debug"
+            // Debug diagnostics are signed with the established release key so
+            // the owner can install this test build over the existing app.
+            if (!releaseStoreFile.isNullOrBlank()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
         release {
             isMinifyEnabled = false
