@@ -2111,6 +2111,23 @@ async function initProfileFeed(client){
  const seen=new Set();let offset=0,flowOffset=0,busy=false,done=false,postsDone=false,flowsDone=false,feedAuthorIds=null;
  const batchSize=10;
  function safeUrl(value){if(!value)return "";try{const u=new URL(value,location.href);return ["http:","https:"].includes(u.protocol)?u.href:"";}catch(_){return "";}}
+function postMediaUrl(client,item){
+ if(typeof item==="string")return safeUrl(item);
+ if(!item||typeof item!=="object")return "";
+ const direct=item.url||item.publicUrl||item.public_url||item.src||item.image_url||item.download_url;
+ if(direct){const valid=safeUrl(direct);if(valid)return valid;}
+ const path=item.object_path||item.storage_path||item.file_path||item.path;
+ if(!path)return "";
+ try{const bucket=typeof item.bucket==="string"&&item.bucket.trim()?item.bucket:"posts";return safeUrl(client.storage.from(bucket).getPublicUrl(path).data.publicUrl);}catch(_){return "";}
+}
+function postMediaType(item){
+ const value=String(item&&typeof item==="object"?(item.type||item.mime_type||item.mimeType||""):"").toLowerCase();
+ if(value==="photo"||value==="image"||value.startsWith("image/"))return "photo";
+ if(value==="video"||value.startsWith("video/"))return "video";
+ if(value==="music"||value==="audio"||value.startsWith("audio/"))return "audio";
+ return value;
+}
+
  function dateText(value){if(!value)return "";const d=new Date(value);return Number.isNaN(d.getTime())?"":d.toLocaleString("ru-RU",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});}
  function makeMiniAudio(audio,photo){
   const bar=document.createElement("div");bar.className="mini-audio-bar";
@@ -2372,7 +2389,7 @@ function renderPost(post,profiles,flowMeta=null){
   card.append(head);
   if(post.content){const content=document.createElement("div");content.className="post-content";renderFormattedText(content,post.content);card.append(content);}
   const mediaItems=Array.isArray(post.media)&&post.media.length?post.media:(post.image_url?[{type:"photo",url:post.image_url,name:"Фото"}]:[]);
-  if(mediaItems.length){const mediaBox=document.createElement("div");mediaBox.className="post-media";let firstPhoto=null,firstAudio=null;for(const item of mediaItems){const url=safeUrl(item.url);if(!url)continue;const mediaType=String(item.type||"").toLowerCase();let node;if(mediaType==="photo"||mediaType==="image"){node=document.createElement("img");node.alt="Фото публикации";node.loading="lazy";node.decoding="async";if(!firstPhoto)firstPhoto=node;node.addEventListener("error",()=>{node.classList.add("post-media-image-error");node.alt="Не удалось загрузить фотографию публикации";console.warn("FLOUSTREAM post image failed to load:",url);},{once:true});}else if(mediaType==="music"||mediaType==="audio"){node=document.createElement("audio");node.controls=true;if(!firstAudio)firstAudio=node;}else if(mediaType==="video"){node=document.createElement("video");node.controls=true;node.playsInline=true;node.preload="metadata";}else{continue;}node.src=url;
+  if(mediaItems.length){const mediaBox=document.createElement("div");mediaBox.className="post-media";let firstPhoto=null,firstAudio=null;for(const item of mediaItems){const mediaUrl=postMediaUrl(client,item);if(!url)continue;const type=postMediaType(item);let node;if(mediaType==="photo"||mediaType==="image"){node=document.createElement("img");node.alt="Фото публикации";node.loading="lazy";node.decoding="async";if(!firstPhoto)firstPhoto=node;node.addEventListener("error",()=>{node.classList.add("post-media-image-error");node.alt="Не удалось загрузить фотографию публикации";console.warn("FLOUSTREAM post image failed to load:",url);},{once:true});}else if(mediaType==="music"||mediaType==="audio"){node=document.createElement("audio");node.controls=true;if(!firstAudio)firstAudio=node;}else if(mediaType==="video"){node=document.createElement("video");node.controls=true;node.playsInline=true;node.setAttribute("webkit-playsinline","");node.preload="auto";}else{continue;}node.src=url;
     if(node.tagName==="IMG")node.addEventListener("click",()=>openPostPhotoView(url));
     mediaBox.appendChild(node);}if(firstAudio)makeMiniAudio(firstAudio,firstPhoto);if(mediaBox.children.length)card.append(mediaBox);}
   attachPostActions(post,card);
@@ -2463,7 +2480,7 @@ function renderPost(post,profiles,flowMeta=null){
    let node;
    if(file.type==="photo"){node=document.createElement("img");node.alt="Фото отложенной публикации";node.loading="lazy";if(!firstPhoto)firstPhoto=node;}
    else if(file.type==="music"){node=document.createElement("audio");node.controls=true;if(!firstAudio)firstAudio=node;}
-   else{node=document.createElement("video");node.controls=true;node.playsInline=true;node.preload="metadata";}
+   else{node=document.createElement("video");node.controls=true;node.playsInline=true;node.setAttribute("webkit-playsinline","");node.preload="auto";}
    node.src=url;
    if(node.tagName==="IMG")node.addEventListener("click",()=>openPostPhotoView(url));
    box.append(node);
@@ -2854,7 +2871,7 @@ $("submit-post").addEventListener("click",async()=>{
   const ident=document.createElement("div");const author=document.createElement("div");author.className="post-author";author.textContent=$("display-name").textContent;
   const date=document.createElement("div");date.className="post-date";date.textContent="только что";ident.append(author,date);head.append(av,ident);card.append(head);
   if(text){const body=document.createElement("div");body.className="post-content";renderFormattedText(body,text);card.append(body);}
-  if(media.length){const box=document.createElement("div");box.className="post-media";let firstPhoto=null,firstAudio=null;media.forEach(item=>{const mediaType=String(item.type||"").toLowerCase();let node;if(mediaType==="photo"||mediaType==="image"){node=document.createElement("img");node.alt="Фото публикации";node.loading="lazy";node.decoding="async";if(!firstPhoto)firstPhoto=node;node.addEventListener("error",()=>{node.classList.add("post-media-image-error");node.alt="Не удалось загрузить фотографию публикации";console.warn("FLOUSTREAM newly published post image failed to load:",item.url);},{once:true});}else if(mediaType==="music"||mediaType==="audio"){node=document.createElement("audio");node.controls=true;if(!firstAudio)firstAudio=node;}else if(mediaType==="video"){node=document.createElement("video");node.controls=true;node.playsInline=true;node.preload="metadata";}else{return;}node.src=item.url;box.append(node);});if(firstAudio)makeMiniAudio(firstAudio,firstPhoto);if(box.children.length)card.append(box);}
+  if(media.length){const box=document.createElement("div");box.className="post-media";let firstPhoto=null,firstAudio=null;media.forEach(item=>{const mediaType=String(item.type||"").toLowerCase();let node;if(mediaType==="photo"||mediaType==="image"){node=document.createElement("img");node.alt="Фото публикации";node.loading="lazy";node.decoding="async";if(!firstPhoto)firstPhoto=node;node.addEventListener("error",()=>{node.classList.add("post-media-image-error");node.alt="Не удалось загрузить фотографию публикации";console.warn("FLOUSTREAM newly published post image failed to load:",item.url);},{once:true});}else if(mediaType==="music"||mediaType==="audio"){node=document.createElement("audio");node.controls=true;if(!firstAudio)firstAudio=node;}else if(mediaType==="video"){node=document.createElement("video");node.controls=true;node.playsInline=true;node.setAttribute("webkit-playsinline","");node.preload="auto";}else{return;}node.src=item.url;box.append(node);});if(firstAudio)makeMiniAudio(firstAudio,firstPhoto);if(box.children.length)card.append(box);}
   $("feed-list").prepend(card);
  }catch(e){$("publish-status").textContent="Не удалось опубликовать: "+e.message;}
  finally{$("submit-post").disabled=false;}
