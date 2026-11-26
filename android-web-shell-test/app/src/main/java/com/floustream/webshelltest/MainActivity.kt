@@ -10,6 +10,9 @@ import android.content.IntentFilter
 import android.content.ClipData
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -65,6 +68,39 @@ class MainActivity : ComponentActivity() {
     private var previousSystemUiVisibility: Int = 0
     private var previousFullscreenWindowFlag: Boolean = false
     private val mainHandler = Handler(Looper.getMainLooper())
+    private var networkCallbackRegistered = false
+    private var offlineScreenShown = false
+    private var reconnectAttempts = 0
+    private var reconnectRunnable: Runnable? = null
+    private var lastTrustedPageUrl: String? = null
+    private val connectivityManager by lazy {
+        getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+    }
+    private val networkCallback = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) {
+            mainHandler.post {
+                if (isInternetValidated()) {
+                    scheduleConnectionRecovery("network-available", immediate = true)
+                }
+            }
+        }
+
+        override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
+            if (capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+            ) {
+                mainHandler.post {
+                    scheduleConnectionRecovery("network-validated", immediate = true)
+                }
+            }
+        }
+
+        override fun onLost(network: Network) {
+            mainHandler.post {
+                Log.w("FLOUSTREAM-NET", "network_lost")
+            }
+        }
+    }
     private var entryResolved = false
     private var authFlowActive = false
     private var startupAuthCheckPending = false
@@ -120,6 +156,9 @@ class MainActivity : ComponentActivity() {
         const val AUDIO_PERMISSION_REQUEST_CODE = 4103
         const val MAX_AUTH_CHECK_ATTEMPTS = 50
         const val AUTH_CHECK_INTERVAL_MS = 400L
+        const val MAX_RECONNECT_ATTEMPTS = 8
+        const val INITIAL_RECONNECT_DELAY_MS = 1_000L
+        const val MAX_RECONNECT_DELAY_MS = 60_000L
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -180,6 +219,7 @@ class MainActivity : ComponentActivity() {
                 ) {
                     super.onPageStarted(view, url, favicon)
                     val target = url.orEmpty()
+                    if (isTrustedSiteUrl(target)) lastTrustedPageUrl = target
                     Log.i("FLOUSTREAM-WebView-DIAG", "page_started url=${Uri.parse(target).host}${Uri.parse(target).encodedPath}")
                     val targetUri = Uri.parse(target)
                     val trustedSiteOrigin = targetUri.scheme == "https" &&
@@ -267,7 +307,7 @@ class MainActivity : ComponentActivity() {
                         "FLOUSTREAM-WebView-DIAG",
                         "web_error mainFrame=${request?.isForMainFrame} code=${error?.errorCode} description=${error?.description} url=${request?.url?.let { it.host + it.encodedPath }}"
                     )
-                    if (request?.isForMainFrame == true && !entryResolved) {
+                    if (request?.isForMainFrame == true) {
                         logAuthSnapshot(view, "main-frame-load-error")
                         showOfflineScreen(view)
                     }
@@ -283,6 +323,14 @@ class MainActivity : ComponentActivity() {
                     applyAndroidOfflineDataCache(view)
 
                     val currentUrl = url.orEmpty()
+                    if (isTrustedSiteUrl(currentUrl) &&
+                        Uri.parse(currentUrl).encodedPath.orEmpty().let { it.isNotBlank() && it != "/" }
+                    ) {
+                        offlineScreenShown = false
+                        reconnectAttempts = 0
+                        reconnectRunnable?.let(mainHandler::removeCallbacks)
+                        reconnectRunnable = null
+                    }
                     if (currentUrl.contains("/messages.html")) applyAndroidVoiceMessageRecorder(view)
                     if (startupAuthCheckPending &&
                         (currentUrl.startsWith(AUTH_URL) ||
@@ -445,6 +493,7 @@ class MainActivity : ComponentActivity() {
         // Check releases immediately; updater availability must not depend on WebView redirects or login state.
         checkForUpdatesOnce()
         setContentView(webView)
+        registerNetworkCallback()
         ContextCompat.registerReceiver(
             this,
             pushTokenUpdatedReceiver,
@@ -1473,7 +1522,65 @@ class MainActivity : ComponentActivity() {
             </body>
             </html>
         """.trimIndent()
+        offlineScreenShown = true
         view.loadDataWithBaseURL(SITE_BASE_URL, html, "text/html", "UTF-8", null)
+        scheduleConnectionRecovery("offline-screen")
+    }
+
+    private fun isTrustedSiteUrl(value: String): Boolean {
+        val uri = Uri.parse(value)
+        return uri.scheme == "https" && uri.host == "sergeybikov1991-create.github.io"
+    }
+
+    private fun isInternetValidated(): Boolean {
+        return try {
+            val active = connectivityManager.activeNetwork ?: return false
+            val capabilities = connectivityManager.getNetworkCapabilities(active) ?: return false
+            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+        } catch (error: Exception) {
+            Log.w("FLOUSTREAM-NET", "network_state_check_failed type=${error.javaClass.simpleName}")
+            false
+        }
+    }
+
+    private fun registerNetworkCallback() {
+        if (networkCallbackRegistered) return
+        try {
+            connectivityManager.registerDefaultNetworkCallback(networkCallback)
+            networkCallbackRegistered = true
+        } catch (error: Exception) {
+            Log.e("FLOUSTREAM-NET", "network_callback_registration_failed type=${error.javaClass.simpleName}")
+        }
+    }
+
+    private fun scheduleConnectionRecovery(reason: String, immediate: Boolean = false) {
+        if (!offlineScreenShown || isFinishing || isDestroyed || !::webView.isInitialized) return
+        if (reconnectRunnable != null) {
+            if (!immediate) return
+            reconnectRunnable?.let(mainHandler::removeCallbacks)
+            reconnectRunnable = null
+        }
+        if (!immediate && reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) return
+
+        val delay = if (immediate) 0L else
+            minOf(MAX_RECONNECT_DELAY_MS, INITIAL_RECONNECT_DELAY_MS shl reconnectAttempts.coerceAtMost(6))
+        reconnectRunnable = Runnable {
+            reconnectRunnable = null
+            if (!offlineScreenShown || isFinishing || isDestroyed || !isInternetValidated()) return@Runnable
+            val target = lastTrustedPageUrl ?: AUTH_URL
+            reconnectAttempts++
+            Log.i("FLOUSTREAM-NET", "reconnect_attempt=$reconnectAttempts reason=$reason")
+            startupAuthCheckPending = target.startsWith(AUTH_URL) || target.startsWith(PROFILE_URL)
+            webView.stopLoading()
+            webView.loadUrl(target)
+        }
+        mainHandler.postDelayed(reconnectRunnable!!, delay)
+    }
+
+    private fun cancelConnectionRecovery() {
+        reconnectRunnable?.let(mainHandler::removeCallbacks)
+        reconnectRunnable = null
     }
 
     /**
@@ -1820,6 +1927,7 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         if (::inAppUpdater.isInitialized) inAppUpdater.onResume()
         refreshPushRegistration("app-resume")
+        if (offlineScreenShown) scheduleConnectionRecovery("app-resume", immediate = true)
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
@@ -1846,6 +1954,11 @@ class MainActivity : ComponentActivity() {
             pushReceiverRegistered = false
         }
         cancelAuthCheck()
+        cancelConnectionRecovery()
+        if (networkCallbackRegistered) {
+            try { connectivityManager.unregisterNetworkCallback(networkCallback) } catch (_: Exception) {}
+            networkCallbackRegistered = false
+        }
         if (::inAppUpdater.isInitialized) inAppUpdater.close()
         if (fullscreenCustomView != null) {
             exitFullscreenCustomView(notifyWebView = false)
