@@ -321,7 +321,9 @@ class MainActivity : ComponentActivity() {
 
                     val currentUrl = url.orEmpty()
                     if (isTrustedSiteUrl(currentUrl) &&
-                        Uri.parse(currentUrl).encodedPath.orEmpty().let { it.isNotBlank() && it != "/" }
+                        Uri.parse(currentUrl).encodedPath.orEmpty().let {
+                            it.isNotBlank() && it != "/" && it != Uri.parse(SITE_BASE_URL).encodedPath
+                        }
                     ) {
                         offlineScreenShown = false
                         reconnectAttempts = 0
@@ -1405,6 +1407,9 @@ class MainActivity : ComponentActivity() {
     // Used only for the bundled onboarding fallback; a signed-out user stays on portal.html.
     private fun showBundledWelcome(view: WebView?) {
         if (view == null || isFinishing || isDestroyed) return
+        offlineScreenShown = false
+        reconnectAttempts = 0
+        cancelConnectionRecovery()
         cancelAuthCheck()
         entryResolved = true
         startupAuthCheckPending = false
@@ -1415,6 +1420,9 @@ class MainActivity : ComponentActivity() {
 
     private fun showAuthenticatedScreen(view: WebView?) {
         if (view == null || isFinishing || isDestroyed) return
+        offlineScreenShown = false
+        reconnectAttempts = 0
+        cancelConnectionRecovery()
         cancelAuthCheck()
         entryResolved = true
         startupAuthCheckPending = false
