@@ -1,9 +1,10 @@
-name: FLOUSTREAM Android 1.5.4 Push Debug
+name: FLOUSTREAM Android 1.5.4 Diagnostics Debug
 
 on:
   push:
     branches:
       - fix/android-push-1.5.4-debug
+      - debug/android-1.5.4-connection-screen
     paths:
       - "android-web-shell-test/**"
       - ".github/workflows/android-push-debug-1.5.3.yml"
@@ -83,7 +84,7 @@ jobs:
       - name: Upload debug APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: FLOUSTREAM-Android-1.5.4-Push-Debug
+          name: FLOUSTREAM-Android-1.5.4-Diagnostics-Debug
           path: |
             android-web-shell-test/app/build/outputs/apk/debug/app-debug.apk
             android-web-shell-test/app/build/outputs/apk/debug/app-debug.apk.sha256
