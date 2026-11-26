@@ -1424,13 +1424,13 @@ class MainActivity : ComponentActivity() {
                                 let response;
                                 try {
                                     response = await window.fetch(
-                                        '\${BuildConfig.SUPABASE_URL}/auth/v1/user',
+                                        '${BuildConfig.SUPABASE_URL}/auth/v1/user',
                                         {
                                             method: 'GET',
                                             cache: 'no-store',
                                             signal: controller.signal,
                                             headers: {
-                                                'apikey': '\${BuildConfig.SUPABASE_PUBLISHABLE_KEY}',
+                                                'apikey': '${BuildConfig.SUPABASE_PUBLISHABLE_KEY}',
                                                 'Authorization': 'Bearer ' + accessToken,
                                                 'Accept': 'application/json'
                                             }
@@ -1489,7 +1489,7 @@ class MainActivity : ComponentActivity() {
             }
             android.util.Log.d(
                 "FLOUSTREAM-WebView-DIAG",
-                "Auth startup poll: tokenSource=WebView-localStorage, attempt=$authCheckAttempts, state=$state, raw=\${result.orEmpty()}"
+                "Auth startup poll: tokenSource=WebView-localStorage, attempt=$authCheckAttempts, state=$state, raw=${result.orEmpty()}"
             )
 
             when (state) {
