@@ -124,7 +124,7 @@
 @keyframes flou-smoke-drift-b{0%{transform:translate3d(6%,5%,0) scale(1.02) rotate(9deg)}50%{transform:translate3d(-14%,-9%,0) scale(.9) rotate(-6deg)}100%{transform:translate3d(-4%,12%,0) scale(1.12) rotate(5deg)}}
 @keyframes flou-smoke-drift-c{0%{transform:translate3d(3%,8%,0) scale(.9)}100%{transform:translate3d(-11%,-12%,0) scale(1.12)}}
 @keyframes flou-smoke-color{0%{filter:blur(42px) hue-rotate(-8deg)}50%{filter:blur(45px) hue-rotate(13deg)}100%{filter:blur(42px) hue-rotate(-3deg)}}
-.fs-route-messages .messages,.fs-route-messages .notice,.fs-route-messages .upload-progress,.fs-route-messages .attachment-preview,.fs-route-messages .composer{position:relative;z-index:1}
+.fs-route-messages .messages,.fs-route-messages .game-frame,.fs-route-messages .notice,.fs-route-messages .upload-progress,.fs-route-messages .attachment-preview,.fs-route-messages .composer{position:relative;z-index:1}
 .fs-route-messages .messages{background:transparent}
 .fs-route-messages .composer{border-top-color:#8c70aa66;background:linear-gradient(145deg,#21182ccc,#100d18e8 72%);backdrop-filter:blur(12px)}
 .fs-route-messages .chat-fly{position:absolute;z-index:5;left:38%;bottom:calc(100% - 9px);display:block;width:55px;height:42px;padding:0;border:0;background:transparent;cursor:pointer;filter:drop-shadow(0 2px 2px #0009);transform-origin:50% 100%;animation:flou-fly-perch 2.8s ease-in-out infinite}
