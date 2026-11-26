@@ -2112,14 +2112,26 @@ async function initProfileFeed(client){
  const batchSize=10;
  function safeUrl(value){if(!value)return "";try{const u=new URL(value,location.href);return ["http:","https:"].includes(u.protocol)?u.href:"";}catch(_){return "";}}
 function postMediaUrl(client,item){
- if(typeof item==="string")return safeUrl(item);
+ const validUrl=value=>safeUrl(value);
+ const bucket=item&&typeof item==="object"&&typeof item.bucket==="string"&&item.bucket.trim()?item.bucket:"posts";
+ if(typeof item==="string"){
+  const value=item.trim();if(!value)return "";
+  if(/^https?:\/\//i.test(value))return validUrl(value);
+  try{return validUrl(client.storage.from(bucket).getPublicUrl(value.replace(/^\/+ /,"").replace(/^\/+ /,"")).data.publicUrl);}catch(_){return "";}
+ }
  if(!item||typeof item!=="object")return "";
  const direct=item.url||item.publicUrl||item.public_url||item.src||item.image_url||item.download_url;
- if(direct){const valid=safeUrl(direct);if(valid)return valid;}
- const path=item.object_path||item.storage_path||item.file_path||item.path;
- if(!path)return "";
- try{const bucket=typeof item.bucket==="string"&&item.bucket.trim()?item.bucket:"posts";return safeUrl(client.storage.from(bucket).getPublicUrl(path).data.publicUrl);}catch(_){return "";}
+ if(direct){
+  const value=String(direct).trim();
+  if(/^https?:\/\//i.test(value))return validUrl(value);
+  if(value.startsWith("/storage/v1/object/"))return validUrl(SUPABASE_URL+value);
+  try{return validUrl(client.storage.from(bucket).getPublicUrl(value.replace(/^\/+ /,"")).data.publicUrl);}catch(_){}
+ }
+ const pathValue=item.object_path||item.storage_path||item.file_path||item.path;
+ if(!pathValue)return "";
+ try{return validUrl(client.storage.from(bucket).getPublicUrl(String(pathValue).replace(/^\/+ /,"")).data.publicUrl);}catch(_){return "";}
 }
+
 function postMediaType(item){
  const value=String(item&&typeof item==="object"?(item.type||item.mime_type||item.mimeType||""):"").toLowerCase();
  if(value==="photo"||value==="image"||value.startsWith("image/"))return "photo";
