@@ -153,6 +153,7 @@ class MainActivity : ComponentActivity() {
                     view: WebView?,
                     request: WebResourceRequest?
                 ): WebResourceResponse? {
+                    interceptBundledAndroidPage(request)?.let { return it }
                     interceptNativeVoiceRecording(request)?.let { return it }
                     if (request != null && isGuestPhotoAlbumRequest(
                             request.url.encodedPath.orEmpty(),
@@ -459,6 +460,49 @@ class MainActivity : ComponentActivity() {
         // Keep the same HTTPS origin and Supabase localStorage used by the website.
         Log.i("FLOUSTREAM-WebView-DIAG", "startup target=portal.html version=${BuildConfig.VERSION_NAME}")
         webView.loadUrl(AUTH_URL)
+    }
+
+    /**
+     * Keep the Android profile UI pinned to the tested APK assets instead of
+     * silently replacing it with the independently deployed website's main branch.
+     * The response keeps the requested HTTPS URL/origin, so Supabase auth storage,
+     * notifications and relative links continue to use the established site origin.
+     */
+    private fun interceptBundledAndroidPage(request: WebResourceRequest?): WebResourceResponse? {
+        val uri = request?.url ?: return null
+        if (request.method != "GET" ||
+            uri.scheme != "https" ||
+            uri.host != "sergeybikov1991-create.github.io"
+        ) return null
+
+        val publicProfilePath = Uri.parse(SITE_BASE_URL)
+            .buildUpon()
+            .appendPath("public-profile.html")
+            .build()
+            .encodedPath
+        val assetName = when (uri.encodedPath) {
+            Uri.parse(PROFILE_URL).encodedPath -> "profile.html"
+            publicProfilePath -> "public-profile.html"
+            else -> return null
+        }
+
+        return try {
+            Log.i("FLOUSTREAM-WebView-DIAG", "serving bundled Android page asset=$assetName")
+            WebResourceResponse(
+                "text/html",
+                "UTF-8",
+                200,
+                "OK",
+                mapOf(
+                    "Cache-Control" to "no-store",
+                    "X-Content-Type-Options" to "nosniff"
+                ),
+                assets.open(assetName)
+            )
+        } catch (error: Exception) {
+            Log.e("FLOUSTREAM-WebView-DIAG", "bundled page unavailable asset=$assetName", error)
+            null
+        }
     }
 
     /**
