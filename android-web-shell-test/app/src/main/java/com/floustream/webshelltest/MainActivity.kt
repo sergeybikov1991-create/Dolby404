@@ -574,7 +574,7 @@ class MainActivity : ComponentActivity() {
                     throw IllegalStateException("Интернет-соединение недоступно")
                 }
 
-                setConnectionStage("internet", "Готово", "Интернет доступен", 28)
+                setConnectionStage("internet", "Проверка", "Сеть обнаружена. Проверяем доступ к серверу…", 24)
                 failedStage = "dns"
                 setConnectionStage("dns", "Проверка", "Проверяем DNS основного сервера…", 38)
 
@@ -607,6 +607,7 @@ class MainActivity : ComponentActivity() {
                 runOnUiThread {
                     connectionProbeInFlight = false
                     if (isFinishing || isDestroyed) return@runOnUiThread
+                    setConnectionStage("internet", "Готово", "Интернет подтверждён ответом сервера", 80)
                     setConnectionStage(
                         "server",
                         "Подключено",
