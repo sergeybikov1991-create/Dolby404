@@ -16,7 +16,7 @@ android {
         applicationId = "com.floustream.android"
         minSdk = 26
         targetSdk = 35
-        versionCode = 122
+        versionCode = 123
         versionName = "1.5.4"
         buildConfigField("String", "UPDATE_REPOSITORY", "\"sergeybikov1991-create/Dolby404\"")
         buildConfigField("String", "SUPABASE_URL", "\"https://qhpobdktlbhdqsnajypr.supabase.co\"")
