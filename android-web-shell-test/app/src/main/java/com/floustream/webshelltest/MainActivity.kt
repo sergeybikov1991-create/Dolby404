@@ -79,6 +79,7 @@ class MainActivity : ComponentActivity() {
         const val MAX_AUTH_CHECK_ATTEMPTS = 50
         const val AUTH_CHECK_INTERVAL_MS = 400L
         const val SUPABASE_SDK_VERSION = "2.119.2"
+        const val SUPABASE_STORAGE_KEY = "sb-qhpobdktlbhdqsnajypr-auth-token"
         const val MIN_SUPABASE_SDK_BYTES = 100_000
     }
 
