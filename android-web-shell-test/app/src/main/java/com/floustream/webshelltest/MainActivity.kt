@@ -1661,7 +1661,8 @@ class MainActivity : ComponentActivity() {
                 readyState: document.readyState,
                 authMessage: document.querySelector('#auth-message')?.textContent || '',
                 supabaseGlobal: !!(window.supabase && window.supabase.createClient),
-                supabaseClientType: typeof supabaseClient,
+                supabaseSdkSource: window.__FLOUSTREAM_SUPABASE_SDK_SOURCE__ || '',
+                localSessionPresent: !!window.localStorage.getItem('"+SUPABASE_STORAGE_KEY+"'),
                 authCheckState: window.__floustreamAuthCheckState || '',
                 authCheckRunning: !!window.__floustreamAuthCheckRunning
             })"""
