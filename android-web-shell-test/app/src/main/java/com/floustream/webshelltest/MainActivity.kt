@@ -3,7 +3,10 @@ package com.floustream.webshelltest
 import android.Manifest
 import android.app.AlertDialog
 import android.annotation.SuppressLint
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.ClipData
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -19,12 +22,14 @@ import android.util.Log
 import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
 import androidx.core.content.FileProvider
+import androidx.core.content.ContextCompat
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import android.webkit.PermissionRequest
+import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -65,6 +70,45 @@ class MainActivity : ComponentActivity() {
     private var startupAuthCheckPending = false
     private var authCheckAttempts = 0
     private var authCheckRunnable: Runnable? = null
+    @Volatile private var pushSessionRefreshInFlight = false
+    private var pushReceiverRegistered = false
+
+    private val pushTokenUpdatedReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            refreshPushRegistration("fcm-token-updated")
+        }
+    }
+
+    private inner class PushSessionBridge {
+        @JavascriptInterface
+        fun onVerifiedSession(userId: String, accessToken: String) {
+            runOnUiThread {
+                pushSessionRefreshInFlight = false
+                if (isFinishing || isDestroyed || userId.isBlank() || accessToken.isBlank()) return@runOnUiThread
+                authenticatedUserId = userId
+                voiceMessageAudioBridge.activeUserId = userId
+                Log.i("FLOUSTREAM-PUSH", "session_verified userPresent=true")
+                PushTokenRegistrar.register(this@MainActivity, userId, accessToken)
+            }
+        }
+
+        @JavascriptInterface
+        fun onSessionUnavailable(reason: String) {
+            runOnUiThread {
+                pushSessionRefreshInFlight = false
+                val safeReason = reason.takeIf { it.matches(Regex("[a-z-]{1,40}")) } ?: "unknown"
+                Log.i("FLOUSTREAM-PUSH", "session_unavailable reason=$safeReason")
+                if (safeReason == "no-session" || safeReason == "anonymous-user" ||
+                    safeReason == "invalid-session"
+                ) {
+                    authenticatedUserId = null
+                    voiceMessageAudioBridge.activeUserId = null
+                }
+            }
+        }
+    }
+
+    private val pushSessionBridge = PushSessionBridge()
 
     private companion object {
         const val SITE_BASE_URL = "https://sergeybikov1991-create.github.io/Dolby404/"
@@ -139,8 +183,10 @@ class MainActivity : ComponentActivity() {
                         targetUri.host == "sergeybikov1991-create.github.io"
                     if (trustedSiteOrigin) {
                         view?.addJavascriptInterface(voiceMessageAudioBridge, "FloustreamVoiceAudio")
+                        view?.addJavascriptInterface(pushSessionBridge, "FloustreamPushSessionBridge")
                     } else {
                         view?.removeJavascriptInterface("FloustreamVoiceAudio")
+                        view?.removeJavascriptInterface("FloustreamPushSessionBridge")
                     }
 
                     if (target.startsWith(AUTH_URL)) {
@@ -396,6 +442,13 @@ class MainActivity : ComponentActivity() {
         // Check releases immediately; updater availability must not depend on WebView redirects or login state.
         checkForUpdatesOnce()
         setContentView(webView)
+        ContextCompat.registerReceiver(
+            this,
+            pushTokenUpdatedReceiver,
+            IntentFilter(FLOUSTREAMMessagingService.ACTION_FCM_TOKEN_UPDATED),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+        pushReceiverRegistered = true
         if (BuildConfig.DEBUG) {
             WebView.setWebContentsDebuggingEnabled(true)
         }
@@ -1000,6 +1053,87 @@ class MainActivity : ComponentActivity() {
             })();
         """.trimIndent()
         view.evaluateJavascript(script, null)
+    }
+
+    /**
+     * Re-check the live Supabase session whenever the app returns to the foreground.
+     * Only a verified, non-anonymous user session is passed to the native registrar.
+     */
+    private fun refreshPushRegistration(reason: String) {
+        if (!::webView.isInitialized || isFinishing || isDestroyed || !entryResolved) return
+        val currentUri = Uri.parse(webView.url.orEmpty())
+        if (currentUri.scheme != "https" || currentUri.host != "sergeybikov1991-create.github.io") return
+        if (pushSessionRefreshInFlight) return
+
+        pushSessionRefreshInFlight = true
+        Log.i("FLOUSTREAM-PUSH", "session_refresh_start reason=$reason")
+        val script = """
+            (function() {
+                (async function() {
+                    try {
+                        const moduleUrl = new URL(
+                            'shared/supabase-client.mjs',
+                            location.origin + location.pathname.replace(/[^/]*$/, '')
+                        ).href;
+                        const module = await import(moduleUrl);
+                        const client = await module.getSupabaseClient();
+                        if (!client || !client.auth) throw new Error('supabase-unavailable');
+
+                        const sessionResult = await Promise.race([
+                            client.auth.getSession(),
+                            new Promise((_, reject) => setTimeout(
+                                () => reject(new Error('session-timeout')), 15000
+                            ))
+                        ]);
+                        if (sessionResult.error) throw sessionResult.error;
+                        const session = sessionResult.data && sessionResult.data.session;
+                        if (!session || !session.access_token) {
+                            window.FloustreamPushSessionBridge.onSessionUnavailable('no-session');
+                            return;
+                        }
+
+                        const userResult = await Promise.race([
+                            client.auth.getUser(),
+                            new Promise((_, reject) => setTimeout(
+                                () => reject(new Error('user-timeout')), 15000
+                            ))
+                        ]);
+                        if (userResult.error) throw userResult.error;
+                        const user = userResult.data && userResult.data.user;
+                        if (!user || !user.id || user.is_anonymous === true) {
+                            window.FloustreamPushSessionBridge.onSessionUnavailable('anonymous-user');
+                            return;
+                        }
+
+                        window.__floustreamPushSession = {
+                            userId: user.id,
+                            accessToken: session.access_token,
+                            isAnonymous: false
+                        };
+                        window.FloustreamPushSessionBridge.onVerifiedSession(
+                            user.id,
+                            session.access_token
+                        );
+                    } catch (error) {
+                        const status = Number(error && (error.status || error.code)) || 0;
+                        const reason = status === 401 || status === 403
+                            ? 'invalid-session'
+                            : 'refresh-error';
+                        try {
+                            console.warn('[FLOUSTREAM-PUSH] session_refresh_failed status=' + status);
+                        } catch (_) {}
+                        window.FloustreamPushSessionBridge.onSessionUnavailable(reason);
+                    }
+                })();
+            })();
+        """.trimIndent()
+
+        try {
+            webView.evaluateJavascript(script, null)
+        } catch (error: Exception) {
+            pushSessionRefreshInFlight = false
+            Log.w("FLOUSTREAM-PUSH", "session_refresh_dispatch_failed type=${error.javaClass.simpleName}")
+        }
     }
 
     private fun checkForUpdatesOnce() {
@@ -1671,6 +1805,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         if (::inAppUpdater.isInitialized) inAppUpdater.onResume()
+        refreshPushRegistration("app-resume")
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
@@ -1692,6 +1827,10 @@ class MainActivity : ComponentActivity() {
         pendingWebAudioPermissionRequest?.deny()
         pendingWebAudioPermissionRequest = null
         voiceMessageAudioBridge.close()
+        if (pushReceiverRegistered) {
+            unregisterReceiver(pushTokenUpdatedReceiver)
+            pushReceiverRegistered = false
+        }
         cancelAuthCheck()
         if (::inAppUpdater.isInitialized) inAppUpdater.close()
         if (fullscreenCustomView != null) {
