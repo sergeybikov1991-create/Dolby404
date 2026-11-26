@@ -39,8 +39,6 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FilterInputStream
 import java.nio.charset.StandardCharsets
-import java.net.HttpURLConnection
-import java.net.URL
 
 class MainActivity : ComponentActivity() {
     private lateinit var inAppUpdater: InAppUpdater
@@ -80,6 +78,8 @@ class MainActivity : ComponentActivity() {
         const val WEB_MEDIA_PERMISSION_REQUEST_CODE = 4103
         const val MAX_AUTH_CHECK_ATTEMPTS = 50
         const val AUTH_CHECK_INTERVAL_MS = 400L
+        const val SUPABASE_SDK_VERSION = "2.119.2"
+        const val MIN_SUPABASE_SDK_BYTES = 100_000
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -138,7 +138,7 @@ class MainActivity : ComponentActivity() {
                     request: WebResourceRequest?
                 ): WebResourceResponse? {
                     interceptNativeVoiceRecording(request)?.let { return it }
-                    interceptSupabaseSdkFallback(request)?.let { return it }
+                    interceptSupabaseSdk(request)?.let { return it }
                     if (request != null) {
                         val requestHost = request.url.host.orEmpty()
                         if (requestHost.contains("jsdelivr.net") ||
@@ -499,42 +499,48 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Keep the website's original Supabase JS URL and auth code unchanged.
-     * If WebView cannot fetch jsDelivr in a given Android network environment,
-     * retrieve the same official UMD package from Supabase's documented unpkg CDN.
+     * Serve the official Supabase UMD bundle from this APK for both CDN URLs
+     * used by the hosted pages. Android WebView therefore never needs jsDelivr
+     * or unpkg to initialize Auth, REST, Storage or Realtime.
+     *
+     * The hosted website remains unchanged; only its Android WebView resource
+     * request is fulfilled from the app's packaged, version-pinned asset.
      */
-    private fun interceptSupabaseSdkFallback(request: WebResourceRequest?): WebResourceResponse? {
-        val url = request?.url?.toString().orEmpty()
-        if (!url.startsWith("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2")) return null
-        android.util.Log.d("FLOUSTREAM-WebView-DIAG", "Supabase SDK fallback requested")
+    private fun interceptSupabaseSdk(request: WebResourceRequest?): WebResourceResponse? {
+        val uri = request?.url ?: return null
+        val host = uri.host.orEmpty().lowercase()
+        val path = uri.path.orEmpty()
+        val isOfficialSdkUrl =
+            (host == "cdn.jsdelivr.net" && path.startsWith("/npm/@supabase/supabase-js@2")) ||
+            (host == "unpkg.com" && path.startsWith("/@supabase/supabase-js@2"))
+        if (!isOfficialSdkUrl) return null
+
         return runCatching {
-            val connection = (URL("https://unpkg.com/@supabase/supabase-js@2").openConnection() as HttpURLConnection).apply {
-                requestMethod = "GET"
-                connectTimeout = 10_000
-                readTimeout = 20_000
-                instanceFollowRedirects = true
-                setRequestProperty("Accept", "application/javascript, */*")
-                setRequestProperty("User-Agent", "FLOUSTREAM-Android-WebView")
+            val sdkBytes = assets.open("vendor/supabase.js").use { it.readBytes() }
+            require(sdkBytes.size >= MIN_SUPABASE_SDK_BYTES) {
+                "Bundled Supabase SDK is missing or incomplete"
             }
-            val status = connection.responseCode
-            android.util.Log.d("FLOUSTREAM-WebView-DIAG", "Supabase SDK fallback HTTP status=$status")
-            if (status !in 200..299) {
-                connection.disconnect()
-                return@runCatching null
-            }
-            val stream = connection.inputStream
+            val marker = "window.__FLOUSTREAM_SUPABASE_SDK_SOURCE__='apk-bundled-$SUPABASE_SDK_VERSION';\\n"
+            val responseBytes = marker.toByteArray(StandardCharsets.UTF_8) + sdkBytes
+            android.util.Log.i(
+                "FLOUSTREAM-WebView-DIAG",
+                "Supabase SDK served from APK asset: version=$SUPABASE_SDK_VERSION, bytes=${sdkBytes.size}"
+            )
             WebResourceResponse(
                 "application/javascript",
                 "UTF-8",
-                status,
+                200,
                 "OK",
-                mapOf("Cache-Control" to "public, max-age=3600"),
-                stream
+                mapOf(
+                    "Cache-Control" to "public, max-age=31536000, immutable",
+                    "Content-Length" to responseBytes.size.toString()
+                ),
+                ByteArrayInputStream(responseBytes)
             )
         }.onFailure { error ->
-            android.util.Log.w(
+            android.util.Log.e(
                 "FLOUSTREAM-WebView-DIAG",
-                "Supabase SDK fallback failed: ${error.javaClass.simpleName}"
+                "Bundled Supabase SDK could not be served: ${error.javaClass.simpleName}"
             )
         }.getOrNull()
     }
