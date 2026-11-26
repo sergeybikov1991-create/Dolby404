@@ -11,19 +11,44 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.time.Instant
+import java.util.concurrent.atomic.AtomicBoolean
+import android.util.Log
 
 object PushTokenRegistrar {
+    private const val TAG = "FLOUSTREAM-PUSH"
+    private val registrationInFlight = AtomicBoolean(false)
+
     fun register(activity: Activity, userId: String, accessToken: String) {
-        if (userId.isBlank() || accessToken.isBlank()) return
-        if (FirebaseApp.getApps(activity).isEmpty()) return
+        if (userId.isBlank() || accessToken.isBlank()) {
+            Log.w(TAG, "registration_skipped reason=missing_session")
+            return
+        }
+        if (FirebaseApp.getApps(activity).isEmpty()) {
+            Log.w(TAG, "registration_skipped reason=firebase_unavailable")
+            return
+        }
+        if (!registrationInFlight.compareAndSet(false, true)) {
+            Log.d(TAG, "registration_skipped reason=in_flight")
+            return
+        }
 
         requestNotificationPermission(activity)
 
-        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-            if (!task.isSuccessful) return@addOnCompleteListener
-            val fcmToken = task.result?.takeIf { it.isNotBlank() } ?: return@addOnCompleteListener
+        try {
+            FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+                if (!task.isSuccessful) {
+                    registrationInFlight.set(false)
+                    Log.w(TAG, "token_fetch_failed type=${task.exception?.javaClass?.simpleName ?: "unknown"}")
+                    return@addOnCompleteListener
+                }
+                val fcmToken = task.result?.takeIf { it.isNotBlank() }
+                if (fcmToken == null) {
+                    registrationInFlight.set(false)
+                    Log.w(TAG, "token_fetch_failed reason=empty_token")
+                    return@addOnCompleteListener
+                }
 
-            Thread {
+                Thread {
                 val connection = URL(
                     "${BuildConfig.SUPABASE_URL}/rest/v1/device_push_tokens?on_conflict=token"
                 ).openConnection() as HttpURLConnection
@@ -47,13 +72,21 @@ object PushTokenRegistrar {
                     if (responseCode in 200..299) {
                         activity.getSharedPreferences("floustream_push", Context.MODE_PRIVATE)
                             .edit().remove("pending_fcm_token").apply()
+                        Log.i(TAG, "registration_success status=$responseCode")
+                    } else {
+                        Log.w(TAG, "registration_http_error status=$responseCode")
                     }
-                } catch (_: Exception) {
-                    // Retry on the next authenticated app start without interrupting the UI.
+                } catch (error: Exception) {
+                    Log.w(TAG, "registration_failed type=${error.javaClass.simpleName}")
                 } finally {
                     connection.disconnect()
+                    registrationInFlight.set(false)
                 }
-            }.start()
+                }.start()
+            }
+        } catch (error: Exception) {
+            registrationInFlight.set(false)
+            Log.w(TAG, "registration_dispatch_failed type=${error.javaClass.simpleName}")
         }
     }
 
