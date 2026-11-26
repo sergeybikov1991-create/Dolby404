@@ -520,7 +520,7 @@ class MainActivity : ComponentActivity() {
             require(sdkBytes.size >= MIN_SUPABASE_SDK_BYTES) {
                 "Bundled Supabase SDK is missing or incomplete"
             }
-            val marker = "window.__FLOUSTREAM_SUPABASE_SDK_SOURCE__='apk-bundled-$SUPABASE_SDK_VERSION';\\n"
+            val marker = "window.__FLOUSTREAM_SUPABASE_SDK_SOURCE__='apk-bundled-$SUPABASE_SDK_VERSION';\n"
             val responseBytes = marker.toByteArray(StandardCharsets.UTF_8) + sdkBytes
             android.util.Log.i(
                 "FLOUSTREAM-WebView-DIAG",
