@@ -156,9 +156,6 @@ class MainActivity : ComponentActivity() {
         const val AUDIO_PERMISSION_REQUEST_CODE = 4103
         const val MAX_AUTH_CHECK_ATTEMPTS = 50
         const val AUTH_CHECK_INTERVAL_MS = 400L
-        const val MAX_RECONNECT_ATTEMPTS = 8
-        const val INITIAL_RECONNECT_DELAY_MS = 1_000L
-        const val MAX_RECONNECT_DELAY_MS = 60_000L
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -1561,10 +1558,9 @@ class MainActivity : ComponentActivity() {
             reconnectRunnable?.let(mainHandler::removeCallbacks)
             reconnectRunnable = null
         }
-        if (!immediate && reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) return
+        if (!immediate && reconnectAttempts >= NetworkRecoveryBackoff.MAX_ATTEMPTS) return
 
-        val delay = if (immediate) 0L else
-            minOf(MAX_RECONNECT_DELAY_MS, INITIAL_RECONNECT_DELAY_MS shl reconnectAttempts.coerceAtMost(6))
+        val delay = if (immediate) 0L else NetworkRecoveryBackoff.delayForAttempt(reconnectAttempts)
         reconnectRunnable = Runnable {
             reconnectRunnable = null
             if (!offlineScreenShown || isFinishing || isDestroyed || !isInternetValidated()) return@Runnable
