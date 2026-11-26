@@ -77,7 +77,7 @@ jobs:
             echo "::error::Debug APK signing identity does not match the established FLOUSTREAM certificate."
             exit 1
           fi
-          $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android' versionCode='121' versionName='1.5.4-debug'"
+          $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android' versionCode='122' versionName='1.5.4-debug'"
           sha256sum "$APK" | tee "$APK.sha256"
 
       - name: Upload debug APK artifact
