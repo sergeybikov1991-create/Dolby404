@@ -475,13 +475,12 @@ class MainActivity : ComponentActivity() {
             uri.host != "sergeybikov1991-create.github.io"
         ) return null
 
-        val publicProfilePath = Uri.parse(SITE_BASE_URL)
-            .buildUpon()
-            .appendPath("public-profile.html")
-            .build()
-            .encodedPath
+        val siteUri = Uri.parse(SITE_BASE_URL)
+        val homePath = siteUri.buildUpon().appendPath("home.html").build().encodedPath
+        val publicProfilePath = siteUri.buildUpon().appendPath("public-profile.html").build().encodedPath
         val assetName = when (uri.encodedPath) {
             Uri.parse(PROFILE_URL).encodedPath -> "profile.html"
+            homePath -> "home.html"
             publicProfilePath -> "public-profile.html"
             else -> return null
         }
