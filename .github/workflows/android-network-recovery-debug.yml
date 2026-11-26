@@ -40,6 +40,24 @@ jobs:
         with:
           gradle-version: "8.13"
 
+      - name: Prepare established FLOUSTREAM signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.DOLBY404_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.DOLBY404_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.DOLBY404_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.DOLBY404_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ] || [ -z "$STORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
+            echo "::error::Required FLOUSTREAM signing secrets are missing."
+            exit 1
+          fi
+          echo "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/floustream-release.jks"
+          keytool -list -keystore "$RUNNER_TEMP/floustream-release.jks" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/floustream-release.jks" >> "$GITHUB_ENV"
+          echo "ANDROID_KEYSTORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "ANDROID_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "ANDROID_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+
       - name: Run Android unit tests
         working-directory: android-web-shell-test
         run: gradle --no-daemon :app:testDebugUnitTest
@@ -48,10 +66,17 @@ jobs:
         working-directory: android-web-shell-test
         run: gradle --no-daemon clean :app:assembleDebug
 
-      - name: Verify Debug APK package
+      - name: Verify Debug APK package and established signing identity
         run: |
           APK=android-web-shell-test/app/build/outputs/apk/debug/app-debug.apk
           test -s "$APK"
+          $ANDROID_HOME/build-tools/36.0.0/apksigner verify --verbose "$APK"
+          CERT_SHA=$($ANDROID_HOME/build-tools/36.0.0/apksigner verify --print-certs "$APK" | awk -F': ' '/Signer #1 certificate SHA-256 digest:/{print toupper($2); exit}')
+          EXPECTED_CERT_SHA="757681105E9DFA43B84036C637815FBA0A98FB6169DADF75E7AE136504A9EED9"
+          if [ "$CERT_SHA" != "$EXPECTED_CERT_SHA" ]; then
+            echo "::error::Debug APK signing identity does not match the established FLOUSTREAM certificate."
+            exit 1
+          fi
           $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android' versionCode='123' versionName='1.5.4-debug'"
           sha256sum "$APK" | tee "$APK.sha256"
 
