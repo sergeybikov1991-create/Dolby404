@@ -5,6 +5,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.util.Log
 import com.google.firebase.FirebaseApp
 import com.google.firebase.messaging.FirebaseMessaging
 import org.json.JSONObject
@@ -12,7 +13,6 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.time.Instant
 import java.util.concurrent.atomic.AtomicBoolean
-import android.util.Log
 
 object PushTokenRegistrar {
     private const val TAG = "FLOUSTREAM-PUSH"
@@ -32,15 +32,18 @@ object PushTokenRegistrar {
             return
         }
 
-        requestNotificationPermission(activity)
-
         try {
+            requestNotificationPermission(activity)
             FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
                 if (!task.isSuccessful) {
                     registrationInFlight.set(false)
-                    Log.w(TAG, "token_fetch_failed type=${task.exception?.javaClass?.simpleName ?: "unknown"}")
+                    Log.w(
+                        TAG,
+                        "token_fetch_failed type=${task.exception?.javaClass?.simpleName ?: "unknown"}"
+                    )
                     return@addOnCompleteListener
                 }
+
                 val fcmToken = task.result?.takeIf { it.isNotBlank() }
                 if (fcmToken == null) {
                     registrationInFlight.set(false)
@@ -49,39 +52,47 @@ object PushTokenRegistrar {
                 }
 
                 Thread {
-                val connection = URL(
-                    "${BuildConfig.SUPABASE_URL}/rest/v1/device_push_tokens?on_conflict=token"
-                ).openConnection() as HttpURLConnection
-                try {
-                    connection.requestMethod = "POST"
-                    connection.connectTimeout = 10000
-                    connection.readTimeout = 10000
-                    connection.doOutput = true
-                    connection.setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
-                    connection.setRequestProperty("Authorization", "Bearer $accessToken")
-                    connection.setRequestProperty("Content-Type", "application/json")
-                    connection.setRequestProperty("Prefer", "resolution=merge-duplicates,return=minimal")
-                    val payload = JSONObject()
-                        .put("token", fcmToken)
-                        .put("user_id", userId)
-                        .put("platform", "android")
-                        .put("updated_at", Instant.now().toString())
-                        .toString()
-                    connection.outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
-                    val responseCode = connection.responseCode
-                    if (responseCode in 200..299) {
-                        activity.getSharedPreferences("floustream_push", Context.MODE_PRIVATE)
-                            .edit().remove("pending_fcm_token").apply()
-                        Log.i(TAG, "registration_success status=$responseCode")
-                    } else {
-                        Log.w(TAG, "registration_http_error status=$responseCode")
+                    var connection: HttpURLConnection? = null
+                    try {
+                        connection = URL(
+                            "${BuildConfig.SUPABASE_URL}/rest/v1/device_push_tokens?on_conflict=token"
+                        ).openConnection() as HttpURLConnection
+                        connection.requestMethod = "POST"
+                        connection.connectTimeout = 10000
+                        connection.readTimeout = 10000
+                        connection.doOutput = true
+                        connection.setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+                        connection.setRequestProperty("Authorization", "Bearer $accessToken")
+                        connection.setRequestProperty("Content-Type", "application/json")
+                        connection.setRequestProperty(
+                            "Prefer",
+                            "resolution=merge-duplicates,return=minimal"
+                        )
+
+                        val payload = JSONObject()
+                            .put("token", fcmToken)
+                            .put("user_id", userId)
+                            .put("platform", "android")
+                            .put("updated_at", Instant.now().toString())
+                            .toString()
+                        connection.outputStream.use {
+                            it.write(payload.toByteArray(Charsets.UTF_8))
+                        }
+
+                        val responseCode = connection.responseCode
+                        if (responseCode in 200..299) {
+                            activity.getSharedPreferences("floustream_push", Context.MODE_PRIVATE)
+                                .edit().remove("pending_fcm_token").apply()
+                            Log.i(TAG, "registration_success status=$responseCode")
+                        } else {
+                            Log.w(TAG, "registration_http_error status=$responseCode")
+                        }
+                    } catch (error: Exception) {
+                        Log.w(TAG, "registration_failed type=${error.javaClass.simpleName}")
+                    } finally {
+                        connection?.disconnect()
+                        registrationInFlight.set(false)
                     }
-                } catch (error: Exception) {
-                    Log.w(TAG, "registration_failed type=${error.javaClass.simpleName}")
-                } finally {
-                    connection.disconnect()
-                    registrationInFlight.set(false)
-                }
                 }.start()
             }
         } catch (error: Exception) {
@@ -98,7 +109,10 @@ object PushTokenRegistrar {
         val prefs = activity.getSharedPreferences("floustream_push", Context.MODE_PRIVATE)
         if (prefs.getBoolean("notification_permission_requested", false)) return
         prefs.edit().putBoolean("notification_permission_requested", true).apply()
-        activity.requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQUEST_NOTIFICATIONS)
+        activity.requestPermissions(
+            arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+            REQUEST_NOTIFICATIONS
+        )
     }
 
     private const val REQUEST_NOTIFICATIONS = 7302
