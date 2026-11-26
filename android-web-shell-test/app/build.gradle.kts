@@ -16,8 +16,8 @@ android {
         applicationId = "com.floustream.android"
         minSdk = 26
         targetSdk = 35
-        versionCode = 124
-        versionName = "1.4.1"
+        versionCode = 1
+        versionName = "0.0.1"
         buildConfigField("String", "UPDATE_REPOSITORY", "\"sergeybikov1991-create/Dolby404\"")
         buildConfigField("String", "SUPABASE_URL", "\"https://qhpobdktlbhdqsnajypr.supabase.co\"")
         buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"sb_publishable_tzG1qVsbjaW8YE_LBVN87Q_v0CahKN5\"")
@@ -38,10 +38,8 @@ android {
     kotlinOptions { jvmTarget = "17" }
     buildTypes {
         debug {
-            versionNameSuffix = "-debug"
-            if (!releaseStoreFile.isNullOrBlank()) {
-                signingConfig = signingConfigs.getByName("release")
-            }
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = ""
         }
         release {
             isMinifyEnabled = false

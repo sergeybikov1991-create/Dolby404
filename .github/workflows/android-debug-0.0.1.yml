@@ -1,0 +1,74 @@
+name: FLOUSTREAM Android Debug 0.0.1
+
+on:
+  push:
+    branches:
+      - debug/android-0.0.1-supabase-2.1
+    paths:
+      - "android-web-shell-test/**"
+      - ".github/workflows/android-debug-0.0.1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: floustream-android-debug-0-0-1
+  cancel-in-progress: false
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.13"
+
+      - name: Verify the selected connection implementation
+        working-directory: android-web-shell-test
+        run: |
+          MAIN=app/src/main/java/com/floustream/webshelltest/MainActivity.kt
+          if grep -Eq 'startConnectionProbe|InetAddress\.getAllByName|checkSupabaseSession|refreshPushRegistration' "$MAIN"; then
+            echo "::error::Legacy 1.4.1 connection/auth code is still present."
+            exit 1
+          fi
+          grep -Fq 'webView.loadUrl(SITE_BASE_URL)' "$MAIN"
+          grep -Fq "localStorage.getItem(storageKey)" "$MAIN"
+          grep -Fq "sb-qhpobdktlbhdqsnajypr-auth-token" "$MAIN"
+
+      - name: Run unit tests and build Debug APK
+        working-directory: android-web-shell-test
+        run: gradle --no-daemon clean :app:testDebugUnitTest :app:assembleDebug
+
+      - name: Verify APK identity and prepare checksum
+        run: |
+          APK=android-web-shell-test/app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -F "package: name='com.floustream.android.debug' versionCode='1' versionName='0.0.1'"
+          mkdir -p debug-artifact
+          cp "$APK" debug-artifact/FLOUSTREAM-Android-Debug-0.0.1.apk
+          sha256sum debug-artifact/FLOUSTREAM-Android-Debug-0.0.1.apk > debug-artifact/FLOUSTREAM-Android-Debug-0.0.1.apk.sha256
+
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: FLOUSTREAM-Android-Debug-0.0.1
+          path: debug-artifact/*
+          if-no-files-found: error
+          retention-days: 30

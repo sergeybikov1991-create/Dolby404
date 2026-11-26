@@ -15,9 +15,6 @@ class FLOUSTREAMMessagingService : FirebaseMessagingService() {
     override fun onNewToken(token: String) {
         getSharedPreferences("floustream_push", Context.MODE_PRIVATE)
             .edit().putString("pending_fcm_token", token).apply()
-        sendBroadcast(
-            Intent(ACTION_FCM_TOKEN_UPDATED).setPackage(packageName)
-        )
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
@@ -63,6 +60,5 @@ class FLOUSTREAMMessagingService : FirebaseMessagingService() {
 
     companion object {
         const val EXTRA_NOTIFICATION_PEER_ID = "floustream_notification_peer_id"
-        const val ACTION_FCM_TOKEN_UPDATED = "com.floustream.android.ACTION_FCM_TOKEN_UPDATED"
     }
 }
