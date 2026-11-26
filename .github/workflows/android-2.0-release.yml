@@ -130,8 +130,10 @@ jobs:
           auth_start = source.index("private fun checkSupabaseSession")
           auth_end = source.index("private fun cancelAuthCheck", auth_start)
           auth = source[auth_start:auth_end]
-          if "authClient.auth.getSession()" not in auth or "authClient.auth.getUser()" not in auth:
-              raise SystemExit("APK 1.3 Supabase session restore and server confirmation are missing")
+          if "localStorage.getItem" not in auth or "auth/v1/user" not in auth:
+              raise SystemExit("Android auth gate must read the shared WebView session and validate it through Supabase Auth")
+          if "clientExpression" in auth or "authClient.auth.getUser()" in auth or "authClient.auth.getSession()" in auth:
+              raise SystemExit("Android must not access a module-scoped Supabase client as a global")
           if "sessionMirror" in source or "SessionMirror" in source:
               raise SystemExit("APK 2.3 native session mirror must be completely removed")
           if "localStorage.setItem" in auth or "auth/v1/token?grant_type=refresh_token" in auth:
