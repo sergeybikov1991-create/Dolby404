@@ -289,13 +289,13 @@ async function initFeed(client){
     try{const url=new URL(value,location.href);return ["http:","https:"].includes(url.protocol)?url.href:"";}catch(_){return "";}
   }
 function postMediaUrl(client,item){
- if(typeof item==="string")return safeUrl(item);
+ if(typeof item==="string")return safeImageUrl(item);
  if(!item||typeof item!=="object")return "";
  const direct=item.url||item.publicUrl||item.public_url||item.src||item.image_url||item.download_url;
- if(direct){const valid=safeUrl(direct);if(valid)return valid;}
+ if(direct){const valid=safeImageUrl(direct);if(valid)return valid;}
  const path=item.object_path||item.storage_path||item.file_path||item.path;
  if(!path)return "";
- try{const bucket=typeof item.bucket==="string"&&item.bucket.trim()?item.bucket:"posts";return safeUrl(client.storage.from(bucket).getPublicUrl(path).data.publicUrl);}catch(_){return "";}
+ try{const bucket=typeof item.bucket==="string"&&item.bucket.trim()?item.bucket:"posts";return safeImageUrl(client.storage.from(bucket).getPublicUrl(path).data.publicUrl);}catch(_){return "";}
 }
 function postMediaType(item){
  const value=String(item&&typeof item==="object"?(item.type||item.mime_type||item.mimeType||""):"").toLowerCase();
