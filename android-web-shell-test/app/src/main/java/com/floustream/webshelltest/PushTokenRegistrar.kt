@@ -105,10 +105,20 @@ object PushTokenRegistrar {
         if (Build.VERSION.SDK_INT < 33) return
         if (activity.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
             PackageManager.PERMISSION_GRANTED
-        ) return
+        ) {
+            Log.i(TAG, "notification_permission already_granted")
+            return
+        }
         val prefs = activity.getSharedPreferences("floustream_push", Context.MODE_PRIVATE)
-        if (prefs.getBoolean("notification_permission_requested", false)) return
-        prefs.edit().putBoolean("notification_permission_requested", true).apply()
+        // A new diagnostic build gets one fresh permission prompt even if 1.5.3
+        // had already marked its own prompt as requested on this installation.
+        val requestKey = "notification_permission_requested_1_5_4"
+        if (prefs.getBoolean(requestKey, false)) {
+            Log.i(TAG, "notification_permission prompt_already_requested")
+            return
+        }
+        prefs.edit().putBoolean(requestKey, true).apply()
+        Log.i(TAG, "notification_permission prompt_requested")
         activity.requestPermissions(
             arrayOf(Manifest.permission.POST_NOTIFICATIONS),
             REQUEST_NOTIFICATIONS

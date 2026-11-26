@@ -1,9 +1,9 @@
-name: FLOUSTREAM Android 1.5.3 Push Debug
+name: FLOUSTREAM Android 1.5.4 Push Debug
 
 on:
   push:
     branches:
-      - fix/android-push-1.5.3-debug
+      - fix/android-push-1.5.4-debug
     paths:
       - "android-web-shell-test/**"
       - ".github/workflows/android-push-debug-1.5.3.yml"
@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: floustream-android-1-5-3-push-debug
+  group: floustream-android-1-5-4-push-debug
   cancel-in-progress: false
 
 jobs:
@@ -77,13 +77,13 @@ jobs:
             echo "::error::Debug APK signing identity does not match the established FLOUSTREAM certificate."
             exit 1
           fi
-          $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android' versionCode='120' versionName='1.5.3-debug'"
+          $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android' versionCode='121' versionName='1.5.4-debug'"
           sha256sum "$APK" | tee "$APK.sha256"
 
       - name: Upload debug APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: FLOUSTREAM-Android-1.5.3-Push-Debug
+          name: FLOUSTREAM-Android-1.5.4-Push-Debug
           path: |
             android-web-shell-test/app/build/outputs/apk/debug/app-debug.apk
             android-web-shell-test/app/build/outputs/apk/debug/app-debug.apk.sha256
