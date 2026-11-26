@@ -85,11 +85,13 @@ jobs:
           fi
           $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android' versionCode='124' versionName='1.4.1'"
           SHA=$(sha256sum "$APK" | cut -d' ' -f1)
-          printf '%s  %s\\n' "$SHA" "app-release.apk" > "$APK.sha256"
+          echo "$SHA  app-release.apk" > "$APK.sha256"
           mkdir -p release-assets
           cp "$APK" release-assets/app-release.apk
           cp "$APK.sha256" release-assets/app-release.apk.sha256
-          printf '{"versionCode":124,"versionName":"1.4.1","apkUrl":"https://github.com/sergeybikov1991-create/Dolby404/releases/download/v1.4.1/app-release.apk","sha256":"%s"}\\n' "$SHA" > release-assets/update.json
+          cat > release-assets/update.json <<EOF
+          {"versionCode":124,"versionName":"1.4.1","apkUrl":"https://github.com/sergeybikov1991-create/Dolby404/releases/download/v1.4.1/app-release.apk","sha256":"$SHA"}
+          EOF
 
       - name: Upload verified Release APK artifact
         uses: actions/upload-artifact@v4
