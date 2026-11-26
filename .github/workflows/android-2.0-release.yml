@@ -111,7 +111,7 @@ jobs:
           ):
               if marker not in source:
                   raise SystemExit(f"Android local Supabase SDK integration is missing: {marker}")
-          if "HttpURLConnection" in source or "unpkg.com/@supabase/supabase-js@2\").openConnection()" in source:
+          if "HttpURLConnection" in source or "unpkg.com/@supabase/supabase-js@2" in source:
               raise SystemExit("Android must not fetch a second SDK copy from a CDN at runtime")
           required = {
               "Android photo viewer viewport correction": "floustream-android-photo-viewer-fit-v1",
