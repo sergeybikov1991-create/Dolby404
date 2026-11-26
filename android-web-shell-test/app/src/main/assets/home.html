@@ -288,6 +288,23 @@ async function initFeed(client){
     if(!value)return "";
     try{const url=new URL(value,location.href);return ["http:","https:"].includes(url.protocol)?url.href:"";}catch(_){return "";}
   }
+function postMediaUrl(client,item){
+ if(typeof item==="string")return safeUrl(item);
+ if(!item||typeof item!=="object")return "";
+ const direct=item.url||item.publicUrl||item.public_url||item.src||item.image_url||item.download_url;
+ if(direct){const valid=safeUrl(direct);if(valid)return valid;}
+ const path=item.object_path||item.storage_path||item.file_path||item.path;
+ if(!path)return "";
+ try{const bucket=typeof item.bucket==="string"&&item.bucket.trim()?item.bucket:"posts";return safeUrl(client.storage.from(bucket).getPublicUrl(path).data.publicUrl);}catch(_){return "";}
+}
+function postMediaType(item){
+ const value=String(item&&typeof item==="object"?(item.type||item.mime_type||item.mimeType||""):"").toLowerCase();
+ if(value==="photo"||value==="image"||value.startsWith("image/"))return "photo";
+ if(value==="video"||value.startsWith("video/"))return "video";
+ if(value==="music"||value==="audio"||value.startsWith("audio/"))return "audio";
+ return value;
+}
+
 
  function attachPostActions(post,card){
   const bar=document.createElement("div");bar.className="post-social-actions";
@@ -382,9 +399,9 @@ async function initFeed(client){
       mediaBox.className="post-media";
       for(const item of mediaItems){
         if(!item||typeof item!=="object")continue;
-        const mediaUrl=safeImageUrl(item.url);
+        const mediaUrl=postMediaUrl(client,item);
         if(!mediaUrl)continue;
-        const type=String(item.type||"").toLowerCase();
+        const type=postMediaType(item);
         const wrapper=document.createElement("div");
         wrapper.className="post-media-item";
         let media;
@@ -397,14 +414,14 @@ async function initFeed(client){
         }else if(type==="music"||type==="audio"){
           media=document.createElement("audio");
           media.controls=true;
-          media.preload="metadata";
+          media.preload="auto";
           media.setAttribute("aria-label",item.name||"Аудио публикации");
           media.src=mediaUrl;
         }else if(type==="video"){
           media=document.createElement("video");
           media.controls=true;
-          media.playsInline=true;
-          media.preload="metadata";
+          media.playsInline=true;media.setAttribute("webkit-playsinline","");
+          media.preload="auto";
           media.setAttribute("aria-label",item.name||"Видео публикации");
           media.src=mediaUrl;
         }else{
