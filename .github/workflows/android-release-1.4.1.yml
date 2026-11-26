@@ -1,0 +1,122 @@
+name: FLOUSTREAM Android 1.4.1 Release
+
+on:
+  push:
+    branches:
+      - release/android-1.4.1-diagnostics
+    paths:
+      - "android-web-shell-test/**"
+      - ".github/workflows/android-release-1.4.1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: floustream-android-1-4-1-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.13"
+
+      - name: Prepare the established release signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.DOLBY404_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.DOLBY404_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.DOLBY404_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.DOLBY404_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ] || [ -z "$STORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
+            echo "::error::Required release signing secrets are missing."
+            exit 1
+          fi
+          echo "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/floustream-release.jks"
+          keytool -list -keystore "$RUNNER_TEMP/floustream-release.jks" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/floustream-release.jks" >> "$GITHUB_ENV"
+          echo "ANDROID_KEYSTORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "ANDROID_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "ANDROID_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+
+      - name: Generate launcher icon resources
+        run: |
+          python -m pip install --disable-pip-version-check Pillow
+          python android-web-shell-test/scripts/generate_launcher_icons.py
+
+      - name: Run unit tests
+        working-directory: android-web-shell-test
+        run: gradle --no-daemon :app:testDebugUnitTest
+
+      - name: Build signed Release APK
+        working-directory: android-web-shell-test
+        run: gradle --no-daemon clean :app:assembleRelease
+
+      - name: Verify package, version, and signature
+        id: verify
+        run: |
+          APK=android-web-shell-test/app/build/outputs/apk/release/app-release.apk
+          test -s "$APK"
+          $ANDROID_HOME/build-tools/36.0.0/apksigner verify --verbose "$APK"
+          CERT_SHA=$($ANDROID_HOME/build-tools/36.0.0/apksigner verify --print-certs "$APK" | awk -F': ' '/Signer #1 certificate SHA-256 digest:/{print toupper($2); exit}')
+          EXPECTED_CERT_SHA="757681105E9DFA43B84036C637815FBA0A98FB6169DADF75E7AE136504A9EED9"
+          if [ "$CERT_SHA" != "$EXPECTED_CERT_SHA" ]; then
+            echo "::error::Release APK certificate does not match the established FLOUSTREAM signing identity."
+            exit 1
+          fi
+          $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" | grep -E "package: name='com.floustream.android' versionCode='124' versionName='1.4.1'"
+          SHA=$(sha256sum "$APK" | cut -d' ' -f1)
+          printf '%s  %s\\n' "$SHA" "app-release.apk" > "$APK.sha256"
+          mkdir -p release-assets
+          cp "$APK" release-assets/app-release.apk
+          cp "$APK.sha256" release-assets/app-release.apk.sha256
+          printf '{"versionCode":124,"versionName":"1.4.1","apkUrl":"https://github.com/sergeybikov1991-create/Dolby404/releases/download/v1.4.1/app-release.apk","sha256":"%s"}\\n' "$SHA" > release-assets/update.json
+
+      - name: Upload verified Release APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FLOUSTREAM-Android-1.4.1-Release
+          path: release-assets/*
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish download page and Release APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.4.1
+          target_commitish: release/android-1.4.1-diagnostics
+          name: FLOUSTREAM Android 1.4.1
+          body: |
+            FLOUSTREAM Android 1.4.1 — signed Release build based on the approved 1.5.4 Diagnostics source.
+
+            - Package: com.floustream.android
+            - Release signing identity preserved
+            - Diagnostics page and log export retained
+            - APK SHA-256 checksum and updater manifest included
+          draft: false
+          prerelease: false
+          make_latest: true
+          files: |
+            release-assets/app-release.apk
+            release-assets/app-release.apk.sha256
+            release-assets/update.json
+          fail_on_unmatched_files: true
