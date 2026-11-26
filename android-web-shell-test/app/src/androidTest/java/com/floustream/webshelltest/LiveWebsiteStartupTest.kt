@@ -46,6 +46,7 @@ class LiveWebsiteStartupTest {
                                 authMessage: document.querySelector('#auth-message')?.textContent || '',
                                 registerDisabled: !!document.querySelector('#register-button')?.disabled,
                                 supabaseGlobal: !!(window.supabase && window.supabase.createClient),
+                                supabaseSdkSource: window.__FLOUSTREAM_SUPABASE_SDK_SOURCE__ || '',
                                 supabaseClientType: typeof supabaseClient,
                                 authCheckState: window.__floustreamAuthCheckState || '',
                                 authCheckRunning: !!window.__floustreamAuthCheckRunning,
@@ -85,6 +86,7 @@ class LiveWebsiteStartupTest {
                     page.contains("\"emailField\":true") &&
                     page.contains("\"passwordField\":true") &&
                     page.contains("\"supabaseGlobal\":true") &&
+                    page.contains("\"supabaseSdkSource\":\"apk-bundled-2.119.2\"") &&
                     page.contains("\"supabaseClientType\":\"object\"")
             )
             assertTrue("Expected the website email field, got: $page", page.contains("\"emailField\":true"))
