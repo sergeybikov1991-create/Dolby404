@@ -47,7 +47,6 @@ class LiveWebsiteStartupTest {
                                 registerDisabled: !!document.querySelector('#register-button')?.disabled,
                                 supabaseGlobal: !!(window.supabase && window.supabase.createClient),
                                 supabaseSdkSource: window.__FLOUSTREAM_SUPABASE_SDK_SOURCE__ || '',
-                                supabaseClientType: typeof supabaseClient,
                                 authCheckState: window.__floustreamAuthCheckState || '',
                                 authCheckRunning: !!window.__floustreamAuthCheckRunning,
                                 logo: document.querySelector('.logo')?.textContent || ''
@@ -60,6 +59,7 @@ class LiveWebsiteStartupTest {
                             val ready = value.contains("portal.html") &&
                                 value.contains("\"emailField\":true") &&
                                 value.contains("\"passwordField\":true") &&
+                                value.contains("\"authCheckState\":\"unauthenticated\"") &&
                                 webView.visibility == View.VISIBLE
                             if (ready) {
                                 finished.countDown()
@@ -87,7 +87,8 @@ class LiveWebsiteStartupTest {
                     page.contains("\"passwordField\":true") &&
                     page.contains("\"supabaseGlobal\":true") &&
                     page.contains("\"supabaseSdkSource\":\"apk-bundled-2.119.2\"") &&
-                    page.contains("\"supabaseClientType\":\"object\"")
+                    page.contains("\"authCheckState\":\"unauthenticated\"") &&
+                    page.contains("\"authCheckRunning\":false")
             )
             assertTrue("Expected the website email field, got: $page", page.contains("\"emailField\":true"))
             assertTrue("Expected the website password field, got: $page", page.contains("\"passwordField\":true"))
