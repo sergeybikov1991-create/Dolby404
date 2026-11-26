@@ -1254,7 +1254,7 @@ class MainActivity : ComponentActivity() {
                     entryResolved = true
                     authFlowActive = false
                     view.evaluateJavascript(
-                        "(function(){ return JSON.stringify({session:window.__floustreamPushSession || null,error:window.__floustreamAuthCheckError || null,stage:window.__floustreamAuthCheckStage || null}); })()"
+                        "(function(){ return {session:window.__floustreamPushSession || null,error:window.__floustreamAuthCheckError || null,stage:window.__floustreamAuthCheckStage || null}; })()"
                     ) { pushResult ->
                         try {
                             val snapshot = JSONObject(pushResult ?: "{}")
@@ -1265,16 +1265,27 @@ class MainActivity : ComponentActivity() {
                                 pushSession.optString("userId").takeIf { it.isNotBlank() }
                             }
                             voiceMessageAudioBridge.activeUserId = authenticatedUserId
-                            if (pushSession.has("userId")) {
+                            val pushUserId = pushSession.optString("userId")
+                            val pushAccessToken = pushSession.optString("accessToken")
+                            if (pushUserId.isNotBlank() &&
+                                pushAccessToken.isNotBlank() &&
+                                !pushSession.optBoolean("isAnonymous", false)
+                            ) {
+                                Log.i("FLOUSTREAM-PUSH", "startup_session_verified userPresent=true")
                                 PushTokenRegistrar.register(
                                     this@MainActivity,
-                                    pushSession.optString("userId"),
-                                    pushSession.optString("accessToken")
+                                    pushUserId,
+                                    pushAccessToken
                                 )
+                            } else {
+                                Log.i("FLOUSTREAM-PUSH", "startup_registration_skipped reason=no-authenticated-user")
                             }
                             Log.i("FLOUSTREAM-WebView-DIAG", "auth_verified userPresent=${pushSession.has("userId")} stage=${snapshot.optString("stage")}")
                         } catch (error: Exception) {
                             Log.e("FLOUSTREAM-WebView-DIAG", "auth_verified snapshot_error=${error.message}")
+                            // The auth check already succeeded. Retry through the live
+                            // Supabase singleton rather than silently losing token registration.
+                            refreshPushRegistration("startup-auth-verified-fallback")
                         }
                         if (!isFinishing && !isDestroyed) showAuthenticatedScreen(view)
                     }
