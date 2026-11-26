@@ -126,6 +126,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Ask for notification permission independently of Firebase and login state.
+        PushTokenRegistrar.requestNotificationPermission(this)
+
         singleVisualPickerLauncher = registerForActivityResult(
             ActivityResultContracts.PickVisualMedia()
         ) { uri ->
