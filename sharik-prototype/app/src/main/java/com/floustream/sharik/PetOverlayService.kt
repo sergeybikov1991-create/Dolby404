@@ -147,12 +147,7 @@ class PetOverlayService : Service() {
         return DesktopBounds(0, maxX, minY, maxY)
     }
 
-    private data class DesktopBounds(val minX: Int, val maxX: Int, val minY: Int, val maxY: Int) {
-        operator fun component1() = minX
-        operator fun component2() = maxX
-        operator fun component3() = minY
-        operator fun component4() = maxY
-    }
+    private data class DesktopBounds(val minX: Int, val maxX: Int, val minY: Int, val maxY: Int)
 
     private fun hasUsageAccess(): Boolean {
         val appOps = getSystemService(APP_OPS_SERVICE) as AppOpsManager
