@@ -98,9 +98,9 @@ class PetOverlayService : Service() {
             android.graphics.PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = prefs.getInt("x", dp(18)).coerceIn(bounds.first, bounds.second)
-            y = prefs.getInt("y", bounds.third + (bounds.fourth - bounds.third) / 2)
-                .coerceIn(bounds.third, bounds.fourth)
+            x = prefs.getInt("x", dp(18)).coerceIn(bounds.minX, bounds.maxX)
+            y = prefs.getInt("y", bounds.minY + (bounds.maxY - bounds.minY) / 2)
+                .coerceIn(bounds.minY, bounds.maxY)
         }
         petView = PetView()
         petView.visibility = View.GONE
