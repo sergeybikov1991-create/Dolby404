@@ -2,6 +2,7 @@ package com.floustream.sharik
 
 import android.Manifest
 import android.app.Activity
+import android.app.AppOpsManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -41,20 +42,24 @@ class MainActivity : Activity() {
         }
         root.addView(status, matchWrap())
         root.addView(Button(this).apply {
-            text = "Разрешить поверх окон"
+            text = "Разрешить отображение поверх окон"
             setOnClickListener {
                 if (!Settings.canDrawOverlays(this@MainActivity)) {
                     startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                         Uri.parse("package:$packageName")))
-                } else startPet()
+                } else refreshStatus()
             }
         }, matchWrap())
         root.addView(Button(this).apply {
-            text = "Выпустить Шарика на экран"
+            text = "Разрешить определять рабочий стол"
             setOnClickListener {
-                if (Settings.canDrawOverlays(this@MainActivity)) startPet()
-                else status.text = "Сначала разреши отображение поверх других приложений."
+                if (!hasUsageAccess()) startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+                else refreshStatus()
             }
+        }, matchWrap())
+        root.addView(Button(this).apply {
+            text = "Выпустить Шарика на рабочий стол"
+            setOnClickListener { startPet() }
         }, matchWrap())
         root.addView(Button(this).apply {
             text = "Убрать Шарика"
@@ -64,7 +69,7 @@ class MainActivity : Activity() {
             }
         }, matchWrap())
         root.addView(TextView(this).apply {
-            text = "Перетаскивай Шарика пальцем. Короткое касание меняет позу: ходьба, сидение, лежание. Он машет хвостом и запоминает последнее положение. Остановить его можно здесь или через системное уведомление."
+            text = "Шарик гуляет только на домашнем экране, не выходит за его границы и скрывается при открытии приложений. Перетаскивай его пальцем. Короткое касание меняет позу: ходьба, сидение, лежание."
             textSize = 13f; setTextColor(0xFF9DAACB.toInt()); setPadding(0, 28, 0, 0)
         }, matchWrap())
         setContentView(root)
@@ -78,21 +83,40 @@ class MainActivity : Activity() {
 
     private fun startPet() {
         if (!Settings.canDrawOverlays(this)) {
-            status.text = "Нужно разрешение «Поверх других приложений»."
+            status.text = "Сначала разреши отображение поверх других приложений."
+            startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
             return
         }
-        val intent = Intent(this, PetOverlayService::class.java).apply {
-            action = PetOverlayService.ACTION_START
+        if (!hasUsageAccess()) {
+            status.text = "Нужно разрешить доступ к истории использования, чтобы определять домашний экран."
+            startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+            return
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent)
-        else startService(intent)
-        status.text = "Шарик запускается. Возвращайся на рабочий стол."
+        val intent = Intent(this, PetOverlayService::class.java).apply { action = PetOverlayService.ACTION_START }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent) else startService(intent)
+        status.text = "Шарик запущен. Вернись на главный экран."
+    }
+
+    private fun hasUsageAccess(): Boolean {
+        val appOps = getSystemService(APP_OPS_SERVICE) as AppOpsManager
+        val mode = if (Build.VERSION.SDK_INT >= 29) {
+            appOps.unsafeCheckOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), packageName)
+        } else {
+            @Suppress("DEPRECATION")
+            appOps.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), packageName)
+        }
+        return mode == AppOpsManager.MODE_ALLOWED
     }
 
     private fun refreshStatus() {
-        status.text = if (Settings.canDrawOverlays(this))
-            "Разрешение на плавающее окно включено."
-        else "Для прогулки по экрану нужно одно разрешение Android."
+        val overlay = Settings.canDrawOverlays(this)
+        val usage = hasUsageAccess()
+        status.text = when {
+            overlay && usage -> "Оба разрешения включены. Шарик будет виден только на рабочем столе."
+            !overlay && !usage -> "Нужно включить два разрешения: отображение поверх окон и доступ к истории использования."
+            !overlay -> "Осталось разрешить отображение поверх окон."
+            else -> "Осталось разрешить определение активного рабочего стола."
+        }
     }
 
     private fun requestNotificationPermissionIfNeeded() {
