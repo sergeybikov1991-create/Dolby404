@@ -150,6 +150,8 @@ class PetOverlayService : Service() {
             val cx = width / 2f
             val bob = if (pose == 0) sin(frame * 0.42).toFloat() * 5f else 0f
             val cy = height * 0.53f + bob
+            val headX = if (pose == 2) cx + 20f else cx
+            val headY = if (pose == 2) cy - 12f else cy
             val wag = sin(frame * 0.55).toFloat() * 0.42f
 
             p.color = 0x553D4C78
@@ -169,32 +171,39 @@ class PetOverlayService : Service() {
             canvas.restore()
 
             p.color = 0xFF8D83E8.toInt()
-            canvas.drawOval(cx - 42, cy - 56, cx - 13, cy - 17, p)
-            canvas.drawOval(cx + 13, cy - 56, cx + 42, cy - 17, p)
+            canvas.drawOval(headX - 42, headY - 56, headX - 13, headY - 17, p)
+            canvas.drawOval(headX + 13, headY - 56, headX + 42, headY - 17, p)
 
-            body.set(cx - 48, cy - 40, cx + 48, cy + 47)
+            if (pose == 2) body.set(cx - 55, cy - 25, cx + 55, cy + 32)
+            else body.set(cx - 48, cy - 40, cx + 48, cy + 47)
             p.color = 0xFFB9B1FF.toInt()
             canvas.drawOval(body, p)
             p.color = 0xFFE9E5FF.toInt()
-            canvas.drawOval(cx - 31, cy - 26, cx + 31, cy + 37, p)
+            if (pose == 2) canvas.drawOval(cx - 34, cy - 15, cx + 43, cy + 24, p)
+            else canvas.drawOval(cx - 31, cy - 26, cx + 31, cy + 37, p)
 
             p.color = 0xFF8278D9.toInt()
             val footShift = if (pose == 0) sin(frame * 0.6).toFloat() * 5f else 0f
-            canvas.drawOval(cx - 40 - footShift, cy + 29, cx - 12 - footShift, cy + 48, p)
-            canvas.drawOval(cx + 12 + footShift, cy + 29, cx + 40 + footShift, cy + 48, p)
+            if (pose == 2) {
+                canvas.drawOval(cx - 48, cy + 12, cx - 22, cy + 31, p)
+                canvas.drawOval(cx + 30, cy + 12, cx + 53, cy + 29, p)
+            } else {
+                canvas.drawOval(cx - 40 - footShift, cy + 29, cx - 12 - footShift, cy + 48, p)
+                canvas.drawOval(cx + 12 + footShift, cy + 29, cx + 40 + footShift, cy + 48, p)
+            }
 
             p.color = 0xFF292746.toInt()
-            canvas.drawCircle(cx - 17, cy - 1, 4.5f, p)
-            canvas.drawCircle(cx + 17, cy - 1, 4.5f, p)
+            canvas.drawCircle(headX - 17, headY - 1, 4.5f, p)
+            canvas.drawCircle(headX + 17, headY - 1, 4.5f, p)
             p.style = Paint.Style.STROKE
             p.strokeWidth = 2.8f
             p.strokeCap = Paint.Cap.ROUND
-            canvas.drawArc(cx - 10, cy + 5, cx + 10, cy + 19, 15f, 150f, false, p)
+            canvas.drawArc(headX - 10, headY + 5, headX + 10, headY + 19, 15f, 150f, false, p)
             p.style = Paint.Style.FILL
 
             p.color = 0x66FF8FA8
-            canvas.drawCircle(cx - 29, cy + 10, 7f, p)
-            canvas.drawCircle(cx + 29, cy + 10, 7f, p)
+            canvas.drawCircle(headX - 29, headY + 10, 7f, p)
+            canvas.drawCircle(headX + 29, headY + 10, 7f, p)
 
             if (pose == 1) {
                 p.color = Color.WHITE
