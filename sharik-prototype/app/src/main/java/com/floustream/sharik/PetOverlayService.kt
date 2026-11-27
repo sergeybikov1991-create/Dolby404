@@ -208,78 +208,12 @@ class PetOverlayService : Service() {
     }
 
     private inner class PetView : View(this@PetOverlayService) {
-        private val p = Paint(Paint.ANTI_ALIAS_FLAG)
-        private val body = RectF()
-        private val tail = Path()
-
-        init { setLayerType(LAYER_TYPE_SOFTWARE, null) }
+        private val renderer = DogRenderer()
 
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
             val density = resources.displayMetrics.density
-            canvas.save()
-            canvas.scale(density, density)
-            val logicalWidth = width / density
-            val logicalHeight = height / density
-            val cx = logicalWidth / 2f
-            val bob = if (pose == 0) sin(frame * 0.42).toFloat() * 5f else 0f
-            val cy = logicalHeight * 0.53f + bob
-            val headX = if (pose == 2) cx + 20f else cx
-            val headY = if (pose == 2) cy - 12f else cy
-            val wag = sin(frame * 0.55).toFloat() * 0.42f
-
-            p.color = 0x553D4C78
-            canvas.drawOval(cx - 48, logicalHeight - 28f, cx + 48, logicalHeight - 12f, p)
-            canvas.save()
-            canvas.rotate(wag * 48f, cx + 37f, cy + 17f)
-            tail.reset()
-            tail.moveTo(cx + 34f, cy + 20f)
-            tail.cubicTo(cx + 75f, cy + 5f, cx + 73f, cy - 34f, cx + 48f, cy - 29f)
-            p.style = Paint.Style.STROKE
-            p.strokeWidth = 12f
-            p.strokeCap = Paint.Cap.ROUND
-            p.color = 0xFFFFB86B.toInt()
-            canvas.drawPath(tail, p)
-            p.style = Paint.Style.FILL
-            canvas.restore()
-
-            p.color = 0xFF8D83E8.toInt()
-            canvas.drawOval(headX - 42, headY - 56, headX - 13, headY - 17, p)
-            canvas.drawOval(headX + 13, headY - 56, headX + 42, headY - 17, p)
-            if (pose == 2) body.set(cx - 55, cy - 25, cx + 55, cy + 32)
-            else body.set(cx - 48, cy - 40, cx + 48, cy + 47)
-            p.color = 0xFFB9B1FF.toInt()
-            canvas.drawOval(body, p)
-            p.color = 0xFFE9E5FF.toInt()
-            if (pose == 2) canvas.drawOval(cx - 34, cy - 15, cx + 43, cy + 24, p)
-            else canvas.drawOval(cx - 31, cy - 26, cx + 31, cy + 37, p)
-            p.color = 0xFF8278D9.toInt()
-            val footShift = if (pose == 0) sin(frame * 0.6).toFloat() * 5f else 0f
-            if (pose == 2) {
-                canvas.drawOval(cx - 48, cy + 12, cx - 22, cy + 31, p)
-                canvas.drawOval(cx + 30, cy + 12, cx + 53, cy + 29, p)
-            } else {
-                canvas.drawOval(cx - 40 - footShift, cy + 29, cx - 12 - footShift, cy + 48, p)
-                canvas.drawOval(cx + 12 + footShift, cy + 29, cx + 40 + footShift, cy + 48, p)
-            }
-            p.color = 0xFF292746.toInt()
-            canvas.drawCircle(headX - 17, headY - 1, 4.5f, p)
-            canvas.drawCircle(headX + 17, headY - 1, 4.5f, p)
-            p.style = Paint.Style.STROKE
-            p.strokeWidth = 2.8f
-            p.strokeCap = Paint.Cap.ROUND
-            canvas.drawArc(headX - 10, headY + 5, headX + 10, headY + 19, 15f, 150f, false, p)
-            p.style = Paint.Style.FILL
-            p.color = 0x66FF8FA8
-            canvas.drawCircle(headX - 29, headY + 10, 7f, p)
-            canvas.drawCircle(headX + 29, headY + 10, 7f, p)
-            if (pose == 1) {
-                p.color = Color.WHITE
-                p.textSize = 17f
-                p.typeface = Typeface.DEFAULT_BOLD
-                canvas.drawText("z", cx + 50, cy - 48, p)
-            }
-            canvas.restore()
+            renderer.draw(canvas, width / density, height / density, pose, frame)
         }
 
         override fun onTouchEvent(event: MotionEvent): Boolean {
