@@ -7,7 +7,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
-import androidx.compose.ui.platform.setContent
 import android.widget.FrameLayout
 import io.github.sceneview.SceneView
 import io.github.sceneview.SurfaceType
