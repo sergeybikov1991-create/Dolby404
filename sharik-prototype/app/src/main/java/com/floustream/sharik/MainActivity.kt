@@ -72,6 +72,12 @@ class MainActivity : Activity() {
             text = "Шарик гуляет только на домашнем экране, не выходит за его границы и скрывается при открытии приложений. Перетаскивай его пальцем. Короткое касание переключает 3D-анимации: ходьба, отдых с дыханием и вилянием хвоста, сидение."
             textSize = 13f; setTextColor(0xFF9DAACB.toInt()); setPadding(0, 28, 0, 0)
         }, matchWrap())
+        root.addView(TextView(this).apply {
+            text = "3D-модель: German Shepherd by vinish.dev, лицензия CC BY 4.0."
+            textSize = 10f
+            setTextColor(0xFF7F8BAA.toInt())
+            setPadding(0, 18, 0, 0)
+        }, matchWrap())
         setContentView(root)
         refreshStatus()
     }
