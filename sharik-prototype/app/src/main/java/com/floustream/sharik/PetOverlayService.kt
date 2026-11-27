@@ -9,7 +9,6 @@ import android.app.Service
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Intent
-import android.graphics.Canvas
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -18,6 +17,7 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.widget.FrameLayout
 
 class PetOverlayService : Service() {
     companion object {
@@ -27,6 +27,8 @@ class PetOverlayService : Service() {
         private const val NOTIFICATION_ID = 741
         private const val TICK_MS = 42L
         private const val HOME_CHECK_MS = 650L
+        private const val OVERLAY_WIDTH_DP = 260
+        private const val OVERLAY_HEIGHT_DP = 190
     }
 
     private lateinit var windowManager: WindowManager
@@ -36,7 +38,6 @@ class PetOverlayService : Service() {
     private val handler = Handler(Looper.getMainLooper())
     private var direction = 1
     private var pose = 0
-    private var frame = 0
     private var dragging = false
     private var homeVisible = false
     private var downX = 0f
@@ -66,8 +67,6 @@ class PetOverlayService : Service() {
                 params.y = params.y.coerceIn(minY, maxY)
                 runCatching { windowManager.updateViewLayout(petView, params) }
             }
-            frame++
-            petView.invalidate()
             handler.postDelayed(this, TICK_MS)
         }
     }
@@ -85,7 +84,7 @@ class PetOverlayService : Service() {
         val prefs = getSharedPreferences("pet", MODE_PRIVATE)
         val bounds = desktopBounds()
         params = WindowManager.LayoutParams(
-            dp(184), dp(184),
+            dp(OVERLAY_WIDTH_DP), dp(OVERLAY_HEIGHT_DP),
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
@@ -97,6 +96,7 @@ class PetOverlayService : Service() {
                 .coerceIn(bounds.minY, bounds.maxY)
         }
         petView = PetView()
+        petView.setPose(pose)
         petView.visibility = View.GONE
         windowManager.addView(petView, params)
         handler.post(ticker)
@@ -136,8 +136,8 @@ class PetOverlayService : Service() {
         val top = dimension("status_bar_height") + dp(12)
         val bottomInset = dimension("navigation_bar_height")
         val minY = top
-        val maxY = (height - bottomInset - dp(12) - dp(184)).coerceAtLeast(minY)
-        val maxX = (width - dp(184)).coerceAtLeast(0)
+        val maxY = (height - bottomInset - dp(12) - dp(OVERLAY_HEIGHT_DP)).coerceAtLeast(minY)
+        val maxX = (width - dp(OVERLAY_WIDTH_DP)).coerceAtLeast(0)
         return DesktopBounds(0, maxX, minY, maxY)
     }
 
@@ -201,14 +201,24 @@ class PetOverlayService : Service() {
             .build()
     }
 
-    private inner class PetView : View(this@PetOverlayService) {
-        private val renderer = DogRenderer()
+    private inner class PetView : FrameLayout(this@PetOverlayService) {
+        private val threeDView = Sharik3DOverlayView(this@PetOverlayService)
 
-        override fun onDraw(canvas: Canvas) {
-            super.onDraw(canvas)
-            val density = resources.displayMetrics.density
-            renderer.draw(canvas, width / density, height / density, pose, frame)
+        init {
+            setWillNotDraw(true)
+            isClickable = true
+            addView(
+                threeDView,
+                LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
+            )
         }
+
+        fun setPose(value: Int) {
+            threeDView.setPose(value)
+        }
+
+        // Keep drag/tap gestures in the overlay service; the 3D viewport stays non-interactive.
+        override fun onInterceptTouchEvent(event: MotionEvent): Boolean = true
 
         override fun onTouchEvent(event: MotionEvent): Boolean {
             when (event.action) {
@@ -230,7 +240,10 @@ class PetOverlayService : Service() {
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     val moved = kotlin.math.abs(event.rawX - downX) + kotlin.math.abs(event.rawY - downY)
                     dragging = false
-                    if (event.action == MotionEvent.ACTION_UP && moved < 12f) pose = (pose + 1) % 3
+                    if (event.action == MotionEvent.ACTION_UP && moved < 12f) {
+                        pose = (pose + 1) % 3
+                        setPose(pose)
+                    }
                     getSharedPreferences("pet", MODE_PRIVATE).edit()
                         .putInt("x", params.x).putInt("y", params.y).apply()
                     return true
