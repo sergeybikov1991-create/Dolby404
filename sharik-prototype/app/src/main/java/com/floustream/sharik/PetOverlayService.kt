@@ -147,15 +147,20 @@ class PetOverlayService : Service() {
 
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
-            val cx = width / 2f
+            val density = resources.displayMetrics.density
+            canvas.save()
+            canvas.scale(density, density)
+            val logicalWidth = width / density
+            val logicalHeight = height / density
+            val cx = logicalWidth / 2f
             val bob = if (pose == 0) sin(frame * 0.42).toFloat() * 5f else 0f
-            val cy = height * 0.53f + bob
+            val cy = logicalHeight * 0.53f + bob
             val headX = if (pose == 2) cx + 20f else cx
             val headY = if (pose == 2) cy - 12f else cy
             val wag = sin(frame * 0.55).toFloat() * 0.42f
 
             p.color = 0x553D4C78
-            canvas.drawOval(cx - 48, height - 28f, cx + 48, height - 12f, p)
+            canvas.drawOval(cx - 48, logicalHeight - 28f, cx + 48, logicalHeight - 12f, p)
 
             canvas.save()
             canvas.rotate(wag * 48f, cx + 37f, cy + 17f)
@@ -211,6 +216,7 @@ class PetOverlayService : Service() {
                 p.typeface = Typeface.DEFAULT_BOLD
                 canvas.drawText("z", cx + 50, cy - 48, p)
             }
+            canvas.restore()
         }
 
         override fun onTouchEvent(event: MotionEvent): Boolean {
