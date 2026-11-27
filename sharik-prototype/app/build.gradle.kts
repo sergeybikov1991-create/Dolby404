@@ -76,7 +76,7 @@ val downloadGermanShepherdModel by tasks.registering {
         }
         val gltfJson = String(bytes, 20, jsonLength, StandardCharsets.UTF_8)
         listOf("Idle", "Walk", "Trot", "Run", "Sit", "Bark").forEach { clip ->
-            require(Regex("\\"name\\"\\s*:\\s*\\"$clip\\"").containsMatchIn(gltfJson)) {
+            require(Regex("\"name\"\\s*:\\s*\"$clip\"").containsMatchIn(gltfJson)) {
                 "German Shepherd GLB is missing the expected $clip animation"
             }
         }
